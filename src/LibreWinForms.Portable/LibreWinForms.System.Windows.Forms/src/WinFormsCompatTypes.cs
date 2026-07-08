@@ -4299,6 +4299,11 @@ public class TreeView : Control
         DrawNode?.Invoke(this, e);
     }
 
+    public void RaiseDrawNode(DrawTreeNodeEventArgs e)
+    {
+        OnDrawNode(e);
+    }
+
     protected virtual void OnItemDrag(ItemDragEventArgs e)
     {
         ItemDrag?.Invoke(this, e);

@@ -12,8 +12,11 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Forms = System.Windows.Forms;
 using DrawingBitmap = System.Drawing.Bitmap;
+using DrawingColor = System.Drawing.Color;
+using DrawingGraphics = System.Drawing.Graphics;
 using DrawingImage = System.Drawing.Image;
 using DrawingPixelFormat = System.Drawing.Imaging.PixelFormat;
+using DrawingRectangle = System.Drawing.Rectangle;
 using WpfContextMenu = System.Windows.Controls.ContextMenu;
 using WpfMenuItem = System.Windows.Controls.MenuItem;
 using WpfSeparator = System.Windows.Controls.Separator;
@@ -1393,33 +1396,69 @@ public class WindowsFormsHost : FrameworkElement
         }
 
         const double lineHeight = 18;
+        Forms.TreeNodeStates state = GetTreeNodeState(treeView, node);
         double x = bounds.X + 4 + depth * 14;
         Rect rowBounds = new(bounds.X + 1, y, Math.Max(0, bounds.Width - 2), lineHeight);
-        node.Bounds = new System.Drawing.Rectangle((int)Math.Round(x - bounds.X), (int)Math.Round(y - bounds.Y), Math.Max(0, (int)Math.Round(bounds.Right - x)), (int)lineHeight);
+        DrawingRectangle ownerAllBounds = CreateTreeNodeBounds(bounds, x, y, bounds.Right - x, lineHeight);
 
         if (ReferenceEquals(treeView.SelectedNode, node))
         {
             drawingContext.DrawRectangle(SystemColors.HighlightBrush, null, rowBounds);
         }
 
-        if (node.Nodes.Count > 0)
+        ImageSource? ownerDrawAllSource = null;
+        bool ownerDrawAllDefault = true;
+        if (treeView.DrawMode == Forms.TreeViewDrawMode.OwnerDrawAll)
         {
-            DrawText(drawingContext, node.IsExpanded ? "-" : "+", new Point(x, y + 1), foreground, 12);
-            x += 12;
-        }
-        else
-        {
-            x += 12;
+            node.Bounds = ownerAllBounds;
+            TryRenderTreeNodeOwnerDraw(treeView, node, bounds, ownerAllBounds, lineHeight, state, out ownerDrawAllSource, out ownerDrawAllDefault);
         }
 
-        if (TryGetTreeNodeImageSource(treeView, node, out ImageSource? imageSource))
+        if (treeView.DrawMode != Forms.TreeViewDrawMode.OwnerDrawAll || ownerDrawAllDefault)
         {
-            const double imageSize = 16;
-            drawingContext.DrawImage(imageSource, new Rect(x, y + 1, imageSize, imageSize));
-            x += imageSize + 3;
+            if (node.Nodes.Count > 0)
+            {
+                DrawText(drawingContext, node.IsExpanded ? "-" : "+", new Point(x, y + 1), foreground, 12);
+                x += 12;
+            }
+            else
+            {
+                x += 12;
+            }
+
+            if (TryGetTreeNodeImageSource(treeView, node, out ImageSource? imageSource))
+            {
+                const double imageSize = 16;
+                drawingContext.DrawImage(imageSource, new Rect(x, y + 1, imageSize, imageSize));
+                x += imageSize + 3;
+            }
+
+            DrawingRectangle textBounds = CreateTreeNodeBounds(bounds, x, y, bounds.Right - x, lineHeight);
+            node.Bounds = textBounds;
+
+            ImageSource? ownerDrawTextSource = null;
+            bool ownerDrawTextDefault = true;
+            if (treeView.DrawMode == Forms.TreeViewDrawMode.OwnerDrawText)
+            {
+                TryRenderTreeNodeOwnerDraw(treeView, node, bounds, textBounds, lineHeight, state, out ownerDrawTextSource, out ownerDrawTextDefault);
+            }
+
+            if (treeView.DrawMode != Forms.TreeViewDrawMode.OwnerDrawText || ownerDrawTextDefault)
+            {
+                DrawText(drawingContext, node.Text, new Point(x, y + 1), ReferenceEquals(treeView.SelectedNode, node) ? SystemColors.HighlightTextBrush : foreground, 12);
+            }
+
+            if (ownerDrawTextSource != null)
+            {
+                drawingContext.DrawImage(ownerDrawTextSource, new Rect(bounds.X, y, ownerDrawTextSource.Width, ownerDrawTextSource.Height));
+            }
         }
 
-        DrawText(drawingContext, node.Text, new Point(x, y + 1), ReferenceEquals(treeView.SelectedNode, node) ? SystemColors.HighlightTextBrush : foreground, 12);
+        if (ownerDrawAllSource != null)
+        {
+            drawingContext.DrawImage(ownerDrawAllSource, new Rect(bounds.X, y, ownerDrawAllSource.Width, ownerDrawAllSource.Height));
+        }
+
         y += lineHeight;
 
         if (node.IsExpanded)
@@ -1435,6 +1474,65 @@ public class WindowsFormsHost : FrameworkElement
         }
 
         return y;
+    }
+
+    private static DrawingRectangle CreateTreeNodeBounds(Rect treeBounds, double x, double y, double width, double height)
+    {
+        return new DrawingRectangle(
+            (int)Math.Round(x - treeBounds.X),
+            (int)Math.Round(y - treeBounds.Y),
+            Math.Max(0, (int)Math.Round(width)),
+            Math.Max(0, (int)Math.Round(height)));
+    }
+
+    private static Forms.TreeNodeStates GetTreeNodeState(Forms.TreeView treeView, Forms.TreeNode node)
+    {
+        Forms.TreeNodeStates state = Forms.TreeNodeStates.Default;
+        if (node.Checked)
+        {
+            state |= Forms.TreeNodeStates.Checked;
+        }
+
+        if (ReferenceEquals(treeView.SelectedNode, node))
+        {
+            state |= Forms.TreeNodeStates.Selected;
+            if (treeView.Focused || treeView.ContainsFocus)
+            {
+                state |= Forms.TreeNodeStates.Focused;
+            }
+        }
+
+        return state;
+    }
+
+    private static bool TryRenderTreeNodeOwnerDraw(
+        Forms.TreeView treeView,
+        Forms.TreeNode node,
+        Rect treeBounds,
+        DrawingRectangle eventBounds,
+        double lineHeight,
+        Forms.TreeNodeStates state,
+        out ImageSource? imageSource,
+        out bool drawDefault)
+    {
+        imageSource = null;
+        drawDefault = true;
+
+        int bitmapWidth = Math.Max(1, (int)Math.Ceiling(treeBounds.Width));
+        int bitmapHeight = Math.Max(1, (int)Math.Ceiling(lineHeight));
+        using DrawingBitmap bitmap = new(bitmapWidth, bitmapHeight, DrawingPixelFormat.Format32bppPArgb);
+        using DrawingGraphics graphics = DrawingGraphics.FromImage(bitmap);
+        graphics.Clear(DrawingColor.Transparent);
+        graphics.TranslateTransform(0, -eventBounds.Y);
+
+        Forms.DrawTreeNodeEventArgs eventArgs = new(graphics, node, eventBounds)
+        {
+            State = state
+        };
+        treeView.RaiseDrawNode(eventArgs);
+        drawDefault = eventArgs.DrawDefault;
+        imageSource = CreateImageSource(bitmap);
+        return imageSource != null;
     }
 
     private bool TryGetTreeNodeImageSource(Forms.TreeView treeView, Forms.TreeNode node, out ImageSource? imageSource)
