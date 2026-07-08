@@ -749,8 +749,24 @@ namespace System.ComponentModel.Design
         {
             ArgumentNullException.ThrowIfNull(component);
             ArgumentNullException.ThrowIfNull(e);
+
             string? methodName = GetEventMethodName(component, e);
-            return methodName is not null && ShowCode(component, e, methodName);
+            bool createdMethodBinding = false;
+            if (string.IsNullOrWhiteSpace(methodName))
+            {
+                methodName = CreateUniqueMethodName(component, e);
+                if (string.IsNullOrWhiteSpace(methodName))
+                    return false;
+
+                SetEventMethodName(component, e, methodName);
+                createdMethodBinding = true;
+            }
+
+            bool shown = ShowCode(component, e, methodName);
+            if (!shown && createdMethodBinding)
+                SetEventMethodName(component, e, null);
+
+            return shown;
         }
 
         private string? GetEventMethodName(IComponent component, EventDescriptor e)
