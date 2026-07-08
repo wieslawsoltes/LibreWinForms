@@ -39,6 +39,8 @@ namespace System.Resources
 
     public sealed class ResXDataNode
     {
+        private readonly string? _basePath;
+
         public ResXDataNode(string name, object? value)
             : this(name, value, null)
         {
@@ -52,9 +54,15 @@ namespace System.Resources
         }
 
         public ResXDataNode(string name, ResXFileRef fileRef)
+            : this(name, fileRef, null)
+        {
+        }
+
+        internal ResXDataNode(string name, ResXFileRef fileRef, string? basePath)
         {
             Name = name ?? throw new ArgumentNullException(nameof(name));
             FileRef = fileRef ?? throw new ArgumentNullException(nameof(fileRef));
+            _basePath = basePath;
         }
 
         public string? Comment { get; set; }
@@ -74,12 +82,12 @@ namespace System.Resources
 
         public object? GetValue(ITypeResolutionService? typeResolver)
         {
-            return FileRef is null ? Value : ResXResourceValueCodec.ReadFileRef(FileRef, null);
+            return FileRef is null ? Value : ResXResourceValueCodec.ReadFileRef(FileRef, _basePath);
         }
 
         public object? GetValue(ITypeResolutionService? typeResolver, string? basePath)
         {
-            return FileRef is null ? Value : ResXResourceValueCodec.ReadFileRef(FileRef, basePath);
+            return FileRef is null ? Value : ResXResourceValueCodec.ReadFileRef(FileRef, basePath ?? _basePath);
         }
     }
 
@@ -191,7 +199,7 @@ namespace System.Resources
             {
                 ResXFileRef? fileRef = ResXResourceValueCodec.TryReadFileRef(valueText, typeName);
                 ResXDataNode node = fileRef is not null
-                    ? new ResXDataNode(name, fileRef)
+                    ? new ResXDataNode(name, fileRef, BasePath)
                     : new ResXDataNode(name, ResXResourceValueCodec.ReadValue(valueText, typeName, mimeType, BasePath));
                 node.Comment = comment;
                 return node;
