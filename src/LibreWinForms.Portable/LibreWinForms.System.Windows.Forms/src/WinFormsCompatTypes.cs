@@ -6267,10 +6267,30 @@ public class DrawItemEventArgs : EventArgs
 
     public void DrawBackground()
     {
+        Brush background = (State & DrawItemState.Selected) != 0
+            ? SystemBrushes.Highlight
+            : (State & DrawItemState.Disabled) != 0
+                ? SystemBrushes.Control
+                : SystemBrushes.Window;
+
+        Graphics.FillRectangle(background, Bounds);
     }
 
     public void DrawFocusRectangle()
     {
+        if ((State & DrawItemState.Focus) == 0 || (State & DrawItemState.NoFocusRect) != 0)
+        {
+            return;
+        }
+
+        Rectangle focusBounds = Bounds;
+        if (focusBounds.Width <= 1 || focusBounds.Height <= 1)
+        {
+            return;
+        }
+
+        focusBounds.Inflate(-1, -1);
+        Graphics.DrawRectangle(SystemPens.WindowText, focusBounds);
     }
 }
 
