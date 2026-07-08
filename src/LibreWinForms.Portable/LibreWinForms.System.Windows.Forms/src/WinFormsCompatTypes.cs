@@ -3090,6 +3090,104 @@ public sealed class ToolTip : Component
     }
 }
 
+public sealed class ErrorProvider : Component, IExtenderProvider, ISupportInitialize
+{
+    private readonly Dictionary<Control, string> _errors = new();
+    private readonly Dictionary<Control, ErrorIconAlignment> _iconAlignments = new();
+    private readonly Dictionary<Control, int> _iconPadding = new();
+
+    public ErrorProvider()
+    {
+    }
+
+    public ErrorProvider(ContainerControl parentControl)
+    {
+        ContainerControl = parentControl;
+    }
+
+    public ErrorProvider(IContainer container)
+    {
+        ArgumentNullException.ThrowIfNull(container);
+        container.Add(this);
+    }
+
+    public int BlinkRate { get; set; } = 250;
+
+    public ErrorBlinkStyle BlinkStyle { get; set; } = ErrorBlinkStyle.BlinkIfDifferentError;
+
+    public ContainerControl? ContainerControl { get; set; }
+
+    public string? DataMember { get; set; }
+
+    public object? DataSource { get; set; }
+
+    public Icon? Icon { get; set; }
+
+    public RightToLeft RightToLeft { get; set; } = RightToLeft.Inherit;
+
+    public bool CanExtend(object extendee)
+    {
+        return extendee is Control;
+    }
+
+    public void BeginInit()
+    {
+    }
+
+    public void EndInit()
+    {
+    }
+
+    public string GetError(Control control)
+    {
+        ArgumentNullException.ThrowIfNull(control);
+        return _errors.TryGetValue(control, out string? value) ? value : string.Empty;
+    }
+
+    public ErrorIconAlignment GetIconAlignment(Control control)
+    {
+        ArgumentNullException.ThrowIfNull(control);
+        return _iconAlignments.TryGetValue(control, out ErrorIconAlignment value) ? value : ErrorIconAlignment.MiddleRight;
+    }
+
+    public int GetIconPadding(Control control)
+    {
+        ArgumentNullException.ThrowIfNull(control);
+        return _iconPadding.TryGetValue(control, out int value) ? value : 0;
+    }
+
+    public void SetError(Control control, string? value)
+    {
+        ArgumentNullException.ThrowIfNull(control);
+
+        if (string.IsNullOrEmpty(value))
+        {
+            _errors.Remove(control);
+        }
+        else
+        {
+            _errors[control] = value;
+        }
+    }
+
+    public void SetIconAlignment(Control control, ErrorIconAlignment value)
+    {
+        ArgumentNullException.ThrowIfNull(control);
+        _iconAlignments[control] = value;
+    }
+
+    public void SetIconPadding(Control control, int padding)
+    {
+        ArgumentNullException.ThrowIfNull(control);
+        _iconPadding[control] = padding;
+    }
+
+    public void Clear()
+    {
+        _errors.Clear();
+    }
+}
+
 public class AxHost : Control
 {
     public sealed class ConnectionPointCookie
@@ -5203,6 +5301,23 @@ public enum BorderStyle
     None = 0,
     FixedSingle = 1,
     Fixed3D = 2
+}
+
+public enum ErrorBlinkStyle
+{
+    BlinkIfDifferentError = 0,
+    AlwaysBlink = 1,
+    NeverBlink = 2
+}
+
+public enum ErrorIconAlignment
+{
+    TopLeft = 0,
+    TopRight = 1,
+    MiddleLeft = 2,
+    MiddleRight = 3,
+    BottomLeft = 4,
+    BottomRight = 5
 }
 
 public class AmbientProperties
