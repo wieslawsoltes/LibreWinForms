@@ -107,6 +107,8 @@ LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.1 ./eng/librewinforms-pack.sh
 
 The package lane builds `LibreWinForms.System.Windows.Forms`, `LibreWinForms.WindowsFormsIntegration`, and `LibreWinForms.Sdk`, verifies README/release docs, writes the preview package manifest, and creates a release bundle with package hashes and a local-feed `NuGet.config`. It also cleans current-version package artifacts before packing and fails if a stale or unexpected current-version `.nupkg` would be published.
 
+The pack script restores through an isolated cache under `artifacts/nuget/librewinforms-pack` by default and clears current-version LibreWPF/ProGPU bridge packages from that cache before restore. This keeps package-mode validation tied to the bridge feed built for the same run instead of a stale same-version package from a user/global NuGet cache.
+
 When validating against unpublished LibreWPF/ProGPU bridge packages, build or restore those packages into a local feed and pass both the bridge package version and restore source:
 
 ```bash

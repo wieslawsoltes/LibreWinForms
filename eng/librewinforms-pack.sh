@@ -12,11 +12,46 @@ export DOTNET_ROLL_FORWARD_TO_PRERELEASE="${DOTNET_ROLL_FORWARD_TO_PRERELEASE:-1
 
 package_output="${LIBREWINFORMS_PACKAGE_OUTPUT:-${repo_root}/artifacts/packages/Release/NonShipping}"
 dev_package_version="${LIBREWINFORMS_DEV_PACKAGE_VERSION:-0.1.0-preview.1}"
+bridge_package_version="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION:-${dev_package_version}}"
 configuration="${LIBREWINFORMS_CONFIGURATION:-Release}"
 restore_sources="${LIBREWINFORMS_RESTORE_SOURCES:-}"
+nuget_packages="${LIBREWINFORMS_NUGET_PACKAGES:-${NUGET_PACKAGES:-${repo_root}/artifacts/nuget/librewinforms-pack}}"
 source "${repo_root}/eng/librewinforms-package-list.sh"
 extra_pack_args=("$@")
 mkdir -p "${package_output}"
+export NUGET_PACKAGES="${nuget_packages}"
+
+bridge_package_ids=(
+  LibreWPF.Interop
+  LibreWPF.Transport
+  ProGPU.Backend
+  ProGPU.Compute
+  ProGPU.Scene
+  ProGPU.SkiaSharp
+  ProGPU.System.Drawing.Common
+  ProGPU.Text
+  ProGPU.Transpiler
+  ProGPU.Vector
+)
+
+package_cache_id() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
+clean_restore_cache() {
+  local package_id
+  local package_cache_path
+
+  for package_id in "${bridge_package_ids[@]}"; do
+    package_cache_path="${NUGET_PACKAGES}/$(package_cache_id "${package_id}")/${bridge_package_version}"
+    rm -rf "${package_cache_path}"
+  done
+
+  for package_id in "${librewinforms_preview_package_ids[@]}"; do
+    package_cache_path="${NUGET_PACKAGES}/$(package_cache_id "${package_id}")/${dev_package_version}"
+    rm -rf "${package_cache_path}"
+  done
+}
 
 clean_release_artifacts() {
   rm -f \
@@ -80,7 +115,7 @@ pack_project() {
     -p:Version="${dev_package_version}"
     -p:PackageVersion="${dev_package_version}"
     -p:LibreWinFormsVersion="${dev_package_version}"
-    -p:LibreWinFormsBridgePackageVersion="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION:-${dev_package_version}}"
+    -p:LibreWinFormsBridgePackageVersion="${bridge_package_version}"
   )
 
   if [[ -n "${restore_sources}" ]]; then
@@ -95,6 +130,7 @@ pack_project() {
 }
 
 clean_release_artifacts
+clean_restore_cache
 
 pack_project "src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj" "LibreWinForms.System.Windows.Forms"
 pack_project "src/LibreWinForms.Portable/LibreWinForms.WindowsFormsIntegration/LibreWinForms.WindowsFormsIntegration.csproj" "LibreWinForms.WindowsFormsIntegration"

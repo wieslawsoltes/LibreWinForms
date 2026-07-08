@@ -40,4 +40,6 @@ The package lane writes:
 
 Before packing, the lane removes current-version package, manifest, bundle, checksum, README, and NuGet.config artifacts from the output directory. After packing, it fails if any expected package is missing or if any unexpected current-version package artifact is present.
 
+The package lane also uses an isolated NuGet cache at `artifacts/nuget/librewinforms-pack` by default and evicts the current LibreWinForms and bridge package versions before restore. Set `LIBREWINFORMS_NUGET_PACKAGES` when a different cache location is required. This keeps local, CI, and release runs from accidentally compiling against an older same-version `LibreWPF.Interop`, `LibreWPF.Transport`, or ProGPU bridge package from the user/global NuGet cache.
+
 The GitHub release workflow runs the same bridge bootstrap and package lane, then publishes to NuGet.org when `NUGET_API_KEY` is configured and the workflow is invoked with publishing enabled or a `librewinforms-v*` tag is pushed. Publish ProGPU and LibreWPF bridge packages for the same version before publishing LibreWinForms so downstream restores can resolve the dependency closure from NuGet.org.
