@@ -1,13 +1,19 @@
 using System.ComponentModel;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Automation.Peers;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Markup;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Forms = System.Windows.Forms;
+using DrawingBitmap = System.Drawing.Bitmap;
+using DrawingImage = System.Drawing.Image;
+using DrawingPixelFormat = System.Drawing.Imaging.PixelFormat;
 using WpfContextMenu = System.Windows.Controls.ContextMenu;
 using WpfMenuItem = System.Windows.Controls.MenuItem;
 using WpfSeparator = System.Windows.Controls.Separator;
@@ -50,6 +56,7 @@ public class WindowsFormsHost : FrameworkElement
     private Forms.Control? _focusedControl;
     private WpfContextMenu? _activeContextMenu;
     private Forms.ContextMenuStrip? _activeContextMenuStrip;
+    private readonly ConditionalWeakTable<DrawingImage, CachedImageSource> _imageSourceCache = new();
 
     public event EventHandler<ChildChangedEventArgs>? ChildChanged;
 
@@ -1405,6 +1412,13 @@ public class WindowsFormsHost : FrameworkElement
             x += 12;
         }
 
+        if (TryGetTreeNodeImageSource(treeView, node, out ImageSource? imageSource))
+        {
+            const double imageSize = 16;
+            drawingContext.DrawImage(imageSource, new Rect(x, y + 1, imageSize, imageSize));
+            x += imageSize + 3;
+        }
+
         DrawText(drawingContext, node.Text, new Point(x, y + 1), ReferenceEquals(treeView.SelectedNode, node) ? SystemColors.HighlightTextBrush : foreground, 12);
         y += lineHeight;
 
@@ -1421,6 +1435,105 @@ public class WindowsFormsHost : FrameworkElement
         }
 
         return y;
+    }
+
+    private bool TryGetTreeNodeImageSource(Forms.TreeView treeView, Forms.TreeNode node, out ImageSource? imageSource)
+    {
+        imageSource = null;
+        Forms.ImageList? imageList = treeView.ImageList;
+        if (imageList == null || imageList.Images.Count == 0)
+        {
+            return false;
+        }
+
+        DrawingImage? image = TryGetTreeNodeImage(treeView, node, imageList);
+        if (image == null)
+        {
+            return false;
+        }
+
+        CachedImageSource cached = _imageSourceCache.GetValue(image, static key => new CachedImageSource(CreateImageSource(key)));
+        imageSource = cached.Source;
+        return imageSource != null;
+    }
+
+    private static DrawingImage? TryGetTreeNodeImage(Forms.TreeView treeView, Forms.TreeNode node, Forms.ImageList imageList)
+    {
+        bool selected = ReferenceEquals(treeView.SelectedNode, node);
+        string key = selected ? node.SelectedImageKey : node.ImageKey;
+        if (!string.IsNullOrEmpty(key))
+        {
+            DrawingImage? keyedImage = imageList.Images[key];
+            if (keyedImage != null)
+            {
+                return keyedImage;
+            }
+        }
+
+        int index = selected ? node.SelectedImageIndex : node.ImageIndex;
+        if (index < 0)
+        {
+            index = selected ? treeView.SelectedImageIndex : treeView.ImageIndex;
+        }
+
+        return index >= 0 && index < imageList.Images.Count ? imageList.Images[index] : null;
+    }
+
+    private static WriteableBitmap? CreateImageSource(DrawingImage image)
+    {
+        DrawingBitmap? bitmap = image as DrawingBitmap;
+        bool ownsBitmap = false;
+        if (bitmap == null)
+        {
+            bitmap = new DrawingBitmap(image);
+            ownsBitmap = true;
+        }
+
+        try
+        {
+            var rect = new System.Drawing.Rectangle(0, 0, bitmap.Width, bitmap.Height);
+            var data = bitmap.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly, DrawingPixelFormat.Format32bppPArgb);
+            try
+            {
+                int byteCount = Math.Abs(data.Stride) * data.Height;
+                byte[] pixels = new byte[byteCount];
+                Marshal.Copy(data.Scan0, pixels, 0, byteCount);
+
+                var source = new WriteableBitmap(bitmap.Width, bitmap.Height, 96, 96, PixelFormats.Pbgra32, null);
+                GCHandle handle = GCHandle.Alloc(pixels, GCHandleType.Pinned);
+                try
+                {
+                    source.WritePixels(new Int32Rect(0, 0, bitmap.Width, bitmap.Height), handle.AddrOfPinnedObject(), byteCount, data.Stride);
+                }
+                finally
+                {
+                    handle.Free();
+                }
+
+                return source;
+            }
+            finally
+            {
+                bitmap.UnlockBits(data);
+            }
+        }
+        finally
+        {
+            if (ownsBitmap)
+            {
+                bitmap.Dispose();
+            }
+        }
+    }
+
+    private sealed class CachedImageSource
+    {
+        public CachedImageSource(ImageSource? source)
+        {
+            Source = source;
+        }
+
+        public ImageSource? Source { get; }
     }
 
     private static void DrawBorder(DrawingContext drawingContext, Forms.BorderStyle borderStyle, Rect bounds)

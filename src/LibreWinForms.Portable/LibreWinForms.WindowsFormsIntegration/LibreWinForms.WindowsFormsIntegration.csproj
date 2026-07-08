@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <PackageReference Include="LibreWPF.Interop" Version="$(LibreWinFormsBridgePackageVersion)" />
+    <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(LibreWinFormsBridgePackageVersion)" />
     <ProjectReference Include="..\LibreWinForms.System.Windows.Forms\LibreWinForms.System.Windows.Forms.csproj" />
     <Reference Include="WindowsBase" HintPath="$(_LibreWpfManagedAssemblyRoot)WindowsBase\$(Configuration)\$(TargetFramework)\WindowsBase.dll" Private="false" />
     <Reference Include="System.Xaml" HintPath="$(_LibreWpfManagedAssemblyRoot)System.Xaml\$(Configuration)\$(TargetFramework)\System.Xaml.dll" Private="false" />
