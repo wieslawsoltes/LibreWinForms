@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>LibreWinForms.WindowsFormsIntegration</PackageId>
+    <Title>LibreWinForms WindowsFormsIntegration</Title>
+    <AssemblyName>WindowsFormsIntegration</AssemblyName>
+    <RootNamespace>System.Windows.Forms.Integration</RootNamespace>
+    <Description>LibreWinForms portable WindowsFormsIntegration host surface for LibreWPF and ProGPU-backed WinForms content.</Description>
+    <IncludeBuildOutput>true</IncludeBuildOutput>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <SignAssembly Condition="Exists('..\..\..\..\ProGPU\eng\ProGPU.snk')">true</SignAssembly>
+    <AssemblyOriginatorKeyFile Condition="Exists('..\..\..\..\ProGPU\eng\ProGPU.snk')">..\..\..\..\ProGPU\eng\ProGPU.snk</AssemblyOriginatorKeyFile>
+    <NoWarn>$(NoWarn);CS0067;CS1591;IDE0005;IDE0073;IDE1006</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <_LibreWpfManagedAssemblyRoot>$(MSBuildThisFileDirectory)..\..\..\..\..\artifacts\bin\</_LibreWpfManagedAssemblyRoot>
+    <_LibreWpfManagedAssemblyRoot Condition="'$(LibreWpfManagedAssemblyRoot)' != ''">$(LibreWpfManagedAssemblyRoot)</_LibreWpfManagedAssemblyRoot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="src\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LibreWPF.Interop" Version="$(LibreWinFormsBridgePackageVersion)" />
+    <ProjectReference Include="..\LibreWinForms.System.Windows.Forms\LibreWinForms.System.Windows.Forms.csproj" />
+    <Reference Include="WindowsBase" HintPath="$(_LibreWpfManagedAssemblyRoot)WindowsBase\$(Configuration)\$(TargetFramework)\WindowsBase.dll" Private="false" />
+    <Reference Include="System.Xaml" HintPath="$(_LibreWpfManagedAssemblyRoot)System.Xaml\$(Configuration)\$(TargetFramework)\System.Xaml.dll" Private="false" />
+    <Reference Include="PresentationCore" HintPath="$(_LibreWpfManagedAssemblyRoot)PresentationCore\$(Configuration)\$(TargetFramework)\PresentationCore.dll" Private="false" />
+    <Reference Include="PresentationFramework" HintPath="$(_LibreWpfManagedAssemblyRoot)PresentationFramework\$(Configuration)\$(TargetFramework)\PresentationFramework.dll" Private="false" />
+  </ItemGroup>
+</Project>

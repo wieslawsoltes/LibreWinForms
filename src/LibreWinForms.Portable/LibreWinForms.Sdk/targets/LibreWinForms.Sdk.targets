@@ -1,0 +1,22 @@
+<Project>
+  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Package' And '$(ManagePackageVersionsCentrally)' != 'true'">
+    <PackageReference Include="LibreWinForms.System.Windows.Forms" Version="$(LibreWinFormsPackageVersion)" Condition="'$(LibreWinFormsUseSystemWindowsForms)' == 'true'" />
+    <PackageReference Include="LibreWinForms.WindowsFormsIntegration" Version="$(LibreWinFormsPackageVersion)" Condition="'$(LibreWinFormsUseWindowsFormsIntegration)' == 'true'" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Package' And '$(ManagePackageVersionsCentrally)' == 'true'">
+    <PackageReference Include="LibreWinForms.System.Windows.Forms" VersionOverride="$(LibreWinFormsPackageVersion)" Condition="'$(LibreWinFormsUseSystemWindowsForms)' == 'true'" />
+    <PackageReference Include="LibreWinForms.WindowsFormsIntegration" VersionOverride="$(LibreWinFormsPackageVersion)" Condition="'$(LibreWinFormsUseWindowsFormsIntegration)' == 'true'" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'LocalArtifacts' And '$(LibreWinFormsReferenceRoot)' != ''">
+    <Reference Include="System.Windows.Forms" HintPath="$(LibreWinFormsReferenceRoot)System.Windows.Forms.dll" Private="true" Condition="Exists('$(LibreWinFormsReferenceRoot)System.Windows.Forms.dll')" />
+    <Reference Include="WindowsFormsIntegration" HintPath="$(LibreWinFormsReferenceRoot)WindowsFormsIntegration.dll" Private="true" Condition="'$(LibreWinFormsUseWindowsFormsIntegration)' == 'true' And Exists('$(LibreWinFormsReferenceRoot)WindowsFormsIntegration.dll')" />
+  </ItemGroup>
+
+  <Target Name="_LibreWinFormsSdkReportConfiguration"
+          BeforeTargets="PrepareForBuild"
+          Condition="'$(LibreWinFormsEnableSdkDiagnostics)' == 'true'">
+    <Message Importance="High" Text="LibreWinForms.Sdk platform=$(LibreWinFormsPlatform) backend=$(LibreWinFormsRenderingBackend) referenceMode=$(LibreWinFormsReferenceMode)" />
+  </Target>
+</Project>

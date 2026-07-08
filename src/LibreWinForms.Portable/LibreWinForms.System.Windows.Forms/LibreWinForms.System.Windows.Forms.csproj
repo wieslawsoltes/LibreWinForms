@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>LibreWinForms.System.Windows.Forms</PackageId>
+    <Title>LibreWinForms System.Windows.Forms</Title>
+    <AssemblyName>System.Windows.Forms</AssemblyName>
+    <RootNamespace>System.Windows.Forms</RootNamespace>
+    <Description>LibreWinForms portable System.Windows.Forms API surface backed by ProGPU/Silk.NET-compatible services.</Description>
+    <IncludeBuildOutput>true</IncludeBuildOutput>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <SignAssembly Condition="Exists('..\..\..\..\ProGPU\eng\ProGPU.snk')">true</SignAssembly>
+    <AssemblyOriginatorKeyFile Condition="Exists('..\..\..\..\ProGPU\eng\ProGPU.snk')">..\..\..\..\ProGPU\eng\ProGPU.snk</AssemblyOriginatorKeyFile>
+    <NoWarn>$(NoWarn);CS1591;CA1051;CA1815;IDE0005;IDE0073;IDE0300;IDE1006</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="src\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.CodeDom" Version="10.0.0" />
+    <PackageReference Include="LibreWPF.Interop" Version="$(LibreWinFormsBridgePackageVersion)" />
+    <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(LibreWinFormsBridgePackageVersion)" />
+  </ItemGroup>
+</Project>

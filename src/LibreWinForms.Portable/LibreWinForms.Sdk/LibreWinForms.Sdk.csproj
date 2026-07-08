@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>LibreWinForms.Sdk</PackageId>
+    <Title>LibreWinForms SDK</Title>
+    <Description>SDK package for cross-platform WinForms applications running on LibreWinForms, Silk.NET, and ProGPU.</Description>
+    <PackageType>MSBuildSdk</PackageType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="Sdk\**\*" Pack="true" PackagePath="Sdk\" />
+    <None Include="targets\**\*" Pack="true" PackagePath="targets\" />
+  </ItemGroup>
+</Project>

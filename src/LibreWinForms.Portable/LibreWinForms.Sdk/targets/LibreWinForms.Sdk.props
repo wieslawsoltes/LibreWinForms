@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <LibreWinFormsPlatform Condition="'$(LibreWinFormsPlatform)' == ''">SilkNet</LibreWinFormsPlatform>
+    <LibreWinFormsRenderingBackend Condition="'$(LibreWinFormsRenderingBackend)' == ''">ProGPU</LibreWinFormsRenderingBackend>
+  </PropertyGroup>
+</Project>
