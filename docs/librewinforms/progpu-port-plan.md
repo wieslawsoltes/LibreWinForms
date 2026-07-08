@@ -69,12 +69,14 @@ Current validation:
 - The portable design host provides `INameCreationService`, assigns stable names to unnamed created components, serializes newly added controls through fields/properties/parent `Controls.Add(...)`, and cleans parent/name/event state during `DestroyComponent(...)` so deleted controls do not reappear in regenerated CodeDOM.
 - The portable CodeDOM loader now evaluates `ComponentResourceManager.GetObject(...)`, `GetString(...)`, `GetStream(...)`, and `ApplyResources(...)`, including a typed property-descriptor fallback over resolved resource-set entries for portable controls. The serializer preserves `CodeDomLocalizationModel.PropertyReflection` shape by emitting `resources.ApplyResources(...)` calls for the root and named components when a `CodeDomLocalizationProvider` requests it.
 - `IEventBindingService.ShowCode(component, event)` now creates and publishes a unique handler name when one is not already assigned, then delegates handler insertion/source navigation to the active app-provided service override and rolls the new binding back if navigation fails.
+- The source-owned `System.Windows.Forms.dll` package now provides the portable WinForms ResX API slice (`ResXFileRef`, `ResXDataNode`, `ResXResourceReader`, and `ResXResourceWriter`) needed by SharpDevelop resource editing and localized designer files. Focused tests validate values, metadata, node round trips, comments, and relative file references through `BasePath`.
 - ProGPU `System.Drawing.Common` now supports source-rect image draws and `ImageAttributes.ColorMatrix` through the native image-effect shader path. This is required for SharpDevelop ghosted icons, grayscale images, and overlay sprite extraction, and it belongs in ProGPU so future upstream WinForms managed code can call normal drawing APIs.
 - The latest fresh-cache SharpDevelop combined smoke validates menus, context menus, combo boxes, resource smoke, solution build, FormsDesigner load, FormsDesigner property mutation, hosted PropertyGrid, direct WinForms `ContextMenuStrip`, and editor completion against refreshed `LibreWinForms.System.Windows.Forms`, `ProGPU.Scene`, `ProGPU.System.Drawing.Common`, and `ProGPU.Dxf` packages.
 
 Next validation level:
 
-- Broaden CodeDOM replay and serializer/code-generation round trips for real SharpDevelop source-navigation smoke, resource-file writing, toolbox placement details, and more controls.
+- Disable SharpDevelop's transitional local `System.Resources.ResX*` shim when validating against current LibreWinForms packages, then run a fresh-cache SharpDevelop resource-editor/resource-file save round trip through the package-owned ResX API.
+- Broaden CodeDOM replay and serializer/code-generation round trips for real SharpDevelop source-navigation smoke, toolbox placement details, and more controls.
 - Replace the copied compatibility control implementations with upstream managed WinForms source groups while preserving the existing source-owned package outputs.
 - Make the normal LibreWPF SDK pack workflow restore from the required WPF private feeds so the package-mode validation feed can be rebuilt without ad hoc artifact refreshes.
 
