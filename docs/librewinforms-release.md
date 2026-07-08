@@ -12,7 +12,24 @@ Run the local package lane:
 LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.1 ./eng/librewinforms-pack.sh
 ```
 
-Additional MSBuild properties can be passed after the script name, for example when validating the standalone clone against a local LibreWPF artifact root.
+LibreWinForms depends on matching LibreWPF/ProGPU bridge packages for `LibreWPF.Transport`, `LibreWPF.Interop`, and `ProGPU.System.Drawing.Common`. CI and release workflows build those bridge packages from `wieslawsoltes/wpf@progpu-rendering-port` and pass the resulting local feed through `LIBREWINFORMS_RESTORE_SOURCES`.
+
+For local validation against unpublished bridge packages:
+
+```bash
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.1 \
+LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.1 \
+LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShipping%3Bhttps://api.nuget.org/v3/index.json \
+./eng/librewinforms-pack.sh
+```
+
+Additional MSBuild properties can be passed after the script name, for example when validating the standalone clone against a local LibreWPF artifact root:
+
+```bash
+LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.1 \
+LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShipping%3Bhttps://api.nuget.org/v3/index.json \
+./eng/librewinforms-pack.sh -p:LibreWpfManagedAssemblyRoot=/path/to/wpf/artifacts/bin/
+```
 
 The package lane writes:
 
@@ -23,4 +40,4 @@ The package lane writes:
 
 Before packing, the lane removes current-version package, manifest, bundle, checksum, README, and NuGet.config artifacts from the output directory. After packing, it fails if any expected package is missing or if any unexpected current-version package artifact is present.
 
-The GitHub release workflow runs the same package lane and publishes to NuGet.org when `NUGET_API_KEY` is configured and the workflow is invoked with publishing enabled or a `librewinforms-v*` tag is pushed.
+The GitHub release workflow runs the same bridge bootstrap and package lane, then publishes to NuGet.org when `NUGET_API_KEY` is configured and the workflow is invoked with publishing enabled or a `librewinforms-v*` tag is pushed. Publish ProGPU and LibreWPF bridge packages for the same version before publishing LibreWinForms so downstream restores can resolve the dependency closure from NuGet.org.

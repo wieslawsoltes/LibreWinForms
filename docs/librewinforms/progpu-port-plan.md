@@ -75,10 +75,16 @@ Current validation:
 - ProGPU `System.Drawing.Common` now supports source-rect image draws and `ImageAttributes.ColorMatrix` through the native image-effect shader path. This is required for SharpDevelop ghosted icons, grayscale images, and overlay sprite extraction, and it belongs in ProGPU so future upstream WinForms managed code can call normal drawing APIs.
 - The latest fresh-cache SharpDevelop combined smoke validates menus, context menus, combo boxes, resource smoke, solution build, FormsDesigner load, FormsDesigner property mutation, hosted PropertyGrid, direct WinForms `ContextMenuStrip`, and editor completion against refreshed `LibreWinForms.System.Windows.Forms`, `ProGPU.Scene`, `ProGPU.System.Drawing.Common`, and `ProGPU.Dxf` packages.
 - The latest shutdown smoke also validates that queued LibreWPF hit-test callbacks fail closed after ProGPU WPF target/host disposal; no render-loop reset, dispatcher hit-test, or `PictureBox` initialization exception remains in the captured SharpDevelop log.
+- `Control.Validating` and `Control.Validated` are now part of the source-owned compatibility surface and are raised during focus-loss validation. This covers SharpDevelop/ResourceToolkit dialogs that expect the standard WinForms validation event contract.
+- The LibreWinForms CI and release workflows now bootstrap matching LibreWPF/ProGPU bridge packages from `wieslawsoltes/wpf` branch `progpu-rendering-port` before packing. `LibreWinForms.WindowsFormsIntegration` uses the `LibreWPF.Transport` package by default and keeps direct WPF assembly references only for explicit local artifact-root validation.
+- GitHub repository metadata now matches the LibreWinForms lane: default branch `librewinforms-progpu-port`, LibreWinForms/WinForms/ProGPU/Silk.NET description, and cross-platform .NET SDK topics.
+- The README package section is split into main LibreWinForms packages and bridge packages with NuGet badge columns, matching the LibreWPF documentation style.
+- Latest package validation with a fresh cache and local bridge feed creates `LibreWinForms.System.Windows.Forms`, `LibreWinForms.WindowsFormsIntegration`, `LibreWinForms.Sdk`, the package manifest, the release bundle, and the checksum. Public-feed-only packing remains blocked until `ProGPU.System.Drawing.Common` and matching LibreWPF bridge packages are published for the selected preview.
 
 Next validation level:
 
 - Broaden SharpDevelop resource-editor/resource-file save/load coverage beyond the current `LIBREWPF_SHARPDEVELOP_RESX_SMOKE=1` pass.
+- Keep the workflow bridge bootstrap green on GitHub after ProGPU and LibreWPF preview packages publish, then remove reliance on local SharpDevelop feeds for the release lane.
 - Broaden CodeDOM replay and serializer/code-generation round trips for real SharpDevelop source-navigation smoke, toolbox placement details, and more controls.
 - Replace the copied compatibility control implementations with upstream managed WinForms source groups while preserving the existing source-owned package outputs.
 - Make the normal LibreWPF SDK pack workflow restore from the required WPF private feeds so the package-mode validation feed can be rebuilt without ad hoc artifact refreshes.

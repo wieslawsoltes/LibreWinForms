@@ -7,6 +7,10 @@ on:
         description: NuGet package version to build.
         required: true
         default: 0.1.0-preview.1
+      bridge_version:
+        description: LibreWPF/ProGPU bridge package version to build against. Defaults to version.
+        required: false
+        default: ''
       publish:
         description: Push packages to NuGet.org after validation.
         required: true
@@ -23,11 +27,19 @@ jobs:
   preview:
     name: Build preview packages
     runs-on: macos-15
-    timeout-minutes: 60
+    timeout-minutes: 180
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Checkout LibreWPF bridge packages
+        uses: actions/checkout@v4
+        with:
+          repository: wieslawsoltes/wpf
+          ref: progpu-rendering-port
+          path: wpf-bridge
+          submodules: recursive
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -43,14 +55,31 @@ jobs:
           else
             version="${{ inputs.version }}"
           fi
+          bridge_version="${{ inputs.bridge_version }}"
+          if [[ -z "${bridge_version}" ]]; then
+            bridge_version="${version}"
+          fi
           echo "LIBREWINFORMS_DEV_PACKAGE_VERSION=${version}" >> "${GITHUB_ENV}"
+          echo "LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=${bridge_version}" >> "${GITHUB_ENV}"
           echo "Resolved LibreWinForms package version: ${version}"
+          echo "Resolved LibreWPF/ProGPU bridge package version: ${bridge_version}"
 
       - name: Verify docs
         run: ./eng/librewinforms-verify-docs.sh
 
+      - name: Build LibreWPF bridge packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd wpf-bridge
+          PROGPU_WPF_DEV_PACKAGE_VERSION="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION}" ./eng/progpu-wpf-sdk-ci.sh
+
       - name: Build and pack
-        run: ./eng/librewinforms-pack.sh
+        shell: bash
+        run: |
+          set -euo pipefail
+          export LIBREWINFORMS_RESTORE_SOURCES="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping;https://api.nuget.org/v3/index.json"
+          ./eng/librewinforms-pack.sh
 
       - name: Upload preview packages
         uses: actions/upload-artifact@v4

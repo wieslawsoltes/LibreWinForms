@@ -81,11 +81,23 @@ dotnet run
 
 The preview package set is defined in `eng/librewinforms-package-list.sh` and validated by the release workflow.
 
+### LibreWinForms Packages
+
 | Package | NuGet | Purpose |
 | --- | --- | --- |
 | `LibreWinForms.Sdk` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.Sdk.svg)](https://www.nuget.org/packages/LibreWinForms.Sdk) | Custom MSBuild SDK that redirects WinForms apps to the portable LibreWinForms package set. |
 | `LibreWinForms.System.Windows.Forms` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.System.Windows.Forms.svg)](https://www.nuget.org/packages/LibreWinForms.System.Windows.Forms) | Portable `System.Windows.Forms` API/runtime surface used by LibreWinForms apps. |
 | `LibreWinForms.WindowsFormsIntegration` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.WindowsFormsIntegration.svg)](https://www.nuget.org/packages/LibreWinForms.WindowsFormsIntegration) | Portable `WindowsFormsIntegration` bridge for LibreWPF-hosted WinForms content. |
+
+### Bridge Packages
+
+LibreWinForms consumes these bridge packages from the matching LibreWPF/ProGPU preview. CI and release workflows build a local bridge feed from `wieslawsoltes/wpf@progpu-rendering-port` before packing LibreWinForms, so the WinForms package lane can validate before the bridge packages are available on NuGet.org.
+
+| Package | NuGet | Purpose |
+| --- | --- | --- |
+| `LibreWPF.Transport` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWPF.Transport.svg)](https://www.nuget.org/packages/LibreWPF.Transport) | Managed WPF assembly identities and reference/runtime assets consumed by `WindowsFormsIntegration`. |
+| `LibreWPF.Interop` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWPF.Interop.svg)](https://www.nuget.org/packages/LibreWPF.Interop) | Portable service DTOs and typed interop contracts shared with LibreWPF and ProGPU. |
+| `ProGPU.System.Drawing.Common` | [![NuGet](https://img.shields.io/nuget/vpre/ProGPU.System.Drawing.Common.svg)](https://www.nuget.org/packages/ProGPU.System.Drawing.Common) | ProGPU-backed portable `System.Drawing.Common` compatibility surface used by WinForms controls and resources. |
 
 ## Build And Release
 
@@ -95,11 +107,20 @@ LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.1 ./eng/librewinforms-pack.sh
 
 The package lane builds `LibreWinForms.System.Windows.Forms`, `LibreWinForms.WindowsFormsIntegration`, and `LibreWinForms.Sdk`, verifies README/release docs, writes the preview package manifest, and creates a release bundle with package hashes and a local-feed `NuGet.config`. It also cleans current-version package artifacts before packing and fails if a stale or unexpected current-version `.nupkg` would be published.
 
+When validating against unpublished LibreWPF/ProGPU bridge packages, build or restore those packages into a local feed and pass both the bridge package version and restore source:
+
+```bash
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.1 \
+LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.1 \
+LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShipping%3Bhttps://api.nuget.org/v3/index.json \
+./eng/librewinforms-pack.sh
+```
+
 GitHub workflows:
 
-- `LibreWinForms Build` runs the preview package lane and uploads package artifacts.
+- `LibreWinForms Build` builds the matching LibreWPF/ProGPU bridge feed, runs the preview package lane, and uploads package artifacts.
 - `LibreWinForms Docs` verifies README and release docs against the preview package list.
-- `LibreWinForms Release` builds preview packages/bundle artifacts, can publish to NuGet.org with `NUGET_API_KEY`, and creates a GitHub release for `librewinforms-v*` tags.
+- `LibreWinForms Release` builds the matching bridge feed, builds preview packages/bundle artifacts, can publish to NuGet.org with `NUGET_API_KEY`, and creates a GitHub release for `librewinforms-v*` tags.
 
 See [docs/librewinforms-release.md](docs/librewinforms-release.md) and the ongoing port plan in [docs/librewinforms/progpu-port-plan.md](docs/librewinforms/progpu-port-plan.md).
 

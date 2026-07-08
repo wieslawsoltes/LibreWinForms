@@ -17,19 +17,41 @@ jobs:
   packages:
     name: Package lane
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 120
+    env:
+      LIBREWINFORMS_DEV_PACKAGE_VERSION: 0.1.0-preview.1
+      LIBREWINFORMS_BRIDGE_PACKAGE_VERSION: 0.1.0-preview.1
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Checkout LibreWPF bridge packages
+        uses: actions/checkout@v4
+        with:
+          repository: wieslawsoltes/wpf
+          ref: progpu-rendering-port
+          path: wpf-bridge
+          submodules: recursive
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
 
+      - name: Build LibreWPF bridge packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd wpf-bridge
+          PROGPU_WPF_DEV_PACKAGE_VERSION="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION}" ./eng/progpu-wpf-sdk-ci.sh
+
       - name: Pack LibreWinForms
-        run: ./eng/librewinforms-pack.sh
+        shell: bash
+        run: |
+          set -euo pipefail
+          export LIBREWINFORMS_RESTORE_SOURCES="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping;https://api.nuget.org/v3/index.json"
+          ./eng/librewinforms-pack.sh
 
       - name: Upload packages
         uses: actions/upload-artifact@v4
