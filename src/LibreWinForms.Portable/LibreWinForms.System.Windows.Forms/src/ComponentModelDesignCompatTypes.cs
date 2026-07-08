@@ -108,7 +108,7 @@ namespace System.ComponentModel.Design
         }
     }
 
-    internal sealed class PortableDesignerHost : IDesignerLoaderHost, IDesignerLoaderHost2, IDesignerSerializationManager, IComponentChangeService, ISelectionService
+    internal sealed class PortableDesignerHost : IDesignerLoaderHost, IDesignerLoaderHost2, IDesignerSerializationManager, IComponentChangeService, ISelectionService, INameCreationService
     {
         private readonly IServiceProvider? _serviceProvider;
         private readonly Container _container = new();
@@ -209,10 +209,14 @@ namespace System.ComponentModel.Design
             if (instance is not IComponent component)
                 throw new InvalidOperationException(componentClass.FullName + " is not a component.");
 
+            string? componentName = string.IsNullOrWhiteSpace(name)
+                ? CreateName(_container, componentClass)
+                : name;
+            ValidateName(componentName);
+
             ComponentAdding?.Invoke(this, new ComponentEventArgs(component));
-            _container.Add(component, name);
-            if (!string.IsNullOrEmpty(name))
-                SetName(component, name);
+            _container.Add(component, componentName);
+            SetName(component, componentName);
             if (RootComponent is null)
             {
                 RootComponent = component;
@@ -243,7 +247,20 @@ namespace System.ComponentModel.Design
                 return;
 
             ComponentRemoving?.Invoke(this, new ComponentEventArgs(component));
+            if (component is Control control && control.Parent is not null)
+            {
+                control.Parent.Controls.Remove(control);
+            }
+
             _container.Remove(component);
+            RemoveName(component);
+            _eventBindingService.RemoveComponent(component);
+            if (ReferenceEquals(RootComponent, component))
+            {
+                RootComponent = null;
+            }
+
+            component.Dispose();
             ComponentRemoved?.Invoke(this, new ComponentEventArgs(component));
         }
 
@@ -303,6 +320,8 @@ namespace System.ComponentModel.Design
                 return this;
             if (serviceType == typeof(IEventBindingService))
                 return _serviceProvider?.GetService(serviceType) ?? _eventBindingService;
+            if (serviceType == typeof(INameCreationService))
+                return _serviceProvider?.GetService(serviceType) ?? this;
 
             return _serviceProvider?.GetService(serviceType);
         }
@@ -450,6 +469,70 @@ namespace System.ComponentModel.Design
             _names[instance] = name;
             if (instance is IComponent component && component.Site is not null)
                 component.Site.Name = name;
+        }
+
+        private void RemoveName(object instance)
+        {
+            if (instance is null)
+                return;
+
+            if (_names.Remove(instance, out string? name))
+            {
+                _instances.Remove(name);
+            }
+        }
+
+        public string CreateName(IContainer container, Type dataType)
+        {
+            ArgumentNullException.ThrowIfNull(dataType);
+
+            string baseName = dataType.Name;
+            if (string.IsNullOrWhiteSpace(baseName))
+                baseName = "component";
+            baseName = char.ToLowerInvariant(baseName[0]) + baseName[1..];
+
+            int index = 1;
+            string candidate;
+            do
+            {
+                candidate = baseName + index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                index++;
+            }
+            while (!IsNameAvailable(container, candidate));
+
+            return candidate;
+        }
+
+        public bool IsValidName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name) ||
+                !(char.IsLetter(name[0]) || name[0] == '_'))
+            {
+                return false;
+            }
+
+            for (int i = 1; i < name.Length; i++)
+            {
+                char ch = name[i];
+                if (!char.IsLetterOrDigit(ch) && ch != '_')
+                    return false;
+            }
+
+            return true;
+        }
+
+        public void ValidateName(string name)
+        {
+            if (!IsValidName(name))
+                throw new ArgumentException("Invalid component name '" + name + "'.", nameof(name));
+        }
+
+        private bool IsNameAvailable(IContainer? container, string name)
+        {
+            if (_instances.ContainsKey(name))
+                return false;
+
+            return container?.Components[name] is null;
         }
 
         public void OnComponentChanged(object component, MemberDescriptor? member, object? oldValue, object? newValue)
@@ -694,6 +777,11 @@ namespace System.ComponentModel.Design
             EventDescriptor? eventDescriptor = TypeDescriptor.GetEvents(component).Find(eventName, false);
             if (eventDescriptor is not null)
                 SetEventMethodName(component, eventDescriptor, methodName);
+        }
+
+        internal void RemoveComponent(IComponent component)
+        {
+            _eventMethods.Remove(component);
         }
 
         private void SetEventMethodName(IComponent component, EventDescriptor e, string? methodName)
