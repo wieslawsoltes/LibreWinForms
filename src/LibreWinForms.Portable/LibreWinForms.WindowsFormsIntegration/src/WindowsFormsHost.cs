@@ -234,6 +234,14 @@ public class WindowsFormsHost : FrameworkElement
         target.RaiseMouseDown(mouseEventArgs);
         ApplyDefaultSelection(target, localPoint);
 
+        if (e.ChangedButton == MouseButton.Left
+            && target is Forms.ComboBox comboBox
+            && TryShowComboBoxDropDown(comboBox))
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (e.ChangedButton == MouseButton.Right && TryShowContextMenu(target, localPoint))
         {
             e.Handled = true;
@@ -499,6 +507,59 @@ public class WindowsFormsHost : FrameworkElement
         return ShowContextMenuStrip(contextMenuStrip, hostPoint);
     }
 
+    private bool TryShowComboBoxDropDown(Forms.ComboBox comboBox)
+    {
+        if (_child == null
+            || comboBox.Items.Count == 0
+            || !TryGetHostPoint(_child, comboBox, new System.Drawing.Point(0, comboBox.Height), out Point hostPoint))
+        {
+            return false;
+        }
+
+        var contextMenu = new WpfContextMenu
+        {
+            PlacementTarget = this,
+            Placement = PlacementMode.RelativePoint,
+            HorizontalOffset = hostPoint.X,
+            VerticalOffset = hostPoint.Y,
+            MinWidth = Math.Max(0, comboBox.Width)
+        };
+
+        CloseActiveContextMenu();
+        for (int i = 0; i < comboBox.Items.Count; i++)
+        {
+            int itemIndex = i;
+            var menuItem = new WpfMenuItem
+            {
+                Header = comboBox.Items[i]?.ToString() ?? string.Empty,
+                IsCheckable = true,
+                IsChecked = itemIndex == comboBox.SelectedIndex
+            };
+            menuItem.Click += delegate
+            {
+                comboBox.SelectedIndex = itemIndex;
+                contextMenu.IsOpen = false;
+            };
+            contextMenu.Items.Add(menuItem);
+        }
+
+        contextMenu.Closed += delegate
+        {
+            comboBox.DroppedDown = false;
+            if (ReferenceEquals(_activeContextMenu, contextMenu))
+            {
+                _activeContextMenu = null;
+                _activeContextMenuStrip = null;
+            }
+        };
+
+        _activeContextMenu = contextMenu;
+        _activeContextMenuStrip = null;
+        comboBox.DroppedDown = true;
+        contextMenu.IsOpen = true;
+        return true;
+    }
+
     private static bool TryGetHostPoint(Forms.Control root, Forms.Control source, System.Drawing.Point sourcePoint, out Point hostPoint)
     {
         double x = sourcePoint.X;
@@ -637,6 +698,9 @@ public class WindowsFormsHost : FrameworkElement
                 checkedListBox.SelectedIndex = index;
                 checkedListBox.TryToggleItemAt(x, y);
             }
+        }
+        else if (target is Forms.ComboBox)
+        {
         }
         else if (target is Forms.ListBox listBox)
         {
@@ -1063,7 +1127,18 @@ public class WindowsFormsHost : FrameworkElement
 
         string text = comboBox.SelectedItem?.ToString() ?? comboBox.Text;
         Rect textBounds = new(bounds.X + 5, bounds.Y + 2, Math.Max(0, bounds.Width - 24), Math.Max(0, bounds.Height - 4));
-        DrawTextInBounds(drawingContext, text, textBounds, comboBox.Enabled ? foreground : SystemColors.GrayTextBrush, 12);
+        ImageSource? ownerDrawSource = null;
+        bool ownerDrawn = comboBox.SelectedIndex >= 0
+            && comboBox.DrawMode != Forms.DrawMode.Normal
+            && TryRenderListItemOwnerDraw(comboBox, comboBox.SelectedIndex, textBounds, out ownerDrawSource);
+        if (ownerDrawn && ownerDrawSource != null)
+        {
+            drawingContext.DrawImage(ownerDrawSource, textBounds);
+        }
+        else
+        {
+            DrawTextInBounds(drawingContext, text, textBounds, comboBox.Enabled ? foreground : SystemColors.GrayTextBrush, 12);
+        }
 
         Rect buttonBounds = new(Math.Max(bounds.X, bounds.Right - 18), bounds.Y + 1, 17, Math.Max(0, bounds.Height - 2));
         drawingContext.DrawRectangle(SystemColors.ControlBrush, new Pen(SystemColors.ControlDarkBrush, 1), buttonBounds);
@@ -1107,15 +1182,59 @@ public class WindowsFormsHost : FrameworkElement
                 textX += 18;
             }
 
-            string text = listBox.Items[i]?.ToString() ?? string.Empty;
-            DrawTextInBounds(
-                drawingContext,
-                text,
-                new Rect(textX, rowBounds.Y + 1, Math.Max(0, rowBounds.Right - textX - 2), lineHeight - 2),
-                selected ? SystemColors.HighlightTextBrush : foreground,
-                12);
+            Rect itemTextBounds = new(textX, rowBounds.Y + 1, Math.Max(0, rowBounds.Right - textX - 2), lineHeight - 2);
+            ImageSource? ownerDrawSource = null;
+            bool ownerDrawn = listBox.DrawMode != Forms.DrawMode.Normal
+                && TryRenderListItemOwnerDraw(listBox, i, itemTextBounds, out ownerDrawSource);
+            if (ownerDrawn && ownerDrawSource != null)
+            {
+                drawingContext.DrawImage(ownerDrawSource, itemTextBounds);
+            }
+            else
+            {
+                string text = listBox.Items[i]?.ToString() ?? string.Empty;
+                DrawTextInBounds(
+                    drawingContext,
+                    text,
+                    itemTextBounds,
+                    selected ? SystemColors.HighlightTextBrush : foreground,
+                    12);
+            }
             y += lineHeight;
         }
+    }
+
+    private static bool TryRenderListItemOwnerDraw(Forms.ListBox listBox, int index, Rect itemBounds, out ImageSource? imageSource)
+    {
+        imageSource = null;
+        int bitmapWidth = Math.Max(1, (int)Math.Ceiling(itemBounds.Width));
+        int bitmapHeight = Math.Max(1, (int)Math.Ceiling(itemBounds.Height));
+        DrawingRectangle drawBounds = new(
+            (int)Math.Round(itemBounds.X),
+            (int)Math.Round(itemBounds.Y),
+            bitmapWidth,
+            bitmapHeight);
+
+        Forms.DrawItemState state = Forms.DrawItemState.None;
+        if (index == listBox.SelectedIndex)
+        {
+            state |= Forms.DrawItemState.Selected;
+        }
+
+        if (!listBox.Enabled)
+        {
+            state |= Forms.DrawItemState.Disabled;
+        }
+
+        using DrawingBitmap bitmap = new(bitmapWidth, bitmapHeight, DrawingPixelFormat.Format32bppPArgb);
+        using DrawingGraphics graphics = DrawingGraphics.FromImage(bitmap);
+        graphics.Clear(DrawingColor.Transparent);
+        graphics.TranslateTransform(-drawBounds.X, -drawBounds.Y);
+
+        Forms.DrawItemEventArgs eventArgs = new(graphics, listBox.Font, drawBounds, index, state);
+        listBox.RaiseDrawItem(eventArgs);
+        imageSource = CreateImageSource(bitmap);
+        return imageSource != null;
     }
 
     private void RenderPropertyGrid(DrawingContext drawingContext, Forms.PropertyGrid propertyGrid, Rect bounds, Brush foreground)

@@ -1381,9 +1381,19 @@ public class ListBox : Control
         DrawItem?.Invoke(this, e);
     }
 
+    public void RaiseDrawItem(DrawItemEventArgs e)
+    {
+        OnDrawItem(e);
+    }
+
     protected virtual void OnMeasureItem(MeasureItemEventArgs e)
     {
         MeasureItem?.Invoke(this, e);
+    }
+
+    public void RaiseMeasureItem(MeasureItemEventArgs e)
+    {
+        OnMeasureItem(e);
     }
 
     protected virtual void OnSelectedIndexChanged(EventArgs e)
