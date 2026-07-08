@@ -17,6 +17,8 @@
   <PropertyGroup>
     <_LibreWpfManagedAssemblyRoot>$(MSBuildThisFileDirectory)..\..\..\..\..\artifacts\bin\</_LibreWpfManagedAssemblyRoot>
     <_LibreWpfManagedAssemblyRoot Condition="'$(LibreWpfManagedAssemblyRoot)' != ''">$(LibreWpfManagedAssemblyRoot)</_LibreWpfManagedAssemblyRoot>
+    <_LibreWpfUseManagedAssemblyRoot Condition="'$(LibreWpfManagedAssemblyRoot)' != ''">true</_LibreWpfUseManagedAssemblyRoot>
+    <_LibreWpfUseManagedAssemblyRoot Condition="'$(_LibreWpfUseManagedAssemblyRoot)' == '' And Exists('$(_LibreWpfManagedAssemblyRoot)WindowsBase\$(Configuration)\$(TargetFramework)\WindowsBase.dll') And Exists('$(_LibreWpfManagedAssemblyRoot)System.Xaml\$(Configuration)\$(TargetFramework)\System.Xaml.dll') And Exists('$(_LibreWpfManagedAssemblyRoot)PresentationCore\$(Configuration)\$(TargetFramework)\PresentationCore.dll') And Exists('$(_LibreWpfManagedAssemblyRoot)PresentationFramework\$(Configuration)\$(TargetFramework)\PresentationFramework.dll')">true</_LibreWpfUseManagedAssemblyRoot>
   </PropertyGroup>
 
   <ItemGroup>
@@ -26,8 +28,12 @@
 
   <ItemGroup>
     <PackageReference Include="LibreWPF.Interop" Version="$(LibreWinFormsBridgePackageVersion)" />
+    <PackageReference Include="LibreWPF.Transport" Version="$(LibreWinFormsBridgePackageVersion)" Condition="'$(_LibreWpfUseManagedAssemblyRoot)' != 'true'" />
     <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(LibreWinFormsBridgePackageVersion)" />
     <ProjectReference Include="..\LibreWinForms.System.Windows.Forms\LibreWinForms.System.Windows.Forms.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(_LibreWpfUseManagedAssemblyRoot)' == 'true'">
     <Reference Include="WindowsBase" HintPath="$(_LibreWpfManagedAssemblyRoot)WindowsBase\$(Configuration)\$(TargetFramework)\WindowsBase.dll" Private="false" />
     <Reference Include="System.Xaml" HintPath="$(_LibreWpfManagedAssemblyRoot)System.Xaml\$(Configuration)\$(TargetFramework)\System.Xaml.dll" Private="false" />
     <Reference Include="PresentationCore" HintPath="$(_LibreWpfManagedAssemblyRoot)PresentationCore\$(Configuration)\$(TargetFramework)\PresentationCore.dll" Private="false" />

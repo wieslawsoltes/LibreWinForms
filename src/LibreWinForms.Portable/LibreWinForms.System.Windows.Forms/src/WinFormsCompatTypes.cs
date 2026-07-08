@@ -75,6 +75,8 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
     public event EventHandler? LocationChanged;
     public event EventHandler? HandleCreated;
     public event EventHandler? Invalidated;
+    public event CancelEventHandler? Validating;
+    public event EventHandler? Validated;
     public event DragEventHandler? DragDrop;
     public event DragEventHandler? DragEnter;
     public event EventHandler? DragLeave;
@@ -599,12 +601,29 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
     protected virtual void OnLostFocus(EventArgs e)
     {
         LostFocus?.Invoke(this, e);
+        var validating = new CancelEventArgs();
+        OnValidating(validating);
+        if (!validating.Cancel)
+        {
+            OnValidated(EventArgs.Empty);
+        }
+
         OnLeave(e);
     }
 
     protected virtual void OnLeave(EventArgs e)
     {
         Leave?.Invoke(this, e);
+    }
+
+    protected virtual void OnValidating(CancelEventArgs e)
+    {
+        Validating?.Invoke(this, e);
+    }
+
+    protected virtual void OnValidated(EventArgs e)
+    {
+        Validated?.Invoke(this, e);
     }
 
     protected virtual void OnSizeChanged(EventArgs e)
