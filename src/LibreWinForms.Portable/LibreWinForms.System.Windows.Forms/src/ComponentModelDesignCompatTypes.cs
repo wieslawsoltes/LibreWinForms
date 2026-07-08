@@ -438,6 +438,17 @@ namespace System.ComponentModel.Design
             return null;
         }
 
+        internal CodeDomLocalizationModel GetLocalizationModel()
+        {
+            for (int i = _serializationProviders.Count - 1; i >= 0; i--)
+            {
+                if (_serializationProviders[i] is CodeDomLocalizationProvider localizationProvider)
+                    return localizationProvider.Model;
+            }
+
+            return CodeDomLocalizationModel.None;
+        }
+
         Type? IDesignerSerializationManager.GetType(string typeName)
         {
             return GetType(typeName);

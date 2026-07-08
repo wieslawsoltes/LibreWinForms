@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.ComponentModel.Design;
 using System.Globalization;
+using System.Resources;
 using System.Windows.Forms;
 
 namespace System.ComponentModel.Design.Serialization
@@ -285,6 +286,7 @@ namespace System.ComponentModel.Design.Serialization
         private readonly IDesignerLoaderHost _host;
         private readonly IDesignerSerializationManager _serializationManager;
         private readonly Dictionary<IComponent, string> _names = new();
+        private readonly CodeDomLocalizationModel _localizationModel;
 
         public PortableCodeDomDesignSurfaceSerializer(
             IDesignerLoaderHost host,
@@ -292,6 +294,9 @@ namespace System.ComponentModel.Design.Serialization
         {
             _host = host ?? throw new ArgumentNullException(nameof(host));
             _serializationManager = serializationManager ?? throw new ArgumentNullException(nameof(serializationManager));
+            _localizationModel = serializationManager is PortableDesignerHost portableHost
+                ? portableHost.GetLocalizationModel()
+                : CodeDomLocalizationModel.None;
         }
 
         public CodeCompileUnit Serialize()
@@ -335,11 +340,32 @@ namespace System.ComponentModel.Design.Serialization
             };
             codeClass.Members.Add(initializeComponent);
 
+            CodeVariableReferenceExpression? resourcesVariable = null;
+            if (_localizationModel == CodeDomLocalizationModel.PropertyReflection)
+            {
+                resourcesVariable = new CodeVariableReferenceExpression("resources");
+                initializeComponent.Statements.Add(new CodeVariableDeclarationStatement(
+                    typeof(ComponentResourceManager).FullName!,
+                    "resources",
+                    new CodeObjectCreateExpression(
+                        typeof(ComponentResourceManager).FullName!,
+                        new CodeTypeOfExpression(GetRootClassName(rootComponent)))));
+            }
+
             foreach (IComponent component in GetSerializableComponents(container, rootComponent))
             {
                 initializeComponent.Statements.Add(new CodeAssignStatement(
                     CreateComponentExpression(component, rootComponent),
                     new CodeObjectCreateExpression(component.GetType().FullName ?? component.GetType().Name)));
+            }
+
+            if (resourcesVariable is not null)
+            {
+                SerializeApplyResources(initializeComponent, resourcesVariable, rootComponent, rootComponent, "$this");
+                foreach (IComponent component in GetSerializableComponents(container, rootComponent))
+                {
+                    SerializeApplyResources(initializeComponent, resourcesVariable, component, rootComponent, _names[component]);
+                }
             }
 
             SerializeProperties(initializeComponent, rootComponent, rootComponent);
@@ -442,6 +468,20 @@ namespace System.ComponentModel.Design.Serialization
                     new CodePropertyReferenceExpression(target, descriptor.Name),
                     valueExpression));
             }
+        }
+
+        private void SerializeApplyResources(
+            CodeMemberMethod initializeComponent,
+            CodeExpression resourcesExpression,
+            IComponent component,
+            IComponent rootComponent,
+            string resourceName)
+        {
+            initializeComponent.Statements.Add(new CodeExpressionStatement(new CodeMethodInvokeExpression(
+                resourcesExpression,
+                nameof(ComponentResourceManager.ApplyResources),
+                CreateComponentExpression(component, rootComponent),
+                new CodePrimitiveExpression(resourceName))));
         }
 
         private static bool ShouldAlwaysSerialize(IComponent component, PropertyDescriptor descriptor)
@@ -746,11 +786,16 @@ namespace System.ComponentModel.Design.Serialization
             if (string.IsNullOrWhiteSpace(typeName))
                 return null;
 
+            string normalizedTypeName = NormalizeTypeName(typeName);
             Type? resolved = typeResolutionService?.GetType(typeName, false);
+            if (resolved is null && !string.Equals(normalizedTypeName, typeName, StringComparison.Ordinal))
+                resolved = typeResolutionService?.GetType(normalizedTypeName, false);
             if (resolved is not null)
                 return resolved;
 
             resolved = Type.GetType(typeName, false);
+            if (resolved is null && !string.Equals(normalizedTypeName, typeName, StringComparison.Ordinal))
+                resolved = Type.GetType(normalizedTypeName, false);
             if (resolved is not null)
                 return resolved;
 
@@ -758,13 +803,23 @@ namespace System.ComponentModel.Design.Serialization
             {
                 Type candidate = s_knownTypes[i];
                 if (string.Equals(candidate.FullName, typeName, StringComparison.Ordinal)
-                    || string.Equals(candidate.Name, typeName, StringComparison.Ordinal))
+                    || string.Equals(candidate.Name, typeName, StringComparison.Ordinal)
+                    || string.Equals(candidate.FullName, normalizedTypeName, StringComparison.Ordinal)
+                    || string.Equals(candidate.Name, normalizedTypeName, StringComparison.Ordinal))
                 {
                     return candidate;
                 }
             }
 
             return null;
+        }
+
+        private static string NormalizeTypeName(string typeName)
+        {
+            int assemblySeparator = typeName.IndexOf(',');
+            return assemblySeparator > 0
+                ? typeName[..assemblySeparator].Trim()
+                : typeName;
         }
     }
 
@@ -1067,7 +1122,7 @@ namespace System.ComponentModel.Design.Serialization
             string methodName = methodInvoke.Method.MethodName;
             object?[] arguments = EvaluateArguments(methodInvoke.Parameters);
 
-            if (target is System.ComponentModel.ComponentResourceManager resourceManager)
+            if (target is ComponentResourceManager resourceManager)
             {
                 if (string.Equals(methodName, nameof(System.ComponentModel.ComponentResourceManager.GetObject), StringComparison.Ordinal)
                     && arguments.Length > 0
@@ -1076,6 +1131,54 @@ namespace System.ComponentModel.Design.Serialization
                     try
                     {
                         return resourceManager.GetObject(objectName, CultureInfo.CurrentUICulture);
+                    }
+                    catch
+                    {
+                        return null;
+                    }
+                }
+
+                if (string.Equals(methodName, nameof(System.ComponentModel.ComponentResourceManager.ApplyResources), StringComparison.Ordinal)
+                    && arguments.Length >= 2
+                    && arguments[0] is object resourceTarget
+                    && arguments[1] is string resourceName)
+                {
+                    try
+                    {
+                        resourceManager.ApplyResources(resourceTarget, resourceName, CultureInfo.CurrentUICulture);
+                    }
+                    catch
+                    {
+                    }
+
+                    ApplyResourceEntries(resourceManager, resourceTarget, resourceName);
+                    return null;
+                }
+            }
+
+            if (target is ResourceManager generalResourceManager)
+            {
+                if (string.Equals(methodName, nameof(ResourceManager.GetString), StringComparison.Ordinal)
+                    && arguments.Length > 0
+                    && arguments[0] is string stringName)
+                {
+                    try
+                    {
+                        return generalResourceManager.GetString(stringName, CultureInfo.CurrentUICulture);
+                    }
+                    catch
+                    {
+                        return null;
+                    }
+                }
+
+                if (string.Equals(methodName, nameof(ResourceManager.GetStream), StringComparison.Ordinal)
+                    && arguments.Length > 0
+                    && arguments[0] is string streamName)
+                {
+                    try
+                    {
+                        return generalResourceManager.GetStream(streamName, CultureInfo.CurrentUICulture);
                     }
                     catch
                     {
@@ -1125,6 +1228,35 @@ namespace System.ComponentModel.Design.Serialization
 
             InvokeCollectionMethod(target, methodName, arguments);
             return null;
+        }
+
+        private static void ApplyResourceEntries(ResourceManager resourceManager, object target, string resourceName)
+        {
+            ResourceSet? resourceSet;
+            try
+            {
+                resourceSet = resourceManager.GetResourceSet(CultureInfo.CurrentUICulture, createIfNotExists: true, tryParents: true);
+            }
+            catch
+            {
+                return;
+            }
+
+            if (resourceSet is null)
+                return;
+
+            string prefix = resourceName + ".";
+            foreach (DictionaryEntry entry in resourceSet)
+            {
+                if (entry.Key is not string key || !key.StartsWith(prefix, StringComparison.Ordinal))
+                    continue;
+
+                string propertyName = key[prefix.Length..];
+                if (propertyName.Length == 0 || propertyName.Contains('.', StringComparison.Ordinal))
+                    continue;
+
+                SetPublicProperty(target, propertyName, entry.Value);
+            }
         }
 
         private static void InvokeCollectionMethod(object? target, string methodName, object?[] arguments)
