@@ -294,6 +294,21 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
         Focus();
     }
 
+    public void BringToFront()
+    {
+        if (Parent == null)
+        {
+            return;
+        }
+
+        Parent.Controls.SetChildIndex(this, Parent.Controls.Count - 1);
+    }
+
+    public void SendToBack()
+    {
+        Parent?.Controls.SetChildIndex(this, 0);
+    }
+
     public void RaiseMouseDown(MouseEventArgs e)
     {
         OnMouseDown(e);
@@ -878,6 +893,8 @@ public class SplitContainer : ContainerControl
     public SplitterPanel Panel2 { get; } = new();
 
     public int SplitterDistance { get; set; }
+
+    public int SplitterWidth { get; set; } = 4;
 }
 
 public class Splitter : Control
@@ -1068,6 +1085,14 @@ public class TextBoxBase : Control
     {
     }
 
+    public virtual void Clear()
+    {
+        Text = string.Empty;
+        SelectionStart = 0;
+        SelectionLength = 0;
+        _selectedText = string.Empty;
+    }
+
     public virtual void ApplyTextInput(string text)
     {
         if (!ReadOnly)
@@ -1164,6 +1189,7 @@ public class VScrollBar : ScrollBar
 
 public class ListBox : Control
 {
+    private readonly List<int> _selectedIndices = new();
     public event DrawItemEventHandler? DrawItem;
     public event MeasureItemEventHandler? MeasureItem;
     public event EventHandler? SelectedIndexChanged;
@@ -1178,7 +1204,19 @@ public class ListBox : Control
 
     public bool IntegralHeight { get; set; } = true;
 
-    public ListBoxObjectCollection Items { get; } = new();
+    public ListBox()
+    {
+        Items = new ListBoxObjectCollection(this);
+        SelectedItems = new SelectedObjectCollection(this);
+    }
+
+    public ListBoxObjectCollection Items { get; }
+
+    public SelectedObjectCollection SelectedItems { get; }
+
+    public SelectionMode SelectionMode { get; set; } = SelectionMode.One;
+
+    public bool Sorted { get; set; }
 
     public virtual int SelectedIndex
     {
@@ -1190,7 +1228,12 @@ public class ListBox : Control
                 return;
             }
 
-            _selectedIndex = value;
+            if (value < -1 || value >= Items.Count)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value));
+            }
+
+            SetSelectedCore(value, true, clearExisting: true);
             OnSelectedIndexChanged(EventArgs.Empty);
         }
     }
@@ -1204,10 +1247,132 @@ public class ListBox : Control
 
     public sealed class ListBoxObjectCollection : Collection<object>
     {
+        private readonly ListBox _owner;
+
+        internal ListBoxObjectCollection(ListBox owner)
+        {
+            _owner = owner;
+        }
+
         public new int Add(object item)
         {
-            base.Add(item);
-            return Count - 1;
+            if (!_owner.Sorted)
+            {
+                base.Add(item);
+                return Count - 1;
+            }
+
+            string text = item?.ToString() ?? string.Empty;
+            int index = 0;
+            while (index < Count && string.Compare(this[index]?.ToString(), text, StringComparison.CurrentCulture) <= 0)
+            {
+                index++;
+            }
+
+            Insert(index, item);
+            return index;
+        }
+    }
+
+    public sealed class SelectedObjectCollection : IReadOnlyList<object>, ICollection
+    {
+        private readonly ListBox _owner;
+
+        internal SelectedObjectCollection(ListBox owner)
+        {
+            _owner = owner;
+        }
+
+        public int Count => _owner._selectedIndices.Count;
+
+        public bool IsSynchronized => false;
+
+        public object SyncRoot => this;
+
+        public object this[int index] => _owner.Items[_owner._selectedIndices[index]];
+
+        public bool Contains(object item)
+        {
+            return Snapshot().Contains(item);
+        }
+
+        public void CopyTo(Array array, int index)
+        {
+            ((ICollection)Snapshot()).CopyTo(array, index);
+        }
+
+        public IEnumerator<object> GetEnumerator()
+        {
+            return Snapshot().GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+
+        private List<object> Snapshot()
+        {
+            var items = new List<object>(_owner._selectedIndices.Count);
+            foreach (int index in _owner._selectedIndices)
+            {
+                if (index >= 0 && index < _owner.Items.Count)
+                {
+                    items.Add(_owner.Items[index]);
+                }
+            }
+
+            return items;
+        }
+    }
+
+    public void SetSelected(int index, bool value)
+    {
+        ValidateItemIndex(index);
+        SetSelectedCore(index, value, clearExisting: value && SelectionMode == SelectionMode.One);
+        OnSelectedIndexChanged(EventArgs.Empty);
+    }
+
+    public bool GetSelected(int index)
+    {
+        ValidateItemIndex(index);
+        return _selectedIndices.Contains(index);
+    }
+
+    private void SetSelectedCore(int index, bool value, bool clearExisting)
+    {
+        if (clearExisting)
+        {
+            _selectedIndices.Clear();
+        }
+
+        if (index < 0)
+        {
+            _selectedIndex = -1;
+            return;
+        }
+
+        if (value)
+        {
+            if (!_selectedIndices.Contains(index))
+            {
+                _selectedIndices.Add(index);
+                _selectedIndices.Sort();
+            }
+        }
+        else
+        {
+            _selectedIndices.Remove(index);
+        }
+
+        _selectedIndex = _selectedIndices.Count > 0 ? _selectedIndices[0] : -1;
+    }
+
+    private void ValidateItemIndex(int index)
+    {
+        if (index < 0 || index >= Items.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(index));
         }
     }
 
@@ -1675,6 +1840,10 @@ public class DataGridView : Control, ISupportInitialize
     public bool AllowUserToResizeRows { get; set; } = true;
 
     public DataGridViewColumnHeadersHeightSizeMode ColumnHeadersHeightSizeMode { get; set; }
+
+    public bool MultiSelect { get; set; } = true;
+
+    public bool ShowEditingIcon { get; set; } = true;
 
     public DataGridViewColumnCollection Columns { get; }
 
@@ -4327,6 +4496,15 @@ public class TreeNode
         treeView?.RaiseAfterExpand(new TreeViewEventArgs(this, TreeViewAction.Expand));
     }
 
+    public void ExpandAll()
+    {
+        Expand();
+        foreach (TreeNode node in Nodes)
+        {
+            node.ExpandAll();
+        }
+    }
+
     public void Collapse()
     {
         if (!IsExpanded)
@@ -4347,6 +4525,19 @@ public class TreeNode
         IsExpanded = false;
         treeView?.Invalidate();
         treeView?.RaiseAfterCollapse(new TreeViewEventArgs(this, TreeViewAction.Collapse));
+    }
+
+    public void Collapse(bool ignoreChildren)
+    {
+        if (!ignoreChildren)
+        {
+            foreach (TreeNode node in Nodes)
+            {
+                node.Collapse(false);
+            }
+        }
+
+        Collapse();
     }
 
     public void Toggle()
@@ -4520,6 +4711,12 @@ public class ListViewItem
         SubItems.Add(new ListViewSubItem(this, text));
     }
 
+    public ListViewItem(string text, int imageIndex)
+        : this(text)
+    {
+        ImageIndex = imageIndex;
+    }
+
     public ListViewItem(string[] items)
     {
         if (items.Length > 0)
@@ -4531,6 +4728,12 @@ public class ListViewItem
         {
             SubItems.Add(new ListViewSubItem(this, item));
         }
+    }
+
+    public ListViewItem(string[] items, int imageIndex)
+        : this(items)
+    {
+        ImageIndex = imageIndex;
     }
 
     public ListViewSubItemCollection SubItems { get; } = new();
@@ -5487,6 +5690,14 @@ public enum CheckState
     Unchecked = 0,
     Checked = 1,
     Indeterminate = 2
+}
+
+public enum SelectionMode
+{
+    None = 0,
+    One = 1,
+    MultiSimple = 2,
+    MultiExtended = 3
 }
 
 public enum ComboBoxStyle
