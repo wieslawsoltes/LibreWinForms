@@ -2037,13 +2037,21 @@ public class FlowLayoutPanel : Panel
 {
 }
 
-public class PictureBox : Control
+public class PictureBox : Control, ISupportInitialize
 {
     public BorderStyle BorderStyle { get; set; }
 
     public Image? Image { get; set; }
 
     public PictureBoxSizeMode SizeMode { get; set; }
+
+    public void BeginInit()
+    {
+    }
+
+    public void EndInit()
+    {
+    }
 }
 
 public class ProgressBar : Control
