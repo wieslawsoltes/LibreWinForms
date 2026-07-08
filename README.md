@@ -93,7 +93,7 @@ The preview package set is defined in `eng/librewinforms-package-list.sh` and va
 LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.1 ./eng/librewinforms-pack.sh
 ```
 
-The package lane builds `LibreWinForms.System.Windows.Forms`, `LibreWinForms.WindowsFormsIntegration`, and `LibreWinForms.Sdk`, verifies README/release docs, writes the preview package manifest, and creates a release bundle with package hashes and a local-feed `NuGet.config`.
+The package lane builds `LibreWinForms.System.Windows.Forms`, `LibreWinForms.WindowsFormsIntegration`, and `LibreWinForms.Sdk`, verifies README/release docs, writes the preview package manifest, and creates a release bundle with package hashes and a local-feed `NuGet.config`. It also cleans current-version package artifacts before packing and fails if a stale or unexpected current-version `.nupkg` would be published.
 
 GitHub workflows:
 

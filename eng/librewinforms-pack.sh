@@ -14,14 +14,63 @@ package_output="${LIBREWINFORMS_PACKAGE_OUTPUT:-${repo_root}/artifacts/packages/
 dev_package_version="${LIBREWINFORMS_DEV_PACKAGE_VERSION:-0.1.0-preview.1}"
 configuration="${LIBREWINFORMS_CONFIGURATION:-Release}"
 restore_sources="${LIBREWINFORMS_RESTORE_SOURCES:-}"
+source "${repo_root}/eng/librewinforms-package-list.sh"
+extra_pack_args=("$@")
 mkdir -p "${package_output}"
+
+clean_release_artifacts() {
+  rm -f \
+    "${package_output}/librewinforms-preview-packages-${dev_package_version}.json" \
+    "${package_output}/librewinforms-preview-${dev_package_version}.tar.gz" \
+    "${package_output}/librewinforms-preview-${dev_package_version}.tar.gz.sha256" \
+    "${package_output}/README.md" \
+    "${package_output}/NuGet.config"
+
+  for package_id in "${librewinforms_preview_package_ids[@]}"; do
+    rm -f \
+      "${package_output}/${package_id}.${dev_package_version}.nupkg" \
+      "${package_output}/${package_id}.${dev_package_version}.snupkg"
+  done
+}
+
+is_expected_package_file() {
+  local package_file="$1"
+  local package_name
+  package_name="$(basename "${package_file}")"
+
+  for package_id in "${librewinforms_preview_package_ids[@]}"; do
+    if [[ "${package_name}" == "${package_id}.${dev_package_version}.nupkg" ||
+          "${package_name}" == "${package_id}.${dev_package_version}.snupkg" ]]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+verify_package_outputs() {
+  local package_id
+  for package_id in "${librewinforms_preview_package_ids[@]}"; do
+    if [[ ! -f "${package_output}/${package_id}.${dev_package_version}.nupkg" ]]; then
+      echo "Missing package ${package_output}/${package_id}.${dev_package_version}.nupkg." >&2
+      exit 1
+    fi
+  done
+
+  local package_file
+  shopt -s nullglob
+  for package_file in "${package_output}"/*.${dev_package_version}.nupkg "${package_output}"/*.${dev_package_version}.snupkg; do
+    if ! is_expected_package_file "${package_file}"; then
+      echo "Unexpected current-version package artifact: ${package_file}." >&2
+      exit 1
+    fi
+  done
+  shopt -u nullglob
+}
 
 pack_project() {
   local project="$1"
   local package_id="$2"
-  rm -f \
-    "${package_output}/${package_id}.${dev_package_version}.nupkg" \
-    "${package_output}/${package_id}.${dev_package_version}.snupkg"
 
   local args=(
     pack "${repo_root}/${project}"
@@ -38,13 +87,20 @@ pack_project() {
     args+=("-p:RestoreSources=${restore_sources}")
   fi
 
+  if [[ "${#extra_pack_args[@]}" -gt 0 ]]; then
+    args+=("${extra_pack_args[@]}")
+  fi
+
   "${dotnet}" "${args[@]}"
 }
+
+clean_release_artifacts
 
 pack_project "src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj" "LibreWinForms.System.Windows.Forms"
 pack_project "src/LibreWinForms.Portable/LibreWinForms.WindowsFormsIntegration/LibreWinForms.WindowsFormsIntegration.csproj" "LibreWinForms.WindowsFormsIntegration"
 pack_project "src/LibreWinForms.Portable/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj" "LibreWinForms.Sdk"
 
+verify_package_outputs
 "${repo_root}/eng/librewinforms-verify-docs.sh"
 "${repo_root}/eng/librewinforms-preview-release-bundle.sh"
 

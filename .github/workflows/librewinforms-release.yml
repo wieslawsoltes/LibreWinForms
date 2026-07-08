@@ -63,6 +63,7 @@ jobs:
             artifacts/packages/Release/NonShipping/*.sha256
             artifacts/packages/Release/NonShipping/README.md
             artifacts/packages/Release/NonShipping/NuGet.config
+          if-no-files-found: error
 
       - name: Publish to NuGet.org
         if: ${{ (github.event_name == 'workflow_dispatch' && inputs.publish) || startsWith(github.ref, 'refs/tags/librewinforms-v') }}

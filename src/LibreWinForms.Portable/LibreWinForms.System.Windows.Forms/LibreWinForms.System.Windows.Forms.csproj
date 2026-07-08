@@ -5,6 +5,8 @@
     <AssemblyName>System.Windows.Forms</AssemblyName>
     <RootNamespace>System.Windows.Forms</RootNamespace>
     <Description>LibreWinForms portable System.Windows.Forms API surface backed by ProGPU/Silk.NET-compatible services.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>librewinforms;winforms;progpu;silk.net;cross-platform</PackageTags>
     <IncludeBuildOutput>true</IncludeBuildOutput>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <SignAssembly Condition="Exists('..\..\..\..\ProGPU\eng\ProGPU.snk')">true</SignAssembly>
@@ -14,6 +16,7 @@
 
   <ItemGroup>
     <Compile Include="src\**\*.cs" />
+    <None Include="..\..\..\README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
   <ItemGroup>

@@ -5,6 +5,8 @@
     <AssemblyName>WindowsFormsIntegration</AssemblyName>
     <RootNamespace>System.Windows.Forms.Integration</RootNamespace>
     <Description>LibreWinForms portable WindowsFormsIntegration host surface for LibreWPF and ProGPU-backed WinForms content.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>librewinforms;windowsformsintegration;librewpf;progpu;cross-platform</PackageTags>
     <IncludeBuildOutput>true</IncludeBuildOutput>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <SignAssembly Condition="Exists('..\..\..\..\ProGPU\eng\ProGPU.snk')">true</SignAssembly>
@@ -19,6 +21,7 @@
 
   <ItemGroup>
     <Compile Include="src\**\*.cs" />
+    <None Include="..\..\..\README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
   <ItemGroup>
