@@ -1,0 +1,45 @@
+name: LibreWinForms Docs
+
+on:
+  pull_request:
+    branches:
+      - librewinforms-progpu-port
+      - main
+    paths:
+      - README.md
+      - docs/librewinforms-release.md
+      - eng/librewinforms-*.sh
+      - .github/workflows/librewinforms-*.yml
+  push:
+    branches:
+      - librewinforms-progpu-port
+    paths:
+      - README.md
+      - docs/librewinforms-release.md
+      - eng/librewinforms-*.sh
+      - .github/workflows/librewinforms-*.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-docs:
+    name: Verify release documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify package docs
+        run: ./eng/librewinforms-verify-docs.sh
+
+      - name: Upload docs snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: librewinforms-docs
+          path: |
+            README.md
+            docs/librewinforms-release.md

@@ -1,0 +1,45 @@
+name: LibreWinForms Build
+
+on:
+  pull_request:
+    branches:
+      - librewinforms-progpu-port
+      - main
+  push:
+    branches:
+      - librewinforms-progpu-port
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  packages:
+    name: Package lane
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Pack LibreWinForms
+        run: ./eng/librewinforms-pack.sh
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: librewinforms-ci-packages-${{ github.sha }}
+          path: |
+            artifacts/packages/Release/NonShipping/*.nupkg
+            artifacts/packages/Release/NonShipping/*.json
+            artifacts/packages/Release/NonShipping/*.tar.gz
+            artifacts/packages/Release/NonShipping/*.sha256
+            artifacts/packages/Release/NonShipping/README.md
+            artifacts/packages/Release/NonShipping/NuGet.config
+          if-no-files-found: error

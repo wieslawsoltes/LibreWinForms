@@ -1,3 +1,110 @@
+# LibreWinForms ProGPU Port
+
+This branch ports WinForms-shaped APIs onto the ProGPU/Silk.NET platform while reusing as much managed WinForms code as possible. The public package brand is LibreWinForms, with the custom SDK package `LibreWinForms.Sdk`, so existing WinForms projects can start by switching the project SDK and keeping normal WinForms source unchanged.
+
+Current focus areas:
+
+- Reuse managed WinForms code for application model, controls, layout, events, data binding, drawing integration, and WPF interop where practical.
+- Replace Windows-only User32/GDI+/native hosting dependencies with typed LibreWinForms seams backed by ProGPU, Silk.NET, and the shared LibreWPF interop layer.
+- Package the portable runtime as a preview SDK and NuGet set that can be consumed from a local feed or NuGet.org.
+- Keep SharpDevelop, LibreWPF `WindowsFormsHost`, and mixed WPF/WinForms smoke apps as compatibility gates while the port fills out.
+
+## Getting Started: Switch From WinForms To LibreWinForms
+
+LibreWinForms is packaged as an MSBuild SDK so normal WinForms apps can move to the ProGPU/Silk.NET platform through the project file first. Keep application code, resources, existing package references, and normal `System.Windows.Forms` type usage unchanged unless the app uses Windows-only interop, raw HWND assumptions, native controls, designer-only APIs, or unsupported graphics APIs.
+
+1. Start from an existing SDK-style WinForms project and keep a clean commit of the working WinForms version.
+
+2. Make sure the project targets the supported preview TFM:
+
+```xml
+<TargetFramework>net10.0</TargetFramework>
+<UseWindowsForms>true</UseWindowsForms>
+```
+
+`LibreWinForms.Sdk` supplies the portable WinForms package references and keeps Windows-shaped WinForms APIs available while the runtime is hosted through the portable ProGPU/LibreWPF stack.
+
+3. Change only the project SDK.
+
+Before:
+
+```xml
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+</Project>
+```
+
+After:
+
+```xml
+<Project Sdk="LibreWinForms.Sdk/0.1.0-preview.1">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+</Project>
+```
+
+Older projects that still use `Microsoft.NET.Sdk.WindowsDesktop` should make the same SDK change and keep the existing WinForms properties.
+
+4. Keep existing app dependencies in place. For example, a mixed WPF/WinForms app only changes the SDK line in the WinForms project:
+
+```xml
+<Project Sdk="LibreWinForms.Sdk/0.1.0-preview.1">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Some.WinForms.Library" Version="1.2.3" />
+  </ItemGroup>
+</Project>
+```
+
+5. Restore and run the app normally:
+
+```bash
+dotnet restore
+dotnet run
+```
+
+6. Treat Windows-only interop, custom HWND hosting, native common controls, P/Invoke-heavy owner-draw paths, GDI handles, and designer-only APIs as the first compatibility review points. Normal WinForms managed code should remain source-compatible as the portable runtime fills out.
+
+## NuGet Packages
+
+The preview package set is defined in `eng/librewinforms-package-list.sh` and validated by the release workflow.
+
+| Package | NuGet | Purpose |
+| --- | --- | --- |
+| `LibreWinForms.Sdk` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.Sdk.svg)](https://www.nuget.org/packages/LibreWinForms.Sdk) | Custom MSBuild SDK that redirects WinForms apps to the portable LibreWinForms package set. |
+| `LibreWinForms.System.Windows.Forms` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.System.Windows.Forms.svg)](https://www.nuget.org/packages/LibreWinForms.System.Windows.Forms) | Portable `System.Windows.Forms` API/runtime surface used by LibreWinForms apps. |
+| `LibreWinForms.WindowsFormsIntegration` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.WindowsFormsIntegration.svg)](https://www.nuget.org/packages/LibreWinForms.WindowsFormsIntegration) | Portable `WindowsFormsIntegration` bridge for LibreWPF-hosted WinForms content. |
+
+## Build And Release
+
+```bash
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.1 ./eng/librewinforms-pack.sh
+```
+
+The package lane builds `LibreWinForms.System.Windows.Forms`, `LibreWinForms.WindowsFormsIntegration`, and `LibreWinForms.Sdk`, verifies README/release docs, writes the preview package manifest, and creates a release bundle with package hashes and a local-feed `NuGet.config`.
+
+GitHub workflows:
+
+- `LibreWinForms Build` runs the preview package lane and uploads package artifacts.
+- `LibreWinForms Docs` verifies README and release docs against the preview package list.
+- `LibreWinForms Release` builds preview packages/bundle artifacts, can publish to NuGet.org with `NUGET_API_KEY`, and creates a GitHub release for `librewinforms-v*` tags.
+
+See [docs/librewinforms-release.md](docs/librewinforms-release.md) and the ongoing port plan in [docs/librewinforms/progpu-port-plan.md](docs/librewinforms/progpu-port-plan.md).
+
+## Original Upstream README
+
 # Windows Forms
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/dotnet/winforms/blob/main/LICENSE.TXT)
@@ -95,4 +202,3 @@ See the [.NET home repository](https://github.com/Microsoft/dotnet) to find oth
 [getting-started]: docs/getting-started.md
 [net-contributing]: https://github.com/dotnet/runtime/blob/master/CONTRIBUTING.md
 [porting-guidelines]: docs/porting-guidelines.md
-

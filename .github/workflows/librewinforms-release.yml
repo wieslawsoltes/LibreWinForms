@@ -1,0 +1,87 @@
+name: LibreWinForms Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: NuGet package version to build.
+        required: true
+        default: 0.1.0-preview.1
+      publish:
+        description: Push packages to NuGet.org after validation.
+        required: true
+        type: boolean
+        default: false
+  push:
+    tags:
+      - librewinforms-v*
+
+permissions:
+  contents: write
+
+jobs:
+  preview:
+    name: Build preview packages
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Resolve release version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#librewinforms-v}"
+          else
+            version="${{ inputs.version }}"
+          fi
+          echo "LIBREWINFORMS_DEV_PACKAGE_VERSION=${version}" >> "${GITHUB_ENV}"
+          echo "Resolved LibreWinForms package version: ${version}"
+
+      - name: Verify docs
+        run: ./eng/librewinforms-verify-docs.sh
+
+      - name: Build and pack
+        run: ./eng/librewinforms-pack.sh
+
+      - name: Upload preview packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: librewinforms-packages-${{ env.LIBREWINFORMS_DEV_PACKAGE_VERSION }}
+          path: |
+            artifacts/packages/Release/NonShipping/*.nupkg
+            artifacts/packages/Release/NonShipping/*.json
+            artifacts/packages/Release/NonShipping/*.tar.gz
+            artifacts/packages/Release/NonShipping/*.sha256
+            artifacts/packages/Release/NonShipping/README.md
+            artifacts/packages/Release/NonShipping/NuGet.config
+
+      - name: Publish to NuGet.org
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.publish) || startsWith(github.ref, 'refs/tags/librewinforms-v') }}
+        run: dotnet nuget push artifacts/packages/Release/NonShipping/*.nupkg --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      - name: Create GitHub Release
+        if: ${{ startsWith(github.ref, 'refs/tags/librewinforms-v') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            artifacts/packages/Release/NonShipping/*.nupkg \
+            artifacts/packages/Release/NonShipping/*.json \
+            artifacts/packages/Release/NonShipping/*.tar.gz \
+            artifacts/packages/Release/NonShipping/*.sha256 \
+            artifacts/packages/Release/NonShipping/README.md \
+            artifacts/packages/Release/NonShipping/NuGet.config \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "LibreWinForms ${{ env.LIBREWINFORMS_DEV_PACKAGE_VERSION }}" \
+            --generate-notes \
+            --verify-tag \
+            --prerelease
