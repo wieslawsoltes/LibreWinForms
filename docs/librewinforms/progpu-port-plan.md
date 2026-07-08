@@ -66,12 +66,13 @@ Current validation:
 - `DesignSurface.Flush()` retains and calls the active `CodeDomDesignerLoader`; the portable serializer emits typed `ToolStripContainer` child-panel expressions for named controls inside intrinsic panels.
 - The loader preserves existing `CodeAttachEventStatement`/`CodeRemoveEventStatement` entries from parsed `InitializeComponent()` methods during flush, so current designer round trips do not delete existing event hookups while full event editing is still being ported.
 - The portable design host provides `IEventBindingService`, seeds it from parsed event attach/remove statements, emits current event-service mappings during flush, and prefers app-provided event services over its fallback. Designer event-property edits can replace existing handler hookups through the standard WinForms service, while SharpDevelop's active C# service still owns compatible-method lookup, handler generation, and source navigation.
+- The portable design host provides `INameCreationService`, assigns stable names to unnamed created components, serializes newly added controls through fields/properties/parent `Controls.Add(...)`, and cleans parent/name/event state during `DestroyComponent(...)` so deleted controls do not reappear in regenerated CodeDOM.
 - ProGPU `System.Drawing.Common` now supports source-rect image draws and `ImageAttributes.ColorMatrix` through the native image-effect shader path. This is required for SharpDevelop ghosted icons, grayscale images, and overlay sprite extraction, and it belongs in ProGPU so future upstream WinForms managed code can call normal drawing APIs.
 - The latest fresh-cache SharpDevelop combined smoke validates menus, context menus, combo boxes, resource smoke, solution build, FormsDesigner load, FormsDesigner property mutation, hosted PropertyGrid, direct WinForms `ContextMenuStrip`, and editor completion against refreshed `ProGPU.Scene`, `ProGPU.System.Drawing.Common`, and `ProGPU.Dxf` packages.
 
 Next validation level:
 
-- Broaden CodeDOM replay and serializer/code-generation round trips for component creation/removal, handler generation/source navigation, resources, localization, and more controls.
+- Broaden CodeDOM replay and serializer/code-generation round trips for handler generation/source navigation, resources, localization, toolbox placement details, and more controls.
 - Replace the copied compatibility control implementations with upstream managed WinForms source groups while preserving the existing source-owned package outputs.
 - Make the normal LibreWPF SDK pack workflow restore from the required WPF private feeds so the package-mode validation feed can be rebuilt without ad hoc artifact refreshes.
 
