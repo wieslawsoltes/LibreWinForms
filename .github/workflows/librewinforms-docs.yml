@@ -7,7 +7,7 @@ on:
       - main
     paths:
       - README.md
-      - docs/librewinforms-release.md
+      - docs/**
       - eng/librewinforms-*.sh
       - .github/workflows/librewinforms-*.yml
   push:
@@ -15,7 +15,7 @@ on:
       - librewinforms-progpu-port
     paths:
       - README.md
-      - docs/librewinforms-release.md
+      - docs/**
       - eng/librewinforms-*.sh
       - .github/workflows/librewinforms-*.yml
   workflow_dispatch:
@@ -42,4 +42,4 @@ jobs:
           name: librewinforms-docs
           path: |
             README.md
-            docs/librewinforms-release.md
+            docs/**

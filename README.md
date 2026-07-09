@@ -9,6 +9,8 @@ Current focus areas:
 - Package the portable runtime as a preview SDK and NuGet set that can be consumed from a local feed or NuGet.org.
 - Keep SharpDevelop, LibreWPF `WindowsFormsHost`, and mixed WPF/WinForms smoke apps as compatibility gates while the port fills out.
 
+The active development and default GitHub branch is `librewinforms-progpu-port`. Preview releases are produced from this branch by the LibreWinForms CI/release workflows and are tagged as `librewinforms-v<version>` after the matching ProGPU and LibreWPF bridge packages are available.
+
 ## Getting Started: Switch From WinForms To LibreWinForms
 
 LibreWinForms is packaged as an MSBuild SDK so normal WinForms apps can move to the ProGPU/Silk.NET platform through the project file first. Keep application code, resources, existing package references, and normal `System.Windows.Forms` type usage unchanged unless the app uses Windows-only interop, raw HWND assumptions, native controls, designer-only APIs, or unsupported graphics APIs.
@@ -123,6 +125,8 @@ GitHub workflows:
 - `LibreWinForms Build` builds the matching LibreWPF/ProGPU bridge feed, runs the preview package lane, and uploads package artifacts.
 - `LibreWinForms Docs` verifies README and release docs against the preview package list.
 - `LibreWinForms Release` builds the matching bridge feed, builds preview packages/bundle artifacts, can publish to NuGet.org with `NUGET_API_KEY`, and creates a GitHub release for `librewinforms-v*` tags.
+
+Release order matters: publish ProGPU and LibreWPF for the same version first, then publish LibreWinForms so downstream restores can resolve the full package dependency closure from NuGet.org.
 
 See [docs/librewinforms-release.md](docs/librewinforms-release.md) and the ongoing port plan in [docs/librewinforms/progpu-port-plan.md](docs/librewinforms/progpu-port-plan.md).
 
