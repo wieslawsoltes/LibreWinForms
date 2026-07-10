@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Windows;
+using System.Windows.Interop;
 using Forms = System.Windows.Forms;
 using WpfApplication = System.Windows.Application;
 
@@ -35,18 +36,46 @@ internal sealed class WpfPortableWinFormsApplicationHost : Forms.IWinFormsApplic
     {
         ArgumentNullException.ThrowIfNull(form);
 
-        Window? ownerWindow = null;
-        if (owner is Forms.Form ownerForm)
-        {
-            lock (_gate)
-            {
-                _windows.TryGetValue(ownerForm, out ownerWindow);
-            }
-        }
+        Window? ownerWindow = ResolveOwnerWindow(owner);
 
         Window window = CreateWindow(form, ownerWindow, modal: true);
         window.ShowDialog();
         return form.DialogResult;
+    }
+
+    private Window? ResolveOwnerWindow(Forms.IWin32Window? owner)
+    {
+        if (owner == null)
+        {
+            return null;
+        }
+
+        if (owner is Forms.Form ownerForm)
+        {
+            lock (_gate)
+            {
+                if (_windows.TryGetValue(ownerForm, out Window? ownerWindow))
+                {
+                    return ownerWindow;
+                }
+            }
+        }
+
+        IntPtr ownerHandle = owner.Handle;
+        if (ownerHandle == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        HwndSource? source = HwndSource.FromHwnd(ownerHandle);
+        if (source?.RootVisual is Window sourceWindow)
+        {
+            return sourceWindow;
+        }
+
+        return source?.RootVisual is DependencyObject rootVisual
+            ? Window.GetWindow(rootVisual)
+            : null;
     }
 
     public void ExitThread()
