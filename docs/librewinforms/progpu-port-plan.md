@@ -92,3 +92,9 @@ Next validation level:
 ## Exit criteria for temporary compatibility source
 
 The `LibreWinForms.*` runtime packages have stopped depending on `LibreWPF.WinFormsCompat.*` in the source-owned lane. The next exit criteria are broader: replace copied compatibility code with reused upstream WinForms managed code, keep platform behavior behind typed ProGPU/Silk.NET services, and remove the old LibreWPF compatibility package fallback from the SDK after SharpDevelop and WPF samples pass package-mode validation.
+
+## 2026-07-10 owned-dialog checkpoint
+
+The WPF application host now resolves non-`Form` `IWin32Window` owners through the typed LibreWPF `HwndSource` handle registry and assigns the corresponding WPF root window as owner. The SDK smoke covers both `Application.Run(Form)` and `Form.ShowDialog(owner)`, including loaded owner linkage, `Shown`, `FormClosed`, and synchronous `DialogResult.OK`. Package-mode SharpDevelop validates the same path with its real `ExceptionBox` and workbench owner.
+
+The modal state machine remains in managed WinForms/WPF. LibreWinForms must not add a second native event loop, reflect owner objects, or treat portable handles as Win32 HWNDs. Native host reentrancy and input-context lifetime are handled by the LibreWPF ProGPU/Silk host. Next dialog coverage should include nested modal ownership, cancellation, default/cancel keyboard actions, focus restoration, and real file/color/font dialog service flows.
