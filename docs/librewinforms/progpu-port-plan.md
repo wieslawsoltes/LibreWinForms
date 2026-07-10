@@ -172,4 +172,25 @@ SharpDevelop broad package-mode workbench      -> all popup/build/ResX/designer/
 SharpDevelop shutdown                          -> exit code 0; native input attach/detach balanced
 ```
 
-The next toolbox step is real user interaction through the root/parent designer surface: palette selection, click/drop placement, drag sizing, selection adorners, and command/undo integration. The framework creation, initialization, placement, and removal contract underneath that UI is now covered.
+The next toolbox step is visible selection/move/resize adorners, grid and snap-line behavior, palette-originated drag data, and command/undo integration. The framework creation, initialization, placement, and removal contract underneath that UI is now covered.
+
+## 2026-07-10 interactive toolbox placement checkpoint
+
+LibreWinForms now connects the standard `IToolboxService` selection contract to typed design-mode pointer handling. Source-owned control, parent-control, and root designers intercept design input before runtime control handlers, select controls in pointer mode, and capture selected-tool mouse down/move/up sequences. Parent designers create the selected tool through one `DesignerTransaction`, pass typed parent/location/size defaults to `ToolboxItem`, activate the host, replace the selection with the created components, and call `SelectedToolboxItemUsed()` exactly once. The root designer also implements `IToolboxUser` for standard toolbox double-click creation.
+
+`WindowsFormsHost` now forwards mouse movement and captured mouse-up events, and promotes hits on unsited implementation children to the nearest sited design-mode ancestor. Composite controls such as `ToolStripContainer` therefore keep their internal panels while the owning designer receives the interaction. Runtime mouse handlers and normal hosted-control activation are not invoked for sited design-mode controls.
+
+Validation used a coherent `0.1.0-preview.sharpdevelop.1` package set against ProGPU `895fe73` (`0.1.0-preview.6`):
+
+```text
+LibreWinForms.System.Windows.Forms Release build -> succeeds, 0 errors
+LibreWinForms.WindowsFormsIntegration build       -> succeeds, 0 errors
+LibreWinForms SDK designer smoke                  -> Success; interactivePlacement=True
+LibreWinForms package lane                        -> packages, manifest, bundle, checksum succeed
+SharpDevelop fresh-cache full rebuild             -> succeeds, 286 warnings, 0 errors
+SharpDevelop focused FormsDesigner                -> toolboxCreated=True, toolboxRemoved=True, 54 rows
+SharpDevelop broad package-mode workbench         -> all expected subsystem gates pass, exit code 0
+Native input lifetime                             -> 5 attaches, 5 detaches
+```
+
+The remaining interaction layer is visual and command-oriented: selection glyphs, resize handles, moving/resizing existing controls, parent rules, grid/snap lines, palette-to-surface drag data, keyboard designer commands, and undo/redo units. ProGPU source remained unchanged.
