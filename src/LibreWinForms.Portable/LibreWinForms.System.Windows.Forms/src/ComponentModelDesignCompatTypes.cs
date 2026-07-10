@@ -86,6 +86,8 @@ namespace System.ComponentModel.Design
             Unloading?.Invoke(this, EventArgs.Empty);
             _loader?.Dispose();
             _loader = null;
+            _host?.Dispose();
+            _host = null;
             Unloaded?.Invoke(this, EventArgs.Empty);
         }
 
@@ -99,7 +101,7 @@ namespace System.ComponentModel.Design
         {
             if (_host is not null)
             {
-                object? service = _host.GetService(serviceType);
+                object? service = ((IServiceProvider)_host).GetService(serviceType);
                 if (service is not null)
                     return service;
             }
@@ -108,10 +110,9 @@ namespace System.ComponentModel.Design
         }
     }
 
-    internal sealed class PortableDesignerHost : IDesignerLoaderHost, IDesignerLoaderHost2, IDesignerSerializationManager, IComponentChangeService, ISelectionService, INameCreationService
+    internal sealed class PortableDesignerHost : Container, IDesignerLoaderHost, IDesignerLoaderHost2, IDesignerSerializationManager, IComponentChangeService, ISelectionService, INameCreationService
     {
         private readonly IServiceProvider? _serviceProvider;
-        private readonly Container _container = new();
         private readonly Dictionary<string, object> _instances = new(StringComparer.Ordinal);
         private readonly Dictionary<object, string> _names = new();
         private readonly Dictionary<Type, object> _services = new();
@@ -157,7 +158,7 @@ namespace System.ComponentModel.Design
 
         public bool IgnoreErrorsDuringReload { get; set; }
 
-        public IContainer Container => _container;
+        public IContainer Container => this;
 
         public bool InTransaction => _transactionDepth > 0;
 
@@ -187,7 +188,7 @@ namespace System.ComponentModel.Design
                 Dock = DockStyle.Fill,
                 BackColor = System.Drawing.Color.White
             };
-            _container.Add(RootComponent, "Root");
+            Add(RootComponent, "Root");
             SetName(RootComponent, "Root");
             SetSelectedComponents(new object[] { RootComponent });
         }
@@ -210,12 +211,12 @@ namespace System.ComponentModel.Design
                 throw new InvalidOperationException(componentClass.FullName + " is not a component.");
 
             string? componentName = string.IsNullOrWhiteSpace(name)
-                ? CreateName(_container, componentClass)
+                ? CreateName(this, componentClass)
                 : name;
             ValidateName(componentName);
 
             ComponentAdding?.Invoke(this, new ComponentEventArgs(component));
-            _container.Add(component, componentName);
+            Add(component, componentName);
             SetName(component, componentName);
             if (RootComponent is null)
             {
@@ -252,7 +253,7 @@ namespace System.ComponentModel.Design
                 control.Parent.Controls.Remove(control);
             }
 
-            _container.Remove(component);
+            Remove(component);
             RemoveName(component);
             _eventBindingService.RemoveComponent(component);
             if (ReferenceEquals(RootComponent, component))
@@ -296,7 +297,7 @@ namespace System.ComponentModel.Design
         {
         }
 
-        public object? GetService(Type serviceType)
+        protected override object? GetService(Type serviceType)
         {
             if (_services.TryGetValue(serviceType, out object? service))
                 return service;
@@ -310,8 +311,8 @@ namespace System.ComponentModel.Design
 
             if (serviceType == typeof(IDesignerHost) || serviceType == typeof(IDesignerLoaderHost) || serviceType == typeof(IDesignerLoaderHost2))
                 return this;
-            if (serviceType == typeof(IContainer))
-                return _container;
+            if (serviceType == typeof(IContainer) || serviceType == typeof(IServiceContainer))
+                return this;
             if (serviceType == typeof(IComponentChangeService))
                 return this;
             if (serviceType == typeof(ISelectionService))
@@ -324,6 +325,11 @@ namespace System.ComponentModel.Design
                 return _serviceProvider?.GetService(serviceType) ?? this;
 
             return _serviceProvider?.GetService(serviceType);
+        }
+
+        object? IServiceProvider.GetService(Type serviceType)
+        {
+            return GetService(serviceType);
         }
 
         public void AddService(Type serviceType, ServiceCreatorCallback callback)
@@ -407,7 +413,7 @@ namespace System.ComponentModel.Design
             if (!string.IsNullOrEmpty(name))
                 SetName(instance, name);
             if (addToContainer && instance is IComponent component)
-                _container.Add(component, name);
+                Add(component, name);
             return instance;
         }
 
@@ -480,6 +486,41 @@ namespace System.ComponentModel.Design
             _names[instance] = name;
             if (instance is IComponent component && component.Site is not null)
                 component.Site.Name = name;
+        }
+
+        protected override ISite CreateSite(IComponent component, string? name)
+        {
+            return new PortableDesignerSite(component, this, name);
+        }
+
+        private void RenameSiteComponent(IComponent component, string? oldName, string? newName)
+        {
+            if (string.Equals(oldName, newName, StringComparison.Ordinal))
+                return;
+
+            if (!string.IsNullOrEmpty(newName))
+            {
+                ValidateName(newName);
+                IComponent? existing = Components[newName];
+                if (existing is not null && !ReferenceEquals(existing, component))
+                    throw new ArgumentException("A component named '" + newName + "' already exists.", nameof(newName));
+            }
+
+            if (!string.IsNullOrEmpty(oldName)
+                && _instances.TryGetValue(oldName, out object? oldInstance)
+                && ReferenceEquals(oldInstance, component))
+            {
+                _instances.Remove(oldName);
+            }
+
+            _names.Remove(component);
+            if (!string.IsNullOrEmpty(newName))
+            {
+                _instances[newName] = component;
+                _names[component] = newName;
+            }
+
+            ComponentRename?.Invoke(this, new ComponentRenameEventArgs(component, oldName, newName));
         }
 
         private void RemoveName(object instance)
@@ -594,6 +635,21 @@ namespace System.ComponentModel.Design
                 _transactionDescription = string.Empty;
         }
 
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                for (int i = 0; i < Components.Count; i++)
+                {
+                    IComponent? component = Components[i];
+                    if (component?.Site is PortableDesignerSite site)
+                        site.Dispose();
+                }
+            }
+
+            base.Dispose(disposing);
+        }
+
         private sealed class PortableDesignerTransaction : DesignerTransaction
         {
             private readonly Action<bool> _close;
@@ -612,6 +668,125 @@ namespace System.ComponentModel.Design
             protected override void OnCommit()
             {
                 _close(true);
+            }
+        }
+
+        private sealed class PortableDesignerSite : ISite, IServiceContainer, IDictionaryService
+        {
+            private readonly IComponent _component;
+            private readonly PortableDesignerHost _host;
+            private readonly Dictionary<object, object> _dictionary = new();
+            private ServiceContainer? _services;
+            private string? _name;
+
+            public PortableDesignerSite(IComponent component, PortableDesignerHost host, string? name)
+            {
+                _component = component;
+                _host = host;
+                _name = name;
+            }
+
+            public IComponent Component => _component;
+
+            public IContainer Container => _host;
+
+            public bool DesignMode => true;
+
+            public string? Name
+            {
+                get => _name;
+                set
+                {
+                    value ??= string.Empty;
+                    if (string.Equals(_name, value, StringComparison.Ordinal))
+                        return;
+
+                    string? oldName = _name;
+                    _host.RenameSiteComponent(_component, oldName, value);
+                    _name = value;
+                }
+            }
+
+            public object? GetService(Type serviceType)
+            {
+                ArgumentNullException.ThrowIfNull(serviceType);
+
+                if (serviceType == typeof(IDictionaryService))
+                    return this;
+                if (_services is not null)
+                    return _services.GetService(serviceType);
+                return ((IServiceProvider)_host).GetService(serviceType);
+            }
+
+            object? IDictionaryService.GetKey(object? value)
+            {
+                if (value is null)
+                    return null;
+
+                foreach (KeyValuePair<object, object> pair in _dictionary)
+                {
+                    if (Equals(pair.Value, value))
+                        return pair.Key;
+                }
+
+                return null;
+            }
+
+            object? IDictionaryService.GetValue(object key)
+            {
+                ArgumentNullException.ThrowIfNull(key);
+                return _dictionary.TryGetValue(key, out object? value) ? value : null;
+            }
+
+            void IDictionaryService.SetValue(object key, object? value)
+            {
+                ArgumentNullException.ThrowIfNull(key);
+                if (value is null)
+                    _dictionary.Remove(key);
+                else
+                    _dictionary[key] = value;
+            }
+
+            void IServiceContainer.AddService(Type serviceType, ServiceCreatorCallback callback)
+            {
+                GetSiteServices().AddService(serviceType, callback);
+            }
+
+            void IServiceContainer.AddService(Type serviceType, ServiceCreatorCallback callback, bool promote)
+            {
+                GetSiteServices().AddService(serviceType, callback, promote);
+            }
+
+            void IServiceContainer.AddService(Type serviceType, object serviceInstance)
+            {
+                GetSiteServices().AddService(serviceType, serviceInstance);
+            }
+
+            void IServiceContainer.AddService(Type serviceType, object serviceInstance, bool promote)
+            {
+                GetSiteServices().AddService(serviceType, serviceInstance, promote);
+            }
+
+            void IServiceContainer.RemoveService(Type serviceType)
+            {
+                _services?.RemoveService(serviceType);
+            }
+
+            void IServiceContainer.RemoveService(Type serviceType, bool promote)
+            {
+                _services?.RemoveService(serviceType, promote);
+            }
+
+            private ServiceContainer GetSiteServices()
+            {
+                return _services ??= new ServiceContainer(_host);
+            }
+
+            public void Dispose()
+            {
+                _services?.Dispose();
+                _services = null;
+                _dictionary.Clear();
             }
         }
     }
