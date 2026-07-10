@@ -190,6 +190,67 @@ internal static class Program
             updatedText,
             StringComparison.Ordinal);
 
+        const string directComponentName = "directComponent1";
+        var directComponent = new Component();
+        bool directAdding = false;
+        bool directAdded = false;
+        bool directRemoving = false;
+        bool directRemoved = false;
+        ComponentEventHandler directAddingHandler = (sender, eventArgs) =>
+        {
+            directAdding |= ReferenceEquals(sender, host?.Container)
+                && ReferenceEquals(eventArgs.Component, directComponent)
+                && directComponent.Site is null;
+        };
+        ComponentEventHandler directAddedHandler = (sender, eventArgs) =>
+        {
+            directAdded |= ReferenceEquals(sender, host?.Container)
+                && ReferenceEquals(eventArgs.Component, directComponent)
+                && ReferenceEquals(directComponent.Site?.Container, host?.Container);
+        };
+        ComponentEventHandler directRemovingHandler = (sender, eventArgs) =>
+        {
+            directRemoving |= ReferenceEquals(sender, host)
+                && ReferenceEquals(eventArgs.Component, directComponent)
+                && ReferenceEquals(directComponent.Site?.Container, host?.Container);
+        };
+        ComponentEventHandler directRemovedHandler = (sender, eventArgs) =>
+        {
+            directRemoved |= ReferenceEquals(sender, host)
+                && ReferenceEquals(eventArgs.Component, directComponent)
+                && ReferenceEquals(directComponent.Site?.Container, host?.Container);
+        };
+        if (changeService is not null)
+        {
+            changeService.ComponentAdding += directAddingHandler;
+            changeService.ComponentAdded += directAddedHandler;
+            changeService.ComponentRemoving += directRemovingHandler;
+            changeService.ComponentRemoved += directRemovedHandler;
+        }
+
+        host?.Container.Add(directComponent, directComponentName);
+        bool directRegistered = ReferenceEquals(host?.Container.Components[directComponentName], directComponent)
+            && string.Equals(serializationManager?.GetName(directComponent), directComponentName, StringComparison.Ordinal)
+            && ReferenceEquals(serializationManager?.GetInstance(directComponentName), directComponent)
+            && ReferenceEquals(directComponent.Site?.GetService(typeof(IDesignerHost)), host);
+        host?.Container.Remove(directComponent);
+        if (changeService is not null)
+        {
+            changeService.ComponentAdding -= directAddingHandler;
+            changeService.ComponentAdded -= directAddedHandler;
+            changeService.ComponentRemoving -= directRemovingHandler;
+            changeService.ComponentRemoved -= directRemovedHandler;
+        }
+
+        bool directLifecycle = directAdding
+            && directAdded
+            && directRemoving
+            && directRemoved
+            && directRegistered
+            && directComponent.Site is null
+            && host?.Container.Components[directComponentName] is null
+            && serializationManager?.GetInstance(directComponentName) is null;
+
         var nestedContainer = component?.Site?.GetService(typeof(INestedContainer)) as INestedContainer;
         var nestedComponent = new Component();
         bool nestedAdding = false;
@@ -238,6 +299,23 @@ internal static class Program
                 StringComparison.Ordinal)
             && ReferenceEquals(serializationManager?.GetInstance(originalNestedName), nestedComponent);
 
+        const string namedNestedName = originalName + ".tools.namedComponent1";
+        INestedContainer? namedNestedContainer = component is null
+            ? null
+            : surface.CreateNestedContainer(component, "tools");
+        var namedNestedComponent = new Component();
+        namedNestedContainer?.Add(namedNestedComponent, "namedComponent1");
+        bool namedNested = ReferenceEquals(namedNestedContainer?.Owner, component)
+            && ReferenceEquals(namedNestedComponent.Site?.Container, namedNestedContainer)
+            && string.Equals((namedNestedComponent.Site as INestedSite)?.FullName, namedNestedName, StringComparison.Ordinal)
+            && ReferenceEquals(namedNestedComponent.Site?.GetService(typeof(IDesignerHost)), host)
+            && ReferenceEquals(namedNestedComponent.Site?.GetService(typeof(IComponentChangeService)), changeService)
+            && ReferenceEquals(namedNestedComponent.Site?.GetService(typeof(DesignerSmokeService)), localService);
+        namedNestedContainer?.Remove(namedNestedComponent);
+        namedNestedContainer?.Dispose();
+        bool namedNestedRemoved = namedNestedComponent.Site is null
+            && serializationManager?.GetInstance(namedNestedName) is null;
+
         if (component is not null && textProperty is not null)
         {
             changeService?.OnComponentChanging(component, textProperty);
@@ -276,6 +354,7 @@ internal static class Program
             && siteHasContainer
             && siteLocalService
             && siteDictionary
+            && directLifecycle
             && nestedContainer is not null
             && nestedOwner
             && nestedSite
@@ -286,6 +365,8 @@ internal static class Program
             && nestedHasChangeService
             && nestedHasSiteLocalService
             && nestedSerialization
+            && namedNested
+            && namedNestedRemoved
             && selected
             && persisted
             && renamed
@@ -295,11 +376,12 @@ internal static class Program
             "LibreWinForms SDK designer smoke result=" + (success ? "Success" : "Partial")
             + $" loaded={surface.IsLoaded} component={component is not null}"
             + $" siteHasChangeService={siteHasChangeService} siteHasHost={siteHasHost} siteHasContainer={siteHasContainer}"
-            + $" siteLocalService={siteLocalService} siteDictionary={siteDictionary} selected={selected}"
+            + $" siteLocalService={siteLocalService} siteDictionary={siteDictionary} directLifecycle={directLifecycle} selected={selected}"
             + $" nestedOwner={nestedOwner} nestedSite={nestedSite} nestedAdding={nestedAdding} nestedAdded={nestedAdded}"
             + $" nestedHasHost={nestedHasHost} nestedHasContainer={nestedHasContainer}"
             + $" nestedHasChangeService={nestedHasChangeService}"
             + $" nestedHasSiteLocalService={nestedHasSiteLocalService} nestedSerialization={nestedSerialization}"
+            + $" namedNested={namedNested} namedNestedRemoved={namedNestedRemoved}"
             + $" persisted={persisted} renamed={renamed} nestedRenamed={nestedRenamed}");
         return success ? 0 : 4;
     }

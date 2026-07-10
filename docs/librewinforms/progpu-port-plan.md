@@ -133,3 +133,24 @@ SharpDevelop broad package-mode workbench        -> all popup/designer/AvalonDoc
 ```
 
 The next designer slices remain toolbox placement/removal, extender providers, undo/redo transactions, verbs/menu commands, inherited components, localized resource round trips, and live event-handler source navigation. These must continue through managed WinForms contracts rather than app-local reflection.
+
+## 2026-07-10 designer lifecycle and popup re-open checkpoint
+
+`PortableDesignerHost` now owns the normal `Container.Add(...)` and `Remove(...)` lifecycle instead of relying on callers to raise design events. Direct and `CreateComponent(...)` additions receive stable generated names, root assignment, serialization registration, and `ComponentAdding`/`ComponentAdded`. Removal preserves the site through `ComponentRemoving`/`ComponentRemoved`, clears naming/event/selection state, then disposes the site and unsites the component. `DestroyComponent(...)` delegates to the component's actual host or nested container before disposal.
+
+`DesignSurface` now creates its designer host during construction, matching upstream service availability, and exposes both public `CreateNestedContainer(...)` overloads. Named containers produce owner-qualified `INestedSite.FullName` values and inherit services through the owning component's site. The SDK designer smoke validates direct add/remove event ordering, site visibility during removal, serialization registration cleanup, named nested-container services, qualified names, and removal cleanup.
+
+The hosted `ContextMenuStrip` bridge also preserves the requested strip's managed visible state when replacing an older WPF popup for the same strip. SharpDevelop's broad smoke records the actual `Opened` event separately from post-show visibility because another intentionally opened popup may correctly close the strip during reentrant dispatcher processing.
+
+Validation:
+
+```text
+LibreWinForms SDK designer smoke                  -> Success; directLifecycle/namedNested/namedNestedRemoved true
+LibreWinForms preview package lane                -> packages, manifest, bundle, checksum succeed
+SharpDevelop fresh-cache preview.6 rebuild        -> succeeds, 286 warnings, 0 errors
+Focused FormsDesigner                             -> Success; 21 components, 54 rows, flushPersisted=True
+Focused hosted ContextMenuStrip                   -> Opened; 3 items
+Broad workbench                                   -> all popup/designer/AvalonDock/WinForms/editor gates pass, exit code 0
+```
+
+ProGPU remains source-clean at `895fe73` (`0.1.0-preview.6`); the local package closure was rebuilt from that exact submodule before application validation.
