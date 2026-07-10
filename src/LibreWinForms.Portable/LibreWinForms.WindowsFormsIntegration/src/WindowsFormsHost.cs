@@ -399,6 +399,7 @@ public class WindowsFormsHost : FrameworkElement
         };
 
         CloseActiveContextMenu();
+        contextMenuStrip.Visible = true;
         foreach (Forms.ToolStripItem item in contextMenuStrip.Items)
         {
             if (CreateContextMenuItem(contextMenuStrip, item) is object menuItem)
