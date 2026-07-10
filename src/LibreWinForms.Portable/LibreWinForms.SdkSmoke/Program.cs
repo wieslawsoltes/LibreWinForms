@@ -251,6 +251,34 @@ internal static class Program
             && host?.Container.Components[directComponentName] is null
             && serializationManager?.GetInstance(directComponentName) is null;
 
+        var toolboxItem = new System.Drawing.Design.ToolboxItem(typeof(Forms.Button));
+        bool toolboxCreating = false;
+        bool toolboxCreated = false;
+        toolboxItem.ComponentsCreating += (_, eventArgs) =>
+        {
+            toolboxCreating = ReferenceEquals(eventArgs.DesignerHost, host);
+        };
+        toolboxItem.ComponentsCreated += (_, eventArgs) =>
+        {
+            toolboxCreated = eventArgs.Components is [Forms.Button];
+        };
+
+        IComponent[] toolboxComponents = host is null
+            ? Array.Empty<IComponent>()
+            : toolboxItem.CreateComponents(host, new Hashtable());
+        var toolboxButton = toolboxComponents.Length == 1 ? toolboxComponents[0] as Forms.Button : null;
+        bool toolboxCreation = toolboxCreating
+            && toolboxCreated
+            && toolboxButton is not null
+            && string.Equals(toolboxItem.TypeName, typeof(Forms.Button).FullName, StringComparison.Ordinal)
+            && string.Equals(toolboxItem.AssemblyName?.Name, typeof(Forms.Button).Assembly.GetName().Name, StringComparison.Ordinal)
+            && ReferenceEquals(toolboxItem.GetType(host), typeof(Forms.Button))
+            && ReferenceEquals(toolboxButton.Site?.Container, surface.ComponentContainer)
+            && ReferenceEquals(host?.Container.Components[toolboxButton.Site?.Name], toolboxButton);
+        if (toolboxButton is not null)
+            host?.DestroyComponent(toolboxButton);
+        toolboxCreation &= toolboxButton?.Site is null;
+
         var nestedContainer = component?.Site?.GetService(typeof(INestedContainer)) as INestedContainer;
         var nestedComponent = new Component();
         bool nestedAdding = false;
@@ -355,6 +383,7 @@ internal static class Program
             && siteLocalService
             && siteDictionary
             && directLifecycle
+            && toolboxCreation
             && nestedContainer is not null
             && nestedOwner
             && nestedSite
@@ -376,7 +405,8 @@ internal static class Program
             "LibreWinForms SDK designer smoke result=" + (success ? "Success" : "Partial")
             + $" loaded={surface.IsLoaded} component={component is not null}"
             + $" siteHasChangeService={siteHasChangeService} siteHasHost={siteHasHost} siteHasContainer={siteHasContainer}"
-            + $" siteLocalService={siteLocalService} siteDictionary={siteDictionary} directLifecycle={directLifecycle} selected={selected}"
+            + $" siteLocalService={siteLocalService} siteDictionary={siteDictionary} directLifecycle={directLifecycle}"
+            + $" toolboxCreation={toolboxCreation} selected={selected}"
             + $" nestedOwner={nestedOwner} nestedSite={nestedSite} nestedAdding={nestedAdding} nestedAdded={nestedAdded}"
             + $" nestedHasHost={nestedHasHost} nestedHasContainer={nestedHasContainer}"
             + $" nestedHasChangeService={nestedHasChangeService}"

@@ -37,6 +37,15 @@ namespace System.ComponentModel.Design
 
         public ICollection LoadErrors => _loadErrors;
 
+        public IContainer ComponentContainer
+        {
+            get
+            {
+                ObjectDisposedException.ThrowIf(_host is null, this);
+                return _host;
+            }
+        }
+
         public object View { get; private set; } = new Panel();
 
         public void BeginLoad(DesignerLoader loader)

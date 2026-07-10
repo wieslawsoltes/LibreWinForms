@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.ComponentModel.Design;
+using System.ComponentModel.Design.Serialization;
 using System.Drawing;
 using System.Reflection;
 
@@ -137,14 +138,16 @@ namespace System.Drawing.Design
 
     public class ToolboxItem
     {
+        private ToolboxComponentsCreatedEventHandler? _componentsCreated;
+        private ToolboxComponentsCreatingEventHandler? _componentsCreating;
+
         public ToolboxItem()
         {
         }
 
         public ToolboxItem(Type toolType)
         {
-            TypeName = toolType.AssemblyQualifiedName ?? toolType.FullName ?? toolType.Name;
-            DisplayName = toolType.Name;
+            Initialize(toolType);
         }
 
         public AssemblyName? AssemblyName { get; set; }
@@ -165,6 +168,18 @@ namespace System.Drawing.Design
 
         public string? TypeName { get; set; }
 
+        public event ToolboxComponentsCreatedEventHandler? ComponentsCreated
+        {
+            add => _componentsCreated += value;
+            remove => _componentsCreated -= value;
+        }
+
+        public event ToolboxComponentsCreatingEventHandler? ComponentsCreating
+        {
+            add => _componentsCreating += value;
+            remove => _componentsCreating -= value;
+        }
+
         public virtual void Initialize(Type? type)
         {
             if (type is null)
@@ -172,36 +187,135 @@ namespace System.Drawing.Design
                 return;
             }
 
-            TypeName = type.AssemblyQualifiedName ?? type.FullName ?? type.Name;
+            TypeName = type.FullName ?? type.Name;
             AssemblyName = type.Assembly.GetName();
             DisplayName = type.Name;
         }
 
         public IComponent[] CreateComponents()
         {
-            return CreateComponentsCore(null!);
+            return CreateComponents(null!);
         }
 
         public IComponent[] CreateComponents(IDesignerHost host)
         {
-            return CreateComponentsCore(host);
+            OnComponentsCreating(new ToolboxComponentsCreatingEventArgs(host));
+            IComponent[] components = CreateComponentsCore(host, new Hashtable());
+            if (components.Length > 0)
+                OnComponentsCreated(new ToolboxComponentsCreatedEventArgs(components));
+            return components;
         }
 
         public IComponent[] CreateComponents(IDesignerHost host, IDictionary defaultValues)
         {
-            return CreateComponentsCore(host, defaultValues);
+            OnComponentsCreating(new ToolboxComponentsCreatingEventArgs(host));
+            IComponent[] components = CreateComponentsCore(host, defaultValues);
+            if (components.Length > 0)
+                OnComponentsCreated(new ToolboxComponentsCreatedEventArgs(components));
+            return components;
         }
 
         protected virtual IComponent[] CreateComponentsCore(IDesignerHost host)
         {
-            return Array.Empty<IComponent>();
+            Type? componentType = GetType(host);
+            if (componentType is null || !typeof(IComponent).IsAssignableFrom(componentType))
+                return Array.Empty<IComponent>();
+
+            IComponent? component = host is null
+                ? TypeDescriptor.CreateInstance(null, componentType, null, null) as IComponent
+                : host.CreateComponent(componentType);
+            return component is null ? Array.Empty<IComponent>() : new[] { component };
         }
 
         protected virtual IComponent[] CreateComponentsCore(IDesignerHost host, IDictionary defaultValues)
         {
-            return CreateComponentsCore(host);
+            IComponent[] components = CreateComponentsCore(host);
+            if (host is null)
+                return components;
+
+            for (int i = 0; i < components.Length; i++)
+            {
+                if (host.GetDesigner(components[i]) is not IComponentInitializer initializer)
+                    continue;
+
+                bool initialized = false;
+                try
+                {
+                    initializer.InitializeNewComponent(defaultValues);
+                    initialized = true;
+                }
+                finally
+                {
+                    if (!initialized)
+                    {
+                        for (int componentIndex = 0; componentIndex < components.Length; componentIndex++)
+                            host.DestroyComponent(components[componentIndex]);
+                    }
+                }
+            }
+
+            return components;
         }
+
+        public Type? GetType(IDesignerHost? host)
+        {
+            return GetType(host, AssemblyName, TypeName, false);
+        }
+
+        protected virtual Type? GetType(
+            IDesignerHost? host,
+            AssemblyName? assemblyName,
+            string? typeName,
+            bool reference)
+        {
+            if (string.IsNullOrWhiteSpace(typeName))
+                return null;
+
+            ITypeResolutionService? typeResolutionService = host?.GetService(typeof(ITypeResolutionService)) as ITypeResolutionService;
+            if (reference && assemblyName is not null)
+                typeResolutionService?.ReferenceAssembly(assemblyName);
+
+            return PortableWinFormsTypeResolver.Resolve(typeResolutionService, typeName);
+        }
+
+        protected virtual void OnComponentsCreated(ToolboxComponentsCreatedEventArgs args)
+        {
+            _componentsCreated?.Invoke(this, args);
+        }
+
+        protected virtual void OnComponentsCreating(ToolboxComponentsCreatingEventArgs args)
+        {
+            _componentsCreating?.Invoke(this, args);
+        }
+
+        public override string ToString() => DisplayName;
     }
+
+    public class ToolboxComponentsCreatedEventArgs : EventArgs
+    {
+        private readonly IComponent[]? _components;
+
+        public ToolboxComponentsCreatedEventArgs(IComponent[]? components)
+        {
+            _components = components;
+        }
+
+        public IComponent[]? Components => (IComponent[]?)_components?.Clone();
+    }
+
+    public delegate void ToolboxComponentsCreatedEventHandler(object sender, ToolboxComponentsCreatedEventArgs e);
+
+    public class ToolboxComponentsCreatingEventArgs : EventArgs
+    {
+        public ToolboxComponentsCreatingEventArgs(IDesignerHost? host)
+        {
+            DesignerHost = host;
+        }
+
+        public IDesignerHost? DesignerHost { get; }
+    }
+
+    public delegate void ToolboxComponentsCreatingEventHandler(object sender, ToolboxComponentsCreatingEventArgs e);
 
     public sealed class ToolboxItemCollection : ReadOnlyCollection<ToolboxItem>
     {
