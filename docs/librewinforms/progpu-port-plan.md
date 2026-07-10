@@ -132,7 +132,7 @@ SharpDevelop focused FormsDesigner               -> Success; 21 components, 54 r
 SharpDevelop broad package-mode workbench        -> all popup/designer/AvalonDock/WinForms/editor gates pass, exit code 0
 ```
 
-The next designer slices remain toolbox placement/removal, extender providers, undo/redo transactions, verbs/menu commands, inherited components, localized resource round trips, and live event-handler source navigation. These must continue through managed WinForms contracts rather than app-local reflection.
+The next designer slices remain interactive toolbox selection/drop handling, parent-control adorners, extender providers, undo/redo transactions, verbs/menu commands, inherited components, localized resource round trips, and live event-handler source navigation. These must continue through managed WinForms contracts rather than app-local reflection.
 
 ## 2026-07-10 designer lifecycle and popup re-open checkpoint
 
@@ -154,3 +154,22 @@ Broad workbench                                   -> all popup/designer/AvalonDo
 ```
 
 ProGPU remains source-clean at `895fe73` (`0.1.0-preview.6`); the local package closure was rebuilt from that exact submodule before application validation.
+
+## 2026-07-10 toolbox and designer-instance checkpoint
+
+The portable `System.Drawing.Design.ToolboxItem` now reuses the upstream managed creation contract instead of returning an empty component array. It initializes standard type metadata, resolves types through `ITypeResolutionService`, raises creating/created events, creates components through `IDesignerHost`, and delegates default values to `IComponentInitializer`. `DesignSurface.ComponentContainer` now exposes the host container through the standard public API.
+
+`PortableDesignerHost` now owns designer instances with the same lifecycle ordering as upstream WinForms: create and index before `ComponentAdded`, initialize once, return from `GetDesigner`, dispose before removal, and remove from the index during cleanup. `DesignSurface.CreateDesigner(...)` uses `TypeDescriptor` for attributed third-party designers first. Source-owned portable controls receive typed component/control/root fallback designers until the larger upstream `System.Windows.Forms.Design` control-designer source groups are portable. The root designer supplies the design-surface view, and control initialization applies typed parent, location, size, text, and other property defaults without reflection probes.
+
+Validation used packages rebuilt at `0.1.0-preview.sharpdevelop.1` against the coherent ProGPU preview.6 bridge feed:
+
+```text
+LibreWinForms SDK designer smoke               -> Success; toolboxCreation=True, attributedDesigner=True
+LibreWinForms preview package lane             -> packages, manifest, bundle, checksum succeed
+SharpDevelop fresh-cache full rebuild          -> succeeds, 286 warnings, 0 errors
+SharpDevelop focused FormsDesigner             -> Success; toolboxCreated=True, toolboxRemoved=True, 54 rows
+SharpDevelop broad package-mode workbench      -> all popup/build/ResX/designer/AvalonDock/WinForms/completion gates pass
+SharpDevelop shutdown                          -> exit code 0; native input attach/detach balanced
+```
+
+The next toolbox step is real user interaction through the root/parent designer surface: palette selection, click/drop placement, drag sizing, selection adorners, and command/undo integration. The framework creation, initialization, placement, and removal contract underneath that UI is now covered.
