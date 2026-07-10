@@ -16,13 +16,13 @@ namespace System.ComponentModel.Design
 
         public DesignSurface()
         {
-            _host = new PortableDesignerHost(null);
+            _host = new PortableDesignerHost(this, null);
         }
 
         public DesignSurface(IServiceProvider serviceProvider)
         {
             _serviceProvider = serviceProvider;
-            _host = new PortableDesignerHost(serviceProvider);
+            _host = new PortableDesignerHost(this, serviceProvider);
         }
 
         public event EventHandler? Flushed;
@@ -82,7 +82,7 @@ namespace System.ComponentModel.Design
                 }
 
                 IsLoaded = _host.LoadSucceeded && _loadErrors.Count == 0;
-                View = _host.RootComponent as Control ?? new Panel();
+                View = GetRootDesignerView(_host);
             }
             catch (Exception ex)
             {
@@ -133,11 +133,43 @@ namespace System.ComponentModel.Design
 
             return _serviceProvider?.GetService(serviceType);
         }
+
+        protected internal virtual IDesigner? CreateDesigner(IComponent component, bool rootDesigner)
+        {
+            ArgumentNullException.ThrowIfNull(component);
+            ObjectDisposedException.ThrowIf(_host is null, this);
+
+            IDesigner? designer = rootDesigner
+                ? TypeDescriptor.CreateDesigner(component, typeof(IRootDesigner)) as IRootDesigner
+                : TypeDescriptor.CreateDesigner(component, typeof(IDesigner));
+            if (designer is not null)
+                return designer;
+
+            if (rootDesigner)
+                return new PortableRootControlDesigner();
+            return component is Control
+                ? new PortableControlDesigner()
+                : new PortableComponentDesigner();
+        }
+
+        private static object GetRootDesignerView(PortableDesignerHost host)
+        {
+            if (host.RootComponent is IComponent rootComponent
+                && host.GetDesigner(rootComponent) is IRootDesigner rootDesigner
+                && rootDesigner.SupportedTechnologies is { Length: > 0 } technologies)
+            {
+                return rootDesigner.GetView(technologies[0]);
+            }
+
+            return host.RootComponent as Control ?? new Panel();
+        }
     }
 
     internal sealed class PortableDesignerHost : Container, IDesignerLoaderHost, IDesignerLoaderHost2, IDesignerSerializationManager, IComponentChangeService, ISelectionService, INameCreationService
     {
+        private readonly DesignSurface _surface;
         private readonly IServiceProvider? _serviceProvider;
+        private readonly Dictionary<IComponent, IDesigner> _designers = new();
         private readonly Dictionary<string, object> _instances = new(StringComparer.Ordinal);
         private readonly Dictionary<object, string> _names = new();
         private readonly Dictionary<Type, object> _services = new();
@@ -148,8 +180,9 @@ namespace System.ComponentModel.Design
         private int _transactionDepth;
         private string _transactionDescription = string.Empty;
 
-        public PortableDesignerHost(IServiceProvider? serviceProvider)
+        public PortableDesignerHost(DesignSurface surface, IServiceProvider? serviceProvider)
         {
+            _surface = surface;
             _serviceProvider = serviceProvider;
             _eventBindingService = new PortableEventBindingService(this);
         }
@@ -264,11 +297,14 @@ namespace System.ComponentModel.Design
             try
             {
                 RegisterSiteComponent(component);
-                if (RootComponent is null)
+                bool isRootComponent = RootComponent is null;
+                if (isRootComponent)
                 {
                     RootComponent = component;
                     RootComponentClassName = component.GetType().FullName ?? component.GetType().Name;
                 }
+
+                InitializeDesigner(component, isRootComponent);
 
                 ComponentAdded?.Invoke(this, new ComponentEventArgs(component));
             }
@@ -343,7 +379,8 @@ namespace System.ComponentModel.Design
 
         public IDesigner? GetDesigner(IComponent component)
         {
-            return null;
+            ArgumentNullException.ThrowIfNull(component);
+            return _designers.TryGetValue(component, out IDesigner? designer) ? designer : null;
         }
 
         public Type? GetType(string typeName)
@@ -642,12 +679,14 @@ namespace System.ComponentModel.Design
         private void NotifyNestedComponentAdded(IContainer container, IComponent component)
         {
             RegisterSiteComponent(component);
+            InitializeDesigner(component, false);
             ComponentAdded?.Invoke(container, new ComponentEventArgs(component));
         }
 
         private void NotifyComponentRemoving(IComponent component)
         {
             ComponentRemoving?.Invoke(this, new ComponentEventArgs(component));
+            DisposeDesigner(component);
         }
 
         private void NotifyComponentRemoved(IComponent component)
@@ -673,6 +712,37 @@ namespace System.ComponentModel.Design
             {
                 _instances.Remove(name);
             }
+        }
+
+        private void InitializeDesigner(IComponent component, bool rootDesigner)
+        {
+            IDesigner? designer = _surface.CreateDesigner(component, rootDesigner);
+            if (rootDesigner && designer is not IRootDesigner)
+                throw new InvalidOperationException(component.GetType().FullName + " does not provide a root designer.");
+            if (designer is null)
+                return;
+
+            _designers[component] = designer;
+            try
+            {
+                designer.Initialize(component);
+                if (designer.Component is null)
+                    throw new InvalidOperationException(designer.GetType().FullName + " did not retain its component.");
+            }
+            catch
+            {
+                _designers.Remove(component);
+                designer.Dispose();
+                throw;
+            }
+        }
+
+        private void DisposeDesigner(IComponent component)
+        {
+            if (!_designers.Remove(component, out IDesigner? designer))
+                return;
+
+            designer.Dispose();
         }
 
         public string CreateName(IContainer container, Type dataType)
@@ -780,6 +850,10 @@ namespace System.ComponentModel.Design
         {
             if (disposing)
             {
+                foreach (IDesigner designer in new List<IDesigner>(_designers.Values))
+                    designer.Dispose();
+                _designers.Clear();
+
                 for (int i = 0; i < Components.Count; i++)
                 {
                     IComponent? component = Components[i];
@@ -1185,6 +1259,84 @@ namespace System.ComponentModel.Design
 
                 base.Dispose(disposing);
             }
+        }
+    }
+
+    internal class PortableComponentDesigner : IDesigner, IComponentInitializer
+    {
+        public IComponent Component { get; private set; } = null!;
+
+        public DesignerVerbCollection Verbs { get; } = new();
+
+        public virtual void Dispose()
+        {
+            Component = null!;
+        }
+
+        public virtual void DoDefaultAction()
+        {
+        }
+
+        public virtual void Initialize(IComponent component)
+        {
+            ArgumentNullException.ThrowIfNull(component);
+            Component = component;
+        }
+
+        public virtual void InitializeExistingComponent(IDictionary? defaultValues)
+        {
+            ApplyDefaultValues(defaultValues);
+        }
+
+        public virtual void InitializeNewComponent(IDictionary? defaultValues)
+        {
+            ApplyDefaultValues(defaultValues);
+        }
+
+        protected virtual void ApplyDefaultValues(IDictionary? defaultValues)
+        {
+            if (Component is null || defaultValues is null)
+                return;
+
+            PropertyDescriptorCollection properties = TypeDescriptor.GetProperties(Component);
+            foreach (DictionaryEntry entry in defaultValues)
+            {
+                PropertyDescriptor? property = entry.Key switch
+                {
+                    PropertyDescriptor descriptor => descriptor,
+                    string propertyName => properties[propertyName],
+                    _ => null
+                };
+                if (property is not null && !property.IsReadOnly)
+                    property.SetValue(Component, entry.Value);
+            }
+        }
+    }
+
+    internal class PortableControlDesigner : PortableComponentDesigner
+    {
+        protected override void ApplyDefaultValues(IDictionary? defaultValues)
+        {
+            Control? control = Component as Control;
+            Control? parent = defaultValues?["Parent"] as Control;
+            base.ApplyDefaultValues(defaultValues);
+            if (control is not null && parent is not null && !ReferenceEquals(control.Parent, parent))
+                parent.Controls.Add(control);
+        }
+    }
+
+    internal sealed class PortableRootControlDesigner : PortableControlDesigner, IRootDesigner
+    {
+        private static readonly ViewTechnology[] s_supportedTechnologies = { ViewTechnology.Default };
+
+        public ViewTechnology[] SupportedTechnologies => (ViewTechnology[])s_supportedTechnologies.Clone();
+
+        public object GetView(ViewTechnology technology)
+        {
+            if (technology != ViewTechnology.Default)
+                throw new ArgumentException("Unsupported designer view technology.", nameof(technology));
+
+            return Component as Control ?? new Panel();
         }
     }
 

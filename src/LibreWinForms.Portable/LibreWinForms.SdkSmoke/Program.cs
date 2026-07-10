@@ -263,10 +263,18 @@ internal static class Program
             toolboxCreated = eventArgs.Components is [Forms.Button];
         };
 
+        var toolboxDefaults = new Hashtable
+        {
+            ["Parent"] = component!,
+            [nameof(Forms.Control.Location)] = new System.Drawing.Point(24, 32),
+            [nameof(Forms.Control.Size)] = new System.Drawing.Size(120, 28),
+            [nameof(Forms.Control.Text)] = "Toolbox button"
+        };
         IComponent[] toolboxComponents = host is null
             ? Array.Empty<IComponent>()
-            : toolboxItem.CreateComponents(host, new Hashtable());
+            : toolboxItem.CreateComponents(host, toolboxDefaults);
         var toolboxButton = toolboxComponents.Length == 1 ? toolboxComponents[0] as Forms.Button : null;
+        IDesigner? toolboxDesigner = toolboxButton is null ? null : host?.GetDesigner(toolboxButton);
         bool toolboxCreation = toolboxCreating
             && toolboxCreated
             && toolboxButton is not null
@@ -274,10 +282,36 @@ internal static class Program
             && string.Equals(toolboxItem.AssemblyName?.Name, typeof(Forms.Button).Assembly.GetName().Name, StringComparison.Ordinal)
             && ReferenceEquals(toolboxItem.GetType(host), typeof(Forms.Button))
             && ReferenceEquals(toolboxButton.Site?.Container, surface.ComponentContainer)
-            && ReferenceEquals(host?.Container.Components[toolboxButton.Site?.Name], toolboxButton);
+            && ReferenceEquals(host?.Container.Components[toolboxButton.Site?.Name], toolboxButton)
+            && toolboxDesigner is IComponentInitializer
+            && ReferenceEquals(toolboxButton.Parent, component)
+            && component?.Controls.Contains(toolboxButton) == true
+            && toolboxButton.Location == new System.Drawing.Point(24, 32)
+            && toolboxButton.Size == new System.Drawing.Size(120, 28)
+            && string.Equals(toolboxButton.Text, "Toolbox button", StringComparison.Ordinal)
+            && host?.RootComponent is not null
+            && host.GetDesigner(host.RootComponent) is IRootDesigner
+            && ReferenceEquals(surface.View, host.RootComponent);
         if (toolboxButton is not null)
             host?.DestroyComponent(toolboxButton);
-        toolboxCreation &= toolboxButton?.Site is null;
+        toolboxCreation &= toolboxButton?.Site is null
+            && toolboxButton?.Parent is null
+            && (toolboxButton is null || component?.Controls.Contains(toolboxButton) == false)
+            && (toolboxButton is null || host?.GetDesigner(toolboxButton) is null);
+
+        DesignerSmokeTrackingDesigner.Reset();
+        var attributedComponent = host?.CreateComponent(
+            typeof(DesignerSmokeAttributedComponent),
+            "attributedComponent1") as DesignerSmokeAttributedComponent;
+        bool attributedDesigner = attributedComponent is not null
+            && host?.GetDesigner(attributedComponent) is DesignerSmokeTrackingDesigner
+            && DesignerSmokeTrackingDesigner.Initialized
+            && ReferenceEquals(DesignerSmokeTrackingDesigner.DesignedComponent, attributedComponent);
+        if (attributedComponent is not null)
+            host?.DestroyComponent(attributedComponent);
+        attributedDesigner &= DesignerSmokeTrackingDesigner.Disposed
+            && attributedComponent?.Site is null
+            && (attributedComponent is null || host?.GetDesigner(attributedComponent) is null);
 
         var nestedContainer = component?.Site?.GetService(typeof(INestedContainer)) as INestedContainer;
         var nestedComponent = new Component();
@@ -384,6 +418,7 @@ internal static class Program
             && siteDictionary
             && directLifecycle
             && toolboxCreation
+            && attributedDesigner
             && nestedContainer is not null
             && nestedOwner
             && nestedSite
@@ -406,7 +441,7 @@ internal static class Program
             + $" loaded={surface.IsLoaded} component={component is not null}"
             + $" siteHasChangeService={siteHasChangeService} siteHasHost={siteHasHost} siteHasContainer={siteHasContainer}"
             + $" siteLocalService={siteLocalService} siteDictionary={siteDictionary} directLifecycle={directLifecycle}"
-            + $" toolboxCreation={toolboxCreation} selected={selected}"
+            + $" toolboxCreation={toolboxCreation} attributedDesigner={attributedDesigner} selected={selected}"
             + $" nestedOwner={nestedOwner} nestedSite={nestedSite} nestedAdding={nestedAdding} nestedAdded={nestedAdded}"
             + $" nestedHasHost={nestedHasHost} nestedHasContainer={nestedHasContainer}"
             + $" nestedHasChangeService={nestedHasChangeService}"
@@ -505,5 +540,47 @@ internal static class Program
 
             return false;
         }
+    }
+}
+
+[Designer(typeof(DesignerSmokeTrackingDesigner), typeof(IDesigner))]
+public sealed class DesignerSmokeAttributedComponent : Component
+{
+}
+
+public sealed class DesignerSmokeTrackingDesigner : IDesigner
+{
+    public static bool Disposed { get; private set; }
+
+    public static IComponent? DesignedComponent { get; private set; }
+
+    public static bool Initialized { get; private set; }
+
+    public IComponent Component { get; private set; } = null!;
+
+    public DesignerVerbCollection Verbs { get; } = new();
+
+    public static void Reset()
+    {
+        DesignedComponent = null;
+        Disposed = false;
+        Initialized = false;
+    }
+
+    public void Dispose()
+    {
+        Disposed = true;
+        Component = null!;
+    }
+
+    public void DoDefaultAction()
+    {
+    }
+
+    public void Initialize(IComponent component)
+    {
+        Component = component;
+        DesignedComponent = component;
+        Initialized = true;
     }
 }
