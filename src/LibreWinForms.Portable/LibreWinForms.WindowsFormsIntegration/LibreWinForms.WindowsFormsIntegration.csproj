@@ -28,6 +28,7 @@
 
   <ItemGroup>
     <PackageReference Include="LibreWPF.Interop" Version="$(LibreWinFormsBridgePackageVersion)" />
+    <PackageReference Include="LibreWPF.ProGPU" Version="$(LibreWinFormsBridgePackageVersion)" />
     <PackageReference Include="LibreWPF.Transport" Version="$(LibreWinFormsBridgePackageVersion)" Condition="'$(_LibreWpfUseManagedAssemblyRoot)' != 'true'" />
     <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(LibreWinFormsBridgePackageVersion)" />
     <ProjectReference Include="..\LibreWinForms.System.Windows.Forms\LibreWinForms.System.Windows.Forms.csproj" />

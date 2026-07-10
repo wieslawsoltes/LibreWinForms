@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Windows;
 using System.Windows.Automation.Peers;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Markup;
 using System.Windows.Media;
+using System.Windows.Media.ProGPU;
 using System.Windows.Media.Imaging;
 using Forms = System.Windows.Forms;
 using DrawingBitmap = System.Drawing.Bitmap;
@@ -30,6 +32,7 @@ public class WindowsFormsHost : FrameworkElement
 {
     private static readonly object s_registeredHostsGate = new();
     private static readonly List<WeakReference<WindowsFormsHost>> s_registeredHosts = new();
+    private static int s_interopEnabled;
 
     public static readonly DependencyProperty BackgroundProperty =
         DependencyProperty.Register(nameof(Background), typeof(Brush), typeof(WindowsFormsHost), new FrameworkPropertyMetadata(null));
@@ -161,6 +164,14 @@ public class WindowsFormsHost : FrameworkElement
 
     public static void EnableWindowsFormsInterop()
     {
+        if (Interlocked.Exchange(ref s_interopEnabled, 1) == 0)
+        {
+            RuntimeHelpers.RunModuleConstructor(typeof(Application).Module.ModuleHandle);
+            RuntimeHelpers.RunModuleConstructor(typeof(Clipboard).Module.ModuleHandle);
+            WpfPortableWindowActivation.TryRegisterPresentationFrameworkActivation();
+            WpfPortableWindowActivation.TryRegisterPresentationCoreClipboardService();
+            Forms.Application.RegisterPortableApplicationHost(WpfPortableWinFormsApplicationHost.Instance);
+        }
     }
 
     public virtual bool TabInto(System.Windows.Input.TraversalRequest request)

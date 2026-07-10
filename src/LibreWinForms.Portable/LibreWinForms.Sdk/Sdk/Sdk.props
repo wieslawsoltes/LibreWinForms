@@ -4,11 +4,18 @@
     <LibreWinFormsUsePortableFrameworkReferences Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == ''">true</LibreWinFormsUsePortableFrameworkReferences>
     <LibreWinFormsUseSystemWindowsForms Condition="'$(LibreWinFormsUseSystemWindowsForms)' == '' And '$(UseWindowsForms)' == 'true'">true</LibreWinFormsUseSystemWindowsForms>
     <LibreWinFormsUseSystemWindowsForms Condition="'$(LibreWinFormsUseSystemWindowsForms)' == ''">false</LibreWinFormsUseSystemWindowsForms>
+    <LibreWinFormsUseWindowsFormsIntegration Condition="'$(LibreWinFormsUseWindowsFormsIntegration)' == '' And '$(UseWindowsForms)' == 'true'">true</LibreWinFormsUseWindowsFormsIntegration>
     <LibreWinFormsUseWindowsFormsIntegration Condition="'$(LibreWinFormsUseWindowsFormsIntegration)' == ''">false</LibreWinFormsUseWindowsFormsIntegration>
+    <LibreWinFormsGenerateApplicationBootstrap Condition="'$(LibreWinFormsGenerateApplicationBootstrap)' == '' And '$(LibreWinFormsUseWindowsFormsIntegration)' == 'true'">true</LibreWinFormsGenerateApplicationBootstrap>
+    <LibreWinFormsGenerateApplicationBootstrap Condition="'$(LibreWinFormsGenerateApplicationBootstrap)' == ''">false</LibreWinFormsGenerateApplicationBootstrap>
     <UseWindowsForms Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true'">false</UseWindowsForms>
     <EnableWindowsTargeting Condition="'$(EnableWindowsTargeting)' == ''">true</EnableWindowsTargeting>
     <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == ''">0.1.0-preview.1</LibreWinFormsVersion>
     <LibreWinFormsPackageVersion Condition="'$(LibreWinFormsPackageVersion)' == ''">$(LibreWinFormsVersion)</LibreWinFormsPackageVersion>
+    <LibreWinFormsSystemConfigurationConfigurationManagerVersion Condition="'$(LibreWinFormsSystemConfigurationConfigurationManagerVersion)' == ''">11.0.0-preview.5.26302.115</LibreWinFormsSystemConfigurationConfigurationManagerVersion>
+    <LibreWinFormsSystemFormatsNrbfVersion Condition="'$(LibreWinFormsSystemFormatsNrbfVersion)' == ''">11.0.0-preview.5.26302.115</LibreWinFormsSystemFormatsNrbfVersion>
+    <LibreWinFormsSystemIOPackagingVersion Condition="'$(LibreWinFormsSystemIOPackagingVersion)' == ''">11.0.0-preview.5.26302.115</LibreWinFormsSystemIOPackagingVersion>
+    <LibreWinFormsSystemWindowsExtensionsVersion Condition="'$(LibreWinFormsSystemWindowsExtensionsVersion)' == ''">11.0.0-preview.5.26302.115</LibreWinFormsSystemWindowsExtensionsVersion>
     <LibreWinFormsReferenceMode Condition="'$(LibreWinFormsReferenceMode)' == '' And '$(LibreWinFormsReferenceRoot)' != ''">LocalArtifacts</LibreWinFormsReferenceMode>
     <LibreWinFormsReferenceMode Condition="'$(LibreWinFormsReferenceMode)' == ''">Package</LibreWinFormsReferenceMode>
     <CopyLocalLockFileAssemblies Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(CopyLocalLockFileAssemblies)' == ''">true</CopyLocalLockFileAssemblies>

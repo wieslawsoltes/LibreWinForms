@@ -755,6 +755,9 @@ public class ContainerControl : ScrollableControl
 
 public class Form : ContainerControl
 {
+    private bool _shown;
+    private bool _closed;
+
     public event CancelEventHandler? Closing;
     public event FormClosingEventHandler? FormClosing;
     public event EventHandler? Closed;
@@ -797,27 +800,73 @@ public class Form : ContainerControl
 
     public FormWindowState WindowState { get; set; }
 
+    public override void Show()
+    {
+        base.Show();
+        RaiseShownOnce();
+    }
+
     public DialogResult ShowDialog()
     {
-        OnShown(EventArgs.Empty);
+        if (Application.TryShowDialog(this, owner: null, out DialogResult result))
+        {
+            return result;
+        }
+
+        RaiseShownOnce();
         return DialogResult;
     }
 
     public DialogResult ShowDialog(IWin32Window owner)
     {
+        if (Application.TryShowDialog(this, owner, out DialogResult result))
+        {
+            return result;
+        }
+
         return ShowDialog();
     }
 
     public void Close()
     {
+        _ = Close(CloseReason.UserClosing);
+    }
+
+    public bool Close(CloseReason closeReason)
+    {
         var closing = new CancelEventArgs();
         OnClosing(closing);
-        if (!closing.Cancel)
+        if (closing.Cancel)
         {
-            FormClosing?.Invoke(this, new FormClosingEventArgs(CloseReason.UserClosing, false));
-            OnClosed(EventArgs.Empty);
-            OnFormClosed(new FormClosedEventArgs(CloseReason.UserClosing));
+            return false;
         }
+
+        var formClosing = new FormClosingEventArgs(closeReason, false);
+        FormClosing?.Invoke(this, formClosing);
+        if (formClosing.Cancel)
+        {
+            return false;
+        }
+
+        if (!_closed)
+        {
+            _closed = true;
+            OnClosed(EventArgs.Empty);
+            OnFormClosed(new FormClosedEventArgs(closeReason));
+        }
+
+        return true;
+    }
+
+    private void RaiseShownOnce()
+    {
+        if (_shown)
+        {
+            return;
+        }
+
+        _shown = true;
+        OnShown(EventArgs.Empty);
     }
 
     protected virtual void OnClosing(CancelEventArgs e)
@@ -5189,6 +5238,7 @@ public static class Cursors
 public static class Application
 {
     private static readonly List<IMessageFilter> s_messageFilters = new();
+    private static IWinFormsApplicationHost? s_applicationHost;
 
     public static string StartupPath => AppContext.BaseDirectory;
 
@@ -5240,17 +5290,42 @@ public static class Application
         Idle?.Invoke(typeof(Application), e);
     }
 
+    public static void RegisterPortableApplicationHost(IWinFormsApplicationHost host)
+    {
+        s_applicationHost = host ?? throw new ArgumentNullException(nameof(host));
+    }
+
     public static void Run()
     {
     }
 
     public static void Run(Form mainForm)
     {
+        ArgumentNullException.ThrowIfNull(mainForm);
+        if (s_applicationHost != null)
+        {
+            s_applicationHost.Run(mainForm);
+            return;
+        }
+
         mainForm.Show();
     }
 
     public static void ExitThread()
     {
+        s_applicationHost?.ExitThread();
+    }
+
+    internal static bool TryShowDialog(Form form, IWin32Window? owner, out DialogResult result)
+    {
+        if (s_applicationHost == null)
+        {
+            result = default;
+            return false;
+        }
+
+        result = s_applicationHost.ShowDialog(form, owner);
+        return true;
     }
 }
 

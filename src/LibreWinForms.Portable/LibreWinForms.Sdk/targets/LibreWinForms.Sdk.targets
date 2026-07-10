@@ -9,6 +9,20 @@
     <PackageReference Include="LibreWinForms.WindowsFormsIntegration" VersionOverride="$(LibreWinFormsPackageVersion)" Condition="'$(LibreWinFormsUseWindowsFormsIntegration)' == 'true'" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseWindowsFormsIntegration)' == 'true' And '$(ManagePackageVersionsCentrally)' != 'true'">
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="$(LibreWinFormsSystemConfigurationConfigurationManagerVersion)" />
+    <PackageReference Include="System.Formats.Nrbf" Version="$(LibreWinFormsSystemFormatsNrbfVersion)" />
+    <PackageReference Include="System.IO.Packaging" Version="$(LibreWinFormsSystemIOPackagingVersion)" />
+    <PackageReference Include="System.Windows.Extensions" Version="$(LibreWinFormsSystemWindowsExtensionsVersion)" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseWindowsFormsIntegration)' == 'true' And '$(ManagePackageVersionsCentrally)' == 'true'">
+    <PackageReference Include="System.Configuration.ConfigurationManager" VersionOverride="$(LibreWinFormsSystemConfigurationConfigurationManagerVersion)" />
+    <PackageReference Include="System.Formats.Nrbf" VersionOverride="$(LibreWinFormsSystemFormatsNrbfVersion)" />
+    <PackageReference Include="System.IO.Packaging" VersionOverride="$(LibreWinFormsSystemIOPackagingVersion)" />
+    <PackageReference Include="System.Windows.Extensions" VersionOverride="$(LibreWinFormsSystemWindowsExtensionsVersion)" />
+  </ItemGroup>
+
   <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'LocalArtifacts' And '$(LibreWinFormsReferenceRoot)' != ''">
     <Reference Include="System.Windows.Forms" HintPath="$(LibreWinFormsReferenceRoot)System.Windows.Forms.dll" Private="true" Condition="Exists('$(LibreWinFormsReferenceRoot)System.Windows.Forms.dll')" />
     <Reference Include="WindowsFormsIntegration" HintPath="$(LibreWinFormsReferenceRoot)WindowsFormsIntegration.dll" Private="true" Condition="'$(LibreWinFormsUseWindowsFormsIntegration)' == 'true' And Exists('$(LibreWinFormsReferenceRoot)WindowsFormsIntegration.dll')" />
@@ -18,5 +32,36 @@
           BeforeTargets="PrepareForBuild"
           Condition="'$(LibreWinFormsEnableSdkDiagnostics)' == 'true'">
     <Message Importance="High" Text="LibreWinForms.Sdk platform=$(LibreWinFormsPlatform) backend=$(LibreWinFormsRenderingBackend) referenceMode=$(LibreWinFormsReferenceMode)" />
+  </Target>
+
+  <Target Name="_LibreWinFormsGenerateApplicationBootstrap"
+          BeforeTargets="CoreCompile"
+          Condition="'$(LibreWinFormsGenerateApplicationBootstrap)' == 'true'">
+    <PropertyGroup>
+      <_LibreWinFormsApplicationBootstrapFile>$(IntermediateOutputPath)LibreWinForms.ApplicationBootstrap.g.cs</_LibreWinFormsApplicationBootstrapFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <_LibreWinFormsApplicationBootstrapLine Include="namespace LibreWinForms.Generated" />
+      <_LibreWinFormsApplicationBootstrapLine Include="{" />
+      <_LibreWinFormsApplicationBootstrapLine Include="    internal static class LibreWinFormsApplicationBootstrap" />
+      <_LibreWinFormsApplicationBootstrapLine Include="    {" />
+      <_LibreWinFormsApplicationBootstrapLine Include="        [global::System.Runtime.CompilerServices.ModuleInitializer]" />
+      <_LibreWinFormsApplicationBootstrapLine Include="        internal static void Initialize()" />
+      <_LibreWinFormsApplicationBootstrapLine Include="        {" />
+      <_LibreWinFormsApplicationBootstrapLine Include="            global::System.Windows.Forms.Integration.WindowsFormsHost.EnableWindowsFormsInterop()%3B" />
+      <_LibreWinFormsApplicationBootstrapLine Include="        }" />
+      <_LibreWinFormsApplicationBootstrapLine Include="    }" />
+      <_LibreWinFormsApplicationBootstrapLine Include="}" />
+    </ItemGroup>
+
+    <WriteLinesToFile
+      File="$(_LibreWinFormsApplicationBootstrapFile)"
+      Lines="@(_LibreWinFormsApplicationBootstrapLine)"
+      Overwrite="true" />
+
+    <ItemGroup>
+      <Compile Include="$(_LibreWinFormsApplicationBootstrapFile)" AutoGen="true" DesignTime="true" Visible="false" />
+    </ItemGroup>
   </Target>
 </Project>
