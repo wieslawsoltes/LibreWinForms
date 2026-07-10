@@ -419,8 +419,19 @@ namespace System.ComponentModel.Design
 
         public object? GetInstance(string name)
         {
-            if (name is not null && _instances.TryGetValue(name, out object? instance))
+            ArgumentNullException.ThrowIfNull(name);
+
+            if (_instances.TryGetValue(name, out object? instance))
                 return instance;
+
+            for (int i = 0; i < Components.Count; i++)
+            {
+                if (Components[i]?.Site is PortableDesignerSite site
+                    && site.TryGetNestedInstance(name, out instance))
+                {
+                    return instance;
+                }
+            }
 
             ResolveNameEventArgs args = new(name);
             ResolveName?.Invoke(this, args);
@@ -429,7 +440,14 @@ namespace System.ComponentModel.Design
 
         public string? GetName(object value)
         {
-            return value is not null && _names.TryGetValue(value, out string? name) ? name : null;
+            if (value is null)
+                return null;
+            if (_names.TryGetValue(value, out string? name))
+                return name;
+            if (value is not IComponent component || component.Site is null)
+                return null;
+
+            return component.Site is INestedSite nestedSite ? nestedSite.FullName : component.Site.Name;
         }
 
         public object? GetSerializer(Type objectType, Type serializerType)
@@ -493,7 +511,13 @@ namespace System.ComponentModel.Design
             return new PortableDesignerSite(component, this, name);
         }
 
-        private void RenameSiteComponent(IComponent component, string? oldName, string? newName)
+        private void RenameSiteComponent(
+            IComponent component,
+            IContainer container,
+            string? oldName,
+            string? newName,
+            string? oldQualifiedName,
+            string? newQualifiedName)
         {
             if (string.Equals(oldName, newName, StringComparison.Ordinal))
                 return;
@@ -501,26 +525,62 @@ namespace System.ComponentModel.Design
             if (!string.IsNullOrEmpty(newName))
             {
                 ValidateName(newName);
-                IComponent? existing = Components[newName];
+                IComponent? existing = container.Components[newName];
                 if (existing is not null && !ReferenceEquals(existing, component))
                     throw new ArgumentException("A component named '" + newName + "' already exists.", nameof(newName));
             }
 
-            if (!string.IsNullOrEmpty(oldName)
-                && _instances.TryGetValue(oldName, out object? oldInstance)
+            if (!string.IsNullOrEmpty(oldQualifiedName)
+                && _instances.TryGetValue(oldQualifiedName, out object? oldInstance)
                 && ReferenceEquals(oldInstance, component))
             {
-                _instances.Remove(oldName);
+                _instances.Remove(oldQualifiedName);
             }
 
             _names.Remove(component);
-            if (!string.IsNullOrEmpty(newName))
+            if (!string.IsNullOrEmpty(newQualifiedName))
             {
-                _instances[newName] = component;
-                _names[component] = newName;
+                _instances[newQualifiedName] = component;
+                _names[component] = newQualifiedName;
             }
 
             ComponentRename?.Invoke(this, new ComponentRenameEventArgs(component, oldName, newName));
+        }
+
+        private void RegisterSiteComponent(IComponent component)
+        {
+            RemoveName(component);
+            string? name = component.Site is INestedSite nestedSite
+                ? nestedSite.FullName
+                : component.Site?.Name;
+            if (string.IsNullOrEmpty(name))
+                return;
+
+            _instances[name] = component;
+            _names[component] = name;
+        }
+
+        private void NotifyNestedComponentAdding(IContainer container, IComponent component)
+        {
+            ComponentAdding?.Invoke(container, new ComponentEventArgs(component));
+        }
+
+        private void NotifyNestedComponentAdded(IContainer container, IComponent component)
+        {
+            RegisterSiteComponent(component);
+            ComponentAdded?.Invoke(container, new ComponentEventArgs(component));
+        }
+
+        private void NotifyNestedComponentRemoving(IContainer container, IComponent component)
+        {
+            ComponentRemoving?.Invoke(container, new ComponentEventArgs(component));
+        }
+
+        private void NotifyNestedComponentRemoved(IContainer container, IComponent component)
+        {
+            RemoveName(component);
+            _eventBindingService.RemoveComponent(component);
+            ComponentRemoved?.Invoke(container, new ComponentEventArgs(component));
         }
 
         private void RemoveName(object instance)
@@ -671,24 +731,34 @@ namespace System.ComponentModel.Design
             }
         }
 
-        private sealed class PortableDesignerSite : ISite, IServiceContainer, IDictionaryService
+        private class PortableDesignerSite : ISite, IServiceContainer, IDictionaryService
         {
             private readonly IComponent _component;
             private readonly PortableDesignerHost _host;
+            private readonly IContainer _container;
+            private readonly PortableDesignerNestedContainer? _parentNestedContainer;
             private readonly Dictionary<object, object> _dictionary = new();
-            private ServiceContainer? _services;
+            private PortableDesignerNestedContainer? _nestedContainer;
             private string? _name;
+            private bool _disposed;
 
-            public PortableDesignerSite(IComponent component, PortableDesignerHost host, string? name)
+            public PortableDesignerSite(
+                IComponent component,
+                PortableDesignerHost host,
+                string? name,
+                IContainer? container = null,
+                PortableDesignerNestedContainer? parentNestedContainer = null)
             {
                 _component = component;
                 _host = host;
+                _container = container ?? host;
+                _parentNestedContainer = parentNestedContainer;
                 _name = name;
             }
 
             public IComponent Component => _component;
 
-            public IContainer Container => _host;
+            public IContainer Container => _container;
 
             public bool DesignMode => true;
 
@@ -702,20 +772,42 @@ namespace System.ComponentModel.Design
                         return;
 
                     string? oldName = _name;
-                    _host.RenameSiteComponent(_component, oldName, value);
+                    _host.RenameSiteComponent(
+                        _component,
+                        _container,
+                        oldName,
+                        value,
+                        GetQualifiedName(oldName),
+                        GetQualifiedName(value));
                     _name = value;
+                    _nestedContainer?.RefreshComponentNames();
                 }
             }
+
+            protected virtual string? GetQualifiedName(string? name) => name;
 
             public object? GetService(Type serviceType)
             {
                 ArgumentNullException.ThrowIfNull(serviceType);
 
+                if (serviceType == typeof(ISite))
+                    return this;
                 if (serviceType == typeof(IDictionaryService))
                     return this;
-                if (_services is not null)
-                    return _services.GetService(serviceType);
-                return ((IServiceProvider)_host).GetService(serviceType);
+                if (serviceType == typeof(INestedContainer))
+                    return GetNestedContainer();
+                if (serviceType == typeof(IServiceContainer) || serviceType == typeof(IContainer))
+                    return ((IServiceProvider)_host).GetService(serviceType);
+
+                if (_nestedContainer is not null)
+                {
+                    object? localService = _nestedContainer.GetServiceForSite(serviceType);
+                    if (localService is not null)
+                        return localService;
+                }
+
+                return _parentNestedContainer?.GetServiceForSite(serviceType)
+                    ?? ((IServiceProvider)_host).GetService(serviceType);
             }
 
             object? IDictionaryService.GetKey(object? value)
@@ -769,24 +861,217 @@ namespace System.ComponentModel.Design
 
             void IServiceContainer.RemoveService(Type serviceType)
             {
-                _services?.RemoveService(serviceType);
+                GetSiteServices().RemoveService(serviceType);
             }
 
             void IServiceContainer.RemoveService(Type serviceType, bool promote)
             {
-                _services?.RemoveService(serviceType, promote);
+                GetSiteServices().RemoveService(serviceType, promote);
             }
 
             private ServiceContainer GetSiteServices()
             {
-                return _services ??= new ServiceContainer(_host);
+                return GetNestedContainer().SiteServices;
+            }
+
+            private PortableDesignerNestedContainer GetNestedContainer()
+            {
+                return _nestedContainer ??= new PortableDesignerNestedContainer(
+                    _component,
+                    _host,
+                    (IServiceProvider?)_parentNestedContainer ?? _host);
+            }
+
+            public bool TryGetNestedInstance(string name, out object? instance)
+            {
+                if (_nestedContainer is not null)
+                    return _nestedContainer.TryGetComponent(name, out instance);
+
+                instance = null;
+                return false;
+            }
+
+            public void RefreshNestedComponentNames()
+            {
+                _nestedContainer?.RefreshComponentNames();
             }
 
             public void Dispose()
             {
-                _services?.Dispose();
-                _services = null;
+                if (_disposed)
+                    return;
+
+                _disposed = true;
+                _nestedContainer?.Dispose();
+                _nestedContainer = null;
                 _dictionary.Clear();
+            }
+        }
+
+        private sealed class PortableNestedDesignerSite : PortableDesignerSite, INestedSite
+        {
+            private readonly PortableDesignerNestedContainer _container;
+
+            public PortableNestedDesignerSite(
+                IComponent component,
+                PortableDesignerHost host,
+                string? name,
+                PortableDesignerNestedContainer container)
+                : base(component, host, name, container, container)
+            {
+                _container = container;
+            }
+
+            public string? FullName => GetQualifiedName(Name);
+
+            protected override string? GetQualifiedName(string? name)
+            {
+                if (name is null)
+                    return null;
+
+                string? ownerName = _container.OwnerNameValue;
+                return string.IsNullOrEmpty(ownerName) ? name : ownerName + "." + name;
+            }
+        }
+
+        private sealed class PortableDesignerNestedContainer : NestedContainer, IServiceProvider
+        {
+            private readonly PortableDesignerHost _host;
+            private readonly IServiceProvider _parentProvider;
+            private ServiceContainer? _services;
+            private bool _disposed;
+
+            public PortableDesignerNestedContainer(
+                IComponent owner,
+                PortableDesignerHost host,
+                IServiceProvider parentProvider)
+                : base(owner)
+            {
+                _host = host;
+                _parentProvider = parentProvider;
+                _ = SiteServices;
+            }
+
+            public ServiceContainer SiteServices => _services ??= new ServiceContainer(_parentProvider);
+
+            public string? OwnerNameValue => OwnerName;
+
+            public override void Add(IComponent? component, string? name)
+            {
+                if (component is null)
+                    return;
+                if (ReferenceEquals(component.Site?.Container, this))
+                {
+                    if (name is not null)
+                        component.Site.Name = name;
+                    return;
+                }
+
+                _host.NotifyNestedComponentAdding(this, component);
+                base.Add(component, name);
+                try
+                {
+                    _host.NotifyNestedComponentAdded(this, component);
+                }
+                catch
+                {
+                    Remove(component);
+                    throw;
+                }
+            }
+
+            public override void Remove(IComponent? component)
+            {
+                if (component is null || !ReferenceEquals(component.Site?.Container, this))
+                    return;
+
+                _host.NotifyNestedComponentRemoving(this, component);
+                base.Remove(component);
+                _host.NotifyNestedComponentRemoved(this, component);
+            }
+
+            protected override ISite CreateSite(IComponent component, string? name)
+            {
+                ArgumentNullException.ThrowIfNull(component);
+                return new PortableNestedDesignerSite(component, _host, name, this);
+            }
+
+            protected override object? GetService(Type serviceType)
+            {
+                object? service = base.GetService(serviceType);
+                if (service is not null)
+                    return service;
+                if (serviceType == typeof(IServiceContainer))
+                    return SiteServices;
+
+                return SiteServices.GetService(serviceType);
+            }
+
+            object? IServiceProvider.GetService(Type serviceType) => GetService(serviceType);
+
+            public object? GetServiceForSite(Type serviceType) => GetService(serviceType);
+
+            public bool TryGetComponent(string name, out object? instance)
+            {
+                for (int i = 0; i < Components.Count; i++)
+                {
+                    IComponent? component = Components[i];
+                    if (component?.Site is null)
+                        continue;
+
+                    string? componentName = component.Site is INestedSite nestedSite
+                        ? nestedSite.FullName
+                        : component.Site.Name;
+                    if (string.Equals(componentName, name, StringComparison.Ordinal))
+                    {
+                        instance = component;
+                        return true;
+                    }
+
+                    if (component.Site is PortableDesignerSite site
+                        && site.TryGetNestedInstance(name, out instance))
+                    {
+                        return true;
+                    }
+                }
+
+                instance = null;
+                return false;
+            }
+
+            public void RefreshComponentNames()
+            {
+                for (int i = 0; i < Components.Count; i++)
+                {
+                    IComponent? component = Components[i];
+                    if (component is null)
+                        continue;
+
+                    _host.RegisterSiteComponent(component);
+                    if (component.Site is PortableDesignerSite site)
+                        site.RefreshNestedComponentNames();
+                }
+            }
+
+            protected override void Dispose(bool disposing)
+            {
+                if (disposing && !_disposed)
+                {
+                    _disposed = true;
+                    for (int i = 0; i < Components.Count; i++)
+                    {
+                        IComponent? component = Components[i];
+                        if (component?.Site is PortableDesignerSite site)
+                            site.Dispose();
+                        if (component is not null)
+                            _host.RemoveName(component);
+                    }
+
+                    _services?.Dispose();
+                    _services = null;
+                }
+
+                base.Dispose(disposing);
             }
         }
     }
