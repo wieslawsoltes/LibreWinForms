@@ -313,6 +313,64 @@ internal static class Program
             && attributedComponent?.Site is null
             && (attributedComponent is null || host?.GetDesigner(attributedComponent) is null);
 
+        var interactionToolboxService = new DesignerSmokeToolboxService();
+        (host as IServiceContainer)?.AddService(
+            typeof(System.Drawing.Design.IToolboxService),
+            interactionToolboxService);
+        var interactionTool = new System.Drawing.Design.ToolboxItem(typeof(Forms.Button));
+        interactionToolboxService.SetSelectedToolboxItem(interactionTool);
+        int interactionComponentCount = host?.Container.Components.Count ?? 0;
+        int transactionOpened = 0;
+        int transactionClosed = 0;
+        int runtimeMouseDown = 0;
+        EventHandler transactionOpenedHandler = (_, _) => transactionOpened++;
+        DesignerTransactionCloseEventHandler transactionClosedHandler = (_, _) => transactionClosed++;
+        Forms.MouseEventHandler runtimeMouseDownHandler = (_, _) => runtimeMouseDown++;
+        if (host is not null)
+        {
+            host.TransactionOpened += transactionOpenedHandler;
+            host.TransactionClosed += transactionClosedHandler;
+        }
+        if (component is not null)
+            component.MouseDown += runtimeMouseDownHandler;
+
+        component?.RaiseMouseDown(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, 40, 48, 0));
+        component?.RaiseMouseMove(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 0, 160, 80, 0));
+        component?.RaiseMouseUp(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, 160, 80, 0));
+
+        if (host is not null)
+        {
+            host.TransactionOpened -= transactionOpenedHandler;
+            host.TransactionClosed -= transactionClosedHandler;
+        }
+        if (component is not null)
+            component.MouseDown -= runtimeMouseDownHandler;
+
+        Forms.Button? interactionButton = host?.Container.Components
+            .Cast<IComponent>()
+            .OfType<Forms.Button>()
+            .SingleOrDefault();
+        bool interactivePlacement = interactionButton is not null
+            && ReferenceEquals(interactionButton.Parent, component)
+            && interactionButton.Location == new System.Drawing.Point(40, 48)
+            && interactionButton.Size == new System.Drawing.Size(120, 32)
+            && ReferenceEquals(interactionButton.Site?.Container, host?.Container)
+            && ReferenceEquals(host?.GetDesigner(interactionButton)?.Component, interactionButton)
+            && selectionService?.GetComponentSelected(interactionButton) == true
+            && interactionToolboxService.SelectedToolboxItemUsedCount == 1
+            && interactionToolboxService.GetSelectedToolboxItem() is null
+            && transactionOpened == 1
+            && transactionClosed == 1
+            && runtimeMouseDown == 0
+            && component?.Capture == false
+            && host?.Container.Components.Count == interactionComponentCount + 1;
+        if (interactionButton is not null)
+            host?.DestroyComponent(interactionButton);
+        interactivePlacement &= interactionButton?.Site is null
+            && interactionButton?.Parent is null
+            && (interactionButton is null || component?.Controls.Contains(interactionButton) == false)
+            && host?.Container.Components.Count == interactionComponentCount;
+
         var nestedContainer = component?.Site?.GetService(typeof(INestedContainer)) as INestedContainer;
         var nestedComponent = new Component();
         bool nestedAdding = false;
@@ -419,6 +477,7 @@ internal static class Program
             && directLifecycle
             && toolboxCreation
             && attributedDesigner
+            && interactivePlacement
             && nestedContainer is not null
             && nestedOwner
             && nestedSite
@@ -442,6 +501,7 @@ internal static class Program
             + $" siteHasChangeService={siteHasChangeService} siteHasHost={siteHasHost} siteHasContainer={siteHasContainer}"
             + $" siteLocalService={siteLocalService} siteDictionary={siteDictionary} directLifecycle={directLifecycle}"
             + $" toolboxCreation={toolboxCreation} attributedDesigner={attributedDesigner} selected={selected}"
+            + $" interactivePlacement={interactivePlacement}"
             + $" nestedOwner={nestedOwner} nestedSite={nestedSite} nestedAdding={nestedAdding} nestedAdded={nestedAdded}"
             + $" nestedHasHost={nestedHasHost} nestedHasContainer={nestedHasContainer}"
             + $" nestedHasChangeService={nestedHasChangeService}"
@@ -465,6 +525,141 @@ internal static class Program
 
     private sealed class DesignerSmokeService
     {
+    }
+
+    private sealed class DesignerSmokeToolboxService : System.Drawing.Design.IToolboxService
+    {
+        private System.Drawing.Design.ToolboxItem? _selectedToolboxItem;
+
+        public System.Drawing.Design.CategoryNameCollection CategoryNames { get; } = new(Array.Empty<string>());
+
+        public string? SelectedCategory { get; set; }
+
+        public int SelectedToolboxItemUsedCount { get; private set; }
+
+        public event EventHandler? SelectedCategoryChanged;
+
+        public event EventHandler? SelectedCategoryChanging;
+
+        public void AddCreator(System.Drawing.Design.ToolboxItemCreatorCallback creator, string format)
+        {
+        }
+
+        public void AddCreator(System.Drawing.Design.ToolboxItemCreatorCallback creator, string format, IDesignerHost host)
+        {
+        }
+
+        public void AddLinkedToolboxItem(System.Drawing.Design.ToolboxItem toolboxItem, string category, IDesignerHost host)
+        {
+        }
+
+        public void AddLinkedToolboxItem(System.Drawing.Design.ToolboxItem toolboxItem, IDesignerHost host)
+        {
+        }
+
+        public void AddToolboxItem(System.Drawing.Design.ToolboxItem toolboxItem)
+        {
+        }
+
+        public void AddToolboxItem(System.Drawing.Design.ToolboxItem toolboxItem, string category)
+        {
+        }
+
+        public System.Drawing.Design.ToolboxItem DeserializeToolboxItem(object serializedObject)
+        {
+            return (System.Drawing.Design.ToolboxItem)serializedObject;
+        }
+
+        public System.Drawing.Design.ToolboxItem DeserializeToolboxItem(object serializedObject, IDesignerHost host)
+        {
+            return DeserializeToolboxItem(serializedObject);
+        }
+
+        public System.Drawing.Design.ToolboxItem? GetSelectedToolboxItem()
+        {
+            return _selectedToolboxItem;
+        }
+
+        public System.Drawing.Design.ToolboxItem? GetSelectedToolboxItem(IDesignerHost host)
+        {
+            return _selectedToolboxItem;
+        }
+
+        public System.Drawing.Design.ToolboxItemCollection GetToolboxItems()
+        {
+            return new System.Drawing.Design.ToolboxItemCollection(Array.Empty<System.Drawing.Design.ToolboxItem>());
+        }
+
+        public System.Drawing.Design.ToolboxItemCollection GetToolboxItems(string category)
+        {
+            return GetToolboxItems();
+        }
+
+        public System.Drawing.Design.ToolboxItemCollection GetToolboxItems(string category, IDesignerHost host)
+        {
+            return GetToolboxItems();
+        }
+
+        public System.Drawing.Design.ToolboxItemCollection GetToolboxItems(IDesignerHost host)
+        {
+            return GetToolboxItems();
+        }
+
+        public bool IsSupported(object serializedObject, IDesignerHost host)
+        {
+            return serializedObject is System.Drawing.Design.ToolboxItem;
+        }
+
+        public bool IsToolboxItem(object serializedObject)
+        {
+            return serializedObject is System.Drawing.Design.ToolboxItem;
+        }
+
+        public bool IsToolboxItem(object serializedObject, IDesignerHost host)
+        {
+            return IsToolboxItem(serializedObject);
+        }
+
+        public void Refresh()
+        {
+        }
+
+        public void RemoveCreator(string format)
+        {
+        }
+
+        public void RemoveCreator(string format, IDesignerHost host)
+        {
+        }
+
+        public void RemoveToolboxItem(System.Drawing.Design.ToolboxItem toolboxItem)
+        {
+        }
+
+        public void RemoveToolboxItem(System.Drawing.Design.ToolboxItem toolboxItem, string category)
+        {
+        }
+
+        public void SelectedToolboxItemUsed()
+        {
+            SelectedToolboxItemUsedCount++;
+            _selectedToolboxItem = null;
+        }
+
+        public object SerializeToolboxItem(System.Drawing.Design.ToolboxItem toolboxItem)
+        {
+            return toolboxItem;
+        }
+
+        public bool SetCursor()
+        {
+            return _selectedToolboxItem is not null;
+        }
+
+        public void SetSelectedToolboxItem(System.Drawing.Design.ToolboxItem toolboxItem)
+        {
+            _selectedToolboxItem = toolboxItem;
+        }
     }
 
     private sealed class DesignerSmokeLoader : CodeDomDesignerLoader

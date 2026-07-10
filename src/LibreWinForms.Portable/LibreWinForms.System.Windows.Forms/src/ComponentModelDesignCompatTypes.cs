@@ -3,6 +3,9 @@ using System.Collections.ObjectModel;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.ComponentModel.Design.Serialization;
+using System.Drawing;
+using System.Drawing.Design;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace System.ComponentModel.Design
@@ -147,9 +150,14 @@ namespace System.ComponentModel.Design
 
             if (rootDesigner)
                 return new PortableRootControlDesigner();
-            return component is Control
-                ? new PortableControlDesigner()
-                : new PortableComponentDesigner();
+            if (component is Control control)
+            {
+                return PortableParentControlDesigner.Supports(control)
+                    ? new PortableParentControlDesigner()
+                    : new PortableControlDesigner();
+            }
+
+            return new PortableComponentDesigner();
         }
 
         private static object GetRootDesignerView(PortableDesignerHost host)
@@ -1283,6 +1291,11 @@ namespace System.ComponentModel.Design
             Component = component;
         }
 
+        protected object? GetService(Type serviceType)
+        {
+            return Component?.Site?.GetService(serviceType);
+        }
+
         public virtual void InitializeExistingComponent(IDictionary? defaultValues)
         {
             ApplyDefaultValues(defaultValues);
@@ -1315,6 +1328,32 @@ namespace System.ComponentModel.Design
 
     internal class PortableControlDesigner : PortableComponentDesigner
     {
+        private Control? _control;
+        private PortableParentControlDesigner? _placementDesigner;
+        private ToolboxItem? _placementTool;
+        private Point _placementStart;
+
+        public override void Initialize(IComponent component)
+        {
+            base.Initialize(component);
+            _control = (Control)component;
+            _control.AddDesignerMouseHandlers(OnDesignerMouseDown, OnDesignerMouseMove, OnDesignerMouseUp);
+        }
+
+        public override void Dispose()
+        {
+            if (_control is not null)
+            {
+                _control.RemoveDesignerMouseHandlers(OnDesignerMouseDown, OnDesignerMouseMove, OnDesignerMouseUp);
+                _control.Capture = false;
+            }
+
+            _control = null;
+            _placementDesigner = null;
+            _placementTool = null;
+            base.Dispose();
+        }
+
         protected override void ApplyDefaultValues(IDictionary? defaultValues)
         {
             Control? control = Component as Control;
@@ -1323,9 +1362,220 @@ namespace System.ComponentModel.Design
             if (control is not null && parent is not null && !ReferenceEquals(control.Parent, parent))
                 parent.Controls.Add(control);
         }
+
+        private void OnDesignerMouseDown(object? sender, MouseEventArgs e)
+        {
+            if (_control is null || e.Button != MouseButtons.Left)
+                return;
+
+            IDesignerHost? host = GetService(typeof(IDesignerHost)) as IDesignerHost;
+            IToolboxService? toolboxService = GetService(typeof(IToolboxService)) as IToolboxService;
+            ToolboxItem? tool = host is null
+                ? toolboxService?.GetSelectedToolboxItem()
+                : toolboxService?.GetSelectedToolboxItem(host) ?? toolboxService?.GetSelectedToolboxItem();
+            PortableParentControlDesigner? parentDesigner = tool is null || host is null
+                ? null
+                : FindParentDesigner(host, _control);
+            if (tool is not null
+                && parentDesigner is not null
+                && parentDesigner.SupportsTool(tool)
+                && TryTranslatePoint(_control, parentDesigner.DesignedControl, e.Location, out Point parentPoint))
+            {
+                _placementDesigner = parentDesigner;
+                _placementTool = tool;
+                _placementStart = parentPoint;
+                _control.Capture = true;
+                return;
+            }
+
+            if (GetService(typeof(ISelectionService)) is ISelectionService selectionService)
+            {
+                selectionService.SetSelectedComponents(new object[] { _control }, SelectionTypes.Replace);
+            }
+        }
+
+        private void OnDesignerMouseMove(object? sender, MouseEventArgs e)
+        {
+            if (_control is null || _placementDesigner is null || _placementTool is null)
+                return;
+
+            if (TryTranslatePoint(_control, _placementDesigner.DesignedControl, e.Location, out Point parentPoint))
+            {
+                _placementDesigner.UpdateToolDrag(_placementStart, parentPoint);
+            }
+        }
+
+        private void OnDesignerMouseUp(object? sender, MouseEventArgs e)
+        {
+            if (_control is null || e.Button != MouseButtons.Left)
+                return;
+
+            PortableParentControlDesigner? parentDesigner = _placementDesigner;
+            ToolboxItem? tool = _placementTool;
+            _placementDesigner = null;
+            _placementTool = null;
+            _control.Capture = false;
+
+            if (parentDesigner is not null
+                && tool is not null
+                && TryTranslatePoint(_control, parentDesigner.DesignedControl, e.Location, out Point parentPoint))
+            {
+                parentDesigner.CreateTool(tool, _placementStart, parentPoint);
+            }
+        }
+
+        private static PortableParentControlDesigner? FindParentDesigner(IDesignerHost host, Control source)
+        {
+            for (Control? current = source; current is not null; current = current.Parent)
+            {
+                if (host.GetDesigner(current) is PortableParentControlDesigner designer)
+                    return designer;
+            }
+
+            return host.RootComponent is IComponent root
+                ? host.GetDesigner(root) as PortableParentControlDesigner
+                : null;
+        }
+
+        private static bool TryTranslatePoint(Control source, Control target, Point point, out Point translated)
+        {
+            int x = point.X;
+            int y = point.Y;
+            for (Control? current = source; current is not null; current = current.Parent)
+            {
+                if (ReferenceEquals(current, target))
+                {
+                    translated = new Point(x, y);
+                    return true;
+                }
+
+                x += current.Left;
+                y += current.Top;
+            }
+
+            translated = Point.Empty;
+            return false;
+        }
     }
 
-    internal sealed class PortableRootControlDesigner : PortableControlDesigner, IRootDesigner
+    internal class PortableParentControlDesigner : PortableControlDesigner
+    {
+        private Rectangle _dragBounds;
+
+        internal Control DesignedControl => (Control)Component;
+
+        internal static bool Supports(Control control)
+        {
+            return control is ContainerControl or Panel or GroupBox;
+        }
+
+        internal bool SupportsTool(ToolboxItem tool)
+        {
+            ArgumentNullException.ThrowIfNull(tool);
+            IDesignerHost? host = GetService(typeof(IDesignerHost)) as IDesignerHost;
+            Type? toolType = tool.GetType(host);
+            return toolType is not null && typeof(IComponent).IsAssignableFrom(toolType);
+        }
+
+        internal void UpdateToolDrag(Point start, Point current)
+        {
+            _dragBounds = CreateBounds(start, current);
+            DesignedControl.Invalidate(_dragBounds);
+        }
+
+        internal IComponent[] CreateTool(ToolboxItem tool, Point start, Point end)
+        {
+            ArgumentNullException.ThrowIfNull(tool);
+            if (GetService(typeof(IDesignerHost)) is not IDesignerHost host)
+                return Array.Empty<IComponent>();
+
+            Rectangle bounds = CreateBounds(start, end);
+            Size dragSize = SystemInformation.DragSize;
+            bool hasSize = bounds.Width >= dragSize.Width || bounds.Height >= dragSize.Height;
+            var defaultValues = new Hashtable
+            {
+                ["Parent"] = DesignedControl,
+                [nameof(Control.Location)] = hasSize ? bounds.Location : start
+            };
+            if (hasSize)
+            {
+                defaultValues[nameof(Control.Size)] = new Size(
+                    Math.Max(bounds.Width, dragSize.Width * 2),
+                    Math.Max(bounds.Height, dragSize.Height * 2));
+            }
+
+            DesignerTransaction? transaction = host.CreateTransaction("Create " + tool.DisplayName);
+            bool commit = false;
+            try
+            {
+                IComponent[] components = tool.CreateComponents(host, defaultValues);
+                if (!hasSize)
+                {
+                    foreach (Control control in components.OfType<Control>())
+                    {
+                        if (control.Size.IsEmpty && !control.DefaultSizeForDesigner.IsEmpty)
+                            control.Size = control.DefaultSizeForDesigner;
+                    }
+                }
+
+                if (components.Length > 0
+                    && GetService(typeof(ISelectionService)) is ISelectionService selectionService)
+                {
+                    host.Activate();
+                    selectionService.SetSelectedComponents(components, SelectionTypes.Replace);
+                }
+
+                commit = true;
+                return components;
+            }
+            finally
+            {
+                if (GetService(typeof(IToolboxService)) is IToolboxService toolboxService
+                    && ReferenceEquals(toolboxService.GetSelectedToolboxItem(host) ?? toolboxService.GetSelectedToolboxItem(), tool))
+                {
+                    toolboxService.SelectedToolboxItemUsed();
+                }
+
+                if (transaction is not null)
+                {
+                    if (commit)
+                        transaction.Commit();
+                    else
+                        transaction.Cancel();
+                }
+
+                _dragBounds = Rectangle.Empty;
+                DesignedControl.Invalidate();
+            }
+        }
+
+        internal IComponent[] CreateToolCentered(ToolboxItem tool)
+        {
+            Point center = new(
+                DesignedControl.ClientRectangle.Width / 2,
+                DesignedControl.ClientRectangle.Height / 2);
+            IComponent[] components = CreateTool(tool, center, center);
+            foreach (Control control in components.OfType<Control>())
+            {
+                control.Location = new Point(
+                    Math.Max(0, center.X - control.Width / 2),
+                    Math.Max(0, center.Y - control.Height / 2));
+            }
+
+            return components;
+        }
+
+        private static Rectangle CreateBounds(Point start, Point end)
+        {
+            return Rectangle.FromLTRB(
+                Math.Min(start.X, end.X),
+                Math.Min(start.Y, end.Y),
+                Math.Max(start.X, end.X),
+                Math.Max(start.Y, end.Y));
+        }
+    }
+
+    internal sealed class PortableRootControlDesigner : PortableParentControlDesigner, IRootDesigner, IToolboxUser
     {
         private static readonly ViewTechnology[] s_supportedTechnologies = { ViewTechnology.Default };
 
@@ -1337,6 +1587,34 @@ namespace System.ComponentModel.Design
                 throw new ArgumentException("Unsupported designer view technology.", nameof(technology));
 
             return Component as Control ?? new Panel();
+        }
+
+        public bool GetToolSupported(ToolboxItem tool)
+        {
+            return SupportsTool(tool);
+        }
+
+        public void ToolPicked(ToolboxItem tool)
+        {
+            ArgumentNullException.ThrowIfNull(tool);
+            PortableParentControlDesigner target = GetSelectedParentDesigner() ?? this;
+            if (target.SupportsTool(tool))
+                target.CreateToolCentered(tool);
+        }
+
+        private PortableParentControlDesigner? GetSelectedParentDesigner()
+        {
+            if (GetService(typeof(IDesignerHost)) is not IDesignerHost host)
+                return null;
+
+            Control? selectedControl = (GetService(typeof(ISelectionService)) as ISelectionService)?.PrimarySelection as Control;
+            for (Control? current = selectedControl; current is not null; current = current.Parent)
+            {
+                if (host.GetDesigner(current) is PortableParentControlDesigner designer)
+                    return designer;
+            }
+
+            return null;
         }
     }
 

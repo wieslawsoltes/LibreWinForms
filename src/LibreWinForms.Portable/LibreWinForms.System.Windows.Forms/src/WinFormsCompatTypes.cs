@@ -47,6 +47,9 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
     private Point _location;
     private Size _size;
     private bool _visible = true;
+    private MouseEventHandler? _designerMouseDown;
+    private MouseEventHandler? _designerMouseMove;
+    private MouseEventHandler? _designerMouseUp;
 
     public static bool CheckForIllegalCrossThreadCalls { get; set; }
 
@@ -274,10 +277,34 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
 
     public bool InvokeRequired => false;
 
+    internal Size DefaultSizeForDesigner => DefaultSize;
+
+    protected virtual Size DefaultSize => Size.Empty;
+
     public Control()
     {
         Controls = new ControlCollection(this);
         DataBindings = new ControlBindingsCollection(this);
+    }
+
+    internal void AddDesignerMouseHandlers(
+        MouseEventHandler mouseDown,
+        MouseEventHandler mouseMove,
+        MouseEventHandler mouseUp)
+    {
+        _designerMouseDown += mouseDown;
+        _designerMouseMove += mouseMove;
+        _designerMouseUp += mouseUp;
+    }
+
+    internal void RemoveDesignerMouseHandlers(
+        MouseEventHandler mouseDown,
+        MouseEventHandler mouseMove,
+        MouseEventHandler mouseUp)
+    {
+        _designerMouseDown -= mouseDown;
+        _designerMouseMove -= mouseMove;
+        _designerMouseUp -= mouseUp;
     }
 
     public DragDropEffects DoDragDrop(object data, DragDropEffects allowedEffects)
@@ -313,11 +340,34 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
 
     public void RaiseMouseDown(MouseEventArgs e)
     {
+        if (Site?.DesignMode == true && _designerMouseDown is not null)
+        {
+            _designerMouseDown(this, e);
+            return;
+        }
+
         OnMouseDown(e);
+    }
+
+    public void RaiseMouseMove(MouseEventArgs e)
+    {
+        if (Site?.DesignMode == true && _designerMouseMove is not null)
+        {
+            _designerMouseMove(this, e);
+            return;
+        }
+
+        OnMouseMove(e);
     }
 
     public void RaiseMouseUp(MouseEventArgs e)
     {
+        if (Site?.DesignMode == true && _designerMouseUp is not null)
+        {
+            _designerMouseUp(this, e);
+            return;
+        }
+
         OnMouseUp(e);
     }
 
@@ -998,6 +1048,8 @@ public interface IButtonControl
 
 public class Button : ButtonBase, IButtonControl
 {
+    protected override Size DefaultSize => new(75, 23);
+
     public DialogResult DialogResult { get; set; }
 
     public void NotifyDefault(bool value)

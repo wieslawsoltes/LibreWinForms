@@ -92,6 +92,13 @@ namespace System.Drawing.Design
         event EventHandler? SelectedCategoryChanging;
     }
 
+    public interface IToolboxUser
+    {
+        bool GetToolSupported(ToolboxItem tool);
+
+        void ToolPicked(ToolboxItem tool);
+    }
+
     public sealed class PaintValueEventArgs : EventArgs
     {
         public PaintValueEventArgs(ITypeDescriptorContext? context, object? value, Graphics graphics, Rectangle bounds)

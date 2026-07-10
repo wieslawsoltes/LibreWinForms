@@ -60,6 +60,7 @@ public class WindowsFormsHost : FrameworkElement
 
     private Forms.Control? _child;
     private Forms.Control? _focusedControl;
+    private Forms.Control? _capturedControl;
     private WpfContextMenu? _activeContextMenu;
     private Forms.ContextMenuStrip? _activeContextMenuStrip;
     private readonly ConditionalWeakTable<DrawingImage, CachedImageSource> _imageSourceCache = new();
@@ -102,6 +103,11 @@ public class WindowsFormsHost : FrameworkElement
 
             _child = value;
             _focusedControl = null;
+            _capturedControl = null;
+            if (IsMouseCaptured)
+            {
+                ReleaseMouseCapture();
+            }
             if (_child != null)
             {
                 _child.CreateControl();
@@ -237,12 +243,26 @@ public class WindowsFormsHost : FrameworkElement
         {
             return;
         }
+        target = ResolveDesignInputTarget(target, hostPoint, ref localPoint);
 
         Focus();
         target.Focus();
         _focusedControl = target;
         var mouseEventArgs = new Forms.MouseEventArgs(MapMouseButton(e.ChangedButton), e.ClickCount, ToWinFormsCoordinate(localPoint.X), ToWinFormsCoordinate(localPoint.Y), 0);
         target.RaiseMouseDown(mouseEventArgs);
+
+        if (target.Capture)
+        {
+            _capturedControl = target;
+            CaptureMouse();
+        }
+
+        if (target.Site?.DesignMode == true)
+        {
+            e.Handled = true;
+            return;
+        }
+
         ApplyDefaultSelection(target, localPoint);
 
         if (e.ChangedButton == MouseButton.Left
@@ -268,13 +288,30 @@ public class WindowsFormsHost : FrameworkElement
         }
 
         Point hostPoint = e.GetPosition(this);
-        Forms.Control? target = FindControlAt(_child, hostPoint, out Point localPoint);
+        Forms.Control? target = FindPointerTarget(hostPoint, out Point localPoint);
         if (target == null)
         {
             return;
         }
+        target = ResolveDesignInputTarget(target, hostPoint, ref localPoint);
 
         var mouseEventArgs = new Forms.MouseEventArgs(MapMouseButton(e.ChangedButton), e.ClickCount, ToWinFormsCoordinate(localPoint.X), ToWinFormsCoordinate(localPoint.Y), 0);
+        bool designMode = target.Site?.DesignMode == true;
+        if (designMode)
+        {
+            try
+            {
+                target.RaiseMouseUp(mouseEventArgs);
+            }
+            finally
+            {
+                ReleaseDesignerCapture(target);
+            }
+
+            e.Handled = true;
+            return;
+        }
+
         target.RaiseMouseUp(mouseEventArgs);
         target.RaiseMouseClick(mouseEventArgs);
         if (e.ChangedButton == MouseButton.Left && ApplyDefaultHeaderClick(target, localPoint))
@@ -290,6 +327,35 @@ public class WindowsFormsHost : FrameworkElement
         }
 
         e.Handled = true;
+    }
+
+    protected override void OnMouseMove(System.Windows.Input.MouseEventArgs e)
+    {
+        base.OnMouseMove(e);
+        if (_child == null)
+        {
+            return;
+        }
+
+        Point hostPoint = e.GetPosition(this);
+        Forms.Control? target = FindPointerTarget(hostPoint, out Point localPoint);
+        if (target == null)
+        {
+            return;
+        }
+        target = ResolveDesignInputTarget(target, hostPoint, ref localPoint);
+
+        var mouseEventArgs = new Forms.MouseEventArgs(
+            MapMouseButtons(e),
+            0,
+            ToWinFormsCoordinate(localPoint.X),
+            ToWinFormsCoordinate(localPoint.Y),
+            0);
+        target.RaiseMouseMove(mouseEventArgs);
+        if (target.Site?.DesignMode == true)
+        {
+            e.Handled = true;
+        }
     }
 
     protected override void OnKeyDown(System.Windows.Input.KeyEventArgs e)
@@ -772,6 +838,91 @@ public class WindowsFormsHost : FrameworkElement
         return FindControlAt(root, new Point(0, 0), hostPoint, out localPoint);
     }
 
+    private Forms.Control? FindPointerTarget(Point hostPoint, out Point localPoint)
+    {
+        if (_child != null
+            && _capturedControl != null
+            && TryConvertHostPoint(_child, _capturedControl, hostPoint, out localPoint))
+        {
+            return _capturedControl;
+        }
+
+        _capturedControl = null;
+        if (_child == null)
+        {
+            localPoint = default;
+            return null;
+        }
+
+        return FindControlAt(_child, hostPoint, out localPoint);
+    }
+
+    private Forms.Control ResolveDesignInputTarget(
+        Forms.Control target,
+        Point hostPoint,
+        ref Point localPoint)
+    {
+        if (_child == null || target.Site?.DesignMode == true)
+        {
+            return target;
+        }
+
+        for (Forms.Control? current = target.Parent; current != null; current = current.Parent)
+        {
+            if (current.Site?.DesignMode != true)
+            {
+                continue;
+            }
+
+            if (TryConvertHostPoint(_child, current, hostPoint, out Point designPoint))
+            {
+                localPoint = designPoint;
+                return current;
+            }
+
+            break;
+        }
+
+        return target;
+    }
+
+    private void ReleaseDesignerCapture(Forms.Control target)
+    {
+        if (!ReferenceEquals(_capturedControl, target) || target.Capture)
+        {
+            return;
+        }
+
+        _capturedControl = null;
+        if (IsMouseCaptured)
+        {
+            ReleaseMouseCapture();
+        }
+    }
+
+    private static bool TryConvertHostPoint(
+        Forms.Control root,
+        Forms.Control target,
+        Point hostPoint,
+        out Point localPoint)
+    {
+        double x = 0;
+        double y = 0;
+        for (Forms.Control? current = target; current != null; current = current.Parent)
+        {
+            x += current.Left;
+            y += current.Top;
+            if (ReferenceEquals(current, root))
+            {
+                localPoint = new Point(hostPoint.X - x, hostPoint.Y - y);
+                return true;
+            }
+        }
+
+        localPoint = default;
+        return false;
+    }
+
     private static Forms.Control? FindControlAt(Forms.Control control, Point parentOrigin, Point hostPoint, out Point localPoint)
     {
         Point origin = new(parentOrigin.X + control.Left, parentOrigin.Y + control.Top);
@@ -805,6 +956,26 @@ public class WindowsFormsHost : FrameworkElement
             MouseButton.Middle => Forms.MouseButtons.Middle,
             _ => Forms.MouseButtons.None
         };
+    }
+
+    private static Forms.MouseButtons MapMouseButtons(System.Windows.Input.MouseEventArgs e)
+    {
+        if (e.LeftButton == MouseButtonState.Pressed)
+        {
+            return Forms.MouseButtons.Left;
+        }
+
+        if (e.RightButton == MouseButtonState.Pressed)
+        {
+            return Forms.MouseButtons.Right;
+        }
+
+        if (e.MiddleButton == MouseButtonState.Pressed)
+        {
+            return Forms.MouseButtons.Middle;
+        }
+
+        return Forms.MouseButtons.None;
     }
 
     private static int ToWinFormsCoordinate(double value)
