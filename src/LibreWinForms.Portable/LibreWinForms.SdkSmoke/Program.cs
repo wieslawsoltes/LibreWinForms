@@ -1,4 +1,10 @@
 using System;
+using System.CodeDom;
+using System.CodeDom.Compiler;
+using System.Collections;
+using System.ComponentModel;
+using System.ComponentModel.Design;
+using System.ComponentModel.Design.Serialization;
 using System.Linq;
 using System.Threading;
 using System.Windows.Interop;
@@ -22,6 +28,11 @@ internal static class Program
         if (args.Contains("--run-dialog", StringComparer.Ordinal))
         {
             return RunOwnedDialogSmoke();
+        }
+
+        if (args.Contains("--run-designer", StringComparer.Ordinal))
+        {
+            return RunDesignerSmoke();
         }
 
         Console.WriteLine("LibreWinForms SDK smoke build loaded.");
@@ -140,6 +151,88 @@ internal static class Program
         return 0;
     }
 
+    private static int RunDesignerSmoke()
+    {
+        const string originalName = "toolStripContainer1";
+        const string renamedName = "designerContainer";
+        const string updatedText = "LibreWinForms designer smoke";
+
+        using var surface = new DesignSurface();
+        var loader = new DesignerSmokeLoader();
+        surface.BeginLoad(loader);
+
+        var host = surface.GetService(typeof(IDesignerHost)) as IDesignerHost;
+        var component = host?.Container.Components[originalName] as Forms.ToolStripContainer;
+        var changeService = component?.Site?.GetService(typeof(IComponentChangeService)) as IComponentChangeService;
+        var selectionService = host?.GetService(typeof(ISelectionService)) as ISelectionService;
+        var serializationManager = host?.GetService(typeof(IDesignerSerializationManager)) as IDesignerSerializationManager;
+        PropertyDescriptor? textProperty = component is null ? null : TypeDescriptor.GetProperties(component)[nameof(Forms.Control.Text)];
+
+        bool siteHasChangeService = changeService is not null;
+        bool siteHasHost = ReferenceEquals(component?.Site?.GetService(typeof(IDesignerHost)), host);
+        bool siteHasContainer = ReferenceEquals(component?.Site?.GetService(typeof(IContainer)), host?.Container);
+
+        var localService = new DesignerSmokeService();
+        if (component?.Site is IServiceContainer siteServices)
+        {
+            siteServices.AddService(typeof(DesignerSmokeService), localService);
+        }
+
+        bool siteLocalService = ReferenceEquals(component?.Site?.GetService(typeof(DesignerSmokeService)), localService);
+
+        if (component?.Site?.GetService(typeof(IDictionaryService)) is IDictionaryService dictionary)
+        {
+            dictionary.SetValue("smoke", updatedText);
+        }
+
+        bool siteDictionary = string.Equals(
+            (component?.Site?.GetService(typeof(IDictionaryService)) as IDictionaryService)?.GetValue("smoke") as string,
+            updatedText,
+            StringComparison.Ordinal);
+
+        if (component is not null && textProperty is not null)
+        {
+            changeService?.OnComponentChanging(component, textProperty);
+            textProperty.SetValue(component, updatedText);
+            changeService?.OnComponentChanged(component, textProperty, string.Empty, updatedText);
+            selectionService?.SetSelectedComponents(new object[] { component }, SelectionTypes.Replace);
+        }
+
+        bool selected = component is not null && selectionService?.GetComponentSelected(component) == true;
+        surface.Flush();
+        bool persisted = loader.ContainsPropertyAssignment(originalName, nameof(Forms.Control.Text), updatedText);
+
+        if (component?.Site is not null)
+        {
+            component.Site.Name = renamedName;
+        }
+
+        bool renamed = component is not null
+            && ReferenceEquals(host?.Container.Components[renamedName], component)
+            && host?.Container.Components[originalName] is null
+            && ReferenceEquals(serializationManager?.GetInstance(renamedName), component)
+            && serializationManager?.GetInstance(originalName) is null;
+
+        bool success = surface.IsLoaded
+            && component is not null
+            && siteHasChangeService
+            && siteHasHost
+            && siteHasContainer
+            && siteLocalService
+            && siteDictionary
+            && selected
+            && persisted
+            && renamed;
+
+        Console.WriteLine(
+            "LibreWinForms SDK designer smoke result=" + (success ? "Success" : "Partial")
+            + $" loaded={surface.IsLoaded} component={component is not null}"
+            + $" siteHasChangeService={siteHasChangeService} siteHasHost={siteHasHost} siteHasContainer={siteHasContainer}"
+            + $" siteLocalService={siteLocalService} siteDictionary={siteDictionary} selected={selected}"
+            + $" persisted={persisted} renamed={renamed}");
+        return success ? 0 : 4;
+    }
+
     private sealed class WpfWindowOwner : Forms.IWin32Window
     {
         private readonly WpfWindow _window;
@@ -150,5 +243,84 @@ internal static class Program
         }
 
         public IntPtr Handle => new WindowInteropHelper(_window).Handle;
+    }
+
+    private sealed class DesignerSmokeService
+    {
+    }
+
+    private sealed class DesignerSmokeLoader : CodeDomDesignerLoader
+    {
+        private CodeCompileUnit? _writtenUnit;
+
+        protected override CodeDomProvider? CodeDomProvider => null;
+
+        protected override ITypeResolutionService? TypeResolutionService => null;
+
+        protected override CodeCompileUnit Parse()
+        {
+            var unit = new CodeCompileUnit();
+            var codeNamespace = new CodeNamespace("LibreWinForms.SdkSmoke");
+            var codeClass = new CodeTypeDeclaration("DesignerSmokeForm");
+            codeClass.BaseTypes.Add(typeof(Forms.Form));
+            codeClass.Members.Add(new CodeMemberField(typeof(Forms.ToolStripContainer), "toolStripContainer1"));
+
+            var initializeComponent = new CodeMemberMethod
+            {
+                Name = "InitializeComponent"
+            };
+            var component = new CodeFieldReferenceExpression(new CodeThisReferenceExpression(), "toolStripContainer1");
+            initializeComponent.Statements.Add(new CodeAssignStatement(
+                component,
+                new CodeObjectCreateExpression(typeof(Forms.ToolStripContainer))));
+            initializeComponent.Statements.Add(new CodeAssignStatement(
+                new CodePropertyReferenceExpression(component, nameof(Forms.Control.Name)),
+                new CodePrimitiveExpression("toolStripContainer1")));
+            initializeComponent.Statements.Add(new CodeExpressionStatement(
+                new CodeMethodInvokeExpression(
+                    new CodePropertyReferenceExpression(new CodeThisReferenceExpression(), nameof(Forms.Control.Controls)),
+                    "Add",
+                    component)));
+            codeClass.Members.Add(initializeComponent);
+            codeNamespace.Types.Add(codeClass);
+            unit.Namespaces.Add(codeNamespace);
+            return unit;
+        }
+
+        protected override void Write(CodeCompileUnit unit)
+        {
+            _writtenUnit = unit;
+        }
+
+        public bool ContainsPropertyAssignment(string componentName, string propertyName, object expectedValue)
+        {
+            if (_writtenUnit is null)
+                return false;
+
+            foreach (CodeNamespace codeNamespace in _writtenUnit.Namespaces)
+            {
+                foreach (CodeTypeDeclaration codeClass in codeNamespace.Types)
+                {
+                    foreach (CodeMemberMethod method in codeClass.Members.OfType<CodeMemberMethod>())
+                    {
+                        foreach (CodeAssignStatement assignment in method.Statements.OfType<CodeAssignStatement>())
+                        {
+                            if (assignment.Left is CodePropertyReferenceExpression property
+                                && string.Equals(property.PropertyName, propertyName, StringComparison.Ordinal)
+                                && property.TargetObject is CodeFieldReferenceExpression field
+                                && field.TargetObject is CodeThisReferenceExpression
+                                && string.Equals(field.FieldName, componentName, StringComparison.Ordinal)
+                                && assignment.Right is CodePrimitiveExpression value
+                                && Equals(value.Value, expectedValue))
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
     }
 }

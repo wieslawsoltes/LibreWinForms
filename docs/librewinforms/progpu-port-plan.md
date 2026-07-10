@@ -98,3 +98,20 @@ The `LibreWinForms.*` runtime packages have stopped depending on `LibreWPF.WinFo
 The WPF application host now resolves non-`Form` `IWin32Window` owners through the typed LibreWPF `HwndSource` handle registry and assigns the corresponding WPF root window as owner. The SDK smoke covers both `Application.Run(Form)` and `Form.ShowDialog(owner)`, including loaded owner linkage, `Shown`, `FormClosed`, and synchronous `DialogResult.OK`. Package-mode SharpDevelop validates the same path with its real `ExceptionBox` and workbench owner.
 
 The modal state machine remains in managed WinForms/WPF. LibreWinForms must not add a second native event loop, reflect owner objects, or treat portable handles as Win32 HWNDs. Native host reentrancy and input-context lifetime are handled by the LibreWPF ProGPU/Silk host. Next dialog coverage should include nested modal ownership, cancellation, default/cancel keyboard actions, focus restoration, and real file/color/font dialog service flows.
+
+## 2026-07-10 designer-host checkpoint
+
+The portable designer host now reuses the upstream WinForms container/site architecture instead of placing components in an unrelated plain `Container`. `PortableDesignerHost` is the component container, creates design-mode sites that delegate typed services to the host, and preserves per-site `IServiceContainer` and `IDictionaryService` state. A sited control can therefore resolve `IDesignerHost`, `IContainer`, `IComponentChangeService`, selection, serialization, naming, and app-provided services through the standard `IComponent.Site` contract. Site rename state updates the serialization manager maps, and disposing a design surface now disposes the host, components, and site-local service containers.
+
+`LibreWinForms.SdkSmoke --run-designer` covers a real `CodeDomDesignerLoader` round trip with a `ToolStripContainer`: load, component lookup, site service lookup, site-local service and dictionary state, selection, changed `Text` serialization, site rename, serialization-manager lookup, and disposal. This stays reflection-free and follows the managed upstream `DesignerHost : Container` plus host-aware `Site` pattern.
+
+SharpDevelop's focused package-mode smoke now reports `selectedByService=True`, `selectedByContainer=True`, `selectedByGrid=True`, `flushPersisted=True`, `siteHasChangeService=True`, and `shouldSerializeText=True`. The previous partial result was caused by the smoke yielding while two normal view-switch reloads replaced the design surface; it mutated the first host and flushed the third. The smoke now waits for a stable live host before mutating and performs mutation/inspection/flush without yielding. No production SharpDevelop CodeDOM workaround was added.
+
+Validation:
+
+```text
+LibreWinForms.SdkSmoke --run-designer       -> Success
+SharpDevelop focused FormsDesigner smoke    -> Success; 21 components, 54 property rows, persisted Text assignment
+SharpDevelop broad package-mode smoke        -> popups/build/ResX/FormsDesigner/PropertyGrid/AvalonDock/WinForms dialogs/completion pass
+SharpDevelop shutdown                        -> exit code 0; LineCounter sources unchanged
+```
