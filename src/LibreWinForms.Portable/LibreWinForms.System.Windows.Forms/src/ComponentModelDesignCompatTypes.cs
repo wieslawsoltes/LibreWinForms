@@ -16,11 +16,13 @@ namespace System.ComponentModel.Design
 
         public DesignSurface()
         {
+            _host = new PortableDesignerHost(null);
         }
 
         public DesignSurface(IServiceProvider serviceProvider)
         {
             _serviceProvider = serviceProvider;
+            _host = new PortableDesignerHost(serviceProvider);
         }
 
         public event EventHandler? Flushed;
@@ -45,7 +47,8 @@ namespace System.ComponentModel.Design
             _loadErrors.Clear();
             _loader = loader;
 
-            _host = new PortableDesignerHost(_serviceProvider);
+            ObjectDisposedException.ThrowIf(_host is null, this);
+
             try
             {
                 loader.BeginLoad(_host);
@@ -95,6 +98,19 @@ namespace System.ComponentModel.Design
         {
             _loader?.Flush();
             Flushed?.Invoke(this, EventArgs.Empty);
+        }
+
+        public INestedContainer CreateNestedContainer(IComponent owningComponent)
+        {
+            return CreateNestedContainer(owningComponent, null);
+        }
+
+        public INestedContainer CreateNestedContainer(IComponent owningComponent, string? containerName)
+        {
+            ArgumentNullException.ThrowIfNull(owningComponent);
+            ObjectDisposedException.ThrowIf(_host is null, this);
+
+            return _host.CreateNestedContainer(owningComponent, containerName);
         }
 
         public object? GetService(Type serviceType)
@@ -183,14 +199,13 @@ namespace System.ComponentModel.Design
             if (RootComponent is not null)
                 return;
 
-            RootComponent = new Panel
+            var rootComponent = new Panel
             {
                 Dock = DockStyle.Fill,
                 BackColor = System.Drawing.Color.White
             };
-            Add(RootComponent, "Root");
-            SetName(RootComponent, "Root");
-            SetSelectedComponents(new object[] { RootComponent });
+            Add(rootComponent, "Root");
+            SetSelectedComponents(new object[] { rootComponent });
         }
 
         public void Activate()
@@ -215,17 +230,44 @@ namespace System.ComponentModel.Design
                 : name;
             ValidateName(componentName);
 
-            ComponentAdding?.Invoke(this, new ComponentEventArgs(component));
             Add(component, componentName);
-            SetName(component, componentName);
-            if (RootComponent is null)
+            return component;
+        }
+
+        public override void Add(IComponent? component, string? name)
+        {
+            if (component is null)
+                return;
+            if (ReferenceEquals(component.Site?.Container, this))
             {
-                RootComponent = component;
-                RootComponentClassName = componentClass.FullName ?? componentClass.Name;
+                if (name is not null)
+                    component.Site.Name = name;
+                return;
             }
 
-            ComponentAdded?.Invoke(this, new ComponentEventArgs(component));
-            return component;
+            string componentName = string.IsNullOrWhiteSpace(name)
+                ? CreateName(this, component.GetType())
+                : name;
+            ValidateName(componentName);
+
+            ComponentAdding?.Invoke(this, new ComponentEventArgs(component));
+            base.Add(component, componentName);
+            try
+            {
+                RegisterSiteComponent(component);
+                if (RootComponent is null)
+                {
+                    RootComponent = component;
+                    RootComponentClassName = component.GetType().FullName ?? component.GetType().Name;
+                }
+
+                ComponentAdded?.Invoke(this, new ComponentEventArgs(component));
+            }
+            catch
+            {
+                Remove(component);
+                throw;
+            }
         }
 
         public DesignerTransaction CreateTransaction()
@@ -247,22 +289,38 @@ namespace System.ComponentModel.Design
             if (component is null)
                 return;
 
-            ComponentRemoving?.Invoke(this, new ComponentEventArgs(component));
             if (component is Control control && control.Parent is not null)
             {
                 control.Parent.Controls.Remove(control);
             }
 
-            Remove(component);
-            RemoveName(component);
-            _eventBindingService.RemoveComponent(component);
+            component.Site?.Container?.Remove(component);
+            component.Dispose();
+        }
+
+        public override void Remove(IComponent? component)
+        {
+            if (component is null || !ReferenceEquals(component.Site?.Container, this))
+                return;
+
+            PortableDesignerSite? site = component.Site as PortableDesignerSite;
+            NotifyComponentRemoving(component);
             if (ReferenceEquals(RootComponent, component))
             {
                 RootComponent = null;
+                RootComponentClassName = typeof(Panel).FullName!;
             }
 
-            component.Dispose();
-            ComponentRemoved?.Invoke(this, new ComponentEventArgs(component));
+            RemoveWithoutUnsiting(component);
+            try
+            {
+                NotifyComponentRemoved(component);
+            }
+            finally
+            {
+                site?.Dispose();
+                component.Site = null;
+            }
         }
 
         public void EndLoad(string baseClassName, bool successful, ICollection? errorCollection)
@@ -295,6 +353,13 @@ namespace System.ComponentModel.Design
 
         public void Reload()
         {
+        }
+
+        public INestedContainer CreateNestedContainer(IComponent owningComponent, string? containerName)
+        {
+            ArgumentNullException.ThrowIfNull(owningComponent);
+            IServiceProvider parentProvider = (IServiceProvider?)owningComponent.Site ?? this;
+            return new PortableDesignerNestedContainer(owningComponent, this, parentProvider, containerName);
         }
 
         protected override object? GetService(Type serviceType)
@@ -571,16 +636,23 @@ namespace System.ComponentModel.Design
             ComponentAdded?.Invoke(container, new ComponentEventArgs(component));
         }
 
-        private void NotifyNestedComponentRemoving(IContainer container, IComponent component)
+        private void NotifyComponentRemoving(IComponent component)
         {
-            ComponentRemoving?.Invoke(container, new ComponentEventArgs(component));
+            ComponentRemoving?.Invoke(this, new ComponentEventArgs(component));
         }
 
-        private void NotifyNestedComponentRemoved(IContainer container, IComponent component)
+        private void NotifyComponentRemoved(IComponent component)
         {
             RemoveName(component);
             _eventBindingService.RemoveComponent(component);
-            ComponentRemoved?.Invoke(container, new ComponentEventArgs(component));
+            if (_selection.Contains(component))
+            {
+                SelectionChanging?.Invoke(this, EventArgs.Empty);
+                _selection.Remove(component);
+                SelectionChanged?.Invoke(this, EventArgs.Empty);
+            }
+
+            ComponentRemoved?.Invoke(this, new ComponentEventArgs(component));
         }
 
         private void RemoveName(object instance)
@@ -938,23 +1010,40 @@ namespace System.ComponentModel.Design
         {
             private readonly PortableDesignerHost _host;
             private readonly IServiceProvider _parentProvider;
+            private readonly string? _containerName;
             private ServiceContainer? _services;
             private bool _disposed;
 
             public PortableDesignerNestedContainer(
                 IComponent owner,
                 PortableDesignerHost host,
-                IServiceProvider parentProvider)
+                IServiceProvider parentProvider,
+                string? containerName = null)
                 : base(owner)
             {
                 _host = host;
                 _parentProvider = parentProvider;
+                _containerName = containerName;
                 _ = SiteServices;
             }
 
             public ServiceContainer SiteServices => _services ??= new ServiceContainer(_parentProvider);
 
             public string? OwnerNameValue => OwnerName;
+
+            protected override string? OwnerName
+            {
+                get
+                {
+                    string? ownerName = base.OwnerName;
+                    if (string.IsNullOrEmpty(_containerName))
+                        return ownerName;
+
+                    return string.IsNullOrEmpty(ownerName)
+                        ? _containerName
+                        : ownerName + "." + _containerName;
+                }
+            }
 
             public override void Add(IComponent? component, string? name)
             {
@@ -967,8 +1056,13 @@ namespace System.ComponentModel.Design
                     return;
                 }
 
+                string componentName = string.IsNullOrWhiteSpace(name)
+                    ? _host.CreateName(this, component.GetType())
+                    : name;
+                _host.ValidateName(componentName);
+
                 _host.NotifyNestedComponentAdding(this, component);
-                base.Add(component, name);
+                base.Add(component, componentName);
                 try
                 {
                     _host.NotifyNestedComponentAdded(this, component);
@@ -985,9 +1079,18 @@ namespace System.ComponentModel.Design
                 if (component is null || !ReferenceEquals(component.Site?.Container, this))
                     return;
 
-                _host.NotifyNestedComponentRemoving(this, component);
-                base.Remove(component);
-                _host.NotifyNestedComponentRemoved(this, component);
+                PortableDesignerSite? site = component.Site as PortableDesignerSite;
+                _host.NotifyComponentRemoving(component);
+                RemoveWithoutUnsiting(component);
+                try
+                {
+                    _host.NotifyComponentRemoved(component);
+                }
+                finally
+                {
+                    site?.Dispose();
+                    component.Site = null;
+                }
             }
 
             protected override ISite CreateSite(IComponent component, string? name)
