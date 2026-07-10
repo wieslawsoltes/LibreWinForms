@@ -115,3 +115,21 @@ SharpDevelop focused FormsDesigner smoke    -> Success; 21 components, 54 proper
 SharpDevelop broad package-mode smoke        -> popups/build/ResX/FormsDesigner/PropertyGrid/AvalonDock/WinForms dialogs/completion pass
 SharpDevelop shutdown                        -> exit code 0; LineCounter sources unchanged
 ```
+
+## 2026-07-10 nested designer-container checkpoint
+
+The portable designer site now follows the remaining upstream `DesignerHost.Site` contract: requesting `INestedContainer` lazily creates a site-owned managed `NestedContainer` and initializes its typed `IServiceContainer`. Nested sites implement `INestedSite`, preserve owner-qualified names, inherit site-local and host services without reflection, raise the normal component adding/added/removing/removed events, and dispose their services and component subtrees with the owning site. `IDesignerSerializationManager` resolves nested instances by qualified name and refreshes descendant names when an owner is renamed.
+
+SharpDevelop no longer calls nonpublic `NestedContainer.GetService(...)` through `System.Reflection`. Its existing component-added hook now requests the public `INestedContainer` contract; current WinForms and LibreWinForms both initialize the nested service container as part of that request.
+
+Validation:
+
+```text
+LibreWinForms.System.Windows.Forms Release build -> succeeds, 0 errors
+LibreWinForms.SdkSmoke --run-designer            -> Success; nested owner/site/events/services/serialization/rename all true
+SharpDevelop.Full.LibreWpf fresh-cache rebuild   -> succeeds, 286 warnings, 0 errors
+SharpDevelop focused FormsDesigner               -> Success; 21 components, 54 rows, flushPersisted=True
+SharpDevelop broad package-mode workbench        -> all popup/designer/AvalonDock/WinForms/editor gates pass, exit code 0
+```
+
+The next designer slices remain toolbox placement/removal, extender providers, undo/redo transactions, verbs/menu commands, inherited components, localized resource round trips, and live event-handler source navigation. These must continue through managed WinForms contracts rather than app-local reflection.

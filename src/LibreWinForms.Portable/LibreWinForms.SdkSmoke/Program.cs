@@ -190,6 +190,54 @@ internal static class Program
             updatedText,
             StringComparison.Ordinal);
 
+        var nestedContainer = component?.Site?.GetService(typeof(INestedContainer)) as INestedContainer;
+        var nestedComponent = new Component();
+        bool nestedAdding = false;
+        bool nestedAdded = false;
+        ComponentEventHandler nestedAddingHandler = (sender, eventArgs) =>
+        {
+            nestedAdding |= ReferenceEquals(sender, nestedContainer)
+                && ReferenceEquals(eventArgs.Component, nestedComponent);
+        };
+        ComponentEventHandler nestedAddedHandler = (sender, eventArgs) =>
+        {
+            nestedAdded |= ReferenceEquals(sender, nestedContainer)
+                && ReferenceEquals(eventArgs.Component, nestedComponent);
+        };
+        if (changeService is not null)
+        {
+            changeService.ComponentAdding += nestedAddingHandler;
+            changeService.ComponentAdded += nestedAddedHandler;
+        }
+
+        nestedContainer?.Add(nestedComponent, "nestedComponent1");
+        if (changeService is not null)
+        {
+            changeService.ComponentAdding -= nestedAddingHandler;
+            changeService.ComponentAdded -= nestedAddedHandler;
+        }
+
+        const string originalNestedName = originalName + ".nestedComponent1";
+        bool nestedOwner = ReferenceEquals(nestedContainer?.Owner, component);
+        bool nestedSite = ReferenceEquals(nestedComponent.Site?.Container, nestedContainer)
+            && nestedComponent.Site?.DesignMode == true
+            && string.Equals((nestedComponent.Site as INestedSite)?.FullName, originalNestedName, StringComparison.Ordinal);
+        bool nestedHasHost = ReferenceEquals(nestedComponent.Site?.GetService(typeof(IDesignerHost)), host);
+        bool nestedHasContainer = ReferenceEquals(
+            nestedComponent.Site?.GetService(typeof(IContainer)),
+            host?.Container);
+        bool nestedHasChangeService = ReferenceEquals(
+            nestedComponent.Site?.GetService(typeof(IComponentChangeService)),
+            changeService);
+        bool nestedHasSiteLocalService = ReferenceEquals(
+            nestedComponent.Site?.GetService(typeof(DesignerSmokeService)),
+            localService);
+        bool nestedSerialization = string.Equals(
+                serializationManager?.GetName(nestedComponent),
+                originalNestedName,
+                StringComparison.Ordinal)
+            && ReferenceEquals(serializationManager?.GetInstance(originalNestedName), nestedComponent);
+
         if (component is not null && textProperty is not null)
         {
             changeService?.OnComponentChanging(component, textProperty);
@@ -212,6 +260,14 @@ internal static class Program
             && host?.Container.Components[originalName] is null
             && ReferenceEquals(serializationManager?.GetInstance(renamedName), component)
             && serializationManager?.GetInstance(originalName) is null;
+        const string renamedNestedName = renamedName + ".nestedComponent1";
+        bool nestedRenamed = string.Equals(
+                (nestedComponent.Site as INestedSite)?.FullName,
+                renamedNestedName,
+                StringComparison.Ordinal)
+            && string.Equals(serializationManager?.GetName(nestedComponent), renamedNestedName, StringComparison.Ordinal)
+            && ReferenceEquals(serializationManager?.GetInstance(renamedNestedName), nestedComponent)
+            && serializationManager?.GetInstance(originalNestedName) is null;
 
         bool success = surface.IsLoaded
             && component is not null
@@ -220,16 +276,31 @@ internal static class Program
             && siteHasContainer
             && siteLocalService
             && siteDictionary
+            && nestedContainer is not null
+            && nestedOwner
+            && nestedSite
+            && nestedAdding
+            && nestedAdded
+            && nestedHasHost
+            && nestedHasContainer
+            && nestedHasChangeService
+            && nestedHasSiteLocalService
+            && nestedSerialization
             && selected
             && persisted
-            && renamed;
+            && renamed
+            && nestedRenamed;
 
         Console.WriteLine(
             "LibreWinForms SDK designer smoke result=" + (success ? "Success" : "Partial")
             + $" loaded={surface.IsLoaded} component={component is not null}"
             + $" siteHasChangeService={siteHasChangeService} siteHasHost={siteHasHost} siteHasContainer={siteHasContainer}"
             + $" siteLocalService={siteLocalService} siteDictionary={siteDictionary} selected={selected}"
-            + $" persisted={persisted} renamed={renamed}");
+            + $" nestedOwner={nestedOwner} nestedSite={nestedSite} nestedAdding={nestedAdding} nestedAdded={nestedAdded}"
+            + $" nestedHasHost={nestedHasHost} nestedHasContainer={nestedHasContainer}"
+            + $" nestedHasChangeService={nestedHasChangeService}"
+            + $" nestedHasSiteLocalService={nestedHasSiteLocalService} nestedSerialization={nestedSerialization}"
+            + $" persisted={persisted} renamed={renamed} nestedRenamed={nestedRenamed}");
         return success ? 0 : 4;
     }
 
