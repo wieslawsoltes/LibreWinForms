@@ -194,3 +194,75 @@ Native input lifetime                             -> 5 attaches, 5 detaches
 ```
 
 The remaining interaction layer is visual and command-oriented: selection glyphs, resize handles, moving/resizing existing controls, parent rules, grid/snap lines, palette-to-surface drag data, keyboard designer commands, and undo/redo units. ProGPU source remained unchanged.
+
+## 2026-07-11 designer commands and UI timer checkpoint
+
+The portable designer host now installs the standard `Copy`, `Cut`, `Delete`, `Paste`, and `SelectAll` commands on the active `IMenuCommandService`, including app-provided command services used by SharpDevelop. Clipboard data flows through an in-process typed `IDesignerSerializationService` payload rather than `BinaryFormatter` or reflected object shapes. Its two-pass graph restore creates and parents every component before applying properties, so child and auxiliary component references such as `TabControl.SelectedTab` and `TreeView.ImageList` resolve to the pasted instances. Control subtrees retain hierarchy and ordinary typed property state, pasted controls receive unique site names and an offset, and event bindings are deliberately cleared on paste to match upstream WinForms designer behavior. Unsupported content/associated-component collections fail closed instead of committing partial clones.
+
+Delete and Cut now treat selection eligibility atomically, snapshot the whole selected subtree before mutation, delete sited descendants deepest-first, and participate in normal designer transactions. The portable undo engine creates all restored component skeletons before replaying state, remaps component-valued properties by site/container identity, and snapshots event bindings alongside property, parent, child-index, type, and name state. Delete → Undo → Redo → Undo therefore restores hierarchy, selected-page/reference state, and handler names. Activating a `DesignSurfaceManager` surface refreshes clipboard command state; copying in one SharpDevelop design tab therefore enables Paste when another tab becomes active.
+
+`System.Windows.Forms.Timer` now uses the optional typed `IWinFormsTimerHost` capability. The LibreWPF host implements it with `DispatcherTimer` on the current UI dispatcher, which is already advanced by the ProGPU/Silk.NET WPF pump. Timer enablement, interval changes, stop, and disposal manage registrations without polling or reflection. The public component surface includes standard defaults, container construction, `Tag`, `OnTick`, and `ToString`; design-mode timers remain enabled without scheduling, callback exceptions flow through `Application.ThreadException`, and stale host/package combinations fail closed when timer support is missing.
+
+Source validation:
+
+```text
+LibreWinForms SDK designer smoke -> Success; standard commands, clipboard, two-pass component graphs, protected selections, subtree/reference/event undo, and cross-surface activation true
+LibreWinForms SDK form smoke     -> Success; 3 UI-thread ticks, interval restart, stop/dispose suppression, ThreadException routing, component contract true
+LibreWinForms SDK dialog smoke   -> Success; owned modal dialog and DialogResult.OK
+Reflection audit                 -> no System.Reflection or BindingFlags in the changed product paths
+```
+
+The next designer serialization slice is typed support for associated-component and content-property collections on top of the current identity-preserving graph. The next runtime slices remain modal button/default-cancel keyboard lifecycle, typed message boxes, checkbox/radio state changes, and general custom-control paint replay into ProGPU.
+
+## 2026-07-11 modal, message-box, and checkable-control checkpoint
+
+LibreWinForms dialogs now use a typed modal-completion capability instead of waiting for an unrelated native close. `Form.ShowDialog(...)` resets stale constructor results, `Button.DialogResult` and handler-assigned `Form.DialogResult` end the modal loop without an explicit `Close`, and completion is deferred until the complete Click dispatch returns. `AcceptButton` and `CancelButton` are live properties, Enter and Escape route through the current button, disabled controls fail closed, and focus transitions run cancelable validation before changing `ActiveControl`. The WPF input bridge resolves the live typed `ActiveControl`, so SharpDevelop controls focused before a window is shown receive keyboard/text input without a preliminary click. Close cancellation or a `FormClosing` handler that clears the result keeps both result-driven and user-initiated modal closes open; user close publishes Cancel before closing handlers. The WPF host coalesces completion requests on its dispatcher and detaches form/window callbacks during teardown.
+
+The WinForms `MessageBox` overload family now publishes a neutral `PortableMessageBoxRequest` through the existing ProGPU registry under `PortableWpfServiceKey.WinForms`. Button/icon/default/result mapping, owner transport, RTL/right-align options, fallback results, validation, and `CancelTryContinue` parity are typed end to end. ProGPU's process backend preserves Windows options, uses the correct Cancel/TryAgain/Continue order, and maps AppleScript cancellation to Cancel. SharpDevelop `AskQuestion`, destructive confirmations, FormsDesigner `IUIService`, and startup/error prompts no longer receive an unconditional OK; each call's requested default is preserved.
+
+`CheckBox` now owns the two/three-state transition and event contract, while `RadioButton` owns same-parent exclusivity and `AutoCheck` rather than inheriting checkbox state. Left-click and Space activate checkable controls; right-click does not. The hosted renderer draws normal and button-appearance check/radio states, disabled chrome, cached images, check marks, indeterminate bars, and radio dots through the existing WPF `DrawingContext` to ProGPU path. This covers SharpDevelop's image-only New Project/New File view-mode radio buttons as well as its ordinary option checkboxes and radio groups.
+
+Validation:
+
+```text
+LibreWinForms SDK build             -> succeeds, 0 errors
+LibreWinForms --run-dialog          -> stale reset, programmatic focus, validation veto, handler-only OK, result/user-close veto, Escape and user-close Cancel pass
+LibreWinForms --run-message-box     -> typed owner/options/default/fallback/result and enum validation pass
+LibreWinForms --run-checkables      -> state/event/click/Space/group/parent/metadata contract pass
+LibreWinForms --run-form            -> ProGPU-rendered checkable tree plus timer lifecycle pass
+LibreWinForms --run-designer        -> standard command/clipboard/undo graph checkpoint remains green
+ProGPU.Wpf focused tests            -> message-box registration/platform cases pass
+```
+
+Sequential modal validation must use the freshly built `LibreWPF.ProGPU` package. An older package left Silk.NET input contexts registered when GLFW recycled a native handle; current ProGPU source detaches input during host disposal, and the four-dialog regression shows balanced attach/detach across reused handles.
+
+SharpDevelop LibreWPF startup now loads only the curated top-level `.addin` manifests copied beside the aggregate executable. The core manifest is copied explicitly; source-tree, test, and `bin`/`obj` manifests for unbuilt optional add-ins are no longer discovered. A clean configuration therefore starts without modal missing-assembly prompts. The focused FormsDesigner gate loads 21 components and completes the 58-row mutation/toolbox/delete-undo-redo checkpoint, while the clean-config broad gate passes menus, solution build, ResX, FormsDesigner, WinForms context menus, AvalonDock, ExceptionBox, and editor completion with five balanced native input attach/detach pairs.
+
+The final `0.1.0-preview.sharpdevelop.1` LibreWPF.ProGPU and LibreWinForms package payloads were rebuilt from this checkpoint in isolated caches. Packaged DLL hashes match the Release outputs, a fresh LibreWPF SDK package-only consumer passes dialog/form/checkable/message-box/designer smokes, and a brand-new-cache SharpDevelop package-mode build plus clean-config broad run completes without stale input-context or missing-add-in diagnostics.
+
+## 2026-07-11 ProGPU-native WinForms runtime checkpoint
+
+LibreWinForms runtime input and painting now stay on typed host and ProGPU contracts. Drag/drop uses `IWinFormsDragDropHost` plus typed coordinate conversion for same-host and cross-host hit testing, `AllowDrop` parent fallback, effect negotiation, Enter/Over/Leave/Drop sequencing, cancellation, and external file/text ingress. `PointToClient(...)` and `PointToScreen(...)` also use that coordinate seam for hosted and unhosted control trees. Direct custom-control and owner-draw paths consume the native ProGPU drawing context together with its current transform scope, so WinForms-local drawing composes with the active WPF visual transform instead of escaping it. ListBox owner-draw receives client-relative item bounds, and checkable chrome remains a separate host overlay.
+
+The ProGPU image path now retains textures through typed leases. `Graphics.DrawImage(...)`, texture brushes, appended command streams, and retained pictures keep the caller's exact texture alive through deferred execution without cloning, readback, or per-draw allocation; disposing the source bitmap before the destination flush is therefore safe. Direct custom/owner paint, image carriers, and `ToolboxBitmapAttribute` all use this path. Toolbox bitmaps support file, type, named resource, BMP, and ICO inputs, apply the conventional BMP transparency key, preserve ICO alpha, scale through ProGPU, and provide a visible generic default component glyph when no resource exists.
+
+Runtime mutation and collection controls now invalidate correctly without rebuilding the host. `ControlAdded` and `ControlRemoved` update the host's invalidation subscriptions for entire dynamic subtrees. Reparenting removes the control from its old authoritative collection before attaching it to the new one, and reference-identity subscription tracking keeps same-host and cross-host moves balanced without stale or duplicate callbacks. TreeView uses linear indexed traversal with allocation-free shallow traversal, overflow only for deep trees, backed mutable node state, correct check events, selection geometry, and owner-draw/full-row-selection behavior. ListView has view-aware layout, hit testing, keyboard navigation, and scrolling, including columnar List mode rather than treating it as SmallIcon. Typed `BeginInvoke<T>(Action<T>, T)` and `Invoke<T>(Action<T>, T)` overloads keep SharpDevelop's parameterized UI dispatch on the host dispatcher without `DynamicInvoke`.
+
+When normal retained WPF rendering runs outside the frame-scoped native drawing-context callback, the host records custom and owner-draw output into reusable ProGPU-backed `System.Drawing.Bitmap` surfaces and publishes them through the typed native-image carrier. Direct native recording remains the allocation-free fast path. Surface pools are reused per control, retired only after retained replay can release them, and shutdown discards deferred bitmap contents without creating a replacement WebGPU device. Portable control sizes also clamp transient negative width or height values to zero, matching WinForms behavior and preventing AvalonDock resize transitions from constructing invalid WPF rectangles.
+
+Portable message boxes now also survive late LibreWinForms loading through the typed service-registration event. The owner carried by SharpDevelop resolves to its active ProGPU/Silk window: Windows uses the real HWND owner overload and X11 passes the XID to Zenity or KDialog, while cross-process Cocoa and Wayland ownership fail closed because those backends have no safe transferable parent token.
+
+Validation:
+
+```text
+LibreWinForms control/drag-drop/dispatcher/tree behavior tests -> pass
+ProGPU System.Drawing GDI shim tests                           -> 57/57 pass
+ProGPU retained scene and drawing-state tests                 -> 156/156 pass
+LibreWinForms integration and SDK project-mode builds         -> succeed, 0 errors
+LibreWinForms SDK list/custom-paint runtime gates              -> Success
+Exact-package SDK form/dialog/designer/message-box/checkable/list/paint gates -> Success
+SharpDevelop focused FormsDesigner package gate               -> paint, owner draw, mutation, balanced attach/detach, clean shutdown
+Reflection audit of the changed runtime hot paths              -> no reflected compatibility probes added
+```
+
+Cross-application OS-native outbound drag remains future work; the current portable session deliberately covers in-process hosts and external inbound data. Broader reuse of upstream WinForms source groups, especially controls, designers, resources, and platform services not yet needed by SharpDevelop, also remains future work instead of expanding app-specific compatibility shims.
