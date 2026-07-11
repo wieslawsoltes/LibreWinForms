@@ -6,7 +6,7 @@
     <EnableDefaultCompileItems Condition="'$(EnableDefaultCompileItems)' == ''">false</EnableDefaultCompileItems>
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
 
-    <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == ''">0.1.0-preview.7</LibreWinFormsVersion>
+    <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == ''">0.1.0-preview.8</LibreWinFormsVersion>
     <LibreWinFormsBridgePackageVersion Condition="'$(LibreWinFormsBridgePackageVersion)' == ''">$(LibreWinFormsVersion)</LibreWinFormsBridgePackageVersion>
     <Version Condition="'$(Version)' == ''">$(LibreWinFormsVersion)</Version>
     <PackageVersion Condition="'$(PackageVersion)' == ''">$(Version)</PackageVersion>
@@ -19,7 +19,7 @@
     <RepositoryUrl>https://github.com/wieslawsoltes/winforms</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>librewinforms;progpu;silk.net;winforms;cross-platform</PackageTags>
-    <PackageReleaseNotes>Runs SharpDevelop's Forms Designer and retained custom/owner drawing on typed ProGPU paths, with context-safe System.Drawing resources, modal dialogs, message boxes, control collections, drag/drop, timers, and package-mode release gates.</PackageReleaseNotes>
+    <PackageReleaseNotes>Refreshes the matching LibreWPF and ProGPU 0.1.0-preview.8 dependency closure while preserving the validated SharpDevelop Forms Designer integration and typed retained custom/owner drawing paths.</PackageReleaseNotes>
     <IsPackable>true</IsPackable>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
