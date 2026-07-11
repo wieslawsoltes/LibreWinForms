@@ -54,12 +54,20 @@ require_text src/LibreWinForms.Portable/LibreWinForms.WindowsFormsIntegration/Li
 require_text src/LibreWinForms.Portable/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj "<PackageReadmeFile>README.md</PackageReadmeFile>"
 require_text .github/workflows/librewinforms-ci.yml "LibreWinForms Build"
 require_text .github/workflows/librewinforms-ci.yml "Build LibreWPF bridge packages"
+require_text .github/workflows/librewinforms-ci.yml "LibreWinFormsReferenceMode=Package"
+require_text .github/workflows/librewinforms-ci.yml 'restore_sources="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping;https://api.nuget.org/v3/index.json"'
+require_text .github/workflows/librewinforms-ci.yml '-p:LibreWinFormsBridgePackageVersion="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION}"'
+require_text .github/workflows/librewinforms-ci.yml '-p:RestoreSources="${restore_sources}"'
 require_text .github/workflows/librewinforms-ci.yml "Run package-mode SDK smoke"
 require_text .github/workflows/librewinforms-docs.yml "LibreWinForms Docs"
 require_text .github/workflows/librewinforms-docs.yml "docs/**"
 require_text .github/workflows/librewinforms-release.yml "LibreWinForms Release"
 require_text .github/workflows/librewinforms-release.yml "LIBREWINFORMS_BRIDGE_PACKAGE_VERSION"
 require_text .github/workflows/librewinforms-release.yml "LIBREWINFORMS_BRIDGE_REF"
+require_text .github/workflows/librewinforms-release.yml "LibreWinFormsReferenceMode=Package"
+require_text .github/workflows/librewinforms-release.yml 'restore_sources="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping;https://api.nuget.org/v3/index.json"'
+require_text .github/workflows/librewinforms-release.yml '-p:LibreWinFormsBridgePackageVersion="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION}"'
+require_text .github/workflows/librewinforms-release.yml '-p:RestoreSources="${restore_sources}"'
 require_text .github/workflows/librewinforms-release.yml "Run package-mode SDK smoke"
 require_text .github/workflows/librewinforms-release.yml "librewinforms-v*"
 require_text .github/workflows/librewinforms-release.yml "refs/tags/librewinforms-v"
@@ -67,6 +75,8 @@ require_text .github/workflows/librewinforms-release.yml "Create GitHub Release"
 require_text .github/workflows/librewinforms-release.yml "gh release create"
 require_text .github/workflows/librewinforms-release.yml "--generate-notes"
 require_text .github/workflows/librewinforms-release.yml "if-no-files-found: error"
+require_text src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms.Tests/LibreWinForms.System.Windows.Forms.Tests.csproj 'Condition="'\''$(LibreWinFormsReferenceMode)'\'' == '\'''\''">Project'
+require_text src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms.Tests/LibreWinForms.System.Windows.Forms.Tests.csproj 'AdditionalProperties="LibreWinFormsReferenceMode=$(LibreWinFormsReferenceMode);LibreWinFormsBridgePackageVersion=$(LibreWinFormsBridgePackageVersion)"'
 
 for package_id in "${librewinforms_preview_package_ids[@]}"; do
   require_text README.md "| \`${package_id}\` |"

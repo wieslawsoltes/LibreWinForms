@@ -5,11 +5,11 @@
     <IsPackable>false</IsPackable>
     <Nullable>enable</Nullable>
     <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
-    <LibreWinFormsReferenceMode>Project</LibreWinFormsReferenceMode>
+    <LibreWinFormsReferenceMode Condition="'$(LibreWinFormsReferenceMode)' == ''">Project</LibreWinFormsReferenceMode>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\LibreWinForms.System.Windows.Forms\LibreWinForms.System.Windows.Forms.csproj"
-                      AdditionalProperties="LibreWinFormsReferenceMode=Project" />
+                      AdditionalProperties="LibreWinFormsReferenceMode=$(LibreWinFormsReferenceMode);LibreWinFormsBridgePackageVersion=$(LibreWinFormsBridgePackageVersion)" />
   </ItemGroup>
 </Project>

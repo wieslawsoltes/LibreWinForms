@@ -90,7 +90,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          dotnet run --project src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms.Tests/LibreWinForms.System.Windows.Forms.Tests.csproj --configuration Release -p:LibreWinFormsReferenceMode=Project
+          restore_sources="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping;https://api.nuget.org/v3/index.json"
+          dotnet run \
+            --project src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms.Tests/LibreWinForms.System.Windows.Forms.Tests.csproj \
+            --configuration Release \
+            -p:LibreWinFormsReferenceMode=Package \
+            -p:LibreWinFormsBridgePackageVersion="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION}" \
+            -p:RestoreSources="${restore_sources}"
 
       - name: Build and pack
         shell: bash
