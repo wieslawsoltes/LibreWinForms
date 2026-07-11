@@ -1068,12 +1068,13 @@ internal static class Program
                     ownerWindow.Close();
                 })),
             null,
-            TimeSpan.FromSeconds(10),
+            TimeSpan.FromSeconds(60),
             Timeout.InfiniteTimeSpan);
 
         ownerWindow.Loaded += (_, _) =>
         {
             ownerLoaded = true;
+            watchdog.Change(TimeSpan.FromSeconds(30), Timeout.InfiniteTimeSpan);
 
             var focusProbeForm = new Forms.Form();
             var focusProbeTextBox = new Forms.TextBox();
