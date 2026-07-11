@@ -16,16 +16,30 @@ bridge_package_version="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION:-${dev_package_ve
 configuration="${LIBREWINFORMS_CONFIGURATION:-Release}"
 restore_sources="${LIBREWINFORMS_RESTORE_SOURCES:-}"
 nuget_packages="${LIBREWINFORMS_NUGET_PACKAGES:-${NUGET_PACKAGES:-${repo_root}/artifacts/nuget/librewinforms-pack}}"
+strong_name_key_file="${LIBREWINFORMS_STRONG_NAME_KEY_FILE:-}"
+require_clean="${LIBREWINFORMS_REQUIRE_CLEAN:-0}"
 source "${repo_root}/eng/librewinforms-package-list.sh"
 extra_pack_args=("$@")
 mkdir -p "${package_output}"
 export NUGET_PACKAGES="${nuget_packages}"
 
+if [[ "${require_clean}" == "1" && -n "$(git -C "${repo_root}" status --porcelain --untracked-files=normal)" ]]; then
+  echo "LibreWinForms release packing requires a clean source tree." >&2
+  exit 1
+fi
+
+if [[ -n "${strong_name_key_file}" && ! -f "${strong_name_key_file}" ]]; then
+  echo "LibreWinForms strong-name key was not found: ${strong_name_key_file}" >&2
+  exit 1
+fi
+
 bridge_package_ids=(
   LibreWPF.Interop
+  LibreWPF.ProGPU
   LibreWPF.Transport
   ProGPU.Backend
   ProGPU.Compute
+  ProGPU.DirectX
   ProGPU.Scene
   ProGPU.SkiaSharp
   ProGPU.System.Drawing.Common
@@ -116,7 +130,15 @@ pack_project() {
     -p:PackageVersion="${dev_package_version}"
     -p:LibreWinFormsVersion="${dev_package_version}"
     -p:LibreWinFormsBridgePackageVersion="${bridge_package_version}"
+    -p:ContinuousIntegrationBuild=true
   )
+
+  if [[ -n "${strong_name_key_file}" ]]; then
+    args+=(
+      -p:SignAssembly=true
+      -p:AssemblyOriginatorKeyFile="${strong_name_key_file}"
+    )
+  fi
 
   if [[ -n "${restore_sources}" ]]; then
     args+=("-p:RestoreSources=${restore_sources}")

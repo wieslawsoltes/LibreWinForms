@@ -21,6 +21,7 @@ jobs:
     env:
       LIBREWINFORMS_DEV_PACKAGE_VERSION: 0.1.0-preview.1
       LIBREWINFORMS_BRIDGE_PACKAGE_VERSION: 0.1.0-preview.1
+      LIBREWINFORMS_BRIDGE_REF: progpu-rendering-port
 
     steps:
       - name: Checkout
@@ -30,7 +31,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: wieslawsoltes/wpf
-          ref: progpu-rendering-port
+          ref: ${{ env.LIBREWINFORMS_BRIDGE_REF }}
           path: wpf-bridge
           submodules: recursive
 
@@ -46,12 +47,29 @@ jobs:
           cd wpf-bridge
           PROGPU_WPF_DEV_PACKAGE_VERSION="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION}" ./eng/progpu-wpf-sdk-ci.sh
 
+      - name: Run LibreWinForms behavior tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet run --project src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms.Tests/LibreWinForms.System.Windows.Forms.Tests.csproj --configuration Release
+
       - name: Pack LibreWinForms
         shell: bash
         run: |
           set -euo pipefail
           export LIBREWINFORMS_RESTORE_SOURCES="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping;https://api.nuget.org/v3/index.json"
+          export LIBREWINFORMS_STRONG_NAME_KEY_FILE="${GITHUB_WORKSPACE}/wpf-bridge/external/ProGPU/eng/ProGPU.snk"
+          export LIBREWINFORMS_BRIDGE_COMMIT="$(git -C wpf-bridge rev-parse HEAD)"
+          export LIBREWINFORMS_PROGPU_COMMIT="$(git -C wpf-bridge/external/ProGPU rev-parse HEAD)"
+          export LIBREWINFORMS_REQUIRE_CLEAN=1
           ./eng/librewinforms-pack.sh
+
+      - name: Run package-mode SDK smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          export LIBREWINFORMS_BRIDGE_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping"
+          ./eng/librewinforms-package-smoke.sh
 
       - name: Upload packages
         uses: actions/upload-artifact@v4

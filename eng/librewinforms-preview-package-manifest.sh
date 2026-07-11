@@ -48,19 +48,23 @@ for package_id in "${librewinforms_preview_package_ids[@]}"; do
 done
 
 repo_commit="$(git -C "${repo_root}" rev-parse --verify HEAD 2>/dev/null || printf 'unknown')"
-if git -C "${repo_root}" diff --quiet -- . && git -C "${repo_root}" diff --cached --quiet -- .; then
-  repo_has_tracked_changes=false
+bridge_commit="${LIBREWINFORMS_BRIDGE_COMMIT:-unknown}"
+progpu_commit="${LIBREWINFORMS_PROGPU_COMMIT:-unknown}"
+if [[ -z "$(git -C "${repo_root}" status --porcelain --untracked-files=normal)" ]]; then
+  repo_is_dirty=false
 else
-  repo_has_tracked_changes=true
+  repo_is_dirty=true
 fi
 
 {
   printf '{\n'
-  printf '  "schemaVersion": 1,\n'
+  printf '  "schemaVersion": 2,\n'
   printf '  "version": "%s",\n' "$(json_escape "${dev_package_version}")"
   printf '  "source": {\n'
   printf '    "winFormsCommit": "%s",\n' "$(json_escape "${repo_commit}")"
-  printf '    "winFormsHasTrackedChanges": %s\n' "${repo_has_tracked_changes}"
+  printf '    "winFormsIsDirty": %s,\n' "${repo_is_dirty}"
+  printf '    "libreWpfBridgeCommit": "%s",\n' "$(json_escape "${bridge_commit}")"
+  printf '    "proGpuCommit": "%s"\n' "$(json_escape "${progpu_commit}")"
   printf '  },\n'
   printf '  "packageDirectory": ".",\n'
   printf '  "packages": [\n'

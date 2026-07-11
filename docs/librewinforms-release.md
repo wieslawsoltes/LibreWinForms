@@ -42,6 +42,10 @@ Before packing, the lane removes current-version package, manifest, bundle, chec
 
 The package lane also uses an isolated NuGet cache at `artifacts/nuget/librewinforms-pack` by default and evicts the current LibreWinForms and bridge package versions before restore. Set `LIBREWINFORMS_NUGET_PACKAGES` when a different cache location is required. This keeps local, CI, and release runs from accidentally compiling against an older same-version `LibreWPF.Interop`, `LibreWPF.Transport`, or ProGPU bridge package from the user/global NuGet cache.
 
+Release packing sets `LIBREWINFORMS_REQUIRE_CLEAN=1`, supplies the ProGPU strong-name key explicitly, and records the exact LibreWinForms, LibreWPF bridge, and ProGPU commits in the package manifest. The release workflow resolves an immutable `bridge_ref`; by default it uses `librewpf-v<bridge_version>`, while a manual rehearsal can pass an exact LibreWPF commit. This prevents a tag rerun from silently rebuilding against a later bridge branch tip.
+
+Both CI and release run the standalone control/dispatcher/drag-drop/tree behavior executable and then restore a fresh package-only `LibreWPF.Sdk` consumer. The package smoke executes form, owned-dialog, designer, typed message-box, checkable-control, ListView, custom-paint, and retained owner-draw modes before artifacts can be published.
+
 The GitHub release workflow runs the same bridge bootstrap and package lane, then publishes to NuGet.org when `NUGET_API_KEY` is configured and the workflow is invoked with publishing enabled or a `librewinforms-v*` tag is pushed. Tag-triggered releases create a GitHub prerelease through `gh release create --generate-notes`, attaching the NuGet packages, manifest, bundle, checksum, README, and local-feed `NuGet.config`.
 
 Publish ProGPU and LibreWPF bridge packages for the same version before publishing LibreWinForms so downstream restores can resolve the dependency closure from NuGet.org. The active release branch is `librewinforms-progpu-port`; use `librewinforms-v<version>` tags for public preview releases from that branch.
