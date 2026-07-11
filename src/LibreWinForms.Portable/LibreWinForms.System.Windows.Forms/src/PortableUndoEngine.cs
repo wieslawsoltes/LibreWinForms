@@ -385,17 +385,30 @@ public abstract class UndoEngine : IDisposable
             foreach (UndoEvent undoEvent in _events)
                 undoEvent.BeforeUndo(engine);
 
+            var executionOrder = new List<UndoEvent>(_events.Count);
+            bool restoreSelection = _reverse;
             if (_reverse)
             {
                 for (int i = _events.Count - 1; i >= 0; i--)
+                {
                     _events[i].Undo(engine);
-                RestoreSelection(engine);
+                    executionOrder.Add(_events[i]);
+                }
             }
             else
             {
                 for (int i = 0; i < _events.Count; i++)
+                {
                     _events[i].Undo(engine);
+                    executionOrder.Add(_events[i]);
+                }
             }
+
+            foreach (UndoEvent undoEvent in executionOrder)
+                undoEvent.AfterUndo(engine);
+
+            if (restoreSelection)
+                RestoreSelection(engine);
 
             _reverse = !_reverse;
         }
@@ -423,6 +436,10 @@ public abstract class UndoEngine : IDisposable
             }
 
             public abstract void Undo(UndoEngine engine);
+
+            public virtual void AfterUndo(UndoEngine engine)
+            {
+            }
         }
 
         private sealed class ChangeUndoEvent : UndoEvent
@@ -431,6 +448,7 @@ public abstract class UndoEngine : IDisposable
             private readonly string? _memberName;
             private PortablePropertySnapshot? _before;
             private PortablePropertySnapshot? _after;
+            private PortablePropertySnapshot? _pendingState;
             private bool _afterCaptured;
 
             public ChangeUndoEvent(IComponent component, MemberDescriptor? member)
@@ -460,20 +478,26 @@ public abstract class UndoEngine : IDisposable
 
             public override void Undo(UndoEngine engine)
             {
-                PortablePropertySnapshot? state = _before;
+                _pendingState = _before;
+                (_before, _after) = (_after, _before);
+            }
+
+            public override void AfterUndo(UndoEngine engine)
+            {
+                PortablePropertySnapshot? state = _pendingState;
+                _pendingState = null;
                 if (state is not null
                     && engine._host.Container.Components[_componentName] is IComponent component)
                 {
                     state.Apply(component, engine._componentChangeService);
                 }
-
-                (_before, _after) = (_after, _before);
             }
         }
 
         private sealed class AddRemoveUndoEvent : UndoEvent
         {
             private PortableComponentSnapshot? _snapshot;
+            private IComponent? _pendingRestoredComponent;
 
             public AddRemoveUndoEvent(IComponent component, bool added)
             {
@@ -499,7 +523,7 @@ public abstract class UndoEngine : IDisposable
             {
                 if (NextUndoAdds)
                 {
-                    _snapshot?.Restore(engine._host);
+                    _pendingRestoredComponent = _snapshot?.RestoreSkeleton(engine._host);
                 }
                 else if (engine._host.Container.Components[ComponentName] is IComponent component)
                 {
@@ -507,6 +531,14 @@ public abstract class UndoEngine : IDisposable
                 }
 
                 NextUndoAdds = !NextUndoAdds;
+            }
+
+            public override void AfterUndo(UndoEngine engine)
+            {
+                IComponent? component = _pendingRestoredComponent;
+                _pendingRestoredComponent = null;
+                if (component is not null)
+                    _snapshot?.ApplyState(component, engine._host);
             }
         }
 
@@ -598,9 +630,10 @@ public abstract class UndoEngine : IDisposable
                 try
                 {
                     object? oldValue = property.GetValue(component);
+                    object? restoredValue = RestoreValue(value.Value);
                     changeService.OnComponentChanging(component, property);
-                    property.SetValue(component, value.Value);
-                    changeService.OnComponentChanged(component, property, oldValue, value.Value);
+                    property.SetValue(component, restoredValue);
+                    changeService.OnComponentChanged(component, property, oldValue, restoredValue);
                 }
                 catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or NotSupportedException)
                 {
@@ -615,7 +648,7 @@ public abstract class UndoEngine : IDisposable
         {
             try
             {
-                value = new PropertyValue(property.Name, property.GetValue(component));
+                value = new PropertyValue(property.Name, CaptureValue(property.GetValue(component)));
                 return true;
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or NotSupportedException)
@@ -625,7 +658,51 @@ public abstract class UndoEngine : IDisposable
             }
         }
 
+        private static object? CaptureValue(object? value)
+        {
+            if (value is IComponent { Site: { Container: IContainer container } site }
+                && !string.IsNullOrEmpty(site.Name))
+            {
+                return new ComponentReference(container, site.Name);
+            }
+
+            if (value is Array { Rank: 1 } array)
+            {
+                Type elementType = array.GetType().GetElementType() ?? typeof(object);
+                var values = new object?[array.Length];
+                for (int i = 0; i < array.Length; i++)
+                    values[i] = CaptureValue(array.GetValue(i));
+                return new ArrayValue(elementType, values);
+            }
+
+            return value;
+        }
+
+        private static object? RestoreValue(object? value)
+        {
+            if (value is ComponentReference reference)
+            {
+                return reference.Container.Components[reference.Name]
+                    ?? throw new InvalidOperationException(
+                        $"The referenced component '{reference.Name}' is unavailable during undo.");
+            }
+
+            if (value is ArrayValue arrayValue)
+            {
+                Array array = Array.CreateInstance(arrayValue.ElementType, arrayValue.Values.Length);
+                for (int i = 0; i < arrayValue.Values.Length; i++)
+                    array.SetValue(RestoreValue(arrayValue.Values[i]), i);
+                return array;
+            }
+
+            return value;
+        }
+
         private readonly record struct PropertyValue(string Name, object? Value);
+
+        private readonly record struct ComponentReference(IContainer Container, string Name);
+
+        private sealed record ArrayValue(Type ElementType, object?[] Values);
     }
 
     private sealed class PortableComponentSnapshot
@@ -636,6 +713,7 @@ public abstract class UndoEngine : IDisposable
         private readonly bool _parentIsRoot;
         private readonly int _childIndex;
         private readonly PortablePropertySnapshot? _properties;
+        private readonly PortableEventSnapshot? _events;
 
         private PortableComponentSnapshot(
             Type componentType,
@@ -643,7 +721,8 @@ public abstract class UndoEngine : IDisposable
             string? parentName,
             bool parentIsRoot,
             int childIndex,
-            PortablePropertySnapshot? properties)
+            PortablePropertySnapshot? properties,
+            PortableEventSnapshot? events)
         {
             _componentType = componentType;
             _name = name;
@@ -651,6 +730,7 @@ public abstract class UndoEngine : IDisposable
             _parentIsRoot = parentIsRoot;
             _childIndex = childIndex;
             _properties = properties;
+            _events = events;
         }
 
         public static PortableComponentSnapshot? Capture(IComponent component)
@@ -675,14 +755,14 @@ public abstract class UndoEngine : IDisposable
                 parentName,
                 parentIsRoot,
                 childIndex,
-                PortablePropertySnapshot.Capture(component, memberName: null));
+                PortablePropertySnapshot.Capture(component, memberName: null),
+                PortableEventSnapshot.Capture(component));
         }
 
-        public IComponent? Restore(IDesignerHost host)
+        public IComponent? RestoreSkeleton(IDesignerHost host)
         {
             IComponent component = host.Container.Components[_name]
                 ?? host.CreateComponent(_componentType, _name);
-            _properties?.Apply(component, (IComponentChangeService)host.GetService(typeof(IComponentChangeService))!);
 
             if (component is Control control)
             {
@@ -699,5 +779,83 @@ public abstract class UndoEngine : IDisposable
 
             return component;
         }
+
+        public void ApplyState(IComponent component, IDesignerHost host)
+        {
+            _properties?.Apply(
+                component,
+                (IComponentChangeService)host.GetService(typeof(IComponentChangeService))!);
+            _events?.Apply(component, host);
+        }
+    }
+
+    private sealed class PortableEventSnapshot
+    {
+        private readonly EventValue[] _values;
+
+        private PortableEventSnapshot(EventValue[] values)
+        {
+            _values = values;
+        }
+
+        public static PortableEventSnapshot? Capture(IComponent component)
+        {
+            if (component.Site?.GetService(typeof(IEventBindingService)) is not IEventBindingService eventBindingService)
+                return null;
+
+            try
+            {
+                PropertyDescriptorCollection eventProperties = eventBindingService.GetEventProperties(
+                    TypeDescriptor.GetEvents(component));
+                var values = new List<EventValue>();
+                foreach (PropertyDescriptor eventProperty in eventProperties)
+                {
+                    if (eventProperty.GetValue(component) is string methodName
+                        && !string.IsNullOrWhiteSpace(methodName))
+                    {
+                        values.Add(new EventValue(eventProperty.Name, methodName));
+                    }
+                }
+
+                return values.Count == 0 ? null : new PortableEventSnapshot(values.ToArray());
+            }
+            catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or NotSupportedException)
+            {
+                return null;
+            }
+        }
+
+        public void Apply(IComponent component, IDesignerHost host)
+        {
+            if (host.GetService(typeof(IEventBindingService)) is not IEventBindingService eventBindingService)
+                return;
+
+            PropertyDescriptorCollection eventProperties;
+            try
+            {
+                eventProperties = eventBindingService.GetEventProperties(TypeDescriptor.GetEvents(component));
+            }
+            catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or NotSupportedException)
+            {
+                return;
+            }
+
+            foreach (EventValue value in _values)
+            {
+                PropertyDescriptor? eventProperty = eventProperties[value.Name];
+                if (eventProperty is null || eventProperty.IsReadOnly)
+                    continue;
+
+                try
+                {
+                    eventProperty.SetValue(component, value.MethodName);
+                }
+                catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or NotSupportedException)
+                {
+                }
+            }
+        }
+
+        private readonly record struct EventValue(string Name, string MethodName);
     }
 }

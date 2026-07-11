@@ -185,6 +185,8 @@ namespace System.ComponentModel.Design
         private readonly List<IDesignerSerializationProvider> _serializationProviders = new();
         private readonly List<object> _selection = new();
         private readonly PortableEventBindingService _eventBindingService;
+        private readonly PortableDesignerSerializationService _designerSerializationService;
+        private PortableDesignerCommandSet? _standardCommandSet;
         private int _transactionDepth;
         private string _transactionDescription = string.Empty;
 
@@ -193,6 +195,7 @@ namespace System.ComponentModel.Design
             _surface = surface;
             _serviceProvider = serviceProvider;
             _eventBindingService = new PortableEventBindingService(this);
+            _designerSerializationService = new PortableDesignerSerializationService(this);
         }
 
         public event EventHandler? Activated;
@@ -261,6 +264,11 @@ namespace System.ComponentModel.Design
         public void Activate()
         {
             Activated?.Invoke(this, EventArgs.Empty);
+        }
+
+        internal void Deactivate()
+        {
+            Deactivated?.Invoke(this, EventArgs.Empty);
         }
 
         public IComponent CreateComponent(Type componentClass)
@@ -380,6 +388,7 @@ namespace System.ComponentModel.Design
             LoadSucceeded = successful;
             LoadErrors = errorCollection ?? Array.Empty<object>();
             LoadCompleted = true;
+            _ = GetService(typeof(IMenuCommandService));
             LoadComplete?.Invoke(this, EventArgs.Empty);
         }
 
@@ -416,6 +425,9 @@ namespace System.ComponentModel.Design
 
         protected override object? GetService(Type serviceType)
         {
+            if (serviceType == typeof(IMenuCommandService))
+                return GetMenuCommandService();
+
             if (_services.TryGetValue(serviceType, out object? service))
                 return service;
             if (_serviceCreators.TryGetValue(serviceType, out ServiceCreatorCallback? creator))
@@ -436,12 +448,47 @@ namespace System.ComponentModel.Design
                 return this;
             if (serviceType == typeof(IDesignerSerializationManager))
                 return this;
+            if (serviceType == typeof(IDesignerSerializationService))
+                return _serviceProvider?.GetService(serviceType) ?? _designerSerializationService;
             if (serviceType == typeof(IEventBindingService))
                 return _serviceProvider?.GetService(serviceType) ?? _eventBindingService;
             if (serviceType == typeof(INameCreationService))
                 return _serviceProvider?.GetService(serviceType) ?? this;
 
             return _serviceProvider?.GetService(serviceType);
+        }
+
+        private IMenuCommandService GetMenuCommandService()
+        {
+            object? configuredService = null;
+            if (_services.TryGetValue(typeof(IMenuCommandService), out object? localService))
+            {
+                configuredService = localService;
+            }
+            else if (_serviceCreators.TryGetValue(typeof(IMenuCommandService), out ServiceCreatorCallback? creator))
+            {
+                configuredService = creator(this, typeof(IMenuCommandService));
+                if (configuredService is not null)
+                    _services[typeof(IMenuCommandService)] = configuredService;
+            }
+            else
+            {
+                configuredService = _serviceProvider?.GetService(typeof(IMenuCommandService));
+            }
+
+            IMenuCommandService menuCommandService = configuredService as IMenuCommandService
+                ?? new MenuCommandService(this);
+            if (configuredService is null)
+                _services[typeof(IMenuCommandService)] = menuCommandService;
+
+            if (_standardCommandSet is null
+                || !ReferenceEquals(_standardCommandSet.MenuCommandService, menuCommandService))
+            {
+                _standardCommandSet?.Dispose();
+                _standardCommandSet = new PortableDesignerCommandSet(this, menuCommandService);
+            }
+
+            return menuCommandService;
         }
 
         object? IServiceProvider.GetService(Type serviceType)
@@ -467,6 +514,11 @@ namespace System.ComponentModel.Design
 
             _serviceCreators[serviceType] = callback;
             _services.Remove(serviceType);
+            if (serviceType == typeof(IMenuCommandService))
+            {
+                _standardCommandSet?.Dispose();
+                _standardCommandSet = null;
+            }
         }
 
         public void AddService(Type serviceType, object serviceInstance)
@@ -487,6 +539,11 @@ namespace System.ComponentModel.Design
 
             _services[serviceType] = serviceInstance;
             _serviceCreators.Remove(serviceType);
+            if (serviceType == typeof(IMenuCommandService))
+            {
+                _standardCommandSet?.Dispose();
+                _standardCommandSet = null;
+            }
         }
 
         public void RemoveService(Type serviceType)
@@ -506,6 +563,11 @@ namespace System.ComponentModel.Design
 
             _services.Remove(serviceType);
             _serviceCreators.Remove(serviceType);
+            if (serviceType == typeof(IMenuCommandService))
+            {
+                _standardCommandSet?.Dispose();
+                _standardCommandSet = null;
+            }
         }
 
         public void AddSerializationProvider(IDesignerSerializationProvider provider)
@@ -856,6 +918,8 @@ namespace System.ComponentModel.Design
         {
             if (disposing)
             {
+                _standardCommandSet?.Dispose();
+                _standardCommandSet = null;
                 foreach (IDesigner designer in new List<IDesigner>(_designers.Values))
                     designer.Dispose();
                 _designers.Clear();
@@ -869,6 +933,426 @@ namespace System.ComponentModel.Design
             }
 
             base.Dispose(disposing);
+        }
+
+        private sealed class PortableDesignerCommandSet : IDisposable
+        {
+            private const string DesignerClipboardFormat = "CF_DESIGNERCOMPONENTS_V2";
+
+            private readonly PortableDesignerHost _host;
+            private readonly MenuCommand? _copyCommand;
+            private readonly MenuCommand? _cutCommand;
+            private readonly MenuCommand? _deleteCommand;
+            private readonly MenuCommand? _pasteCommand;
+            private readonly MenuCommand? _selectAllCommand;
+
+            public PortableDesignerCommandSet(
+                PortableDesignerHost host,
+                IMenuCommandService menuCommandService)
+            {
+                _host = host;
+                MenuCommandService = menuCommandService;
+
+                if (menuCommandService.FindCommand(StandardCommands.Copy) is null)
+                {
+                    _copyCommand = new MenuCommand(OnCopy, StandardCommands.Copy);
+                    menuCommandService.AddCommand(_copyCommand);
+                }
+
+                if (menuCommandService.FindCommand(StandardCommands.Cut) is null)
+                {
+                    _cutCommand = new MenuCommand(OnCut, StandardCommands.Cut);
+                    menuCommandService.AddCommand(_cutCommand);
+                }
+
+                if (menuCommandService.FindCommand(StandardCommands.Delete) is null)
+                {
+                    _deleteCommand = new MenuCommand(OnDelete, StandardCommands.Delete);
+                    menuCommandService.AddCommand(_deleteCommand);
+                }
+
+                if (menuCommandService.FindCommand(StandardCommands.Paste) is null)
+                {
+                    _pasteCommand = new MenuCommand(OnPaste, StandardCommands.Paste);
+                    menuCommandService.AddCommand(_pasteCommand);
+                }
+
+                if (menuCommandService.FindCommand(StandardCommands.SelectAll) is null)
+                {
+                    _selectAllCommand = new MenuCommand(OnSelectAll, StandardCommands.SelectAll);
+                    menuCommandService.AddCommand(_selectAllCommand);
+                }
+
+                _host.SelectionChanged += OnDesignerStateChanged;
+                _host.Activated += OnDesignerStateChanged;
+                _host.ComponentAdded += OnComponentStateChanged;
+                _host.ComponentRemoved += OnComponentStateChanged;
+                RefreshStatus();
+            }
+
+            public IMenuCommandService MenuCommandService { get; }
+
+            public void Dispose()
+            {
+                _host.SelectionChanged -= OnDesignerStateChanged;
+                _host.Activated -= OnDesignerStateChanged;
+                _host.ComponentAdded -= OnComponentStateChanged;
+                _host.ComponentRemoved -= OnComponentStateChanged;
+
+                RemoveOwnedCommand(_copyCommand, StandardCommands.Copy);
+                RemoveOwnedCommand(_cutCommand, StandardCommands.Cut);
+                RemoveOwnedCommand(_deleteCommand, StandardCommands.Delete);
+                RemoveOwnedCommand(_pasteCommand, StandardCommands.Paste);
+                RemoveOwnedCommand(_selectAllCommand, StandardCommands.SelectAll);
+            }
+
+            private void OnDesignerStateChanged(object? sender, EventArgs e)
+            {
+                RefreshStatus();
+            }
+
+            private void OnComponentStateChanged(object? sender, ComponentEventArgs e)
+            {
+                RefreshStatus();
+            }
+
+            private void RefreshStatus()
+            {
+                IComponent[] copyableComponents = GetCopyableComponents();
+                IComponent[] deletableComponents = GetDeletableComponents();
+                if (_copyCommand is not null)
+                    _copyCommand.Enabled = copyableComponents.Length > 0;
+                if (_cutCommand is not null)
+                    _cutCommand.Enabled = deletableComponents.Length > 0;
+                if (_deleteCommand is not null)
+                    _deleteCommand.Enabled = deletableComponents.Length > 0;
+                if (_pasteCommand is not null)
+                    _pasteCommand.Enabled = FindPasteParent() is not null && TryGetClipboardData(out _);
+                if (_selectAllCommand is not null)
+                    _selectAllCommand.Enabled = GetSelectableComponents().Length > 0;
+            }
+
+            private void OnCopy(object? sender, EventArgs e)
+            {
+                CopyComponentsToClipboard(GetCopyableComponents());
+                RefreshStatus();
+            }
+
+            private void OnCut(object? sender, EventArgs e)
+            {
+                IComponent[] components = GetDeletableComponents();
+                if (components.Length == 0 || !CopyComponentsToClipboard(components))
+                    return;
+
+                DeleteComponents(
+                    components,
+                    components.Length == 1 ? "Cut component" : "Cut components");
+            }
+
+            private void OnDelete(object? sender, EventArgs e)
+            {
+                IComponent[] components = GetDeletableComponents();
+                if (components.Length == 0)
+                    return;
+
+                DeleteComponents(
+                    components,
+                    components.Length == 1 ? "Delete component" : "Delete components");
+            }
+
+            private void OnPaste(object? sender, EventArgs e)
+            {
+                Control? pasteParent = FindPasteParent();
+                if (pasteParent is null
+                    || !TryGetClipboardData(out object? serializationData)
+                    || serializationData is null
+                    || _host.GetService(typeof(IDesignerSerializationService)) is not IDesignerSerializationService serializer)
+                {
+                    return;
+                }
+
+                using DesignerTransaction transaction = _host.CreateTransaction("Paste components");
+                var createdComponents = new List<IComponent>();
+                bool commit = false;
+                try
+                {
+                    ICollection deserialized = serializer.Deserialize(serializationData);
+                    createdComponents.AddRange(deserialized.Cast<object>().OfType<IComponent>());
+                    if (createdComponents.Count == 0)
+                        return;
+
+                    foreach (IComponent component in createdComponents)
+                        ClearEventBindings(component);
+
+                    var selectedComponents = new List<IComponent>();
+                    foreach (IComponent component in createdComponents)
+                    {
+                        if (component is Control control)
+                        {
+                            if (control.Parent is not null)
+                                continue;
+
+                            pasteParent.Controls.Add(control);
+                            OffsetPastedControl(control);
+                            selectedComponents.Add(control);
+                        }
+                        else
+                        {
+                            selectedComponents.Add(component);
+                        }
+                    }
+
+                    if (selectedComponents.Count == 0)
+                        selectedComponents.AddRange(createdComponents);
+
+                    _host.Activate();
+                    _host.SetSelectedComponents(selectedComponents, SelectionTypes.Replace);
+                    commit = true;
+                }
+                catch
+                {
+                    for (int i = createdComponents.Count - 1; i >= 0; i--)
+                    {
+                        IComponent component = createdComponents[i];
+                        if (ReferenceEquals(component.Site?.Container, _host.Container))
+                            _host.DestroyComponent(component);
+                    }
+
+                    throw;
+                }
+                finally
+                {
+                    if (commit)
+                        transaction.Commit();
+                    else
+                        transaction.Cancel();
+                    RefreshStatus();
+                }
+            }
+
+            private bool CopyComponentsToClipboard(IComponent[] components)
+            {
+                if (components.Length == 0
+                    || _host.GetService(typeof(IDesignerSerializationService)) is not IDesignerSerializationService serializer)
+                {
+                    return false;
+                }
+
+                object serializationData = serializer.Serialize(components);
+                var dataObject = new DataObject();
+                dataObject.SetData(DesignerClipboardFormat, serializationData);
+                Clipboard.SetDataObject(dataObject);
+                return true;
+            }
+
+            private void DeleteComponents(IComponent[] components, string transactionDescription)
+            {
+                IComponent? fallbackSelection = FindCommonControlParent(components) ?? _host.RootComponent;
+                IComponent[] deletionComponents = ExpandDeletionComponents(components);
+                using DesignerTransaction transaction = _host.CreateTransaction(transactionDescription);
+                bool commit = false;
+                try
+                {
+                    _host.SetSelectedComponents(Array.Empty<object>(), SelectionTypes.Replace);
+                    foreach (IComponent component in deletionComponents.OrderBy(GetControlDepth))
+                    {
+                        if (ReferenceEquals(component.Site?.Container, _host.Container))
+                            _host.OnComponentChanging(component, null);
+                    }
+
+                    foreach (IComponent component in deletionComponents.OrderByDescending(GetControlDepth))
+                    {
+                        if (!ReferenceEquals(component.Site?.Container, _host.Container))
+                            continue;
+
+                        _host.DestroyComponent(component);
+                    }
+
+                    if (fallbackSelection is not null
+                        && (ReferenceEquals(fallbackSelection, _host.RootComponent)
+                            || ReferenceEquals(fallbackSelection.Site?.Container, _host.Container)))
+                    {
+                        _host.SetSelectedComponents(
+                            new object[] { fallbackSelection },
+                            SelectionTypes.Replace);
+                    }
+
+                    commit = true;
+                }
+                finally
+                {
+                    if (commit)
+                        transaction.Commit();
+                    else
+                        transaction.Cancel();
+                    RefreshStatus();
+                }
+            }
+
+            private void ClearEventBindings(IComponent component)
+            {
+                if (_host.GetService(typeof(IEventBindingService)) is not IEventBindingService eventBindingService)
+                    return;
+
+                PropertyDescriptorCollection eventProperties = eventBindingService.GetEventProperties(
+                    TypeDescriptor.GetEvents(component));
+                foreach (PropertyDescriptor eventProperty in eventProperties)
+                {
+                    if (!eventProperty.IsReadOnly && eventProperty.GetValue(component) is string)
+                        eventProperty.SetValue(component, null);
+                }
+            }
+
+            private IComponent[] ExpandDeletionComponents(IComponent[] components)
+            {
+                var deletionComponents = new HashSet<IComponent>(components);
+                foreach (Control control in components.OfType<Control>())
+                    AddSitedDescendants(control, deletionComponents);
+                return deletionComponents.ToArray();
+            }
+
+            private void AddSitedDescendants(Control parent, HashSet<IComponent> components)
+            {
+                foreach (Control child in parent.Controls)
+                {
+                    if (ReferenceEquals(child.Site?.Container, _host.Container))
+                        components.Add(child);
+                    AddSitedDescendants(child, components);
+                }
+            }
+
+            private void OnSelectAll(object? sender, EventArgs e)
+            {
+                IComponent[] components = GetSelectableComponents();
+                _host.SetSelectedComponents(components, SelectionTypes.Replace);
+                RefreshStatus();
+            }
+
+            private IComponent[] GetCopyableComponents()
+            {
+                return _host.GetSelectedComponents()
+                    .Cast<object>()
+                    .OfType<IComponent>()
+                    .Where(component => !ReferenceEquals(component, _host.RootComponent)
+                        && ReferenceEquals(component.Site?.Container, _host.Container))
+                    .Distinct()
+                    .ToArray();
+            }
+
+            private IComponent[] GetDeletableComponents()
+            {
+                var components = new List<IComponent>();
+                foreach (object? selected in _host.GetSelectedComponents())
+                {
+                    if (selected is not IComponent component
+                        || ReferenceEquals(component, _host.RootComponent)
+                        || !ReferenceEquals(component.Site?.Container, _host.Container)
+                        || IsInherited(component))
+                    {
+                        return Array.Empty<IComponent>();
+                    }
+
+                    components.Add(component);
+                }
+
+                return components.ToArray();
+            }
+
+            private Control? FindPasteParent()
+            {
+                Control? selectedControl = _host.PrimarySelection as Control;
+                if (selectedControl is not null
+                    && _host.GetDesigner(selectedControl) is PortableParentControlDesigner)
+                {
+                    return selectedControl;
+                }
+
+                return selectedControl?.Parent ?? _host.RootComponent as Control;
+            }
+
+            private bool TryGetClipboardData(out object? serializationData)
+            {
+                serializationData = null;
+                IDataObject? dataObject = Clipboard.GetDataObject();
+                if (dataObject is null || !dataObject.GetDataPresent(DesignerClipboardFormat))
+                    return false;
+
+                serializationData = dataObject.GetData(DesignerClipboardFormat);
+                return serializationData is not null;
+            }
+
+            private void OffsetPastedControl(Control control)
+            {
+                if (control.Dock != DockStyle.None)
+                    return;
+
+                PropertyDescriptor? locationProperty = TypeDescriptor.GetProperties(control)[nameof(Control.Location)];
+                if (locationProperty is null || locationProperty.IsReadOnly)
+                    return;
+
+                Point oldLocation = control.Location;
+                Point newLocation = new(oldLocation.X + 10, oldLocation.Y + 10);
+                _host.OnComponentChanging(control, locationProperty);
+                locationProperty.SetValue(control, newLocation);
+                _host.OnComponentChanged(control, locationProperty, oldLocation, newLocation);
+            }
+
+            private IComponent[] GetSelectableComponents()
+            {
+                return _host.Container.Components
+                    .Cast<IComponent>()
+                    .Where(component => !ReferenceEquals(component, _host.RootComponent))
+                    .ToArray();
+            }
+
+            private static bool IsInherited(IComponent component)
+            {
+                return TypeDescriptor.GetAttributes(component)[typeof(InheritanceAttribute)] is InheritanceAttribute inheritance
+                    && inheritance.InheritanceLevel != InheritanceLevel.NotInherited;
+            }
+
+            private void RemoveOwnedCommand(MenuCommand? command, CommandID commandId)
+            {
+                if (command is not null
+                    && ReferenceEquals(MenuCommandService.FindCommand(commandId), command))
+                {
+                    MenuCommandService.RemoveCommand(command);
+                }
+            }
+
+            private static int GetControlDepth(IComponent component)
+            {
+                int depth = 0;
+                for (Control? parent = (component as Control)?.Parent; parent is not null; parent = parent.Parent)
+                    depth++;
+                return depth;
+            }
+
+            private static Control? FindCommonControlParent(IReadOnlyList<IComponent> components)
+            {
+                Control? commonParent = null;
+                foreach (IComponent component in components)
+                {
+                    if (component is not Control control)
+                        continue;
+
+                    Control? parent = control.Parent;
+                    if (commonParent is null)
+                    {
+                        commonParent = parent;
+                        continue;
+                    }
+
+                    while (commonParent is not null
+                        && !ReferenceEquals(commonParent, parent)
+                        && (parent is null || !commonParent.Contains(parent)))
+                    {
+                        commonParent = commonParent.Parent;
+                    }
+                }
+
+                return commonParent;
+            }
         }
 
         private sealed class PortableDesignerTransaction : DesignerTransaction
@@ -1882,8 +2366,26 @@ namespace System.ComponentModel.Design
     public class DesignSurfaceManager : IServiceProvider, IDisposable
     {
         private readonly List<DesignSurface> _surfaces = new();
+        private DesignSurface? _activeDesignSurface;
 
-        public DesignSurface? ActiveDesignSurface { get; set; }
+        public DesignSurface? ActiveDesignSurface
+        {
+            get => _activeDesignSurface;
+            set
+            {
+                if (ReferenceEquals(_activeDesignSurface, value))
+                {
+                    ActivateSurface(value);
+                    return;
+                }
+
+                if (_activeDesignSurface?.GetService(typeof(IDesignerHost)) is PortableDesignerHost oldHost)
+                    oldHost.Deactivate();
+
+                _activeDesignSurface = value;
+                ActivateSurface(value);
+            }
+        }
 
         public DesignSurface CreateDesignSurface(IServiceProvider serviceProvider)
         {
@@ -1909,6 +2411,12 @@ namespace System.ComponentModel.Design
         public object? GetService(Type serviceType)
         {
             return ActiveDesignSurface?.GetService(serviceType);
+        }
+
+        private static void ActivateSurface(DesignSurface? surface)
+        {
+            if (surface?.GetService(typeof(IDesignerHost)) is IDesignerHost host)
+                host.Activate();
         }
     }
 
