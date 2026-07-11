@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.ComponentModel.Design;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -30,8 +31,33 @@ namespace System.Windows.Forms.Integration;
 [ContentProperty("Child")]
 public class WindowsFormsHost : FrameworkElement
 {
+    private enum DesignHandle
+    {
+        None,
+        TopLeft,
+        Top,
+        TopRight,
+        Right,
+        BottomRight,
+        Bottom,
+        BottomLeft,
+        Left
+    }
+
+    private const double DesignHandleSize = 7;
     private static readonly object s_registeredHostsGate = new();
     private static readonly List<WeakReference<WindowsFormsHost>> s_registeredHosts = new();
+    private static readonly DesignHandle[] s_resizeHandles =
+    {
+        DesignHandle.TopLeft,
+        DesignHandle.Top,
+        DesignHandle.TopRight,
+        DesignHandle.Right,
+        DesignHandle.BottomRight,
+        DesignHandle.Bottom,
+        DesignHandle.BottomLeft,
+        DesignHandle.Left
+    };
     private static int s_interopEnabled;
 
     public static readonly DependencyProperty BackgroundProperty =
@@ -61,6 +87,8 @@ public class WindowsFormsHost : FrameworkElement
     private Forms.Control? _child;
     private Forms.Control? _focusedControl;
     private Forms.Control? _capturedControl;
+    private ISelectionService? _designSelectionService;
+    private bool _designSelectionServiceLookupComplete;
     private WpfContextMenu? _activeContextMenu;
     private Forms.ContextMenuStrip? _activeContextMenuStrip;
     private readonly ConditionalWeakTable<DrawingImage, CachedImageSource> _imageSourceCache = new();
@@ -77,6 +105,8 @@ public class WindowsFormsHost : FrameworkElement
     public WindowsFormsHost()
     {
         RegisterHost(this);
+        Loaded += OnHostLoaded;
+        Unloaded += OnHostUnloaded;
     }
 
     public Brush? Background
@@ -100,6 +130,8 @@ public class WindowsFormsHost : FrameworkElement
             {
                 UnsubscribeInvalidationTree(_child);
             }
+            DetachDesignSelectionService();
+            _designSelectionServiceLookupComplete = false;
 
             _child = value;
             _focusedControl = null;
@@ -112,6 +144,7 @@ public class WindowsFormsHost : FrameworkElement
             {
                 _child.CreateControl();
                 SubscribeInvalidationTree(_child);
+                EnsureDesignSelectionService();
             }
 
             ChildChanged?.Invoke(this, new ChildChangedEventArgs(previous));
@@ -227,6 +260,7 @@ public class WindowsFormsHost : FrameworkElement
         }
 
         RenderControl(drawingContext, _child, new Rect(0, 0, ActualWidth, ActualHeight));
+        RenderDesignAdorners(drawingContext, _child);
     }
 
     protected override void OnMouseDown(MouseButtonEventArgs e)
@@ -238,7 +272,8 @@ public class WindowsFormsHost : FrameworkElement
         }
 
         Point hostPoint = e.GetPosition(this);
-        Forms.Control? target = FindControlAt(_child, hostPoint, out Point localPoint);
+        Forms.Control? target = FindDesignAdornerTarget(hostPoint, out Point localPoint, out _)
+            ?? FindControlAt(_child, hostPoint, out localPoint);
         if (target == null)
         {
             return;
@@ -288,6 +323,12 @@ public class WindowsFormsHost : FrameworkElement
         }
 
         Point hostPoint = e.GetPosition(this);
+        if (_capturedControl == null && MapMouseButtons(e) == Forms.MouseButtons.None)
+        {
+            _ = FindDesignAdornerTarget(hostPoint, out _, out DesignHandle hoverHandle);
+            Cursor = GetDesignHandleCursor(hoverHandle);
+        }
+
         Forms.Control? target = FindPointerTarget(hostPoint, out Point localPoint);
         if (target == null)
         {
@@ -831,6 +872,201 @@ public class WindowsFormsHost : FrameworkElement
             && listView.TryRaiseColumnClickAt(
                 ToWinFormsCoordinate(localPoint.X),
                 ToWinFormsCoordinate(localPoint.Y));
+    }
+
+    private void OnHostLoaded(object sender, RoutedEventArgs e)
+    {
+        _designSelectionServiceLookupComplete = false;
+        EnsureDesignSelectionService();
+    }
+
+    private void OnHostUnloaded(object sender, RoutedEventArgs e)
+    {
+        DetachDesignSelectionService();
+    }
+
+    private void EnsureDesignSelectionService()
+    {
+        if (_designSelectionService is not null || _designSelectionServiceLookupComplete)
+        {
+            return;
+        }
+
+        _designSelectionServiceLookupComplete = true;
+        ISelectionService? selectionService = _child is null
+            ? null
+            : FindDesignSelectionService(_child);
+        if (ReferenceEquals(selectionService, _designSelectionService))
+        {
+            return;
+        }
+
+        DetachDesignSelectionService();
+        _designSelectionService = selectionService;
+        if (_designSelectionService is not null)
+        {
+            _designSelectionService.SelectionChanged += OnDesignSelectionChanged;
+        }
+    }
+
+    private void DetachDesignSelectionService()
+    {
+        if (_designSelectionService is not null)
+        {
+            _designSelectionService.SelectionChanged -= OnDesignSelectionChanged;
+            _designSelectionService = null;
+        }
+    }
+
+    private void OnDesignSelectionChanged(object? sender, EventArgs e)
+    {
+        InvalidateVisual();
+    }
+
+    private static ISelectionService? FindDesignSelectionService(Forms.Control control)
+    {
+        if (control.Site?.DesignMode == true
+            && control.Site.GetService(typeof(ISelectionService)) is ISelectionService selectionService)
+        {
+            return selectionService;
+        }
+
+        foreach (Forms.Control child in control.Controls)
+        {
+            ISelectionService? childSelectionService = FindDesignSelectionService(child);
+            if (childSelectionService is not null)
+            {
+                return childSelectionService;
+            }
+        }
+
+        return null;
+    }
+
+    private void RenderDesignAdorners(DrawingContext drawingContext, Forms.Control root)
+    {
+        EnsureDesignSelectionService();
+        if (_designSelectionService is null)
+        {
+            return;
+        }
+
+        object? primarySelection = _designSelectionService.PrimarySelection;
+        foreach (object? selected in _designSelectionService.GetSelectedComponents())
+        {
+            if (selected is not Forms.Control control
+                || !TryGetControlHostBounds(root, control, out Rect bounds))
+            {
+                continue;
+            }
+
+            bool primary = ReferenceEquals(primarySelection, control);
+            Pen border = new(SystemColors.HighlightBrush, primary ? 1.5 : 1);
+            drawingContext.DrawRectangle(null, border, bounds);
+            if (!primary || ReferenceEquals(control, root) || control.Dock != Forms.DockStyle.None)
+            {
+                continue;
+            }
+
+            foreach (DesignHandle handle in s_resizeHandles)
+            {
+                Rect handleBounds = GetDesignHandleBounds(bounds, handle);
+                drawingContext.DrawRectangle(Brushes.White, new Pen(Brushes.Black, 1), handleBounds);
+            }
+        }
+    }
+
+    private Forms.Control? FindDesignAdornerTarget(
+        Point hostPoint,
+        out Point localPoint,
+        out DesignHandle handle)
+    {
+        EnsureDesignSelectionService();
+        if (_child is null
+            || _designSelectionService?.PrimarySelection is not Forms.Control control
+            || ReferenceEquals(control, _child)
+            || control.Dock != Forms.DockStyle.None
+            || !TryGetControlHostBounds(_child, control, out Rect bounds))
+        {
+            localPoint = default;
+            handle = DesignHandle.None;
+            return null;
+        }
+
+        foreach (DesignHandle candidate in s_resizeHandles)
+        {
+            if (!GetDesignHandleBounds(bounds, candidate).Contains(hostPoint))
+            {
+                continue;
+            }
+
+            localPoint = new Point(hostPoint.X - bounds.X, hostPoint.Y - bounds.Y);
+            handle = candidate;
+            return control;
+        }
+
+        localPoint = default;
+        handle = DesignHandle.None;
+        return null;
+    }
+
+    private static bool TryGetControlHostBounds(
+        Forms.Control root,
+        Forms.Control target,
+        out Rect bounds)
+    {
+        double x = 0;
+        double y = 0;
+        for (Forms.Control? current = target; current != null; current = current.Parent)
+        {
+            if (!current.Visible)
+            {
+                bounds = Rect.Empty;
+                return false;
+            }
+
+            if (ReferenceEquals(current, root))
+            {
+                bounds = new Rect(x, y, target.Width, target.Height);
+                return bounds.Width > 0 && bounds.Height > 0;
+            }
+
+            x += current.Left;
+            y += current.Top;
+        }
+
+        bounds = Rect.Empty;
+        return false;
+    }
+
+    private static Rect GetDesignHandleBounds(Rect bounds, DesignHandle handle)
+    {
+        double half = DesignHandleSize / 2;
+        (double x, double y) = handle switch
+        {
+            DesignHandle.TopLeft => (bounds.Left, bounds.Top),
+            DesignHandle.Top => (bounds.Left + bounds.Width / 2, bounds.Top),
+            DesignHandle.TopRight => (bounds.Right, bounds.Top),
+            DesignHandle.Right => (bounds.Right, bounds.Top + bounds.Height / 2),
+            DesignHandle.BottomRight => (bounds.Right, bounds.Bottom),
+            DesignHandle.Bottom => (bounds.Left + bounds.Width / 2, bounds.Bottom),
+            DesignHandle.BottomLeft => (bounds.Left, bounds.Bottom),
+            DesignHandle.Left => (bounds.Left, bounds.Top + bounds.Height / 2),
+            _ => (double.NaN, double.NaN)
+        };
+        return new Rect(x - half, y - half, DesignHandleSize, DesignHandleSize);
+    }
+
+    private static System.Windows.Input.Cursor GetDesignHandleCursor(DesignHandle handle)
+    {
+        return handle switch
+        {
+            DesignHandle.TopLeft or DesignHandle.BottomRight => System.Windows.Input.Cursors.SizeNWSE,
+            DesignHandle.TopRight or DesignHandle.BottomLeft => System.Windows.Input.Cursors.SizeNESW,
+            DesignHandle.Left or DesignHandle.Right => System.Windows.Input.Cursors.SizeWE,
+            DesignHandle.Top or DesignHandle.Bottom => System.Windows.Input.Cursors.SizeNS,
+            _ => System.Windows.Input.Cursors.Arrow
+        };
     }
 
     private static Forms.Control? FindControlAt(Forms.Control root, Point hostPoint, out Point localPoint)

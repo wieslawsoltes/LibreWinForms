@@ -342,12 +342,10 @@ namespace System.ComponentModel.Design
             if (component is null)
                 return;
 
-            if (component is Control control && control.Parent is not null)
-            {
-                control.Parent.Controls.Remove(control);
-            }
-
+            Control? control = component as Control;
             component.Site?.Container?.Remove(component);
+            if (control?.Parent is not null)
+                control.Parent.Controls.Remove(control);
             component.Dispose();
         }
 
@@ -1328,10 +1326,34 @@ namespace System.ComponentModel.Design
 
     internal class PortableControlDesigner : PortableComponentDesigner
     {
+        private enum PointerOperation
+        {
+            None,
+            Move,
+            ResizeLeft,
+            ResizeTop,
+            ResizeRight,
+            ResizeBottom,
+            ResizeTopLeft,
+            ResizeTopRight,
+            ResizeBottomLeft,
+            ResizeBottomRight
+        }
+
+        private const int ResizeHandleSize = 6;
         private Control? _control;
         private PortableParentControlDesigner? _placementDesigner;
         private ToolboxItem? _placementTool;
         private Point _placementStart;
+        private Control? _manipulationParent;
+        private PointerOperation _pointerOperation;
+        private Point _pointerStart;
+        private Rectangle _initialBounds;
+        private DesignerTransaction? _manipulationTransaction;
+        private IComponentChangeService? _manipulationChangeService;
+        private PropertyDescriptor? _locationProperty;
+        private PropertyDescriptor? _sizeProperty;
+        private bool _manipulationStarted;
 
         public override void Initialize(IComponent component)
         {
@@ -1342,6 +1364,7 @@ namespace System.ComponentModel.Design
 
         public override void Dispose()
         {
+            FinishManipulation(commit: false);
             if (_control is not null)
             {
                 _control.RemoveDesignerMouseHandlers(OnDesignerMouseDown, OnDesignerMouseMove, OnDesignerMouseUp);
@@ -1351,6 +1374,7 @@ namespace System.ComponentModel.Design
             _control = null;
             _placementDesigner = null;
             _placementTool = null;
+            _manipulationParent = null;
             base.Dispose();
         }
 
@@ -1388,21 +1412,32 @@ namespace System.ComponentModel.Design
                 return;
             }
 
+            bool wasPrimarySelection = false;
             if (GetService(typeof(ISelectionService)) is ISelectionService selectionService)
             {
+                wasPrimarySelection = ReferenceEquals(selectionService.PrimarySelection, _control);
                 selectionService.SetSelectedComponents(new object[] { _control }, SelectionTypes.Replace);
             }
+
+            BeginManipulation(host, wasPrimarySelection, e.Location);
         }
 
         private void OnDesignerMouseMove(object? sender, MouseEventArgs e)
         {
-            if (_control is null || _placementDesigner is null || _placementTool is null)
+            if (_control is null)
                 return;
 
-            if (TryTranslatePoint(_control, _placementDesigner.DesignedControl, e.Location, out Point parentPoint))
+            if (_placementDesigner is not null && _placementTool is not null)
             {
-                _placementDesigner.UpdateToolDrag(_placementStart, parentPoint);
+                if (TryTranslatePoint(_control, _placementDesigner.DesignedControl, e.Location, out Point parentPoint))
+                {
+                    _placementDesigner.UpdateToolDrag(_placementStart, parentPoint);
+                }
+
+                return;
             }
+
+            UpdateManipulation(e.Location);
         }
 
         private void OnDesignerMouseUp(object? sender, MouseEventArgs e)
@@ -1414,14 +1449,240 @@ namespace System.ComponentModel.Design
             ToolboxItem? tool = _placementTool;
             _placementDesigner = null;
             _placementTool = null;
-            _control.Capture = false;
 
             if (parentDesigner is not null
                 && tool is not null
                 && TryTranslatePoint(_control, parentDesigner.DesignedControl, e.Location, out Point parentPoint))
             {
+                _control.Capture = false;
                 parentDesigner.CreateTool(tool, _placementStart, parentPoint);
+                return;
             }
+
+            FinishManipulation(commit: true);
+        }
+
+        private void BeginManipulation(IDesignerHost? host, bool wasPrimarySelection, Point location)
+        {
+            if (_control is null
+                || host is null
+                || ReferenceEquals(host.RootComponent, _control)
+                || _control.Parent is not Control parent
+                || _control.Dock != DockStyle.None
+                || !TryTranslatePoint(_control, parent, location, out Point parentPoint))
+            {
+                return;
+            }
+
+            PropertyDescriptorCollection properties = TypeDescriptor.GetProperties(_control);
+            _locationProperty = properties[nameof(Control.Location)];
+            _sizeProperty = properties[nameof(Control.Size)];
+            bool canMove = _locationProperty is { IsReadOnly: false };
+            bool canResize = !_control.AutoSize && _sizeProperty is { IsReadOnly: false };
+            _pointerOperation = GetPointerOperation(location, wasPrimarySelection && canResize);
+            if (_pointerOperation == PointerOperation.Move && !canMove)
+                _pointerOperation = PointerOperation.None;
+            if (_pointerOperation != PointerOperation.Move && !canResize)
+                _pointerOperation = canMove ? PointerOperation.Move : PointerOperation.None;
+            if (_pointerOperation == PointerOperation.None)
+                return;
+
+            _manipulationParent = parent;
+            _pointerStart = parentPoint;
+            _initialBounds = _control.Bounds;
+            _manipulationStarted = false;
+            _control.Capture = true;
+        }
+
+        private void UpdateManipulation(Point location)
+        {
+            if (_control is null
+                || _manipulationParent is null
+                || _pointerOperation == PointerOperation.None
+                || !TryTranslatePoint(_control, _manipulationParent, location, out Point parentPoint))
+            {
+                return;
+            }
+
+            int deltaX = parentPoint.X - _pointerStart.X;
+            int deltaY = parentPoint.Y - _pointerStart.Y;
+            Size dragSize = SystemInformation.DragSize;
+            if (!_manipulationStarted
+                && Math.Abs(deltaX) < dragSize.Width
+                && Math.Abs(deltaY) < dragSize.Height)
+            {
+                return;
+            }
+
+            try
+            {
+                if (!_manipulationStarted)
+                    StartManipulationTransaction();
+
+                _control.Bounds = CalculateManipulatedBounds(deltaX, deltaY);
+            }
+            catch
+            {
+                FinishManipulation(commit: false);
+                throw;
+            }
+        }
+
+        private void StartManipulationTransaction()
+        {
+            if (_control is null || _manipulationStarted)
+                return;
+            if (GetService(typeof(IDesignerHost)) is not IDesignerHost host)
+                return;
+
+            _manipulationTransaction = host.CreateTransaction(
+                (_pointerOperation == PointerOperation.Move ? "Move " : "Resize ")
+                + (_control.Site?.Name ?? _control.GetType().Name));
+            _manipulationChangeService = GetService(typeof(IComponentChangeService)) as IComponentChangeService;
+            if (ChangesLocation(_pointerOperation) && _locationProperty is not null)
+                _manipulationChangeService?.OnComponentChanging(_control, _locationProperty);
+            if (ChangesSize(_pointerOperation) && _sizeProperty is not null)
+                _manipulationChangeService?.OnComponentChanging(_control, _sizeProperty);
+            _manipulationStarted = true;
+        }
+
+        private Rectangle CalculateManipulatedBounds(int deltaX, int deltaY)
+        {
+            int minimumWidth = Math.Max(1, _control?.MinimumSize.Width ?? 1);
+            int minimumHeight = Math.Max(1, _control?.MinimumSize.Height ?? 1);
+            int left = _initialBounds.Left;
+            int top = _initialBounds.Top;
+            int right = _initialBounds.Right;
+            int bottom = _initialBounds.Bottom;
+
+            if (ChangesLeft(_pointerOperation))
+                left = Math.Min(left + deltaX, right - minimumWidth);
+            else if (ChangesRight(_pointerOperation))
+                right = Math.Max(right + deltaX, left + minimumWidth);
+
+            if (ChangesTop(_pointerOperation))
+                top = Math.Min(top + deltaY, bottom - minimumHeight);
+            else if (ChangesBottom(_pointerOperation))
+                bottom = Math.Max(bottom + deltaY, top + minimumHeight);
+
+            if (_pointerOperation == PointerOperation.Move)
+            {
+                left += deltaX;
+                right += deltaX;
+                top += deltaY;
+                bottom += deltaY;
+            }
+
+            return Rectangle.FromLTRB(left, top, right, bottom);
+        }
+
+        private void FinishManipulation(bool commit)
+        {
+            Control? control = _control;
+            if (control is not null)
+                control.Capture = false;
+
+            try
+            {
+                if (_manipulationStarted && control is not null)
+                {
+                    if (commit)
+                    {
+                        if (ChangesLocation(_pointerOperation) && _locationProperty is not null)
+                        {
+                            _manipulationChangeService?.OnComponentChanged(
+                                control,
+                                _locationProperty,
+                                _initialBounds.Location,
+                                control.Location);
+                        }
+
+                        if (ChangesSize(_pointerOperation) && _sizeProperty is not null)
+                        {
+                            _manipulationChangeService?.OnComponentChanged(
+                                control,
+                                _sizeProperty,
+                                _initialBounds.Size,
+                                control.Size);
+                        }
+
+                        _manipulationTransaction?.Commit();
+                    }
+                    else
+                    {
+                        control.Bounds = _initialBounds;
+                        _manipulationTransaction?.Cancel();
+                    }
+                }
+            }
+            finally
+            {
+                _manipulationTransaction = null;
+                _manipulationChangeService = null;
+                _locationProperty = null;
+                _sizeProperty = null;
+                _manipulationParent = null;
+                _pointerOperation = PointerOperation.None;
+                _manipulationStarted = false;
+            }
+        }
+
+        private PointerOperation GetPointerOperation(Point location, bool canResize)
+        {
+            if (!canResize || _control is null)
+                return PointerOperation.Move;
+
+            bool left = location.X <= ResizeHandleSize;
+            bool right = location.X >= _control.Width - ResizeHandleSize;
+            bool top = location.Y <= ResizeHandleSize;
+            bool bottom = location.Y >= _control.Height - ResizeHandleSize;
+            if (left && top)
+                return PointerOperation.ResizeTopLeft;
+            if (right && top)
+                return PointerOperation.ResizeTopRight;
+            if (left && bottom)
+                return PointerOperation.ResizeBottomLeft;
+            if (right && bottom)
+                return PointerOperation.ResizeBottomRight;
+            if (left)
+                return PointerOperation.ResizeLeft;
+            if (right)
+                return PointerOperation.ResizeRight;
+            if (top)
+                return PointerOperation.ResizeTop;
+            if (bottom)
+                return PointerOperation.ResizeBottom;
+            return PointerOperation.Move;
+        }
+
+        private static bool ChangesLocation(PointerOperation operation)
+        {
+            return operation == PointerOperation.Move || ChangesLeft(operation) || ChangesTop(operation);
+        }
+
+        private static bool ChangesSize(PointerOperation operation)
+        {
+            return operation != PointerOperation.None && operation != PointerOperation.Move;
+        }
+
+        private static bool ChangesLeft(PointerOperation operation)
+        {
+            return operation is PointerOperation.ResizeLeft or PointerOperation.ResizeTopLeft or PointerOperation.ResizeBottomLeft;
+        }
+
+        private static bool ChangesTop(PointerOperation operation)
+        {
+            return operation is PointerOperation.ResizeTop or PointerOperation.ResizeTopLeft or PointerOperation.ResizeTopRight;
+        }
+
+        private static bool ChangesRight(PointerOperation operation)
+        {
+            return operation is PointerOperation.ResizeRight or PointerOperation.ResizeTopRight or PointerOperation.ResizeBottomRight;
+        }
+
+        private static bool ChangesBottom(PointerOperation operation)
+        {
+            return operation is PointerOperation.ResizeBottom or PointerOperation.ResizeBottomLeft or PointerOperation.ResizeBottomRight;
         }
 
         private static PortableParentControlDesigner? FindParentDesigner(IDesignerHost host, Control source)
@@ -2030,42 +2291,4 @@ namespace System.ComponentModel.Design
         }
     }
 
-    public abstract class UndoEngine : IDisposable
-    {
-        protected UndoEngine(IServiceProvider provider)
-        {
-            Provider = provider;
-        }
-
-        protected IServiceProvider Provider { get; }
-
-        public virtual bool Enabled
-        {
-            get => true;
-            set { }
-        }
-
-        protected abstract void AddUndoUnit(UndoUnit unit);
-
-        public virtual void Dispose()
-        {
-        }
-
-        protected object? GetRequiredService(Type serviceType)
-        {
-            return Provider.GetService(serviceType);
-        }
-
-        public abstract class UndoUnit
-        {
-            protected UndoUnit(string name)
-            {
-                Name = name;
-            }
-
-            public string Name { get; }
-
-            public abstract void Undo();
-        }
-    }
 }
