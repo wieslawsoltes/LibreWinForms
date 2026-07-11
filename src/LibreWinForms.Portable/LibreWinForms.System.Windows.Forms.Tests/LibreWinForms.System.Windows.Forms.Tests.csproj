@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+    <LibreWinFormsReferenceMode>Project</LibreWinFormsReferenceMode>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LibreWinForms.System.Windows.Forms\LibreWinForms.System.Windows.Forms.csproj"
+                      AdditionalProperties="LibreWinFormsReferenceMode=Project" />
+  </ItemGroup>
+</Project>
