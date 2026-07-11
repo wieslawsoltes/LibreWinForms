@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.ComponentModel.Design;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -13,6 +14,9 @@ using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Media.ProGPU;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
+using ProGPU.Backend;
+using ProGPU.Wpf.Interop;
 using Forms = System.Windows.Forms;
 using DrawingBitmap = System.Drawing.Bitmap;
 using DrawingColor = System.Drawing.Color;
@@ -44,9 +48,68 @@ public class WindowsFormsHost : FrameworkElement
         Left
     }
 
+    private enum PortableDragEventKind
+    {
+        Enter,
+        Over,
+        Leave,
+        Drop
+    }
+
+    private sealed class PortableDragSession
+    {
+        public PortableDragSession(
+            WindowsFormsHost sourceHost,
+            Forms.IDataObject data,
+            Forms.DragDropEffects allowedEffects,
+            int sourceButtonMask)
+        {
+            SourceHost = sourceHost;
+            Data = data;
+            AllowedEffects = allowedEffects;
+            SourceButtonMask = sourceButtonMask;
+        }
+
+        public Forms.DragDropEffects AllowedEffects { get; }
+
+        public Forms.Control? CurrentTarget { get; set; }
+
+        public WindowsFormsHost? CurrentTargetHost { get; set; }
+
+        public Forms.DragDropEffects CurrentEffect { get; set; }
+
+        public Forms.IDataObject Data { get; }
+
+        public DispatcherFrame Frame { get; } = new();
+
+        public bool IsCompleted { get; set; }
+
+        public Forms.DragDropEffects Result { get; set; }
+
+        public int SourceButtonMask { get; }
+
+        public WindowsFormsHost SourceHost { get; }
+    }
+
+    private sealed class PortableDropWindowState
+    {
+        public PortableDropWindowState(bool originalAllowDrop)
+        {
+            OriginalAllowDrop = originalAllowDrop;
+        }
+
+        public int HostCount { get; set; }
+
+        public bool OriginalAllowDrop { get; }
+    }
+
     private const double DesignHandleSize = 7;
     private static readonly object s_registeredHostsGate = new();
     private static readonly List<WeakReference<WindowsFormsHost>> s_registeredHosts = new();
+    private static readonly object s_dragSessionGate = new();
+    private static PortableDragSession? s_dragSession;
+    private static readonly object s_dropWindowStateGate = new();
+    private static readonly ConditionalWeakTable<Window, PortableDropWindowState> s_dropWindowStates = new();
     private static readonly DesignHandle[] s_resizeHandles =
     {
         DesignHandle.TopLeft,
@@ -87,11 +150,24 @@ public class WindowsFormsHost : FrameworkElement
     private Forms.Control? _child;
     private Forms.Control? _focusedControl;
     private Forms.Control? _capturedControl;
+    private Forms.Control? _pressedControl;
+    private Forms.MouseButtons _pressedButton;
+    private Forms.Control? _externalDragTarget;
+    private Forms.DragDropEffects _externalDragEffect;
+    private Window? _externalDropWindow;
+    private long _portableCustomPaintDispatchCount;
+    private long _portableChildInvalidationDispatchCount;
+    private long _portableOwnerDrawDispatchCount;
     private ISelectionService? _designSelectionService;
     private bool _designSelectionServiceLookupComplete;
     private WpfContextMenu? _activeContextMenu;
     private Forms.ContextMenuStrip? _activeContextMenuStrip;
     private readonly ConditionalWeakTable<DrawingImage, CachedImageSource> _imageSourceCache = new();
+    private readonly ConditionalWeakTable<object, Forms.IDataObject> _dragDataCache = new();
+    private readonly HashSet<Forms.Control> _invalidationTreeSubscriptions = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<Forms.Control, PortablePaintSurfacePool> _portablePaintSurfacePools = new(ReferenceEqualityComparer.Instance);
+    private readonly List<PortablePaintSurfacePool> _pendingRetiredPaintSurfacePools = new();
+    private readonly List<PortablePaintSurfacePool> _safeRetiredPaintSurfacePools = new();
 
     public event EventHandler<ChildChangedEventArgs>? ChildChanged;
 
@@ -105,6 +181,7 @@ public class WindowsFormsHost : FrameworkElement
     public WindowsFormsHost()
     {
         RegisterHost(this);
+        AllowDrop = true;
         Loaded += OnHostLoaded;
         Unloaded += OnHostUnloaded;
     }
@@ -126,9 +203,12 @@ public class WindowsFormsHost : FrameworkElement
             }
 
             Forms.Control? previous = _child;
+            HandlePortableDragHostUnavailable();
+            ClearExternalDragTarget(raiseLeave: true);
             if (_child != null)
             {
                 UnsubscribeInvalidationTree(_child);
+                ClearRemainingInvalidationSubscriptions();
             }
             DetachDesignSelectionService();
             _designSelectionServiceLookupComplete = false;
@@ -136,6 +216,8 @@ public class WindowsFormsHost : FrameworkElement
             _child = value;
             _focusedControl = null;
             _capturedControl = null;
+            _pressedControl = null;
+            _pressedButton = Forms.MouseButtons.None;
             if (IsMouseCaptured)
             {
                 ReleaseMouseCapture();
@@ -193,6 +275,14 @@ public class WindowsFormsHost : FrameworkElement
 
     public PropertyMap PropertyMap { get; } = new();
 
+    public long PortableCustomPaintDispatchCount => Interlocked.Read(ref _portableCustomPaintDispatchCount);
+
+    public long PortableChildInvalidationDispatchCount => Interlocked.Read(ref _portableChildInvalidationDispatchCount);
+
+    public int PortableInvalidationSubscriptionCount => _invalidationTreeSubscriptions.Count;
+
+    public long PortableOwnerDrawDispatchCount => Interlocked.Read(ref _portableOwnerDrawDispatchCount);
+
     [Bindable(true)]
     [Category("Behavior")]
     public int TabIndex
@@ -211,6 +301,780 @@ public class WindowsFormsHost : FrameworkElement
             WpfPortableWindowActivation.TryRegisterPresentationCoreClipboardService();
             Forms.Application.RegisterPortableApplicationHost(WpfPortableWinFormsApplicationHost.Instance);
         }
+    }
+
+    internal static Forms.DragDropEffects DoPortableDragDrop(
+        Forms.Control source,
+        Forms.IDataObject data,
+        Forms.DragDropEffects allowedEffects)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(data);
+
+        WindowsFormsHost? sourceHost = null;
+        foreach (WindowsFormsHost host in GetRegisteredHosts())
+        {
+            if (host._child != null && IsControlInTree(host._child, source))
+            {
+                sourceHost = host;
+                break;
+            }
+        }
+
+        if (sourceHost == null
+            || !sourceHost.IsLoaded
+            || !sourceHost.IsVisible
+            || !sourceHost.Dispatcher.CheckAccess())
+        {
+            return Forms.DragDropEffects.None;
+        }
+
+        int keyState = GetCurrentDragKeyState();
+        const int mouseButtonMask = 1 | 2 | 16;
+        int sourceButtonMask = keyState & mouseButtonMask;
+        if (sourceButtonMask == 0 || !sourceHost.CaptureMouse())
+        {
+            return Forms.DragDropEffects.None;
+        }
+
+        var session = new PortableDragSession(sourceHost, data, allowedEffects, sourceButtonMask);
+        lock (s_dragSessionGate)
+        {
+            if (s_dragSession != null)
+            {
+                sourceHost.ReleaseMouseCapture();
+                return Forms.DragDropEffects.None;
+            }
+
+            s_dragSession = session;
+        }
+
+        try
+        {
+            Point initialHostPoint = Mouse.GetPosition(sourceHost);
+            if (!TryGetScreenPoint(sourceHost, initialHostPoint, out Point initialScreenPoint))
+            {
+                CancelPortableDragSession(session);
+            }
+            else
+            {
+                UpdatePortableDragTarget(session, initialScreenPoint, keyState, raiseOver: false);
+            }
+
+            if (!session.IsCompleted)
+            {
+                Dispatcher.PushFrame(session.Frame);
+            }
+
+            return session.Result;
+        }
+        finally
+        {
+            lock (s_dragSessionGate)
+            {
+                if (ReferenceEquals(s_dragSession, session))
+                {
+                    s_dragSession = null;
+                }
+            }
+
+            if (sourceHost.IsMouseCaptured)
+            {
+                sourceHost.ReleaseMouseCapture();
+            }
+        }
+    }
+
+    internal static bool TryConvertControlPointToScreen(
+        Forms.Control control,
+        System.Drawing.Point point,
+        out System.Drawing.Point screenPoint)
+    {
+        ArgumentNullException.ThrowIfNull(control);
+        foreach (WindowsFormsHost host in GetRegisteredHosts())
+        {
+            if (host._child == null
+                || !host.IsLoaded
+                || !host.Dispatcher.CheckAccess()
+                || !TryGetHostPoint(host._child, control, point, out Point hostPoint)
+                || !TryGetScreenPoint(host, hostPoint, out Point wpfScreenPoint))
+            {
+                continue;
+            }
+
+            screenPoint = new System.Drawing.Point(
+                ToWinFormsCoordinate(wpfScreenPoint.X),
+                ToWinFormsCoordinate(wpfScreenPoint.Y));
+            return true;
+        }
+
+        screenPoint = default;
+        return false;
+    }
+
+    internal static bool TryConvertScreenPointToControl(
+        Forms.Control control,
+        System.Drawing.Point point,
+        out System.Drawing.Point clientPoint)
+    {
+        ArgumentNullException.ThrowIfNull(control);
+        foreach (WindowsFormsHost host in GetRegisteredHosts())
+        {
+            if (host._child == null
+                || !host.IsLoaded
+                || !host.Dispatcher.CheckAccess()
+                || !IsControlInTree(host._child, control))
+            {
+                continue;
+            }
+
+            Point hostPoint;
+            try
+            {
+                hostPoint = host.PointFromScreen(new Point(point.X, point.Y));
+            }
+            catch (InvalidOperationException)
+            {
+                continue;
+            }
+
+            if (!TryConvertHostPointToControl(host._child, control, hostPoint, out Point controlPoint))
+            {
+                continue;
+            }
+
+            clientPoint = new System.Drawing.Point(
+                ToWinFormsCoordinate(controlPoint.X),
+                ToWinFormsCoordinate(controlPoint.Y));
+            return true;
+        }
+
+        clientPoint = default;
+        return false;
+    }
+
+    private static bool TryConvertHostPointToControl(
+        Forms.Control root,
+        Forms.Control target,
+        Point hostPoint,
+        out Point controlPoint)
+    {
+        double x = hostPoint.X;
+        double y = hostPoint.Y;
+        for (Forms.Control? current = target; current != null; current = current.Parent)
+        {
+            if (ReferenceEquals(current, root))
+            {
+                controlPoint = new Point(x, y);
+                return true;
+            }
+
+            x -= current.Left;
+            y -= current.Top;
+        }
+
+        controlPoint = default;
+        return false;
+    }
+
+    private static bool TryUpdatePortableDrag(
+        WindowsFormsHost eventHost,
+        System.Windows.Input.MouseEventArgs e)
+    {
+        PortableDragSession? session = GetPortableDragSession();
+        if (session == null || session.IsCompleted)
+        {
+            return false;
+        }
+
+        Point hostPoint = e.GetPosition(eventHost);
+        if (!TryGetScreenPoint(eventHost, hostPoint, out Point screenPoint))
+        {
+            CancelPortableDragSession(session);
+            return true;
+        }
+
+        UpdatePortableDragTarget(session, screenPoint, GetCurrentDragKeyState(), raiseOver: true);
+        return true;
+    }
+
+    private static bool TryCompletePortableDrag(
+        WindowsFormsHost eventHost,
+        MouseButtonEventArgs e)
+    {
+        PortableDragSession? session = GetPortableDragSession();
+        if (session == null || session.IsCompleted)
+        {
+            return false;
+        }
+
+        int releasedButton = e.ChangedButton switch
+        {
+            MouseButton.Left => 1,
+            MouseButton.Right => 2,
+            MouseButton.Middle => 16,
+            _ => 0
+        };
+        if ((session.SourceButtonMask & releasedButton) == 0)
+        {
+            return true;
+        }
+
+        Point hostPoint = e.GetPosition(eventHost);
+        if (!TryGetScreenPoint(eventHost, hostPoint, out Point screenPoint))
+        {
+            CancelPortableDragSession(session);
+            return true;
+        }
+
+        CompletePortableDragSession(session, screenPoint, GetCurrentDragKeyState());
+        return true;
+    }
+
+    private static bool TryCancelPortableDrag(WindowsFormsHost eventHost)
+    {
+        PortableDragSession? session = GetPortableDragSession();
+        if (session == null
+            || session.IsCompleted
+            || !ReferenceEquals(session.SourceHost, eventHost))
+        {
+            return false;
+        }
+
+        CancelPortableDragSession(session);
+        return true;
+    }
+
+    private static PortableDragSession? GetPortableDragSession()
+    {
+        lock (s_dragSessionGate)
+        {
+            return s_dragSession;
+        }
+    }
+
+    private static void UpdatePortableDragTarget(
+        PortableDragSession session,
+        Point screenPoint,
+        int keyState,
+        bool raiseOver)
+    {
+        TryFindPortableDropTarget(
+            screenPoint,
+            out WindowsFormsHost? targetHost,
+            out Forms.Control? target);
+
+        if (!ReferenceEquals(session.CurrentTarget, target))
+        {
+            session.CurrentTarget?.RaiseDragLeave(EventArgs.Empty);
+            session.CurrentTarget = target;
+            session.CurrentTargetHost = targetHost;
+            session.CurrentEffect = Forms.DragDropEffects.None;
+
+            if (target != null)
+            {
+                Forms.DragDropEffects initialEffect = SelectDefaultDragEffect(
+                    session.AllowedEffects,
+                    keyState);
+                var enterArgs = CreateFormsDragEventArgs(
+                    session.Data,
+                    keyState,
+                    screenPoint,
+                    session.AllowedEffects,
+                    initialEffect);
+                target.RaiseDragEnter(enterArgs);
+                session.CurrentEffect = NormalizeDragEffect(
+                    enterArgs.Effect,
+                    session.AllowedEffects);
+            }
+
+            return;
+        }
+
+        if (!raiseOver || target == null)
+        {
+            return;
+        }
+
+        Forms.DragDropEffects overEffect = session.CurrentEffect != Forms.DragDropEffects.None
+            ? session.CurrentEffect
+            : SelectDefaultDragEffect(session.AllowedEffects, keyState);
+        var overArgs = CreateFormsDragEventArgs(
+            session.Data,
+            keyState,
+            screenPoint,
+            session.AllowedEffects,
+            overEffect);
+        target.RaiseDragOver(overArgs);
+        session.CurrentEffect = NormalizeDragEffect(overArgs.Effect, session.AllowedEffects);
+    }
+
+    private static void CompletePortableDragSession(
+        PortableDragSession session,
+        Point screenPoint,
+        int keyState)
+    {
+        UpdatePortableDragTarget(session, screenPoint, keyState, raiseOver: false);
+        Forms.Control? target = session.CurrentTarget;
+        if (target != null)
+        {
+            Forms.DragDropEffects dropEffect = session.CurrentEffect != Forms.DragDropEffects.None
+                ? session.CurrentEffect
+                : SelectDefaultDragEffect(session.AllowedEffects, keyState);
+            var dropArgs = CreateFormsDragEventArgs(
+                session.Data,
+                keyState,
+                screenPoint,
+                session.AllowedEffects,
+                dropEffect);
+            target.RaiseDragDrop(dropArgs);
+            session.Result = NormalizeDragEffect(dropArgs.Effect, session.AllowedEffects);
+            session.CurrentTarget = null;
+            session.CurrentTargetHost = null;
+        }
+
+        EndPortableDragSession(session);
+    }
+
+    private static void CancelPortableDragSession(PortableDragSession session)
+    {
+        session.CurrentTarget?.RaiseDragLeave(EventArgs.Empty);
+        session.CurrentTarget = null;
+        session.CurrentTargetHost = null;
+        session.CurrentEffect = Forms.DragDropEffects.None;
+        session.Result = Forms.DragDropEffects.None;
+        EndPortableDragSession(session);
+    }
+
+    private static void EndPortableDragSession(PortableDragSession session)
+    {
+        if (session.IsCompleted)
+        {
+            return;
+        }
+
+        session.IsCompleted = true;
+        session.Frame.Continue = false;
+    }
+
+    private static bool TryFindPortableDropTarget(
+        Point screenPoint,
+        out WindowsFormsHost? targetHost,
+        out Forms.Control? target)
+    {
+        foreach (WindowsFormsHost host in GetRegisteredHosts())
+        {
+            if (host._child == null || !host.IsLoaded || !host.IsVisible)
+            {
+                continue;
+            }
+
+            Point hostPoint;
+            try
+            {
+                hostPoint = host.PointFromScreen(screenPoint);
+            }
+            catch (InvalidOperationException)
+            {
+                continue;
+            }
+
+            if (!IsPointInsideHost(host, hostPoint))
+            {
+                continue;
+            }
+
+            Forms.Control? candidate = FindControlAt(host._child, hostPoint, out _);
+            while (candidate != null && (!candidate.AllowDrop || !candidate.Enabled))
+            {
+                candidate = candidate.Parent;
+            }
+
+            if (candidate != null)
+            {
+                targetHost = host;
+                target = candidate;
+                return true;
+            }
+        }
+
+        targetHost = null;
+        target = null;
+        return false;
+    }
+
+    private static bool TryGetScreenPoint(
+        WindowsFormsHost host,
+        Point hostPoint,
+        out Point screenPoint)
+    {
+        try
+        {
+            screenPoint = host.PointToScreen(hostPoint);
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            screenPoint = default;
+            return false;
+        }
+    }
+
+    private static bool IsPointInsideHost(WindowsFormsHost host, Point hostPoint)
+    {
+        return hostPoint.X >= 0
+            && hostPoint.Y >= 0
+            && hostPoint.X < host.ActualWidth
+            && hostPoint.Y < host.ActualHeight;
+    }
+
+    private static int GetCurrentDragKeyState()
+    {
+        int keyState = 0;
+        if (Mouse.LeftButton == MouseButtonState.Pressed)
+        {
+            keyState |= 1;
+        }
+
+        if (Mouse.RightButton == MouseButtonState.Pressed)
+        {
+            keyState |= 2;
+        }
+
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0)
+        {
+            keyState |= 4;
+        }
+
+        if ((Keyboard.Modifiers & ModifierKeys.Control) != 0)
+        {
+            keyState |= 8;
+        }
+
+        if (Mouse.MiddleButton == MouseButtonState.Pressed)
+        {
+            keyState |= 16;
+        }
+
+        if ((Keyboard.Modifiers & ModifierKeys.Alt) != 0)
+        {
+            keyState |= 32;
+        }
+
+        return keyState;
+    }
+
+    private static Forms.DragDropEffects SelectDefaultDragEffect(
+        Forms.DragDropEffects allowedEffects,
+        int keyState)
+    {
+        bool shift = (keyState & 4) != 0;
+        bool control = (keyState & 8) != 0;
+        bool alt = (keyState & 32) != 0;
+
+        if ((alt || (shift && control))
+            && (allowedEffects & Forms.DragDropEffects.Link) != 0)
+        {
+            return Forms.DragDropEffects.Link;
+        }
+
+        if (control && (allowedEffects & Forms.DragDropEffects.Copy) != 0)
+        {
+            return Forms.DragDropEffects.Copy;
+        }
+
+        if (shift && (allowedEffects & Forms.DragDropEffects.Move) != 0)
+        {
+            return Forms.DragDropEffects.Move;
+        }
+
+        if ((allowedEffects & Forms.DragDropEffects.Move) != 0)
+        {
+            return Forms.DragDropEffects.Move;
+        }
+
+        if ((allowedEffects & Forms.DragDropEffects.Copy) != 0)
+        {
+            return Forms.DragDropEffects.Copy;
+        }
+
+        return (allowedEffects & Forms.DragDropEffects.Link) != 0
+            ? Forms.DragDropEffects.Link
+            : Forms.DragDropEffects.None;
+    }
+
+    private static Forms.DragDropEffects NormalizeDragEffect(
+        Forms.DragDropEffects effect,
+        Forms.DragDropEffects allowedEffects)
+    {
+        const Forms.DragDropEffects validEffects =
+            Forms.DragDropEffects.Copy |
+            Forms.DragDropEffects.Move |
+            Forms.DragDropEffects.Link |
+            Forms.DragDropEffects.Scroll;
+        return effect & allowedEffects & validEffects;
+    }
+
+    private static Forms.DragEventArgs CreateFormsDragEventArgs(
+        Forms.IDataObject data,
+        int keyState,
+        Point screenPoint,
+        Forms.DragDropEffects allowedEffects,
+        Forms.DragDropEffects effect)
+    {
+        return new Forms.DragEventArgs(
+            data,
+            keyState,
+            ToWinFormsCoordinate(screenPoint.X),
+            ToWinFormsCoordinate(screenPoint.Y),
+            allowedEffects,
+            effect);
+    }
+
+    private void ProcessExternalDragEvent(
+        System.Windows.DragEventArgs e,
+        PortableDragEventKind eventKind)
+    {
+        if (eventKind == PortableDragEventKind.Leave)
+        {
+            bool hadTarget = _externalDragTarget != null;
+            ClearExternalDragTarget(raiseLeave: true);
+            if (hadTarget)
+            {
+                e.Effects = System.Windows.DragDropEffects.None;
+                e.Handled = true;
+            }
+
+            return;
+        }
+
+        if (_child == null)
+        {
+            return;
+        }
+
+        Point hostPoint = e.GetPosition(this);
+        if (!IsPointInsideHost(this, hostPoint))
+        {
+            ClearExternalDragTarget(raiseLeave: true);
+            return;
+        }
+
+        if (!TryGetScreenPoint(this, hostPoint, out Point screenPoint))
+        {
+            ClearExternalDragTarget(raiseLeave: true);
+            e.Effects = System.Windows.DragDropEffects.None;
+            e.Handled = true;
+            return;
+        }
+
+        Forms.Control? target = FindControlAt(_child, hostPoint, out _);
+        while (target != null && (!target.AllowDrop || !target.Enabled))
+        {
+            target = target.Parent;
+        }
+
+        Forms.IDataObject data = GetFormsDragData(e.Data);
+        int keyState = ToFormsDragKeyState(e.KeyStates);
+        Forms.DragDropEffects allowedEffects = ToFormsDragDropEffects(e.AllowedEffects);
+        Forms.DragDropEffects suggestedEffect = NormalizeDragEffect(
+            ToFormsDragDropEffects(e.Effects),
+            allowedEffects);
+        if (suggestedEffect == Forms.DragDropEffects.None)
+        {
+            suggestedEffect = SelectDefaultDragEffect(allowedEffects, keyState);
+        }
+
+        bool targetChanged = !ReferenceEquals(_externalDragTarget, target);
+        if (targetChanged)
+        {
+            _externalDragTarget?.RaiseDragLeave(EventArgs.Empty);
+            _externalDragTarget = target;
+            _externalDragEffect = Forms.DragDropEffects.None;
+        }
+
+        if (target != null)
+        {
+            if (targetChanged || eventKind == PortableDragEventKind.Enter)
+            {
+                var enterArgs = CreateFormsDragEventArgs(
+                    data,
+                    keyState,
+                    screenPoint,
+                    allowedEffects,
+                    suggestedEffect);
+                target.RaiseDragEnter(enterArgs);
+                _externalDragEffect = NormalizeDragEffect(enterArgs.Effect, allowedEffects);
+            }
+            else if (eventKind == PortableDragEventKind.Over)
+            {
+                var overArgs = CreateFormsDragEventArgs(
+                    data,
+                    keyState,
+                    screenPoint,
+                    allowedEffects,
+                    _externalDragEffect != Forms.DragDropEffects.None
+                        ? _externalDragEffect
+                        : suggestedEffect);
+                target.RaiseDragOver(overArgs);
+                _externalDragEffect = NormalizeDragEffect(overArgs.Effect, allowedEffects);
+            }
+
+            if (eventKind == PortableDragEventKind.Drop)
+            {
+                var dropArgs = CreateFormsDragEventArgs(
+                    data,
+                    keyState,
+                    screenPoint,
+                    allowedEffects,
+                    _externalDragEffect != Forms.DragDropEffects.None
+                        ? _externalDragEffect
+                        : suggestedEffect);
+                target.RaiseDragDrop(dropArgs);
+                _externalDragEffect = NormalizeDragEffect(dropArgs.Effect, allowedEffects);
+            }
+        }
+
+        e.Effects = ToWpfDragDropEffects(_externalDragEffect);
+        e.Handled = true;
+
+        if (eventKind == PortableDragEventKind.Drop)
+        {
+            ClearExternalDragTarget(raiseLeave: false);
+        }
+    }
+
+    private void ClearExternalDragTarget(bool raiseLeave)
+    {
+        if (raiseLeave)
+        {
+            _externalDragTarget?.RaiseDragLeave(EventArgs.Empty);
+        }
+
+        _externalDragTarget = null;
+        _externalDragEffect = Forms.DragDropEffects.None;
+    }
+
+    private Forms.IDataObject GetFormsDragData(System.Windows.IDataObject data)
+    {
+        return _dragDataCache.GetValue(
+            data,
+            static key => CreateFormsDragData((System.Windows.IDataObject)key));
+    }
+
+    private static Forms.DataObject CreateFormsDragData(System.Windows.IDataObject data)
+    {
+        var result = new Forms.DataObject();
+        foreach (string format in data.GetFormats(autoConvert: false))
+        {
+            if (!data.GetDataPresent(format, autoConvert: false))
+            {
+                continue;
+            }
+
+            object? value = data.GetData(format, autoConvert: false);
+            if (format == System.Windows.DataFormats.FileDrop
+                && value is System.Collections.Specialized.StringCollection paths)
+            {
+                var fileNames = new string[paths.Count];
+                paths.CopyTo(fileNames, 0);
+                value = fileNames;
+            }
+
+            result.SetData(format, value);
+        }
+
+        return result;
+    }
+
+    private static int ToFormsDragKeyState(System.Windows.DragDropKeyStates keyStates)
+    {
+        int result = 0;
+        if ((keyStates & System.Windows.DragDropKeyStates.LeftMouseButton) != 0)
+        {
+            result |= 1;
+        }
+
+        if ((keyStates & System.Windows.DragDropKeyStates.RightMouseButton) != 0)
+        {
+            result |= 2;
+        }
+
+        if ((keyStates & System.Windows.DragDropKeyStates.ShiftKey) != 0)
+        {
+            result |= 4;
+        }
+
+        if ((keyStates & System.Windows.DragDropKeyStates.ControlKey) != 0)
+        {
+            result |= 8;
+        }
+
+        if ((keyStates & System.Windows.DragDropKeyStates.MiddleMouseButton) != 0)
+        {
+            result |= 16;
+        }
+
+        if ((keyStates & System.Windows.DragDropKeyStates.AltKey) != 0)
+        {
+            result |= 32;
+        }
+
+        return result;
+    }
+
+    private static Forms.DragDropEffects ToFormsDragDropEffects(
+        System.Windows.DragDropEffects effects)
+    {
+        Forms.DragDropEffects result = Forms.DragDropEffects.None;
+        if ((effects & System.Windows.DragDropEffects.Copy) != 0)
+        {
+            result |= Forms.DragDropEffects.Copy;
+        }
+
+        if ((effects & System.Windows.DragDropEffects.Move) != 0)
+        {
+            result |= Forms.DragDropEffects.Move;
+        }
+
+        if ((effects & System.Windows.DragDropEffects.Link) != 0)
+        {
+            result |= Forms.DragDropEffects.Link;
+        }
+
+        if ((effects & System.Windows.DragDropEffects.Scroll) != 0)
+        {
+            result |= Forms.DragDropEffects.Scroll;
+        }
+
+        return result;
+    }
+
+    private static System.Windows.DragDropEffects ToWpfDragDropEffects(
+        Forms.DragDropEffects effects)
+    {
+        System.Windows.DragDropEffects result = System.Windows.DragDropEffects.None;
+        if ((effects & Forms.DragDropEffects.Copy) != 0)
+        {
+            result |= System.Windows.DragDropEffects.Copy;
+        }
+
+        if ((effects & Forms.DragDropEffects.Move) != 0)
+        {
+            result |= System.Windows.DragDropEffects.Move;
+        }
+
+        if ((effects & Forms.DragDropEffects.Link) != 0)
+        {
+            result |= System.Windows.DragDropEffects.Link;
+        }
+
+        if ((effects & Forms.DragDropEffects.Scroll) != 0)
+        {
+            result |= System.Windows.DragDropEffects.Scroll;
+        }
+
+        return result;
     }
 
     public virtual bool TabInto(System.Windows.Input.TraversalRequest request)
@@ -254,6 +1118,7 @@ public class WindowsFormsHost : FrameworkElement
     protected override void OnRender(DrawingContext drawingContext)
     {
         base.OnRender(drawingContext);
+        AdvanceRetiredPortablePaintSurfaces();
         if (_child == null)
         {
             return;
@@ -266,6 +1131,14 @@ public class WindowsFormsHost : FrameworkElement
     protected override void OnMouseDown(MouseButtonEventArgs e)
     {
         base.OnMouseDown(e);
+        bool hadPressedControl = _pressedControl != null;
+        _pressedControl = null;
+        _pressedButton = Forms.MouseButtons.None;
+        if (hadPressedControl)
+        {
+            InvalidateVisual();
+        }
+
         if (_child == null)
         {
             return;
@@ -280,9 +1153,28 @@ public class WindowsFormsHost : FrameworkElement
         }
         target = ResolveDesignInputTarget(target, hostPoint, ref localPoint);
 
+        Forms.MouseButtons pressedButton = MapMouseButton(e.ChangedButton);
         Focus();
-        target.Focus();
-        _focusedControl = target;
+        bool designMode = target.Site?.DesignMode == true;
+        bool focusAccepted = target.Focus();
+        if (focusAccepted)
+        {
+            _focusedControl = target;
+        }
+
+        if (!designMode && !focusAccepted)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        if (!designMode && target.CanSelect)
+        {
+            _pressedControl = target;
+            _pressedButton = pressedButton;
+            InvalidateVisual();
+        }
+
         var mouseEventArgs = new Forms.MouseEventArgs(MapMouseButton(e.ChangedButton), e.ClickCount, ToWinFormsCoordinate(localPoint.X), ToWinFormsCoordinate(localPoint.Y), 0);
         target.RaiseMouseDown(mouseEventArgs);
 
@@ -292,13 +1184,13 @@ public class WindowsFormsHost : FrameworkElement
             CaptureMouse();
         }
 
-        if (target.Site?.DesignMode == true)
+        if (designMode)
         {
             e.Handled = true;
             return;
         }
 
-        ApplyDefaultSelection(target, localPoint);
+        ApplyDefaultSelection(target, localPoint, pressedButton);
 
         if (e.ChangedButton == MouseButton.Left
             && target is Forms.ComboBox comboBox
@@ -317,8 +1209,22 @@ public class WindowsFormsHost : FrameworkElement
     protected override void OnMouseUp(MouseButtonEventArgs e)
     {
         base.OnMouseUp(e);
+        if (TryCompletePortableDrag(this, e))
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (_child == null)
         {
+            bool hadPressedControl = _pressedControl != null;
+            _pressedControl = null;
+            _pressedButton = Forms.MouseButtons.None;
+            if (hadPressedControl)
+            {
+                InvalidateVisual();
+            }
+
             return;
         }
 
@@ -332,11 +1238,26 @@ public class WindowsFormsHost : FrameworkElement
         Forms.Control? target = FindPointerTarget(hostPoint, out Point localPoint);
         if (target == null)
         {
+            bool hadPressedControl = _pressedControl != null;
+            _pressedControl = null;
+            _pressedButton = Forms.MouseButtons.None;
+            if (hadPressedControl)
+            {
+                InvalidateVisual();
+            }
+
             return;
         }
         target = ResolveDesignInputTarget(target, hostPoint, ref localPoint);
 
-        var mouseEventArgs = new Forms.MouseEventArgs(MapMouseButton(e.ChangedButton), e.ClickCount, ToWinFormsCoordinate(localPoint.X), ToWinFormsCoordinate(localPoint.Y), 0);
+        Forms.MouseButtons releasedButton = MapMouseButton(e.ChangedButton);
+        bool matchingPress = ReferenceEquals(_pressedControl, target)
+            && _pressedButton == releasedButton;
+        _pressedControl = null;
+        _pressedButton = Forms.MouseButtons.None;
+        InvalidateVisual();
+
+        var mouseEventArgs = new Forms.MouseEventArgs(releasedButton, e.ClickCount, ToWinFormsCoordinate(localPoint.X), ToWinFormsCoordinate(localPoint.Y), 0);
         bool designMode = target.Site?.DesignMode == true;
         if (designMode)
         {
@@ -354,14 +1275,20 @@ public class WindowsFormsHost : FrameworkElement
         }
 
         target.RaiseMouseUp(mouseEventArgs);
-        target.RaiseMouseClick(mouseEventArgs);
-        if (e.ChangedButton == MouseButton.Left && ApplyDefaultHeaderClick(target, localPoint))
+        if (matchingPress && target.CanSelect)
+        {
+            target.RaiseMouseClick(mouseEventArgs);
+        }
+
+        if (matchingPress
+            && e.ChangedButton == MouseButton.Left
+            && ApplyDefaultHeaderClick(target, localPoint))
         {
             e.Handled = true;
             return;
         }
 
-        if (e.ClickCount >= 2)
+        if (matchingPress && e.ClickCount >= 2)
         {
             target.RaiseMouseDoubleClick(mouseEventArgs);
             ApplyDefaultActivation(target, localPoint);
@@ -373,6 +1300,12 @@ public class WindowsFormsHost : FrameworkElement
     protected override void OnMouseMove(System.Windows.Input.MouseEventArgs e)
     {
         base.OnMouseMove(e);
+        if (TryUpdatePortableDrag(this, e))
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (_child == null)
         {
             return;
@@ -399,9 +1332,70 @@ public class WindowsFormsHost : FrameworkElement
         }
     }
 
+    protected override void OnMouseWheel(MouseWheelEventArgs e)
+    {
+        base.OnMouseWheel(e);
+        if (_child == null)
+        {
+            return;
+        }
+
+        Point hostPoint = e.GetPosition(this);
+        Forms.Control? target = FindPointerTarget(hostPoint, out Point localPoint);
+        if (target == null)
+        {
+            return;
+        }
+
+        target = ResolveDesignInputTarget(target, hostPoint, ref localPoint);
+        target.RaiseMouseWheel(new Forms.MouseEventArgs(
+            MapMouseButtons(e),
+            0,
+            ToWinFormsCoordinate(localPoint.X),
+            ToWinFormsCoordinate(localPoint.Y),
+            e.Delta));
+        e.Handled = true;
+    }
+
+    protected override void OnLostMouseCapture(System.Windows.Input.MouseEventArgs e)
+    {
+        base.OnLostMouseCapture(e);
+        _ = TryCancelPortableDrag(this);
+    }
+
+    protected override void OnDragEnter(System.Windows.DragEventArgs e)
+    {
+        base.OnDragEnter(e);
+        ProcessExternalDragEvent(e, PortableDragEventKind.Enter);
+    }
+
+    protected override void OnDragOver(System.Windows.DragEventArgs e)
+    {
+        base.OnDragOver(e);
+        ProcessExternalDragEvent(e, PortableDragEventKind.Over);
+    }
+
+    protected override void OnDragLeave(System.Windows.DragEventArgs e)
+    {
+        base.OnDragLeave(e);
+        ProcessExternalDragEvent(e, PortableDragEventKind.Leave);
+    }
+
+    protected override void OnDrop(System.Windows.DragEventArgs e)
+    {
+        base.OnDrop(e);
+        ProcessExternalDragEvent(e, PortableDragEventKind.Drop);
+    }
+
     protected override void OnKeyDown(System.Windows.Input.KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        if (e.Key == System.Windows.Input.Key.Escape && TryCancelPortableDrag(this))
+        {
+            e.Handled = true;
+            return;
+        }
+
         Forms.Control? target = GetFocusedControl();
         if (target == null)
         {
@@ -415,12 +1409,39 @@ public class WindowsFormsHost : FrameworkElement
         }
 
         var keyEventArgs = new Forms.KeyEventArgs(keyData);
-        target.RaiseKeyDown(keyEventArgs);
+        Forms.Form? form = target.FindForm();
+        if (form?.KeyPreview == true && !ReferenceEquals(form, target))
+        {
+            form.RaiseKeyDown(keyEventArgs);
+            if (!form.Visible || form.IsDisposed)
+            {
+                e.Handled = true;
+                return;
+            }
+        }
+
+        if (!keyEventArgs.Handled && !keyEventArgs.SuppressKeyPress)
+        {
+            target.RaiseKeyDown(keyEventArgs);
+        }
 
         if (!keyEventArgs.Handled && (keyEventArgs.KeyCode == Forms.Keys.Enter || keyEventArgs.KeyCode == Forms.Keys.Return))
         {
             var keyPressEventArgs = new Forms.KeyPressEventArgs('\r');
-            target.RaiseKeyPress(keyPressEventArgs);
+            if (form?.KeyPreview == true && !ReferenceEquals(form, target))
+            {
+                form.RaiseKeyPress(keyPressEventArgs);
+                if (!form.Visible || form.IsDisposed)
+                {
+                    e.Handled = true;
+                    return;
+                }
+            }
+
+            if (!keyPressEventArgs.Handled)
+            {
+                target.RaiseKeyPress(keyPressEventArgs);
+            }
             if (target is Forms.ListView listView && listView.SelectedItems.Count > 0)
             {
                 listView.RaiseItemActivate();
@@ -428,6 +1449,15 @@ public class WindowsFormsHost : FrameworkElement
             }
 
             keyEventArgs.Handled = keyPressEventArgs.Handled;
+        }
+
+        if (!keyEventArgs.Handled
+            && !keyEventArgs.SuppressKeyPress
+            && form is Forms.IWinFormsDialogKeyProcessor dialogKeyProcessor
+            && dialogKeyProcessor.TryProcessDialogKey(keyData, target))
+        {
+            keyEventArgs.Handled = true;
+            keyEventArgs.SuppressKeyPress = true;
         }
 
         e.Handled = keyEventArgs.Handled || keyEventArgs.SuppressKeyPress;
@@ -449,7 +1479,21 @@ public class WindowsFormsHost : FrameworkElement
         }
 
         var keyEventArgs = new Forms.KeyEventArgs(keyData);
-        target.RaiseKeyUp(keyEventArgs);
+        Forms.Form? form = target.FindForm();
+        if (form?.KeyPreview == true && !ReferenceEquals(form, target))
+        {
+            form.RaiseKeyUp(keyEventArgs);
+            if (!form.Visible || form.IsDisposed)
+            {
+                e.Handled = true;
+                return;
+            }
+        }
+
+        if (!keyEventArgs.Handled && !keyEventArgs.SuppressKeyPress)
+        {
+            target.RaiseKeyUp(keyEventArgs);
+        }
         e.Handled = keyEventArgs.Handled || keyEventArgs.SuppressKeyPress;
     }
 
@@ -463,10 +1507,24 @@ public class WindowsFormsHost : FrameworkElement
         }
 
         bool handled = false;
+        Forms.Form? form = target.FindForm();
         foreach (char ch in e.Text)
         {
             var keyPressEventArgs = new Forms.KeyPressEventArgs(ch);
-            target.RaiseKeyPress(keyPressEventArgs);
+            if (form?.KeyPreview == true && !ReferenceEquals(form, target))
+            {
+                form.RaiseKeyPress(keyPressEventArgs);
+                if (!form.Visible || form.IsDisposed)
+                {
+                    handled = true;
+                    break;
+                }
+            }
+
+            if (!keyPressEventArgs.Handled)
+            {
+                target.RaiseKeyPress(keyPressEventArgs);
+            }
             handled |= keyPressEventArgs.Handled;
             if (!keyPressEventArgs.Handled && target is Forms.TextBoxBase textBoxBase)
             {
@@ -716,12 +1774,59 @@ public class WindowsFormsHost : FrameworkElement
 
     private Forms.Control? GetFocusedControl()
     {
-        if (_focusedControl != null && _child != null && IsControlInTree(_child, _focusedControl))
+        if (_child == null)
+        {
+            return null;
+        }
+
+        if (_child is Forms.ContainerControl container)
+        {
+            Forms.Control? activeControl = container.ActiveControl;
+            if (activeControl != null
+                && activeControl.Focused
+                && IsControlInTree(_child, activeControl))
+            {
+                _focusedControl = activeControl;
+                return activeControl;
+            }
+
+            return _child;
+        }
+
+        if (_focusedControl != null
+            && _focusedControl.Focused
+            && IsControlInTree(_child, _focusedControl))
         {
             return _focusedControl;
         }
 
+        Forms.Control? focusedControl = FindFocusedControl(_child);
+        if (focusedControl != null)
+        {
+            _focusedControl = focusedControl;
+            return focusedControl;
+        }
+
         return _child;
+    }
+
+    private static Forms.Control? FindFocusedControl(Forms.Control root)
+    {
+        if (root.Focused)
+        {
+            return root;
+        }
+
+        foreach (Forms.Control child in root.Controls)
+        {
+            Forms.Control? focusedControl = FindFocusedControl(child);
+            if (focusedControl != null)
+            {
+                return focusedControl;
+            }
+        }
+
+        return null;
     }
 
     private static bool IsControlInTree(Forms.Control root, Forms.Control target)
@@ -805,7 +1910,7 @@ public class WindowsFormsHost : FrameworkElement
         return menuItem;
     }
 
-    private static void ApplyDefaultSelection(Forms.Control target, Point localPoint)
+    private static void ApplyDefaultSelection(Forms.Control target, Point localPoint, Forms.MouseButtons pressedButton)
     {
         if (target is Forms.CheckedListBox checkedListBox)
         {
@@ -831,11 +1936,17 @@ public class WindowsFormsHost : FrameworkElement
         }
         else if (target is Forms.TreeView treeView)
         {
-            Forms.TreeNode? node = treeView.GetNodeAt(ToWinFormsCoordinate(localPoint.X), ToWinFormsCoordinate(localPoint.Y));
+            int x = ToWinFormsCoordinate(localPoint.X);
+            int y = ToWinFormsCoordinate(localPoint.Y);
+            if (pressedButton == Forms.MouseButtons.Left && treeView.TryToggleExpansionAt(x, y))
+            {
+                return;
+            }
+
+            Forms.TreeNode? node = treeView.GetNodeAt(x, y);
             if (node != null)
             {
                 treeView.SelectedNode = node;
-                treeView.Invalidate();
             }
         }
         else if (target is Forms.ListView listView)
@@ -850,6 +1961,12 @@ public class WindowsFormsHost : FrameworkElement
             Forms.ListViewItem? item = listView.GetItemAt(x, y);
             if (item != null)
             {
+                if (!listView.MultiSelect
+                    || (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) == 0)
+                {
+                    listView.SelectedItems.Clear();
+                }
+
                 item.Selected = true;
                 listView.Invalidate();
             }
@@ -876,13 +1993,130 @@ public class WindowsFormsHost : FrameworkElement
 
     private void OnHostLoaded(object sender, RoutedEventArgs e)
     {
+        AttachExternalDropWindow();
         _designSelectionServiceLookupComplete = false;
         EnsureDesignSelectionService();
     }
 
     private void OnHostUnloaded(object sender, RoutedEventArgs e)
     {
+        DetachExternalDropWindow();
+        ClearExternalDragTarget(raiseLeave: true);
+        HandlePortableDragHostUnavailable();
         DetachDesignSelectionService();
+        DisposePortablePaintSurfaces();
+    }
+
+    private void HandlePortableDragHostUnavailable()
+    {
+        PortableDragSession? session = GetPortableDragSession();
+        if (session != null && !session.IsCompleted)
+        {
+            if (ReferenceEquals(session.SourceHost, this))
+            {
+                CancelPortableDragSession(session);
+            }
+            else if (ReferenceEquals(session.CurrentTargetHost, this))
+            {
+                session.CurrentTarget?.RaiseDragLeave(EventArgs.Empty);
+                session.CurrentTarget = null;
+                session.CurrentTargetHost = null;
+                session.CurrentEffect = Forms.DragDropEffects.None;
+            }
+        }
+    }
+
+    private void AttachExternalDropWindow()
+    {
+        Window? window = Window.GetWindow(this);
+        if (ReferenceEquals(window, _externalDropWindow))
+        {
+            return;
+        }
+
+        DetachExternalDropWindow();
+        if (window == null)
+        {
+            return;
+        }
+
+        _externalDropWindow = window;
+        lock (s_dropWindowStateGate)
+        {
+            PortableDropWindowState state = s_dropWindowStates.GetValue(
+                window,
+                static candidate => new PortableDropWindowState(candidate.AllowDrop));
+            state.HostCount++;
+            window.AllowDrop = true;
+        }
+        window.AddHandler(
+            System.Windows.DragDrop.DragEnterEvent,
+            new System.Windows.DragEventHandler(OnWindowDragEnter));
+        window.AddHandler(
+            System.Windows.DragDrop.DragOverEvent,
+            new System.Windows.DragEventHandler(OnWindowDragOver));
+        window.AddHandler(
+            System.Windows.DragDrop.DragLeaveEvent,
+            new System.Windows.DragEventHandler(OnWindowDragLeave));
+        window.AddHandler(
+            System.Windows.DragDrop.DropEvent,
+            new System.Windows.DragEventHandler(OnWindowDrop));
+    }
+
+    private void DetachExternalDropWindow()
+    {
+        Window? window = _externalDropWindow;
+        if (window == null)
+        {
+            return;
+        }
+
+        window.RemoveHandler(
+            System.Windows.DragDrop.DragEnterEvent,
+            new System.Windows.DragEventHandler(OnWindowDragEnter));
+        window.RemoveHandler(
+            System.Windows.DragDrop.DragOverEvent,
+            new System.Windows.DragEventHandler(OnWindowDragOver));
+        window.RemoveHandler(
+            System.Windows.DragDrop.DragLeaveEvent,
+            new System.Windows.DragEventHandler(OnWindowDragLeave));
+        window.RemoveHandler(
+            System.Windows.DragDrop.DropEvent,
+            new System.Windows.DragEventHandler(OnWindowDrop));
+        lock (s_dropWindowStateGate)
+        {
+            if (s_dropWindowStates.TryGetValue(window, out PortableDropWindowState? state))
+            {
+                state.HostCount--;
+                if (state.HostCount <= 0)
+                {
+                    window.AllowDrop = state.OriginalAllowDrop;
+                    s_dropWindowStates.Remove(window);
+                }
+            }
+        }
+
+        _externalDropWindow = null;
+    }
+
+    private void OnWindowDragEnter(object sender, System.Windows.DragEventArgs e)
+    {
+        ProcessExternalDragEvent(e, PortableDragEventKind.Enter);
+    }
+
+    private void OnWindowDragOver(object sender, System.Windows.DragEventArgs e)
+    {
+        ProcessExternalDragEvent(e, PortableDragEventKind.Over);
+    }
+
+    private void OnWindowDragLeave(object sender, System.Windows.DragEventArgs e)
+    {
+        ProcessExternalDragEvent(e, PortableDragEventKind.Leave);
+    }
+
+    private void OnWindowDrop(object sender, System.Windows.DragEventArgs e)
+    {
+        ProcessExternalDragEvent(e, PortableDragEventKind.Drop);
     }
 
     private void EnsureDesignSelectionService()
@@ -1238,6 +2472,8 @@ public class WindowsFormsHost : FrameworkElement
             System.Windows.Input.Key.End => Forms.Keys.End,
             System.Windows.Input.Key.PageUp => Forms.Keys.PageUp,
             System.Windows.Input.Key.PageDown => Forms.Keys.PageDown,
+            System.Windows.Input.Key.Left => Forms.Keys.Left,
+            System.Windows.Input.Key.Right => Forms.Keys.Right,
             System.Windows.Input.Key.Up => Forms.Keys.Up,
             System.Windows.Input.Key.Down => Forms.Keys.Down,
             System.Windows.Input.Key.F2 => Forms.Keys.F2,
@@ -1258,18 +2494,45 @@ public class WindowsFormsHost : FrameworkElement
             keyData |= Forms.Keys.Shift;
         }
 
+        if ((modifiers & ModifierKeys.Alt) != 0)
+        {
+            keyData |= Forms.Keys.Alt;
+        }
+
         return keyData;
     }
 
     private void OnChildInvalidated(object? sender, EventArgs e)
     {
+        Interlocked.Increment(ref _portableChildInvalidationDispatchCount);
+        InvalidateMeasure();
+        InvalidateVisual();
+    }
+
+    private void OnHostedControlAdded(object? sender, Forms.ControlEventArgs e)
+    {
+        SubscribeInvalidationTree(e.Control);
+        InvalidateMeasure();
+        InvalidateVisual();
+    }
+
+    private void OnHostedControlRemoved(object? sender, Forms.ControlEventArgs e)
+    {
+        UnsubscribeInvalidationTree(e.Control);
         InvalidateMeasure();
         InvalidateVisual();
     }
 
     private void SubscribeInvalidationTree(Forms.Control control)
     {
+        if (!_invalidationTreeSubscriptions.Add(control))
+        {
+            return;
+        }
+
         control.Invalidated += OnChildInvalidated;
+        control.ControlAdded += OnHostedControlAdded;
+        control.ControlRemoved += OnHostedControlRemoved;
         foreach (Forms.Control child in control.Controls)
         {
             SubscribeInvalidationTree(child);
@@ -1278,11 +2541,32 @@ public class WindowsFormsHost : FrameworkElement
 
     private void UnsubscribeInvalidationTree(Forms.Control control)
     {
+        if (!_invalidationTreeSubscriptions.Remove(control))
+        {
+            return;
+        }
+
         control.Invalidated -= OnChildInvalidated;
+        control.ControlAdded -= OnHostedControlAdded;
+        control.ControlRemoved -= OnHostedControlRemoved;
         foreach (Forms.Control child in control.Controls)
         {
             UnsubscribeInvalidationTree(child);
         }
+
+        RetirePortablePaintSurfacePool(control);
+    }
+
+    private void ClearRemainingInvalidationSubscriptions()
+    {
+        foreach (Forms.Control control in _invalidationTreeSubscriptions)
+        {
+            control.Invalidated -= OnChildInvalidated;
+            control.ControlAdded -= OnHostedControlAdded;
+            control.ControlRemoved -= OnHostedControlRemoved;
+        }
+
+        _invalidationTreeSubscriptions.Clear();
     }
 
     private static void LayoutControlTree(Forms.Control control, Rect bounds)
@@ -1356,12 +2640,16 @@ public class WindowsFormsHost : FrameworkElement
 
     private static void LayoutSplitContainer(Forms.SplitContainer splitContainer, int width, int height)
     {
-        const int splitterSize = 4;
+        int splitterSize = splitContainer.SplitterWidth;
         if (splitContainer.Orientation == Forms.Orientation.Horizontal)
         {
             int available = Math.Max(0, height - splitterSize);
             int distance = splitContainer.SplitterDistance > 0 ? splitContainer.SplitterDistance : available / 2;
-            distance = Math.Clamp(distance, 0, available);
+            distance = ClampSplitterDistance(
+                distance,
+                available,
+                splitContainer.Panel1MinSize,
+                splitContainer.Panel2MinSize);
             LayoutControlTree(splitContainer.Panel1, new Rect(0, 0, width, distance));
             LayoutControlTree(splitContainer.Panel2, new Rect(0, distance + splitterSize, width, Math.Max(0, height - distance - splitterSize)));
         }
@@ -1369,10 +2657,21 @@ public class WindowsFormsHost : FrameworkElement
         {
             int available = Math.Max(0, width - splitterSize);
             int distance = splitContainer.SplitterDistance > 0 ? splitContainer.SplitterDistance : available / 2;
-            distance = Math.Clamp(distance, 0, available);
+            distance = ClampSplitterDistance(
+                distance,
+                available,
+                splitContainer.Panel1MinSize,
+                splitContainer.Panel2MinSize);
             LayoutControlTree(splitContainer.Panel1, new Rect(0, 0, distance, height));
             LayoutControlTree(splitContainer.Panel2, new Rect(distance + splitterSize, 0, Math.Max(0, width - distance - splitterSize), height));
         }
+    }
+
+    private static int ClampSplitterDistance(int distance, int available, int panel1MinSize, int panel2MinSize)
+    {
+        int firstMinimum = Math.Min(panel1MinSize, available);
+        int secondMinimum = Math.Min(panel2MinSize, Math.Max(0, available - firstMinimum));
+        return Math.Clamp(distance, firstMinimum, Math.Max(firstMinimum, available - secondMinimum));
     }
 
     private static void LayoutTabControl(Forms.TabControl tabControl, int width, int height)
@@ -1466,9 +2765,29 @@ public class WindowsFormsHost : FrameworkElement
             {
                 RenderToolStrip(drawingContext, toolStrip, bounds, foreground);
             }
+            else if (control is Forms.CheckBox checkBox)
+            {
+                RenderCheckBox(drawingContext, checkBox, bounds, foreground);
+            }
+            else if (control is Forms.RadioButton radioButton)
+            {
+                RenderRadioButton(drawingContext, radioButton, bounds, foreground);
+            }
+            else if (control is Forms.ButtonBase buttonBase)
+            {
+                RenderButton(
+                    drawingContext,
+                    buttonBase,
+                    bounds,
+                    foreground,
+                    isPressed: ReferenceEquals(_pressedControl, buttonBase));
+            }
             else if (control is Forms.TabPage)
             {
                 drawingContext.DrawRectangle(SystemColors.ControlBrush, null, bounds);
+            }
+            else if (RenderPortableCustomPaint(drawingContext, control, bounds))
+            {
             }
             else if (!string.IsNullOrEmpty(control.Text))
             {
@@ -1477,7 +2796,11 @@ public class WindowsFormsHost : FrameworkElement
 
             foreach (Forms.Control child in control.Controls)
             {
-                Rect childBounds = new(bounds.X + child.Left, bounds.Y + child.Top, child.Width, child.Height);
+                Rect childBounds = new(
+                    bounds.X + child.Left,
+                    bounds.Y + child.Top,
+                    Math.Max(0, child.Width),
+                    Math.Max(0, child.Height));
                 RenderControl(drawingContext, child, childBounds);
             }
         }
@@ -1487,9 +2810,374 @@ public class WindowsFormsHost : FrameworkElement
         }
     }
 
+    private bool RenderPortableCustomPaint(
+        DrawingContext drawingContext,
+        Forms.Control control,
+        Rect bounds)
+    {
+        if (control is not Forms.IPortableWinFormsPaintSource paintSource
+            || !paintSource.SupportsPortablePainting)
+        {
+            return false;
+        }
+
+        int width = Math.Max(0, ToWinFormsCoordinate(bounds.Width));
+        int height = Math.Max(0, ToWinFormsCoordinate(bounds.Height));
+        if (width == 0 || height == 0)
+        {
+            return true;
+        }
+
+        if (TryGetNativeDrawingContext(
+                drawingContext,
+                out ProGPU.Scene.DrawingContext nativeContext,
+                out Matrix4x4 outerTransform))
+        {
+            Matrix4x4 clientTransform = Matrix4x4.CreateTranslation((float)bounds.X, (float)bounds.Y, 0f)
+                * outerTransform;
+            using DrawingGraphics graphics = DrawingGraphics.FromProGpuDrawingContext(nativeContext, clientTransform);
+            PaintPortableControl(paintSource, graphics, width, height);
+        }
+        else
+        {
+            PortablePaintSurface surface = GetPortablePaintSurfacePool(control).AcquireFixed(width, height);
+            if (surface.Source == null)
+            {
+                return false;
+            }
+
+            using (DrawingGraphics graphics = DrawingGraphics.FromImage(surface.Bitmap))
+            {
+                graphics.Clear(DrawingColor.Transparent);
+                PaintPortableControl(paintSource, graphics, width, height);
+            }
+
+            drawingContext.DrawImage(surface.Source, bounds);
+        }
+
+        Interlocked.Increment(ref _portableCustomPaintDispatchCount);
+        return true;
+    }
+
+    private static void PaintPortableControl(
+        Forms.IPortableWinFormsPaintSource paintSource,
+        DrawingGraphics graphics,
+        int width,
+        int height)
+    {
+        var paintEventArgs = new Forms.PaintEventArgs(
+            graphics,
+            new DrawingRectangle(0, 0, width, height));
+        paintSource.PaintPortableBackground(paintEventArgs);
+        paintSource.PaintPortable(paintEventArgs);
+    }
+
+    private static bool TryGetNativeDrawingContext(
+        DrawingContext drawingContext,
+        out ProGPU.Scene.DrawingContext nativeContext,
+        out Matrix4x4 outerTransform)
+    {
+        nativeContext = null!;
+        outerTransform = Matrix4x4.Identity;
+        if (drawingContext is IPortableNativeDrawingContextStateSource nativeContextStateSource
+            && nativeContextStateSource.TryGetPortableNativeDrawingContextState(out var state)
+            && state.NativeDrawingContext is ProGPU.Scene.DrawingContext resolvedStateContext)
+        {
+            nativeContext = resolvedStateContext;
+            outerTransform = state.Transform;
+            return true;
+        }
+
+        if (drawingContext is not IPortableNativeDrawingContextSource nativeContextSource
+            || !nativeContextSource.TryGetPortableNativeDrawingContext(out object? nativeContextObject)
+            || nativeContextObject is not ProGPU.Scene.DrawingContext resolvedContext)
+        {
+            return false;
+        }
+
+        nativeContext = resolvedContext;
+        return true;
+    }
+
+    private void RenderCheckBox(DrawingContext drawingContext, Forms.CheckBox checkBox, Rect bounds, Brush foreground)
+    {
+        if (checkBox.Appearance == Forms.Appearance.Button)
+        {
+            RenderButton(
+                drawingContext,
+                checkBox,
+                bounds,
+                foreground,
+                isPressed: checkBox.Checked || ReferenceEquals(_pressedControl, checkBox));
+            return;
+        }
+
+        Brush effectiveForeground = checkBox.Enabled ? foreground : SystemColors.GrayTextBrush;
+        Rect glyphArea = Inset(bounds, 2);
+        double glyphSize = Math.Max(0, Math.Min(13, glyphArea.Height));
+        Rect glyphBounds = AlignContent(glyphArea, glyphSize, glyphSize, checkBox.CheckAlign);
+        if (glyphSize > 0)
+        {
+            drawingContext.DrawRectangle(
+                checkBox.Enabled ? SystemColors.WindowBrush : SystemColors.ControlBrush,
+                new Pen(SystemColors.ControlDarkBrush, 1),
+                glyphBounds);
+
+            if (checkBox.CheckState == Forms.CheckState.Checked)
+            {
+                DrawCheckMark(drawingContext, glyphBounds, effectiveForeground);
+            }
+            else if (checkBox.CheckState == Forms.CheckState.Indeterminate)
+            {
+                drawingContext.DrawRectangle(effectiveForeground, null, Inset(glyphBounds, 3));
+            }
+        }
+
+        Rect contentBounds = GetCheckableContentBounds(bounds, glyphBounds, checkBox.CheckAlign);
+        RenderButtonContent(drawingContext, checkBox, contentBounds, effectiveForeground);
+    }
+
+    private void RenderRadioButton(DrawingContext drawingContext, Forms.RadioButton radioButton, Rect bounds, Brush foreground)
+    {
+        if (radioButton.Appearance == Forms.Appearance.Button)
+        {
+            RenderButton(
+                drawingContext,
+                radioButton,
+                bounds,
+                foreground,
+                isPressed: radioButton.Checked || ReferenceEquals(_pressedControl, radioButton));
+            return;
+        }
+
+        Brush effectiveForeground = radioButton.Enabled ? foreground : SystemColors.GrayTextBrush;
+        Rect glyphArea = Inset(bounds, 2);
+        double glyphSize = Math.Max(0, Math.Min(13, glyphArea.Height));
+        Rect glyphBounds = AlignContent(glyphArea, glyphSize, glyphSize, radioButton.CheckAlign);
+        if (glyphSize > 0)
+        {
+            Point center = new(glyphBounds.X + glyphBounds.Width / 2, glyphBounds.Y + glyphBounds.Height / 2);
+            double radius = glyphSize / 2;
+            drawingContext.DrawEllipse(
+                radioButton.Enabled ? SystemColors.WindowBrush : SystemColors.ControlBrush,
+                new Pen(SystemColors.ControlDarkBrush, 1),
+                center,
+                radius,
+                radius);
+            if (radioButton.Checked)
+            {
+                double dotRadius = Math.Max(1, radius - 3.5);
+                drawingContext.DrawEllipse(effectiveForeground, null, center, dotRadius, dotRadius);
+            }
+        }
+
+        Rect contentBounds = GetCheckableContentBounds(bounds, glyphBounds, radioButton.CheckAlign);
+        RenderButtonContent(drawingContext, radioButton, contentBounds, effectiveForeground);
+    }
+
+    private void RenderButton(
+        DrawingContext drawingContext,
+        Forms.ButtonBase button,
+        Rect bounds,
+        Brush foreground,
+        bool isPressed)
+    {
+        Brush fill = isPressed
+            ? SystemColors.ControlDarkBrush
+            : CreateBrush(button.BackColor, SystemColors.ControlBrush);
+        Brush effectiveForeground = button.Enabled ? foreground : SystemColors.GrayTextBrush;
+        double borderThickness = button is Forms.Button { IsDefault: true } ? 2 : 1;
+        Rect chromeBounds = Inset(bounds, borderThickness / 2);
+        drawingContext.DrawRectangle(fill, new Pen(SystemColors.ControlDarkBrush, borderThickness), chromeBounds);
+
+        Rect contentBounds = Inset(bounds, 4);
+        if (isPressed)
+        {
+            contentBounds = new Rect(
+                contentBounds.X + 1,
+                contentBounds.Y + 1,
+                Math.Max(0, contentBounds.Width - 1),
+                Math.Max(0, contentBounds.Height - 1));
+        }
+
+        RenderButtonContent(drawingContext, button, contentBounds, effectiveForeground);
+    }
+
+    private void RenderButtonContent(
+        DrawingContext drawingContext,
+        Forms.ButtonBase button,
+        Rect contentBounds,
+        Brush foreground)
+    {
+        if (contentBounds.Width <= 0 || contentBounds.Height <= 0)
+        {
+            return;
+        }
+
+        if (TryGetImageSource(button.Image, out ImageSource? imageSource)
+            && imageSource is { } availableImage)
+        {
+            double sourceWidth = Math.Max(1, availableImage.Width);
+            double sourceHeight = Math.Max(1, availableImage.Height);
+            double scale = Math.Min(1, Math.Min(contentBounds.Width / sourceWidth, contentBounds.Height / sourceHeight));
+            Rect imageBounds = AlignContent(
+                contentBounds,
+                sourceWidth * scale,
+                sourceHeight * scale,
+                button.ImageAlign);
+            drawingContext.DrawImage(availableImage, imageBounds);
+        }
+
+        if (string.IsNullOrEmpty(button.Text))
+        {
+            return;
+        }
+
+        FormattedText formatted = CreateFormattedText(button.Text, foreground, 12);
+        Rect textBounds = AlignContent(
+            contentBounds,
+            Math.Min(contentBounds.Width, formatted.WidthIncludingTrailingWhitespace),
+            Math.Min(contentBounds.Height, formatted.Height),
+            button.TextAlign);
+        drawingContext.PushClip(new RectangleGeometry(contentBounds));
+        try
+        {
+            drawingContext.DrawText(formatted, new Point(textBounds.X, textBounds.Y));
+        }
+        finally
+        {
+            drawingContext.Pop();
+        }
+    }
+
+    private static void DrawCheckMark(DrawingContext drawingContext, Rect bounds, Brush brush)
+    {
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            return;
+        }
+
+        var geometry = new StreamGeometry();
+        using (StreamGeometryContext context = geometry.Open())
+        {
+            context.BeginFigure(
+                new Point(bounds.X + bounds.Width * 0.2, bounds.Y + bounds.Height * 0.52),
+                isFilled: false,
+                isClosed: false);
+            context.LineTo(
+                new Point(bounds.X + bounds.Width * 0.43, bounds.Y + bounds.Height * 0.75),
+                isStroked: true,
+                isSmoothJoin: false);
+            context.LineTo(
+                new Point(bounds.X + bounds.Width * 0.82, bounds.Y + bounds.Height * 0.25),
+                isStroked: true,
+                isSmoothJoin: false);
+        }
+
+        drawingContext.DrawGeometry(null, new Pen(brush, 1.5), geometry);
+    }
+
+    private bool TryGetImageSource(DrawingImage? image, out ImageSource? imageSource)
+    {
+        imageSource = null;
+        if (image is null)
+        {
+            return false;
+        }
+
+        CachedImageSource cached = _imageSourceCache.GetValue(
+            image,
+            static key => new CachedImageSource(CreateImageSource(key)));
+        imageSource = cached.Source;
+        return imageSource != null;
+    }
+
+    private static Rect GetCheckableContentBounds(
+        Rect bounds,
+        Rect glyphBounds,
+        System.Drawing.ContentAlignment checkAlign)
+    {
+        const double spacing = 4;
+        if (IsRightAligned(checkAlign))
+        {
+            return new Rect(
+                bounds.X + spacing,
+                bounds.Y,
+                Math.Max(0, glyphBounds.X - bounds.X - spacing * 2),
+                bounds.Height);
+        }
+
+        return new Rect(
+            glyphBounds.Right + spacing,
+            bounds.Y,
+            Math.Max(0, bounds.Right - glyphBounds.Right - spacing * 2),
+            bounds.Height);
+    }
+
+    private static Rect AlignContent(
+        Rect bounds,
+        double width,
+        double height,
+        System.Drawing.ContentAlignment alignment)
+    {
+        width = Math.Max(0, Math.Min(bounds.Width, width));
+        height = Math.Max(0, Math.Min(bounds.Height, height));
+
+        double x = IsRightAligned(alignment)
+            ? bounds.Right - width
+            : IsCenterAlignedHorizontally(alignment)
+                ? bounds.X + (bounds.Width - width) / 2
+                : bounds.X;
+        double y = IsBottomAligned(alignment)
+            ? bounds.Bottom - height
+            : IsCenterAlignedVertically(alignment)
+                ? bounds.Y + (bounds.Height - height) / 2
+                : bounds.Y;
+        return new Rect(x, y, width, height);
+    }
+
+    private static Rect Inset(Rect bounds, double amount)
+    {
+        double horizontal = Math.Min(Math.Max(0, amount), bounds.Width / 2);
+        double vertical = Math.Min(Math.Max(0, amount), bounds.Height / 2);
+        return new Rect(
+            bounds.X + horizontal,
+            bounds.Y + vertical,
+            Math.Max(0, bounds.Width - horizontal * 2),
+            Math.Max(0, bounds.Height - vertical * 2));
+    }
+
+    private static bool IsRightAligned(System.Drawing.ContentAlignment alignment)
+    {
+        return alignment is System.Drawing.ContentAlignment.TopRight
+            or System.Drawing.ContentAlignment.MiddleRight
+            or System.Drawing.ContentAlignment.BottomRight;
+    }
+
+    private static bool IsCenterAlignedHorizontally(System.Drawing.ContentAlignment alignment)
+    {
+        return alignment is System.Drawing.ContentAlignment.TopCenter
+            or System.Drawing.ContentAlignment.MiddleCenter
+            or System.Drawing.ContentAlignment.BottomCenter;
+    }
+
+    private static bool IsBottomAligned(System.Drawing.ContentAlignment alignment)
+    {
+        return alignment is System.Drawing.ContentAlignment.BottomLeft
+            or System.Drawing.ContentAlignment.BottomCenter
+            or System.Drawing.ContentAlignment.BottomRight;
+    }
+
+    private static bool IsCenterAlignedVertically(System.Drawing.ContentAlignment alignment)
+    {
+        return alignment is System.Drawing.ContentAlignment.MiddleLeft
+            or System.Drawing.ContentAlignment.MiddleCenter
+            or System.Drawing.ContentAlignment.MiddleRight;
+    }
+
     private void RenderSplitContainer(DrawingContext drawingContext, Forms.SplitContainer splitContainer, Rect bounds)
     {
-        const double splitterSize = 4;
+        double splitterSize = splitContainer.SplitterWidth;
         Pen splitterPen = new(SystemColors.ControlDarkBrush, 1);
         if (splitContainer.Orientation == Forms.Orientation.Horizontal)
         {
@@ -1546,15 +3234,10 @@ public class WindowsFormsHost : FrameworkElement
 
         string text = comboBox.SelectedItem?.ToString() ?? comboBox.Text;
         Rect textBounds = new(bounds.X + 5, bounds.Y + 2, Math.Max(0, bounds.Width - 24), Math.Max(0, bounds.Height - 4));
-        ImageSource? ownerDrawSource = null;
         bool ownerDrawn = comboBox.SelectedIndex >= 0
             && comboBox.DrawMode != Forms.DrawMode.Normal
-            && TryRenderListItemOwnerDraw(comboBox, comboBox.SelectedIndex, textBounds, out ownerDrawSource);
-        if (ownerDrawn && ownerDrawSource != null)
-        {
-            drawingContext.DrawImage(ownerDrawSource, textBounds);
-        }
-        else
+            && TryRenderListItemOwnerDraw(drawingContext, comboBox, comboBox.SelectedIndex, bounds, textBounds);
+        if (!ownerDrawn)
         {
             DrawTextInBounds(drawingContext, text, textBounds, comboBox.Enabled ? foreground : SystemColors.GrayTextBrush, 12);
         }
@@ -1577,6 +3260,7 @@ public class WindowsFormsHost : FrameworkElement
     private void RenderListBox(DrawingContext drawingContext, Forms.ListBox listBox, Rect bounds, Brush foreground, bool checkedItems)
     {
         DrawBorder(drawingContext, listBox.BorderStyle, bounds);
+        ResetPortablePaintSurfacePool(listBox);
         const double lineHeight = 18;
         double y = bounds.Y + 2;
         for (int i = 0; i < listBox.Items.Count && y < bounds.Bottom; i++)
@@ -1588,28 +3272,15 @@ public class WindowsFormsHost : FrameworkElement
                 drawingContext.DrawRectangle(SystemColors.HighlightBrush, null, rowBounds);
             }
 
-            double textX = rowBounds.X + 4;
-            if (checkedItems && listBox is Forms.CheckedListBox checkedListBox)
-            {
-                Rect checkBounds = new(rowBounds.X + 4, rowBounds.Y + 3, 12, 12);
-                drawingContext.DrawRectangle(SystemColors.WindowBrush, new Pen(SystemColors.ControlDarkBrush, 1), checkBounds);
-                if (checkedListBox.GetItemChecked(i))
-                {
-                    DrawText(drawingContext, "x", new Point(checkBounds.X + 2, checkBounds.Y - 1), SystemColors.ControlTextBrush, 11);
-                }
-
-                textX += 18;
-            }
+            Forms.CheckedListBox? checkedListBox = checkedItems
+                ? listBox as Forms.CheckedListBox
+                : null;
+            double textX = rowBounds.X + 4 + (checkedListBox != null ? 18 : 0);
 
             Rect itemTextBounds = new(textX, rowBounds.Y + 1, Math.Max(0, rowBounds.Right - textX - 2), lineHeight - 2);
-            ImageSource? ownerDrawSource = null;
             bool ownerDrawn = listBox.DrawMode != Forms.DrawMode.Normal
-                && TryRenderListItemOwnerDraw(listBox, i, itemTextBounds, out ownerDrawSource);
-            if (ownerDrawn && ownerDrawSource != null)
-            {
-                drawingContext.DrawImage(ownerDrawSource, itemTextBounds);
-            }
-            else
+                && TryRenderListItemOwnerDraw(drawingContext, listBox, i, bounds, rowBounds);
+            if (!ownerDrawn)
             {
                 string text = listBox.Items[i]?.ToString() ?? string.Empty;
                 DrawTextInBounds(
@@ -1619,20 +3290,33 @@ public class WindowsFormsHost : FrameworkElement
                     selected ? SystemColors.HighlightTextBrush : foreground,
                     12);
             }
+
+            if (checkedListBox != null)
+            {
+                Rect checkBounds = new(rowBounds.X + 4, rowBounds.Y + 3, 12, 12);
+                drawingContext.DrawRectangle(SystemColors.WindowBrush, new Pen(SystemColors.ControlDarkBrush, 1), checkBounds);
+                if (checkedListBox.GetItemChecked(i))
+                {
+                    DrawText(drawingContext, "x", new Point(checkBounds.X + 2, checkBounds.Y - 1), SystemColors.ControlTextBrush, 11);
+                }
+            }
+
             y += lineHeight;
         }
     }
 
-    private static bool TryRenderListItemOwnerDraw(Forms.ListBox listBox, int index, Rect itemBounds, out ImageSource? imageSource)
+    private bool TryRenderListItemOwnerDraw(
+        DrawingContext drawingContext,
+        Forms.ListBox listBox,
+        int index,
+        Rect controlBounds,
+        Rect itemBounds)
     {
-        imageSource = null;
-        int bitmapWidth = Math.Max(1, (int)Math.Ceiling(itemBounds.Width));
-        int bitmapHeight = Math.Max(1, (int)Math.Ceiling(itemBounds.Height));
         DrawingRectangle drawBounds = new(
-            (int)Math.Round(itemBounds.X),
-            (int)Math.Round(itemBounds.Y),
-            bitmapWidth,
-            bitmapHeight);
+            (int)Math.Round(itemBounds.X - controlBounds.X),
+            (int)Math.Round(itemBounds.Y - controlBounds.Y),
+            Math.Max(1, (int)Math.Ceiling(itemBounds.Width)),
+            Math.Max(1, (int)Math.Ceiling(itemBounds.Height)));
 
         Forms.DrawItemState state = Forms.DrawItemState.None;
         if (index == listBox.SelectedIndex)
@@ -1645,15 +3329,62 @@ public class WindowsFormsHost : FrameworkElement
             state |= Forms.DrawItemState.Disabled;
         }
 
-        using DrawingBitmap bitmap = new(bitmapWidth, bitmapHeight, DrawingPixelFormat.Format32bppPArgb);
-        using DrawingGraphics graphics = DrawingGraphics.FromImage(bitmap);
-        graphics.Clear(DrawingColor.Transparent);
-        graphics.TranslateTransform(-drawBounds.X, -drawBounds.Y);
+        drawingContext.PushClip(new RectangleGeometry(itemBounds));
+        try
+        {
+            if (TryGetNativeDrawingContext(
+                    drawingContext,
+                    out ProGPU.Scene.DrawingContext nativeContext,
+                    out Matrix4x4 outerTransform))
+            {
+                Matrix4x4 clientTransform = Matrix4x4.CreateTranslation(
+                        (float)controlBounds.X,
+                        (float)controlBounds.Y,
+                        0f)
+                    * outerTransform;
+                using DrawingGraphics graphics = DrawingGraphics.FromProGpuDrawingContext(nativeContext, clientTransform);
+                RaiseListItemOwnerDraw(listBox, graphics, drawBounds, index, state);
+            }
+            else
+            {
+                int surfaceWidth = Math.Max(1, (int)Math.Ceiling(controlBounds.Width));
+                int surfaceHeight = Math.Max(1, drawBounds.Height);
+                PortablePaintSurface surface = GetPortablePaintSurfacePool(listBox).AcquireNext(surfaceWidth, surfaceHeight);
+                if (surface.Source == null)
+                {
+                    return false;
+                }
 
+                using (DrawingGraphics graphics = DrawingGraphics.FromImage(surface.Bitmap))
+                {
+                    graphics.Clear(DrawingColor.Transparent);
+                    graphics.TranslateTransform(0, -drawBounds.Y);
+                    RaiseListItemOwnerDraw(listBox, graphics, drawBounds, index, state);
+                }
+
+                drawingContext.DrawImage(
+                    surface.Source,
+                    new Rect(controlBounds.X, itemBounds.Y, surfaceWidth, surfaceHeight));
+            }
+
+            Interlocked.Increment(ref _portableOwnerDrawDispatchCount);
+            return true;
+        }
+        finally
+        {
+            drawingContext.Pop();
+        }
+    }
+
+    private static void RaiseListItemOwnerDraw(
+        Forms.ListBox listBox,
+        DrawingGraphics graphics,
+        DrawingRectangle drawBounds,
+        int index,
+        Forms.DrawItemState state)
+    {
         Forms.DrawItemEventArgs eventArgs = new(graphics, listBox.Font, drawBounds, index, state);
         listBox.RaiseDrawItem(eventArgs);
-        imageSource = CreateImageSource(bitmap);
-        return imageSource != null;
     }
 
     private void RenderPropertyGrid(DrawingContext drawingContext, Forms.PropertyGrid propertyGrid, Rect bounds, Brush foreground)
@@ -1792,62 +3523,123 @@ public class WindowsFormsHost : FrameworkElement
     {
         DrawBorder(drawingContext, listView.BorderStyle, bounds);
 
-        double y = bounds.Y + 1;
         const double headerHeight = 20;
-        const double rowHeight = 18;
-        bool showDetails = listView.View == Forms.View.Details || listView.Columns.Count > 0;
+        bool showDetails = listView.View == Forms.View.Details;
 
         if (showDetails && listView.HeaderStyle != Forms.ColumnHeaderStyle.None)
         {
             double x = bounds.X + 1;
+            double y = bounds.Y + 1;
             drawingContext.DrawRectangle(SystemColors.ControlBrush, new Pen(SystemColors.ControlDarkBrush, 1), new Rect(bounds.X + 1, y, Math.Max(0, bounds.Width - 2), headerHeight));
             foreach (Forms.ColumnHeader column in listView.Columns)
             {
                 double width = column.Width > 0 ? column.Width : 120;
                 Rect headerBounds = new(x, y, width, headerHeight);
                 drawingContext.DrawLine(new Pen(SystemColors.ControlDarkBrush, 1), new Point(headerBounds.Right, headerBounds.Y), new Point(headerBounds.Right, headerBounds.Bottom));
-                DrawTextInBounds(drawingContext, column.Text, new Rect(headerBounds.X + 4, headerBounds.Y + 3, Math.Max(0, headerBounds.Width - 8), headerHeight - 4), foreground, 12);
+                double textInset = 4;
+                if (!string.IsNullOrEmpty(column.ImageKey)
+                    && TryGetImageListImageSource(listView.SmallImageList, -1, column.ImageKey, out ImageSource? headerImageSource)
+                    && headerImageSource != null)
+                {
+                    double imageWidth = Math.Min(16, Math.Max(0, headerBounds.Width - 8));
+                    double imageHeight = Math.Min(16, headerHeight - 4);
+                    drawingContext.DrawImage(headerImageSource, new Rect(headerBounds.X + 4, headerBounds.Y + 2, imageWidth, imageHeight));
+                    textInset += imageWidth + 3;
+                }
+
+                DrawTextInBounds(drawingContext, column.Text, new Rect(headerBounds.X + textInset, headerBounds.Y + 3, Math.Max(0, headerBounds.Width - textInset - 4), headerHeight - 4), foreground, 12);
                 x += width;
                 if (x > bounds.Right)
                 {
                     break;
                 }
             }
-
-            y += headerHeight;
         }
 
-        foreach (Forms.ListViewItem item in listView.Items)
+        Rect visibleBounds = new(bounds.X + 1, bounds.Y + 1, Math.Max(0, bounds.Width - 2), Math.Max(0, bounds.Height - 2));
+        for (int itemIndex = 0; itemIndex < listView.Items.Count; itemIndex++)
         {
-            if (y + rowHeight > bounds.Bottom)
+            Forms.ListViewItem item = listView.Items[itemIndex];
+            DrawingRectangle localItemBounds = listView.GetItemRect(itemIndex);
+            Rect itemBounds = new(
+                bounds.X + localItemBounds.X,
+                bounds.Y + localItemBounds.Y,
+                localItemBounds.Width,
+                localItemBounds.Height);
+            if (!itemBounds.IntersectsWith(visibleBounds))
             {
-                break;
+                continue;
             }
 
-            Rect rowBounds = new(bounds.X + 1, y, Math.Max(0, bounds.Width - 2), rowHeight);
             bool selected = item.Selected || listView.SelectedItems.Contains(item);
             if (selected)
             {
-                drawingContext.DrawRectangle(SystemColors.HighlightBrush, null, rowBounds);
+                drawingContext.DrawRectangle(SystemColors.HighlightBrush, null, itemBounds);
             }
             else if (listView.GridLines)
             {
-                drawingContext.DrawRectangle(SystemColors.WindowBrush, new Pen(SystemColors.ControlLightBrush, 1), rowBounds);
+                drawingContext.DrawRectangle(SystemColors.WindowBrush, new Pen(SystemColors.ControlLightBrush, 1), itemBounds);
             }
 
+            double contentLeft = itemBounds.X + 4;
             if (listView.CheckBoxes)
             {
-                Rect checkBounds = new(rowBounds.X + 4, rowBounds.Y + 3, 12, 12);
+                int localCheckTop = listView.View == Forms.View.LargeIcon
+                    ? localItemBounds.Top + 4
+                    : localItemBounds.Top + Math.Max(0, (localItemBounds.Height - 12) / 2);
+                DrawingRectangle localCheckBounds = new(localItemBounds.Left + 4, localCheckTop, 12, 12);
+                Rect checkBounds = new(
+                    bounds.X + localCheckBounds.X,
+                    bounds.Y + localCheckBounds.Y,
+                    localCheckBounds.Width,
+                    localCheckBounds.Height);
                 drawingContext.DrawRectangle(SystemColors.WindowBrush, new Pen(SystemColors.ControlDarkBrush, 1), checkBounds);
                 if (item.Checked)
                 {
                     DrawText(drawingContext, "x", new Point(checkBounds.X + 2, checkBounds.Y - 1), SystemColors.ControlTextBrush, 11);
                 }
+
+                if (listView.View != Forms.View.LargeIcon)
+                {
+                    contentLeft = checkBounds.Right + 4;
+                }
+            }
+
+            Forms.ImageList? itemImageList = listView.View is Forms.View.LargeIcon or Forms.View.Tile
+                ? listView.LargeImageList ?? listView.SmallImageList
+                : listView.SmallImageList ?? listView.LargeImageList;
+            bool hasImage = TryGetImageListImageSource(itemImageList, item.ImageIndex, null, out ImageSource? imageSource)
+                && imageSource != null;
+
+            if (listView.View == Forms.View.LargeIcon)
+            {
+                double imageWidth = hasImage ? Math.Min(itemImageList!.ImageSize.Width, Math.Max(0, itemBounds.Width - 12)) : 0;
+                double imageHeight = hasImage ? Math.Min(itemImageList!.ImageSize.Height, Math.Max(0, itemBounds.Height - 26)) : 0;
+                if (hasImage)
+                {
+                    double imageX = itemBounds.X + Math.Max(4, (itemBounds.Width - imageWidth) / 2);
+                    drawingContext.DrawImage(imageSource!, new Rect(imageX, itemBounds.Y + 4, imageWidth, imageHeight));
+                }
+
+                Rect textBounds = new(itemBounds.X + 4, itemBounds.Y + 8 + imageHeight, Math.Max(0, itemBounds.Width - 8), Math.Max(0, itemBounds.Height - imageHeight - 10));
+                double textWidth = MeasureText(item.Text, 12);
+                double textX = textBounds.X + Math.Max(0, (textBounds.Width - textWidth) / 2);
+                DrawTextInBounds(drawingContext, item.Text, new Rect(textX, textBounds.Y, Math.Max(0, textBounds.Right - textX), textBounds.Height), selected ? SystemColors.HighlightTextBrush : foreground, 12);
+                continue;
+            }
+
+            if (hasImage)
+            {
+                double imageWidth = Math.Min(itemImageList!.ImageSize.Width, Math.Max(0, itemBounds.Right - contentLeft - 4));
+                double imageHeight = Math.Min(itemImageList.ImageSize.Height, Math.Max(0, itemBounds.Height - 4));
+                double imageY = itemBounds.Y + Math.Max(2, (itemBounds.Height - imageHeight) / 2);
+                drawingContext.DrawImage(imageSource!, new Rect(contentLeft, imageY, imageWidth, imageHeight));
+                contentLeft += imageWidth + 4;
             }
 
             if (showDetails)
             {
-                double x = rowBounds.X;
+                double x = itemBounds.X;
                 int columnCount = Math.Max(listView.Columns.Count, item.SubItems.Count);
                 for (int columnIndex = 0; columnIndex < columnCount; columnIndex++)
                 {
@@ -1860,8 +3652,8 @@ public class WindowsFormsHost : FrameworkElement
                         text = item.Text;
                     }
 
-                    double textInset = columnIndex == 0 && listView.CheckBoxes ? 22 : 4;
-                    Rect cellBounds = new(x + textInset, rowBounds.Y + 1, Math.Max(0, width - textInset - 4), rowHeight - 2);
+                    double cellTextLeft = columnIndex == 0 ? contentLeft : x + 4;
+                    Rect cellBounds = new(cellTextLeft, itemBounds.Y + 1, Math.Max(0, x + width - cellTextLeft - 4), itemBounds.Height - 2);
                     DrawTextInBounds(drawingContext, text, cellBounds, selected ? SystemColors.HighlightTextBrush : foreground, 12);
                     x += width;
                     if (x > bounds.Right)
@@ -1872,12 +3664,41 @@ public class WindowsFormsHost : FrameworkElement
             }
             else
             {
-                double textInset = listView.CheckBoxes ? 22 : 4;
-                DrawTextInBounds(drawingContext, item.Text, new Rect(rowBounds.X + textInset, rowBounds.Y + 1, Math.Max(0, rowBounds.Width - textInset - 4), rowHeight - 2), selected ? SystemColors.HighlightTextBrush : foreground, 12);
+                DrawTextInBounds(
+                    drawingContext,
+                    item.Text,
+                    new Rect(contentLeft, itemBounds.Y + 2, Math.Max(0, itemBounds.Right - contentLeft - 4), itemBounds.Height - 4),
+                    selected ? SystemColors.HighlightTextBrush : foreground,
+                    12);
             }
-
-            y += rowHeight;
         }
+    }
+
+    private bool TryGetImageListImageSource(
+        Forms.ImageList? imageList,
+        int imageIndex,
+        string? imageKey,
+        out ImageSource? imageSource)
+    {
+        imageSource = null;
+        if (imageList == null || imageList.Images.Count == 0)
+        {
+            return false;
+        }
+
+        DrawingImage? image = !string.IsNullOrEmpty(imageKey)
+            ? imageList.Images[imageKey]
+            : imageIndex >= 0 && imageIndex < imageList.Images.Count
+                ? imageList.Images[imageIndex]
+                : null;
+        if (image == null)
+        {
+            return false;
+        }
+
+        CachedImageSource cached = _imageSourceCache.GetValue(image, static key => new CachedImageSource(CreateImageSource(key)));
+        imageSource = cached.Source;
+        return imageSource != null;
     }
 
     private void RenderToolStrip(DrawingContext drawingContext, Forms.ToolStrip toolStrip, Rect bounds, Brush foreground)
@@ -1914,113 +3735,136 @@ public class WindowsFormsHost : FrameworkElement
     private void RenderTreeView(DrawingContext drawingContext, Forms.TreeView treeView, Rect bounds, Brush foreground)
     {
         DrawBorder(drawingContext, treeView.BorderStyle, bounds);
+        ResetPortablePaintSurfacePool(treeView);
 
-        double y = bounds.Y + 3;
-        foreach (Forms.TreeNode node in treeView.Nodes)
+        Forms.TreeNodeLayoutEnumerator layouts = treeView.GetVisibleNodeLayouts().GetEnumerator();
+        while (layouts.MoveNext())
         {
-            y = RenderTreeNode(drawingContext, treeView, node, bounds, 0, y, foreground);
-            if (y > bounds.Bottom)
+            Forms.TreeNodeLayout layout = layouts.Current;
+            Rect rowBounds = TranslateTreeNodeBounds(bounds, layout.RowBounds);
+            if (rowBounds.Bottom <= bounds.Top + 1)
+            {
+                continue;
+            }
+
+            if (rowBounds.Top >= bounds.Bottom - 1)
             {
                 break;
             }
+
+            RenderTreeNode(drawingContext, treeView, layout, bounds, rowBounds, foreground);
         }
     }
 
-    private double RenderTreeNode(DrawingContext drawingContext, Forms.TreeView treeView, Forms.TreeNode node, Rect bounds, int depth, double y, Brush foreground)
+    private void RenderTreeNode(
+        DrawingContext drawingContext,
+        Forms.TreeView treeView,
+        Forms.TreeNodeLayout layout,
+        Rect bounds,
+        Rect rowBounds,
+        Brush foreground)
     {
-        if (!node.IsVisible)
-        {
-            return y;
-        }
-
-        const double lineHeight = 18;
+        Forms.TreeNode node = layout.Node;
+        double lineHeight = layout.RowBounds.Height;
         Forms.TreeNodeStates state = GetTreeNodeState(treeView, node);
-        double x = bounds.X + 4 + depth * 14;
-        Rect rowBounds = new(bounds.X + 1, y, Math.Max(0, bounds.Width - 2), lineHeight);
-        DrawingRectangle ownerAllBounds = CreateTreeNodeBounds(bounds, x, y, bounds.Right - x, lineHeight);
+        DrawingRectangle ownerAllBounds = layout.OwnerDrawBounds;
 
-        if (ReferenceEquals(treeView.SelectedNode, node))
-        {
-            drawingContext.DrawRectangle(SystemColors.HighlightBrush, null, rowBounds);
-        }
-
-        ImageSource? ownerDrawAllSource = null;
         bool ownerDrawAllDefault = true;
         if (treeView.DrawMode == Forms.TreeViewDrawMode.OwnerDrawAll)
         {
             node.Bounds = ownerAllBounds;
-            TryRenderTreeNodeOwnerDraw(treeView, node, bounds, ownerAllBounds, lineHeight, state, out ownerDrawAllSource, out ownerDrawAllDefault);
+            TryRenderTreeNodeOwnerDraw(
+                drawingContext,
+                treeView,
+                node,
+                bounds,
+                ownerAllBounds,
+                lineHeight,
+                state,
+                out ownerDrawAllDefault);
         }
 
         if (treeView.DrawMode != Forms.TreeViewDrawMode.OwnerDrawAll || ownerDrawAllDefault)
         {
-            if (node.Nodes.Count > 0)
+            if (!layout.GlyphBounds.IsEmpty)
             {
-                DrawText(drawingContext, node.IsExpanded ? "-" : "+", new Point(x, y + 1), foreground, 12);
-                x += 12;
-            }
-            else
-            {
-                x += 12;
-            }
-
-            if (TryGetTreeNodeImageSource(treeView, node, out ImageSource? imageSource))
-            {
-                const double imageSize = 16;
-                drawingContext.DrawImage(imageSource, new Rect(x, y + 1, imageSize, imageSize));
-                x += imageSize + 3;
+                DrawTreeNodeGlyph(
+                    drawingContext,
+                    TranslateTreeNodeBounds(bounds, layout.GlyphBounds),
+                    node.IsExpanded,
+                    foreground);
             }
 
-            DrawingRectangle textBounds = CreateTreeNodeBounds(bounds, x, y, bounds.Right - x, lineHeight);
+            if (!layout.ImageBounds.IsEmpty
+                && TryGetTreeNodeImageSource(treeView, node, out ImageSource? imageSource))
+            {
+                drawingContext.DrawImage(imageSource, TranslateTreeNodeBounds(bounds, layout.ImageBounds));
+            }
+
+            DrawingRectangle textBounds = layout.TextBounds;
             node.Bounds = textBounds;
 
-            ImageSource? ownerDrawTextSource = null;
             bool ownerDrawTextDefault = true;
             if (treeView.DrawMode == Forms.TreeViewDrawMode.OwnerDrawText)
             {
-                TryRenderTreeNodeOwnerDraw(treeView, node, bounds, textBounds, lineHeight, state, out ownerDrawTextSource, out ownerDrawTextDefault);
+                TryRenderTreeNodeOwnerDraw(
+                    drawingContext,
+                    treeView,
+                    node,
+                    bounds,
+                    textBounds,
+                    lineHeight,
+                    state,
+                    out ownerDrawTextDefault);
             }
 
             if (treeView.DrawMode != Forms.TreeViewDrawMode.OwnerDrawText || ownerDrawTextDefault)
             {
-                DrawText(drawingContext, node.Text, new Point(x, y + 1), ReferenceEquals(treeView.SelectedNode, node) ? SystemColors.HighlightTextBrush : foreground, 12);
-            }
-
-            if (ownerDrawTextSource != null)
-            {
-                drawingContext.DrawImage(ownerDrawTextSource, new Rect(bounds.X, y, ownerDrawTextSource.Width, ownerDrawTextSource.Height));
-            }
-        }
-
-        if (ownerDrawAllSource != null)
-        {
-            drawingContext.DrawImage(ownerDrawAllSource, new Rect(bounds.X, y, ownerDrawAllSource.Width, ownerDrawAllSource.Height));
-        }
-
-        y += lineHeight;
-
-        if (node.IsExpanded)
-        {
-            foreach (Forms.TreeNode child in node.Nodes)
-            {
-                y = RenderTreeNode(drawingContext, treeView, child, bounds, depth + 1, y, foreground);
-                if (y > bounds.Bottom)
+                bool selected = ReferenceEquals(treeView.SelectedNode, node);
+                if (selected)
                 {
-                    break;
+                    drawingContext.DrawRectangle(
+                        SystemColors.HighlightBrush,
+                        null,
+                        TranslateTreeNodeBounds(bounds, layout.SelectionBounds));
                 }
-            }
-        }
 
-        return y;
+                Rect translatedTextBounds = TranslateTreeNodeBounds(bounds, textBounds);
+                DrawText(
+                    drawingContext,
+                    node.Text,
+                    new Point(translatedTextBounds.X, translatedTextBounds.Y + 1),
+                    selected ? SystemColors.HighlightTextBrush : foreground,
+                    12);
+            }
+
+        }
     }
 
-    private static DrawingRectangle CreateTreeNodeBounds(Rect treeBounds, double x, double y, double width, double height)
+    private static Rect TranslateTreeNodeBounds(Rect treeBounds, DrawingRectangle nodeBounds)
     {
-        return new DrawingRectangle(
-            (int)Math.Round(x - treeBounds.X),
-            (int)Math.Round(y - treeBounds.Y),
-            Math.Max(0, (int)Math.Round(width)),
-            Math.Max(0, (int)Math.Round(height)));
+        return new Rect(
+            treeBounds.X + nodeBounds.X,
+            treeBounds.Y + nodeBounds.Y,
+            nodeBounds.Width,
+            nodeBounds.Height);
+    }
+
+    private static void DrawTreeNodeGlyph(DrawingContext drawingContext, Rect hitBounds, bool expanded, Brush foreground)
+    {
+        const double boxSize = 9;
+        double boxLeft = hitBounds.X + Math.Max(0, (hitBounds.Width - boxSize) / 2);
+        double boxTop = hitBounds.Y + Math.Max(0, (hitBounds.Height - boxSize) / 2);
+        var box = new Rect(boxLeft, boxTop, boxSize, boxSize);
+        var pen = new Pen(foreground, 1);
+        drawingContext.DrawRectangle(null, pen, box);
+        double centerX = boxLeft + (boxSize / 2);
+        double centerY = boxTop + (boxSize / 2);
+        drawingContext.DrawLine(pen, new Point(boxLeft + 2, centerY), new Point(box.Right - 2, centerY));
+        if (!expanded)
+        {
+            drawingContext.DrawLine(pen, new Point(centerX, boxTop + 2), new Point(centerX, box.Bottom - 2));
+        }
     }
 
     private static Forms.TreeNodeStates GetTreeNodeState(Forms.TreeView treeView, Forms.TreeNode node)
@@ -2043,34 +3887,82 @@ public class WindowsFormsHost : FrameworkElement
         return state;
     }
 
-    private static bool TryRenderTreeNodeOwnerDraw(
+    private bool TryRenderTreeNodeOwnerDraw(
+        DrawingContext drawingContext,
         Forms.TreeView treeView,
         Forms.TreeNode node,
         Rect treeBounds,
         DrawingRectangle eventBounds,
         double lineHeight,
         Forms.TreeNodeStates state,
-        out ImageSource? imageSource,
         out bool drawDefault)
     {
-        imageSource = null;
         drawDefault = true;
+        Rect rowClip = new(
+            treeBounds.X,
+            treeBounds.Y + eventBounds.Y,
+            Math.Max(0, treeBounds.Width),
+            Math.Max(0, lineHeight));
+        drawingContext.PushClip(new RectangleGeometry(rowClip));
+        try
+        {
+            if (TryGetNativeDrawingContext(
+                    drawingContext,
+                    out ProGPU.Scene.DrawingContext nativeContext,
+                    out Matrix4x4 outerTransform))
+            {
+                Matrix4x4 clientTransform = Matrix4x4.CreateTranslation(
+                        (float)treeBounds.X,
+                        (float)treeBounds.Y,
+                        0f)
+                    * outerTransform;
+                using DrawingGraphics graphics = DrawingGraphics.FromProGpuDrawingContext(nativeContext, clientTransform);
+                drawDefault = RaiseTreeNodeOwnerDraw(treeView, graphics, node, eventBounds, state);
+            }
+            else
+            {
+                int surfaceWidth = Math.Max(1, (int)Math.Ceiling(treeBounds.Width));
+                int surfaceHeight = Math.Max(1, (int)Math.Ceiling(lineHeight));
+                PortablePaintSurface surface = GetPortablePaintSurfacePool(treeView).AcquireNext(surfaceWidth, surfaceHeight);
+                if (surface.Source == null)
+                {
+                    return false;
+                }
 
-        int bitmapWidth = Math.Max(1, (int)Math.Ceiling(treeBounds.Width));
-        int bitmapHeight = Math.Max(1, (int)Math.Ceiling(lineHeight));
-        using DrawingBitmap bitmap = new(bitmapWidth, bitmapHeight, DrawingPixelFormat.Format32bppPArgb);
-        using DrawingGraphics graphics = DrawingGraphics.FromImage(bitmap);
-        graphics.Clear(DrawingColor.Transparent);
-        graphics.TranslateTransform(0, -eventBounds.Y);
+                using (DrawingGraphics graphics = DrawingGraphics.FromImage(surface.Bitmap))
+                {
+                    graphics.Clear(DrawingColor.Transparent);
+                    graphics.TranslateTransform(0, -eventBounds.Y);
+                    drawDefault = RaiseTreeNodeOwnerDraw(treeView, graphics, node, eventBounds, state);
+                }
 
+                drawingContext.DrawImage(
+                    surface.Source,
+                    new Rect(treeBounds.X, rowClip.Y, surfaceWidth, surfaceHeight));
+            }
+
+            Interlocked.Increment(ref _portableOwnerDrawDispatchCount);
+            return true;
+        }
+        finally
+        {
+            drawingContext.Pop();
+        }
+    }
+
+    private static bool RaiseTreeNodeOwnerDraw(
+        Forms.TreeView treeView,
+        DrawingGraphics graphics,
+        Forms.TreeNode node,
+        DrawingRectangle eventBounds,
+        Forms.TreeNodeStates state)
+    {
         Forms.DrawTreeNodeEventArgs eventArgs = new(graphics, node, eventBounds)
         {
             State = state
         };
         treeView.RaiseDrawNode(eventArgs);
-        drawDefault = eventArgs.DrawDefault;
-        imageSource = CreateImageSource(bitmap);
-        return imageSource != null;
+        return eventArgs.DrawDefault;
     }
 
     private bool TryGetTreeNodeImageSource(Forms.TreeView treeView, Forms.TreeNode node, out ImageSource? imageSource)
@@ -2115,7 +4007,22 @@ public class WindowsFormsHost : FrameworkElement
         return index >= 0 && index < imageList.Images.Count ? imageList.Images[index] : null;
     }
 
-    private static WriteableBitmap? CreateImageSource(DrawingImage image)
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Performance",
+        "CA1859:Use concrete types when possible",
+        Justification = "The GPU-direct carrier and pixel fallback are different ImageSource implementations.")]
+    private static ImageSource? CreateImageSource(DrawingImage image)
+    {
+        if (image is IProGpuTextureSource textureSource)
+        {
+            return PortableNativeImageSourceFactory.Create(
+                new ProGpuDrawingImageSource(image, textureSource));
+        }
+
+        return CreatePixelImageSource(image);
+    }
+
+    private static WriteableBitmap? CreatePixelImageSource(DrawingImage image)
     {
         DrawingBitmap? bitmap = image as DrawingBitmap;
         bool ownsBitmap = false;
@@ -2159,6 +4066,192 @@ public class WindowsFormsHost : FrameworkElement
             {
                 bitmap.Dispose();
             }
+        }
+    }
+
+    private sealed class ProGpuDrawingImageSource : IPortableNativeImageSource
+    {
+        private readonly DrawingImage _image;
+        private readonly IProGpuTextureSource _textureSource;
+
+        public ProGpuDrawingImageSource(DrawingImage image, IProGpuTextureSource textureSource)
+        {
+            _image = image;
+            _textureSource = textureSource;
+        }
+
+        public int PixelWidth => _image.Width;
+
+        public int PixelHeight => _image.Height;
+
+        public bool TryGetPortableNativeImage(out object? nativeImage)
+        {
+            if (_textureSource.TryGetGpuTexture(out GpuTexture texture))
+            {
+                nativeImage = texture;
+                return true;
+            }
+
+            nativeImage = null;
+            return false;
+        }
+    }
+
+    private PortablePaintSurfacePool GetPortablePaintSurfacePool(Forms.Control control)
+    {
+        if (!_portablePaintSurfacePools.TryGetValue(control, out PortablePaintSurfacePool? pool))
+        {
+            pool = new PortablePaintSurfacePool();
+            _portablePaintSurfacePools.Add(control, pool);
+        }
+
+        return pool;
+    }
+
+    private void ResetPortablePaintSurfacePool(Forms.Control control)
+    {
+        if (_portablePaintSurfacePools.TryGetValue(control, out PortablePaintSurfacePool? pool))
+        {
+            pool.ResetSequence();
+        }
+    }
+
+    private void RetirePortablePaintSurfacePool(Forms.Control control)
+    {
+        if (_portablePaintSurfacePools.Remove(control, out PortablePaintSurfacePool? pool))
+        {
+            _pendingRetiredPaintSurfacePools.Add(pool);
+        }
+    }
+
+    private void AdvanceRetiredPortablePaintSurfaces()
+    {
+        foreach (PortablePaintSurfacePool pool in _safeRetiredPaintSurfacePools)
+        {
+            pool.Dispose();
+        }
+
+        _safeRetiredPaintSurfacePools.Clear();
+        _safeRetiredPaintSurfacePools.AddRange(_pendingRetiredPaintSurfacePools);
+        _pendingRetiredPaintSurfacePools.Clear();
+    }
+
+    private void DisposePortablePaintSurfaces()
+    {
+        foreach (PortablePaintSurfacePool pool in _portablePaintSurfacePools.Values)
+        {
+            pool.Dispose();
+        }
+
+        foreach (PortablePaintSurfacePool pool in _pendingRetiredPaintSurfacePools)
+        {
+            pool.Dispose();
+        }
+
+        foreach (PortablePaintSurfacePool pool in _safeRetiredPaintSurfacePools)
+        {
+            pool.Dispose();
+        }
+
+        _portablePaintSurfacePools.Clear();
+        _pendingRetiredPaintSurfacePools.Clear();
+        _safeRetiredPaintSurfacePools.Clear();
+    }
+
+    private sealed class PortablePaintSurfacePool : IDisposable
+    {
+        private readonly List<PortablePaintSurface> _surfaces = new();
+        private readonly List<PortablePaintSurface> _retiredSurfaces = new();
+        private int _nextSurfaceIndex;
+        private bool _isDisposed;
+
+        public PortablePaintSurface AcquireFixed(int width, int height)
+        {
+            return Acquire(0, width, height);
+        }
+
+        public PortablePaintSurface AcquireNext(int width, int height)
+        {
+            return Acquire(_nextSurfaceIndex++, width, height);
+        }
+
+        public void ResetSequence()
+        {
+            ObjectDisposedException.ThrowIf(_isDisposed, this);
+            _nextSurfaceIndex = 0;
+        }
+
+        public void Dispose()
+        {
+            if (_isDisposed)
+            {
+                return;
+            }
+
+            _isDisposed = true;
+            foreach (PortablePaintSurface surface in _surfaces)
+            {
+                surface.Dispose();
+            }
+
+            foreach (PortablePaintSurface surface in _retiredSurfaces)
+            {
+                surface.Dispose();
+            }
+
+            _surfaces.Clear();
+            _retiredSurfaces.Clear();
+        }
+
+        private PortablePaintSurface Acquire(int index, int width, int height)
+        {
+            ObjectDisposedException.ThrowIf(_isDisposed, this);
+            if (index < _surfaces.Count)
+            {
+                PortablePaintSurface current = _surfaces[index];
+                if (current.Width == width && current.Height == height)
+                {
+                    return current;
+                }
+
+                _retiredSurfaces.Add(current);
+                PortablePaintSurface replacement = new(width, height);
+                _surfaces[index] = replacement;
+                return replacement;
+            }
+
+            while (_surfaces.Count < index)
+            {
+                _surfaces.Add(new PortablePaintSurface(1, 1));
+            }
+
+            PortablePaintSurface surface = new(width, height);
+            _surfaces.Add(surface);
+            return surface;
+        }
+    }
+
+    private sealed class PortablePaintSurface : IDisposable
+    {
+        public PortablePaintSurface(int width, int height)
+        {
+            Width = Math.Max(1, width);
+            Height = Math.Max(1, height);
+            Bitmap = new DrawingBitmap(Width, Height, DrawingPixelFormat.Format32bppPArgb);
+            Source = CreateImageSource(Bitmap);
+        }
+
+        public DrawingBitmap Bitmap { get; }
+
+        public int Height { get; }
+
+        public ImageSource? Source { get; }
+
+        public int Width { get; }
+
+        public void Dispose()
+        {
+            Bitmap.Dispose();
         }
     }
 

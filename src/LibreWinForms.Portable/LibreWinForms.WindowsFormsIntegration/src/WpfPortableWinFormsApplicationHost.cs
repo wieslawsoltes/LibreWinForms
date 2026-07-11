@@ -1,17 +1,91 @@
 using System.Collections.Generic;
+using System.Threading;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Threading;
 using Forms = System.Windows.Forms;
 using WpfApplication = System.Windows.Application;
 
 namespace System.Windows.Forms.Integration;
 
-internal sealed class WpfPortableWinFormsApplicationHost : Forms.IWinFormsApplicationHost
+internal sealed class WpfPortableWinFormsApplicationHost :
+    Forms.IWinFormsApplicationHost,
+    Forms.IWinFormsTimerHost,
+    Forms.IWinFormsModalDialogHost,
+    Forms.IWinFormsDispatcherHost,
+    Forms.IWinFormsDragDropHost,
+    Forms.IWinFormsCoordinateHost
 {
     private readonly object _gate = new();
     private readonly Dictionary<Forms.Form, Window> _windows = new();
+    private readonly HashSet<Forms.Form> _pendingDialogCompletions = new();
+    private readonly Dispatcher _dispatcher;
 
     public static WpfPortableWinFormsApplicationHost Instance { get; } = new();
+
+    private WpfPortableWinFormsApplicationHost()
+    {
+        _dispatcher = WpfApplication.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
+    }
+
+    bool Forms.IWinFormsDispatcherHost.CheckAccess() => _dispatcher.CheckAccess();
+
+    void Forms.IWinFormsDispatcherHost.BeginInvoke(Action callback)
+    {
+        ArgumentNullException.ThrowIfNull(callback);
+        ThrowIfDispatcherUnavailable();
+        _dispatcher.BeginInvoke(DispatcherPriority.Normal, callback);
+    }
+
+    void Forms.IWinFormsDispatcherHost.Invoke(Action callback)
+    {
+        ArgumentNullException.ThrowIfNull(callback);
+        ThrowIfDispatcherUnavailable();
+        if (_dispatcher.CheckAccess())
+        {
+            callback();
+            return;
+        }
+
+        _dispatcher.Invoke(callback, DispatcherPriority.Send);
+    }
+
+    Forms.DragDropEffects Forms.IWinFormsDragDropHost.DoDragDrop(
+        Forms.Control source,
+        Forms.IDataObject data,
+        Forms.DragDropEffects allowedEffects)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(data);
+        ThrowIfDispatcherUnavailable();
+
+        if (_dispatcher.CheckAccess())
+        {
+            return WindowsFormsHost.DoPortableDragDrop(source, data, allowedEffects);
+        }
+
+        Forms.DragDropEffects result = Forms.DragDropEffects.None;
+        _dispatcher.Invoke(
+            () => result = WindowsFormsHost.DoPortableDragDrop(source, data, allowedEffects),
+            DispatcherPriority.Send);
+        return result;
+    }
+
+    bool Forms.IWinFormsCoordinateHost.TryPointToScreen(
+        Forms.Control control,
+        System.Drawing.Point point,
+        out System.Drawing.Point screenPoint)
+    {
+        return WindowsFormsHost.TryConvertControlPointToScreen(control, point, out screenPoint);
+    }
+
+    bool Forms.IWinFormsCoordinateHost.TryPointToClient(
+        Forms.Control control,
+        System.Drawing.Point point,
+        out System.Drawing.Point clientPoint)
+    {
+        return WindowsFormsHost.TryConvertScreenPointToControl(control, point, out clientPoint);
+    }
 
     public void Run(Forms.Form mainForm)
     {
@@ -89,6 +163,83 @@ internal sealed class WpfPortableWinFormsApplicationHost : Forms.IWinFormsApplic
         InvokeOnDispatcher(application.Dispatcher, application.Shutdown);
     }
 
+    public IDisposable RegisterTimer(int intervalMilliseconds, Action callback)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(intervalMilliseconds, 1);
+        ArgumentNullException.ThrowIfNull(callback);
+
+        return new DispatcherTimerRegistration(
+            _dispatcher,
+            intervalMilliseconds,
+            callback);
+    }
+
+    private void ThrowIfDispatcherUnavailable()
+    {
+        if (_dispatcher.HasShutdownStarted || _dispatcher.HasShutdownFinished)
+        {
+            throw new InvalidOperationException("The WPF UI dispatcher is shutting down.");
+        }
+    }
+
+    public void RequestDialogCompletion(Forms.Form form)
+    {
+        ArgumentNullException.ThrowIfNull(form);
+
+        Window? window;
+        lock (_gate)
+        {
+            if (!_windows.TryGetValue(form, out window)
+                || !_pendingDialogCompletions.Add(form))
+            {
+                return;
+            }
+        }
+
+        if (window.Dispatcher.HasShutdownStarted || window.Dispatcher.HasShutdownFinished)
+        {
+            RemovePendingDialogCompletion(form);
+            return;
+        }
+
+        try
+        {
+            window.Dispatcher.BeginInvoke(
+                DispatcherPriority.Normal,
+                new Action(() => CompleteDialogIfRequested(form, window)));
+        }
+        catch (InvalidOperationException)
+        {
+            RemovePendingDialogCompletion(form);
+        }
+    }
+
+    private void RemovePendingDialogCompletion(Forms.Form form)
+    {
+        lock (_gate)
+        {
+            _pendingDialogCompletions.Remove(form);
+        }
+    }
+
+    private void CompleteDialogIfRequested(Forms.Form form, Window window)
+    {
+        lock (_gate)
+        {
+            _pendingDialogCompletions.Remove(form);
+            if (!_windows.TryGetValue(form, out Window? currentWindow)
+                || !ReferenceEquals(currentWindow, window))
+            {
+                return;
+            }
+        }
+
+        if (form.DialogResult != Forms.DialogResult.None)
+        {
+            _ = form.Close(Forms.CloseReason.None);
+        }
+    }
+
     private Window CreateWindow(Forms.Form form, Window? owner, bool modal)
     {
         var host = new WindowsFormsHost
@@ -130,12 +281,17 @@ internal sealed class WpfPortableWinFormsApplicationHost : Forms.IWinFormsApplic
         bool closingWindowFromForm = false;
         bool closingFormFromWindow = false;
 
-        form.TextChanged += (_, _) => InvokeOnDispatcher(window.Dispatcher, () => window.Title = GetWindowTitle(form));
-        form.FormClosed += (_, _) =>
+        EventHandler textChangedHandler = (_, _) =>
+            InvokeOnDispatcher(window.Dispatcher, () => window.Title = GetWindowTitle(form));
+        Forms.FormClosedEventHandler? formClosedHandler = null;
+        formClosedHandler = (_, _) =>
         {
+            form.TextChanged -= textChangedHandler;
+            form.FormClosed -= formClosedHandler;
             lock (_gate)
             {
                 _windows.Remove(form);
+                _pendingDialogCompletions.Remove(form);
             }
 
             if (!closingFormFromWindow)
@@ -152,6 +308,8 @@ internal sealed class WpfPortableWinFormsApplicationHost : Forms.IWinFormsApplic
                     });
             }
         };
+        form.TextChanged += textChangedHandler;
+        form.FormClosed += formClosedHandler;
 
         window.Closing += (_, e) =>
         {
@@ -170,9 +328,12 @@ internal sealed class WpfPortableWinFormsApplicationHost : Forms.IWinFormsApplic
 
         window.Closed += (_, _) =>
         {
+            form.TextChanged -= textChangedHandler;
+            form.FormClosed -= formClosedHandler;
             lock (_gate)
             {
                 _windows.Remove(form);
+                _pendingDialogCompletions.Remove(form);
             }
         };
 
@@ -194,6 +355,45 @@ internal sealed class WpfPortableWinFormsApplicationHost : Forms.IWinFormsApplic
         }
 
         dispatcher.BeginInvoke(action);
+    }
+
+    private sealed class DispatcherTimerRegistration : IDisposable
+    {
+        private readonly DispatcherTimer _timer;
+        private Action? _callback;
+        private int _disposed;
+
+        public DispatcherTimerRegistration(Dispatcher dispatcher, int intervalMilliseconds, Action callback)
+        {
+            _callback = callback;
+            _timer = new DispatcherTimer(DispatcherPriority.Background, dispatcher)
+            {
+                Interval = TimeSpan.FromMilliseconds(intervalMilliseconds)
+            };
+            _timer.Tick += OnTick;
+            _timer.Start();
+        }
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
+                return;
+
+            Volatile.Write(ref _callback, null);
+            InvokeOnDispatcher(
+                _timer.Dispatcher,
+                () =>
+                {
+                    _timer.Stop();
+                    _timer.Tick -= OnTick;
+                });
+        }
+
+        private void OnTick(object? sender, EventArgs e)
+        {
+            if (Volatile.Read(ref _disposed) == 0)
+                Volatile.Read(ref _callback)?.Invoke();
+        }
     }
 
     private static string GetWindowTitle(Forms.Form form)

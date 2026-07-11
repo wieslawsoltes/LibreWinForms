@@ -4,7 +4,9 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Drawing.Printing;
+using System.Globalization;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using ProGPU.Wpf.Interop;
 
@@ -17,29 +19,90 @@ public interface IWin32Window
 
 public delegate void MethodInvoker();
 
-public class Control : Component, IWin32Window, ISynchronizeInvoke
+public delegate void ControlEventHandler(object? sender, ControlEventArgs e);
+
+public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWinFormsPaintSource
 {
     private static long s_nextHandle = 0x10000;
     private static readonly object s_handleSync = new();
     private static readonly Dictionary<IntPtr, Control> s_controlsByHandle = new();
 
-    private sealed class ImmediateAsyncResult : IAsyncResult
+    private sealed class PortableControlAsyncResult : IAsyncResult
     {
-        public ImmediateAsyncResult(object? asyncState, object? result)
+        private readonly Control _owner;
+        private readonly IWinFormsDispatcherHost? _dispatcherHost;
+        private readonly Delegate _method;
+        private readonly object?[]? _args;
+        private readonly ManualResetEventSlim _completion = new(initialState: false);
+        private System.Runtime.ExceptionServices.ExceptionDispatchInfo? _exception;
+        private object? _result;
+        private int _executionState;
+        private int _executingThreadId;
+
+        public PortableControlAsyncResult(
+            Control owner,
+            IWinFormsDispatcherHost? dispatcherHost,
+            Delegate method,
+            object?[]? args)
         {
-            AsyncState = asyncState;
-            Result = result;
+            _owner = owner;
+            _dispatcherHost = dispatcherHost;
+            _method = method;
+            _args = args;
         }
 
-        public object? AsyncState { get; }
+        public object? AsyncState => null;
 
-        public WaitHandle AsyncWaitHandle => new ManualResetEvent(true);
+        public WaitHandle AsyncWaitHandle => _completion.WaitHandle;
 
-        public bool CompletedSynchronously => true;
+        public bool CompletedSynchronously => false;
 
-        public bool IsCompleted => true;
+        public bool IsCompleted => Volatile.Read(ref _executionState) == 2;
 
-        public object? Result { get; }
+        public bool IsOwnedBy(Control owner) => ReferenceEquals(_owner, owner);
+
+        public bool HasDispatcherAccess => _dispatcherHost?.CheckAccess() == true;
+
+        public void TryExecute()
+        {
+            if (Interlocked.CompareExchange(ref _executionState, 1, 0) != 0)
+            {
+                return;
+            }
+
+            Volatile.Write(ref _executingThreadId, Environment.CurrentManagedThreadId);
+            try
+            {
+                _result = InvokePortableDelegate(_method, _args);
+            }
+            catch (Exception exception)
+            {
+                _exception = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(exception);
+            }
+            finally
+            {
+                Volatile.Write(ref _executingThreadId, 0);
+                Volatile.Write(ref _executionState, 2);
+                _completion.Set();
+            }
+        }
+
+        public object? GetResult()
+        {
+            if (!IsCompleted)
+            {
+                if (Volatile.Read(ref _executingThreadId) == Environment.CurrentManagedThreadId)
+                {
+                    throw new InvalidOperationException(
+                        "EndInvoke cannot wait for the callback that is currently executing on this thread.");
+                }
+
+                _completion.Wait();
+            }
+
+            _exception?.Throw();
+            return _result;
+        }
     }
 
     private bool _isHandleCreated;
@@ -47,6 +110,10 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
     private Point _location;
     private Size _size;
     private bool _visible = true;
+    private bool _enabled = true;
+    private bool _focused;
+    private ControlStyles _controlStyles;
+    private long _portablePaintVersion;
     private MouseEventHandler? _designerMouseDown;
     private MouseEventHandler? _designerMouseMove;
     private MouseEventHandler? _designerMouseUp;
@@ -78,6 +145,8 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
     public event EventHandler? LocationChanged;
     public event EventHandler? HandleCreated;
     public event EventHandler? Invalidated;
+    public event ControlEventHandler? ControlAdded;
+    public event ControlEventHandler? ControlRemoved;
     public event CancelEventHandler? Validating;
     public event EventHandler? Validated;
     public event DragEventHandler? DragDrop;
@@ -107,6 +176,31 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
 
     public virtual bool Capture { get; set; }
 
+    public virtual bool CanFocus => CanSelect;
+
+    public virtual bool CanSelect
+    {
+        get
+        {
+            if (IsDisposed || !Enabled || !Visible)
+            {
+                return false;
+            }
+
+            for (Control? ancestor = Parent; ancestor != null; ancestor = ancestor.Parent)
+            {
+                if (ancestor.IsDisposed || !ancestor.Enabled || !ancestor.Visible)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+    }
+
+    public bool CausesValidation { get; set; } = true;
+
     public virtual Rectangle ClientRectangle => new(Point.Empty, Size);
 
     public ControlCollection Controls { get; }
@@ -117,9 +211,23 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
 
     public DockStyle Dock { get; set; }
 
-    public virtual bool Enabled { get; set; } = true;
+    public virtual bool Enabled
+    {
+        get => _enabled;
+        set
+        {
+            if (_enabled == value)
+            {
+                return;
+            }
 
-    public virtual bool Focused { get; }
+            _enabled = value;
+            Invalidate();
+            Parent?.Invalidate();
+        }
+    }
+
+    public virtual bool Focused => _focused;
 
     public virtual bool ContainsFocus => Focused || Controls.Any(static control => control.ContainsFocus);
 
@@ -198,12 +306,15 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
         get => _size;
         set
         {
-            if (_size == value)
+            Size normalized = new(
+                Math.Max(0, value.Width),
+                Math.Max(0, value.Height));
+            if (_size == normalized)
             {
                 return;
             }
 
-            _size = value;
+            _size = normalized;
             OnResize(EventArgs.Empty);
             Invalidate();
             Parent?.Invalidate();
@@ -275,7 +386,8 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
 
     public static Keys ModifierKeys { get; set; }
 
-    public bool InvokeRequired => false;
+    public bool InvokeRequired => Application.GetDispatcherHost() is { } dispatcherHost
+        && !dispatcherHost.CheckAccess();
 
     internal Size DefaultSizeForDesigner => DefaultSize;
 
@@ -309,12 +421,55 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
 
     public DragDropEffects DoDragDrop(object data, DragDropEffects allowedEffects)
     {
-        return allowedEffects;
+        ArgumentNullException.ThrowIfNull(data);
+
+        const DragDropEffects validEffects =
+            DragDropEffects.Copy |
+            DragDropEffects.Move |
+            DragDropEffects.Link |
+            DragDropEffects.Scroll;
+        if ((allowedEffects & ~validEffects) != DragDropEffects.None)
+        {
+            throw new InvalidEnumArgumentException(
+                nameof(allowedEffects),
+                (int)allowedEffects,
+                typeof(DragDropEffects));
+        }
+
+        if (allowedEffects == DragDropEffects.None)
+        {
+            return DragDropEffects.None;
+        }
+
+        IDataObject dataObject = data as IDataObject ?? new DataObject(data);
+        return Application.DoDragDrop(this, dataObject, allowedEffects);
     }
 
     public virtual bool Focus()
     {
-        GotFocus?.Invoke(this, EventArgs.Empty);
+        if (!CanFocus)
+        {
+            return false;
+        }
+
+        ContainerControl? container = FindForm();
+        if (container == null)
+        {
+            for (Control? ancestor = Parent; ancestor != null; ancestor = ancestor.Parent)
+            {
+                if (ancestor is ContainerControl candidate)
+                {
+                    container = candidate;
+                }
+            }
+        }
+
+        if (container != null && !ReferenceEquals(container, this))
+        {
+            return container.TryActivateControl(this);
+        }
+
+        SetFocusedState(true);
         return true;
     }
 
@@ -373,6 +528,16 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
 
     public void RaiseMouseClick(MouseEventArgs e)
     {
+        if (!CanSelect)
+        {
+            return;
+        }
+
+        if (e.Button == MouseButtons.Left)
+        {
+            OnClick(e);
+        }
+
         OnMouseClick(e);
     }
 
@@ -380,6 +545,65 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
     {
         OnMouseDoubleClick(e);
         OnDoubleClick(EventArgs.Empty);
+    }
+
+    public void RaiseMouseWheel(MouseEventArgs e)
+    {
+        OnMouseWheel(e);
+    }
+
+    public void RaiseDragEnter(DragEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        if (!AllowDrop)
+        {
+            e.Effect = DragDropEffects.None;
+            return;
+        }
+
+        OnDragEnter(e);
+    }
+
+    public void RaiseDragOver(DragEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        if (!AllowDrop)
+        {
+            e.Effect = DragDropEffects.None;
+            return;
+        }
+
+        OnDragOver(e);
+    }
+
+    public void RaiseDragLeave(EventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        OnDragLeave(e);
+    }
+
+    public void RaiseDragDrop(DragEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        if (!AllowDrop)
+        {
+            e.Effect = DragDropEffects.None;
+            return;
+        }
+
+        OnDragDrop(e);
+    }
+
+    public void RaisePaintBackground(PaintEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        OnPaintBackground(e);
+    }
+
+    public void RaisePaint(PaintEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        OnPaint(e);
     }
 
     public void RaiseKeyDown(KeyEventArgs e)
@@ -399,13 +623,54 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
 
     public IAsyncResult BeginInvoke(Delegate method, params object?[]? args)
     {
-        object? result = Invoke(method, args);
-        return new ImmediateAsyncResult(null, result);
+        ArgumentNullException.ThrowIfNull(method);
+
+        IWinFormsDispatcherHost? dispatcherHost = Application.GetDispatcherHost();
+        var asyncResult = new PortableControlAsyncResult(this, dispatcherHost, method, args);
+        if (dispatcherHost != null)
+        {
+            dispatcherHost.BeginInvoke(asyncResult.TryExecute);
+        }
+        else
+        {
+            ThreadPool.QueueUserWorkItem(
+                static state => ((PortableControlAsyncResult)state!).TryExecute(),
+                asyncResult,
+                preferLocal: false);
+        }
+
+        return asyncResult;
+    }
+
+    /// <summary>
+    /// Strongly typed single-argument dispatcher path used by source-built
+    /// applications such as SharpDevelop. The closure keeps this common
+    /// WinForms callback shape off the transitional DynamicInvoke fallback.
+    /// </summary>
+    public IAsyncResult BeginInvoke<T>(Action<T> method, T argument)
+    {
+        ArgumentNullException.ThrowIfNull(method);
+        return BeginInvoke((Action)(() => method(argument)));
     }
 
     public object? EndInvoke(IAsyncResult result)
     {
-        return result is ImmediateAsyncResult immediate ? immediate.Result : result.AsyncState;
+        ArgumentNullException.ThrowIfNull(result);
+        if (result is not PortableControlAsyncResult asyncResult || !asyncResult.IsOwnedBy(this))
+        {
+            throw new ArgumentException(
+                "The asynchronous result was not created by BeginInvoke on this control.",
+                nameof(result));
+        }
+
+        // Pump this callback directly when EndInvoke is called on its dispatcher
+        // before the posted operation runs. The queued callback becomes a no-op.
+        if (!asyncResult.IsCompleted && asyncResult.HasDispatcherAccess)
+        {
+            asyncResult.TryExecute();
+        }
+
+        return asyncResult.GetResult();
     }
 
     public object? Invoke(Delegate method)
@@ -415,6 +680,74 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
 
     public object? Invoke(Delegate method, params object?[]? args)
     {
+        ArgumentNullException.ThrowIfNull(method);
+
+        IWinFormsDispatcherHost? dispatcherHost = Application.GetDispatcherHost();
+        if (dispatcherHost == null || dispatcherHost.CheckAccess())
+        {
+            return InvokePortableDelegate(method, args);
+        }
+
+        object? result = null;
+        System.Runtime.ExceptionServices.ExceptionDispatchInfo? exception = null;
+        dispatcherHost.Invoke(
+            () =>
+            {
+                try
+                {
+                    result = InvokePortableDelegate(method, args);
+                }
+                catch (Exception caught)
+                {
+                    exception = System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(caught);
+                }
+            });
+        exception?.Throw();
+        return result;
+    }
+
+    /// <summary>
+    /// Strongly typed synchronous counterpart to <see cref="BeginInvoke{T}(Action{T}, T)"/>.
+    /// </summary>
+    public void Invoke<T>(Action<T> method, T argument)
+    {
+        ArgumentNullException.ThrowIfNull(method);
+        _ = Invoke((Action)(() => method(argument)));
+    }
+
+    private static object? InvokePortableDelegate(Delegate method, object?[]? args)
+    {
+        int argumentCount = args?.Length ?? 0;
+        if (argumentCount == 0)
+        {
+            if (method is Action action)
+            {
+                action();
+                return null;
+            }
+
+            if (method is MethodInvoker methodInvoker)
+            {
+                methodInvoker();
+                return null;
+            }
+
+            if (method is Func<object?> objectFunction)
+            {
+                return objectFunction();
+            }
+        }
+        else if (argumentCount == 2
+            && method is EventHandler eventHandler
+            && args![1] is EventArgs eventArgs)
+        {
+            eventHandler(args[0], eventArgs);
+            return null;
+        }
+
+        // Transitional compatibility for arbitrary delegate signatures. Common
+        // WinForms callbacks stay on the typed paths above; no reflected member
+        // discovery or expression-built adapter is used by the dispatcher seam.
         return method.DynamicInvoke(args);
     }
 
@@ -453,8 +786,59 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
         return false;
     }
 
+    public Form? FindForm()
+    {
+        for (Control? current = this; current != null; current = current.Parent)
+        {
+            if (current is Form form)
+            {
+                return form;
+            }
+        }
+
+        return null;
+    }
+
+    public Form? ParentForm => FindForm();
+
+    internal bool TryValidateControl()
+    {
+        var validating = new CancelEventArgs();
+        OnValidating(validating);
+        if (validating.Cancel)
+        {
+            return false;
+        }
+
+        OnValidated(EventArgs.Empty);
+        return true;
+    }
+
+    internal void SetFocusedState(bool value)
+    {
+        if (_focused == value)
+        {
+            return;
+        }
+
+        _focused = value;
+        if (value)
+        {
+            OnEnter(EventArgs.Empty);
+            OnGotFocus(EventArgs.Empty);
+        }
+        else
+        {
+            OnLostFocus(EventArgs.Empty);
+            OnLeave(EventArgs.Empty);
+        }
+
+        Invalidate();
+    }
+
     public virtual void Invalidate()
     {
+        Interlocked.Increment(ref _portablePaintVersion);
         Invalidated?.Invoke(this, EventArgs.Empty);
     }
 
@@ -465,12 +849,38 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
 
     public Point PointToClient(Point p)
     {
-        return new Point(p.X - Left, p.Y - Top);
+        if (Application.TryPointToClient(this, p, out Point clientPoint))
+        {
+            return clientPoint;
+        }
+
+        int x = p.X;
+        int y = p.Y;
+        for (Control? current = this; current != null; current = current.Parent)
+        {
+            x -= current.Left;
+            y -= current.Top;
+        }
+
+        return new Point(x, y);
     }
 
     public Point PointToScreen(Point p)
     {
-        return new Point(p.X + Left, p.Y + Top);
+        if (Application.TryPointToScreen(this, p, out Point screenPoint))
+        {
+            return screenPoint;
+        }
+
+        int x = p.X;
+        int y = p.Y;
+        for (Control? current = this; current != null; current = current.Parent)
+        {
+            x += current.Left;
+            y += current.Top;
+        }
+
+        return new Point(x, y);
     }
 
     public virtual void Refresh()
@@ -566,7 +976,6 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
     protected virtual void OnMouseClick(MouseEventArgs e)
     {
         MouseClick?.Invoke(this, e);
-        OnClick(EventArgs.Empty);
     }
 
     protected virtual void OnClick(EventArgs e)
@@ -619,6 +1028,11 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
         Enter?.Invoke(this, e);
     }
 
+    protected virtual void OnGotFocus(EventArgs e)
+    {
+        GotFocus?.Invoke(this, e);
+    }
+
     protected virtual void OnKeyDown(KeyEventArgs e)
     {
         KeyDown?.Invoke(this, e);
@@ -648,17 +1062,19 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
     {
     }
 
+    protected virtual void OnControlAdded(ControlEventArgs e)
+    {
+        ControlAdded?.Invoke(this, e);
+    }
+
+    protected virtual void OnControlRemoved(ControlEventArgs e)
+    {
+        ControlRemoved?.Invoke(this, e);
+    }
+
     protected virtual void OnLostFocus(EventArgs e)
     {
         LostFocus?.Invoke(this, e);
-        var validating = new CancelEventArgs();
-        OnValidating(validating);
-        if (!validating.Cancel)
-        {
-            OnValidated(EventArgs.Empty);
-        }
-
-        OnLeave(e);
     }
 
     protected virtual void OnLeave(EventArgs e)
@@ -694,6 +1110,34 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
 
     protected void SetStyle(ControlStyles flag, bool value)
     {
+        ControlStyles next = value ? _controlStyles | flag : _controlStyles & ~flag;
+        if (_controlStyles == next)
+        {
+            return;
+        }
+
+        _controlStyles = next;
+        Invalidate();
+    }
+
+    protected bool GetStyle(ControlStyles flag)
+    {
+        return (_controlStyles & flag) == flag;
+    }
+
+    bool IPortableWinFormsPaintSource.SupportsPortablePainting => Paint != null
+        || (_controlStyles & (ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer)) != 0;
+
+    long IPortableWinFormsPaintSource.PortablePaintVersion => Interlocked.Read(ref _portablePaintVersion);
+
+    void IPortableWinFormsPaintSource.PaintPortableBackground(PaintEventArgs e)
+    {
+        RaisePaintBackground(e);
+    }
+
+    void IPortableWinFormsPaintSource.PaintPortable(PaintEventArgs e)
+    {
+        RaisePaint(e);
     }
 
     protected override void Dispose(bool disposing)
@@ -721,8 +1165,34 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
 
         protected override void InsertItem(int index, Control item)
         {
-            item.Parent = _owner;
+            ArgumentNullException.ThrowIfNull(item);
+            ValidateParentingCycle(item);
+
+            if (ReferenceEquals(item.Parent, _owner))
+            {
+                int existingIndex = IndexOf(item);
+                if (existingIndex >= 0)
+                {
+                    MoveExistingItem(existingIndex, index);
+                    return;
+                }
+
+                // Repair an inconsistent parent pointer before attaching the
+                // control to the owner's authoritative child collection.
+                item.Parent = null;
+            }
+            else
+            {
+                item.Parent?.Controls.Remove(item);
+            }
+
             base.InsertItem(index, item);
+            item.Parent = _owner;
+            if (item is RadioButton radioButton)
+            {
+                radioButton.PerformAutoUpdates();
+            }
+
             if (_owner is TabControl tabControl && item is TabPage tabPage)
             {
                 tabControl.RegisterControlTabPage(tabPage, index);
@@ -733,19 +1203,89 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
                 item.CreateControl();
             }
 
+            _owner.OnControlAdded(new ControlEventArgs(item));
+            _owner.Invalidate();
+        }
+
+        protected override void SetItem(int index, Control item)
+        {
+            ArgumentNullException.ThrowIfNull(item);
+            ValidateParentingCycle(item);
+
+            Control previous = this[index];
+            if (ReferenceEquals(previous, item))
+            {
+                return;
+            }
+
+            if (ReferenceEquals(item.Parent, _owner))
+            {
+                int existingIndex = IndexOf(item);
+                if (existingIndex >= 0)
+                {
+                    MoveExistingItem(existingIndex, index);
+                    int previousIndex = IndexOf(previous);
+                    if (previousIndex >= 0)
+                    {
+                        RemoveItem(previousIndex);
+                    }
+
+                    return;
+                }
+
+                item.Parent = null;
+            }
+            else
+            {
+                item.Parent?.Controls.Remove(item);
+            }
+
+            if (ReferenceEquals(previous.Parent, _owner))
+            {
+                previous.Parent = null;
+            }
+
+            base.SetItem(index, item);
+            item.Parent = _owner;
+
+            if (_owner is TabControl tabControl)
+            {
+                if (previous is TabPage previousPage)
+                {
+                    tabControl.UnregisterControlTabPage(previousPage);
+                }
+
+                if (item is TabPage nextPage)
+                {
+                    tabControl.RegisterControlTabPage(nextPage, index);
+                }
+            }
+
+            if (_owner.IsHandleCreated)
+            {
+                item.CreateControl();
+            }
+
+            _owner.OnControlRemoved(new ControlEventArgs(previous));
+            _owner.OnControlAdded(new ControlEventArgs(item));
             _owner.Invalidate();
         }
 
         protected override void RemoveItem(int index)
         {
             Control control = this[index];
-            control.Parent = null;
             base.RemoveItem(index);
+            if (ReferenceEquals(control.Parent, _owner))
+            {
+                control.Parent = null;
+            }
+
             if (_owner is TabControl tabControl && control is TabPage tabPage)
             {
                 tabControl.UnregisterControlTabPage(tabPage);
             }
 
+            _owner.OnControlRemoved(new ControlEventArgs(control));
             _owner.Invalidate();
         }
 
@@ -754,15 +1294,24 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
             TabPage[]? tabPages = _owner is TabControl
                 ? this.OfType<TabPage>().ToArray()
                 : null;
-            foreach (Control control in this)
+            Control[] removedControls = this.ToArray();
+            foreach (Control control in removedControls)
             {
-                control.Parent = null;
+                if (ReferenceEquals(control.Parent, _owner))
+                {
+                    control.Parent = null;
+                }
             }
 
             base.ClearItems();
             if (_owner is TabControl tabControl && tabPages != null)
             {
                 tabControl.UnregisterControlTabPages(tabPages);
+            }
+
+            foreach (Control control in removedControls)
+            {
+                _owner.OnControlRemoved(new ControlEventArgs(control));
             }
 
             _owner.Invalidate();
@@ -776,8 +1325,7 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
                 return;
             }
 
-            RemoveAt(oldIndex);
-            Insert(Math.Clamp(newIndex, 0, Count), child);
+            MoveExistingItem(oldIndex, newIndex);
         }
 
         public void AddRange(Control[] controls)
@@ -785,6 +1333,41 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke
             foreach (Control control in controls)
             {
                 Add(control);
+            }
+        }
+
+        private void MoveExistingItem(int oldIndex, int requestedIndex)
+        {
+            if (Count <= 1)
+            {
+                return;
+            }
+
+            int newIndex = Math.Clamp(requestedIndex, 0, Count - 1);
+            if (oldIndex == newIndex)
+            {
+                return;
+            }
+
+            Control item = this[oldIndex];
+            base.RemoveItem(oldIndex);
+            base.InsertItem(newIndex, item);
+            if (_owner is TabControl tabControl && item is TabPage tabPage)
+            {
+                tabControl.MoveControlTabPage(tabPage, newIndex);
+            }
+
+            _owner.Invalidate();
+        }
+
+        private void ValidateParentingCycle(Control item)
+        {
+            for (Control? ancestor = _owner; ancestor != null; ancestor = ancestor.Parent)
+            {
+                if (ReferenceEquals(ancestor, item))
+                {
+                    throw new ArgumentException("A control cannot be parented to itself or one of its descendants.", nameof(item));
+                }
             }
         }
     }
@@ -796,17 +1379,94 @@ public class ScrollableControl : Control
 
 public class ContainerControl : ScrollableControl
 {
-    public Control? ActiveControl { get; set; }
+    private Control? _activeControl;
+
+    public Control? ActiveControl
+    {
+        get => _activeControl;
+        set
+        {
+            if (value != null && !ReferenceEquals(value, this) && !Contains(value))
+            {
+                throw new ArgumentException("The active control must be contained by this container.", nameof(value));
+            }
+
+            _ = TryActivateControl(value);
+        }
+    }
 
     public SizeF AutoScaleDimensions { get; set; }
 
     public AutoScaleMode AutoScaleMode { get; set; }
+
+    public bool Validate()
+    {
+        return _activeControl?.TryValidateControl() ?? true;
+    }
+
+    public virtual bool ValidateChildren()
+    {
+        return ValidateChildrenCore(this);
+    }
+
+    internal bool TryActivateControl(Control? control)
+    {
+        if (ReferenceEquals(_activeControl, control))
+        {
+            return true;
+        }
+
+        if (control != null && !control.CanSelect)
+        {
+            return false;
+        }
+
+        Control? previous = _activeControl;
+        if (previous != null
+            && control?.CausesValidation == true
+            && !previous.TryValidateControl())
+        {
+            return false;
+        }
+
+        previous?.SetFocusedState(false);
+        _activeControl = control;
+        control?.SetFocusedState(true);
+        return true;
+    }
+
+    internal bool TryValidateForActivation(Control activator)
+    {
+        return !activator.CausesValidation
+            || _activeControl == null
+            || ReferenceEquals(_activeControl, activator)
+            || _activeControl.TryValidateControl();
+    }
+
+    private static bool ValidateChildrenCore(Control parent)
+    {
+        foreach (Control child in parent.Controls)
+        {
+            if (!child.TryValidateControl() || !ValidateChildrenCore(child))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 }
 
-public class Form : ContainerControl
+public class Form : ContainerControl, IWinFormsDialogKeyProcessor
 {
     private bool _shown;
     private bool _closed;
+    private bool _isModal;
+    private int _dialogDispatchDepth;
+    private bool _completionRequestedDuringDispatch;
+    private DialogResult _dialogResult;
+    private IButtonControl? _acceptButton;
+    private IButtonControl? _cancelButton;
 
     public event CancelEventHandler? Closing;
     public event FormClosingEventHandler? FormClosing;
@@ -814,9 +1474,34 @@ public class Form : ContainerControl
     public event FormClosedEventHandler? FormClosed;
     public event EventHandler? Shown;
 
-    public IButtonControl? AcceptButton { get; set; }
+    public IButtonControl? AcceptButton
+    {
+        get => _acceptButton;
+        set
+        {
+            if (ReferenceEquals(_acceptButton, value))
+            {
+                return;
+            }
 
-    public IButtonControl? CancelButton { get; set; }
+            _acceptButton?.NotifyDefault(false);
+            _acceptButton = value;
+            _acceptButton?.NotifyDefault(true);
+        }
+    }
+
+    public IButtonControl? CancelButton
+    {
+        get => _cancelButton;
+        set
+        {
+            _cancelButton = value;
+            if (_cancelButton != null && _cancelButton.DialogResult == DialogResult.None)
+            {
+                _cancelButton.DialogResult = DialogResult.Cancel;
+            }
+        }
+    }
 
     public Size ClientSize
     {
@@ -824,7 +1509,38 @@ public class Form : ContainerControl
         set => Size = value;
     }
 
-    public DialogResult DialogResult { get; set; }
+    public DialogResult DialogResult
+    {
+        get => _dialogResult;
+        set
+        {
+            int numericValue = (int)value;
+            if (numericValue < (int)DialogResult.None
+                || numericValue > (int)DialogResult.Continue
+                || numericValue is 8 or 9)
+            {
+                throw new InvalidEnumArgumentException(nameof(value), numericValue, typeof(DialogResult));
+            }
+
+            if (_dialogResult == value)
+            {
+                return;
+            }
+
+            _dialogResult = value;
+            if (_isModal && value != DialogResult.None)
+            {
+                if (_dialogDispatchDepth > 0)
+                {
+                    _completionRequestedDuringDispatch = true;
+                }
+                else
+                {
+                    Application.RequestDialogCompletion(this);
+                }
+            }
+        }
+    }
 
     public FormBorderStyle FormBorderStyle { get; set; }
 
@@ -858,23 +1574,38 @@ public class Form : ContainerControl
 
     public DialogResult ShowDialog()
     {
-        if (Application.TryShowDialog(this, owner: null, out DialogResult result))
-        {
-            return result;
-        }
-
-        RaiseShownOnce();
-        return DialogResult;
+        return ShowDialogCore(owner: null);
     }
 
     public DialogResult ShowDialog(IWin32Window owner)
     {
-        if (Application.TryShowDialog(this, owner, out DialogResult result))
-        {
-            return result;
-        }
+        ArgumentNullException.ThrowIfNull(owner);
+        return ShowDialogCore(owner);
+    }
 
-        return ShowDialog();
+    private DialogResult ShowDialogCore(IWin32Window? owner)
+    {
+        _dialogResult = DialogResult.None;
+        _closed = false;
+        _shown = false;
+        _dialogDispatchDepth = 0;
+        _completionRequestedDuringDispatch = false;
+        _isModal = true;
+        try
+        {
+            if (Application.TryShowDialog(this, owner, out DialogResult result))
+            {
+                _dialogResult = result;
+                return result;
+            }
+
+            RaiseShownOnce();
+            return DialogResult;
+        }
+        finally
+        {
+            _isModal = false;
+        }
     }
 
     public void Close()
@@ -884,28 +1615,102 @@ public class Form : ContainerControl
 
     public bool Close(CloseReason closeReason)
     {
+        if (_closed)
+        {
+            return true;
+        }
+
+        bool resultDriven = _isModal && closeReason == CloseReason.None;
+        if (_isModal && !resultDriven && _dialogResult == DialogResult.None)
+        {
+            _dialogResult = DialogResult.Cancel;
+        }
+
         var closing = new CancelEventArgs();
         OnClosing(closing);
         if (closing.Cancel)
         {
+            ResetCanceledDialogResult();
             return false;
         }
 
         var formClosing = new FormClosingEventArgs(closeReason, false);
-        FormClosing?.Invoke(this, formClosing);
+        OnFormClosing(formClosing);
         if (formClosing.Cancel)
+        {
+            ResetCanceledDialogResult();
+            return false;
+        }
+
+        if (_isModal && _dialogResult == DialogResult.None)
+        {
+            ResetCanceledDialogResult();
+            return false;
+        }
+
+        _closed = true;
+        Visible = false;
+        _ = TryActivateControl(control: null);
+        OnClosed(EventArgs.Empty);
+        OnFormClosed(new FormClosedEventArgs(closeReason));
+
+        return true;
+    }
+
+    internal void BeginDialogResultDispatch()
+    {
+        _dialogDispatchDepth++;
+    }
+
+    internal void EndDialogResultDispatch()
+    {
+        if (_dialogDispatchDepth <= 0)
+        {
+            return;
+        }
+
+        _dialogDispatchDepth--;
+        if (_dialogDispatchDepth == 0 && _completionRequestedDuringDispatch)
+        {
+            _completionRequestedDuringDispatch = false;
+            if (_isModal && _dialogResult != DialogResult.None)
+            {
+                Application.RequestDialogCompletion(this);
+            }
+        }
+    }
+
+    bool IWinFormsDialogKeyProcessor.TryProcessDialogKey(Keys keyData, Control? focusedControl)
+    {
+        Keys keyCode = (Keys)((int)keyData & 0xFFFF);
+        if ((keyData & (Keys.Control | Keys.Alt)) != 0)
         {
             return false;
         }
 
-        if (!_closed)
+        IButtonControl? button = keyCode == Keys.Return
+            ? focusedControl as IButtonControl ?? _acceptButton
+            : keyCode == Keys.Escape
+                ? _cancelButton
+                : null;
+
+        if (button == null || button is Control control && !control.CanSelect)
         {
-            _closed = true;
-            OnClosed(EventArgs.Empty);
-            OnFormClosed(new FormClosedEventArgs(closeReason));
+            return false;
         }
 
+        button.PerformClick();
         return true;
+    }
+
+    private void ResetCanceledDialogResult()
+    {
+        if (_isModal && _dialogResult != DialogResult.None)
+        {
+            _dialogResult = DialogResult.None;
+        }
+
+        _completionRequestedDuringDispatch = false;
     }
 
     private void RaiseShownOnce()
@@ -934,6 +1739,11 @@ public class Form : ContainerControl
         FormClosed?.Invoke(this, e);
     }
 
+    protected virtual void OnFormClosing(FormClosingEventArgs e)
+    {
+        FormClosing?.Invoke(this, e);
+    }
+
     protected virtual void OnShown(EventArgs e)
     {
         Shown?.Invoke(this, e);
@@ -942,6 +1752,10 @@ public class Form : ContainerControl
 
 public class UserControl : ContainerControl
 {
+    public UserControl()
+    {
+        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint, true);
+    }
 }
 
 public class Panel : ScrollableControl
@@ -996,23 +1810,163 @@ public class ToolStripContainer : ContainerControl
     public ToolStripContentPanel ContentPanel { get; }
 }
 
-public class SplitContainer : ContainerControl
+public class SplitContainer : ContainerControl, ISupportInitialize
 {
+    private bool _initializing;
+    private Orientation _orientation = Orientation.Vertical;
+    private int _panel1MinSize = 25;
+    private int _newPanel1MinSize = 25;
+    private int _panel2MinSize = 25;
+    private int _newPanel2MinSize = 25;
+    private int _splitterDistance = 50;
+    private int _splitterWidth = 4;
+    private int _newSplitterWidth = 4;
+
     public SplitContainer()
     {
         Controls.Add(Panel1);
         Controls.Add(Panel2);
     }
 
-    public Orientation Orientation { get; set; }
+    [DefaultValue(Orientation.Vertical)]
+    public Orientation Orientation
+    {
+        get => _orientation;
+        set
+        {
+            if (value is < Orientation.Horizontal or > Orientation.Vertical)
+            {
+                throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(Orientation));
+            }
+
+            if (_orientation == value)
+            {
+                return;
+            }
+
+            _orientation = value;
+            InvalidateSplitLayout();
+        }
+    }
 
     public SplitterPanel Panel1 { get; } = new();
 
     public SplitterPanel Panel2 { get; } = new();
 
-    public int SplitterDistance { get; set; }
+    [DefaultValue(25)]
+    public int Panel1MinSize
+    {
+        get => _panel1MinSize;
+        set
+        {
+            _newPanel1MinSize = value;
+            if (_initializing || _panel1MinSize == value)
+            {
+                return;
+            }
 
-    public int SplitterWidth { get; set; } = 4;
+            ApplyPanel1MinSize(value);
+        }
+    }
+
+    [DefaultValue(25)]
+    public int Panel2MinSize
+    {
+        get => _panel2MinSize;
+        set
+        {
+            _newPanel2MinSize = value;
+            if (_initializing || _panel2MinSize == value)
+            {
+                return;
+            }
+
+            ApplyPanel2MinSize(value);
+        }
+    }
+
+    [DefaultValue(50)]
+    public int SplitterDistance
+    {
+        get => _splitterDistance;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            if (_splitterDistance == value)
+            {
+                return;
+            }
+
+            _splitterDistance = value;
+            InvalidateSplitLayout();
+        }
+    }
+
+    [DefaultValue(4)]
+    public int SplitterWidth
+    {
+        get => _splitterWidth;
+        set
+        {
+            _newSplitterWidth = value;
+            if (_initializing || _splitterWidth == value)
+            {
+                return;
+            }
+
+            ApplySplitterWidth(value);
+        }
+    }
+
+    public void BeginInit()
+    {
+        _initializing = true;
+    }
+
+    public void EndInit()
+    {
+        _initializing = false;
+        if (_newPanel1MinSize != _panel1MinSize)
+        {
+            ApplyPanel1MinSize(_newPanel1MinSize);
+        }
+
+        if (_newPanel2MinSize != _panel2MinSize)
+        {
+            ApplyPanel2MinSize(_newPanel2MinSize);
+        }
+
+        if (_newSplitterWidth != _splitterWidth)
+        {
+            ApplySplitterWidth(_newSplitterWidth);
+        }
+    }
+
+    private void InvalidateSplitLayout()
+    {
+        Invalidate();
+    }
+
+    private void ApplySplitterWidth(int value)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
+        _splitterWidth = value;
+        InvalidateSplitLayout();
+    }
+
+    private void ApplyPanel1MinSize(int value)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        _panel1MinSize = value;
+        InvalidateSplitLayout();
+    }
+
+    private void ApplyPanel2MinSize(int value)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(value);
+        _panel2MinSize = value;
+        InvalidateSplitLayout();
+    }
 }
 
 public class Splitter : Control
@@ -1024,17 +1978,138 @@ public class Splitter : Control
 
 public class ButtonBase : Control
 {
-    public FlatStyle FlatStyle { get; set; }
+    private FlatStyle _flatStyle = FlatStyle.Standard;
+    private Image? _image;
+    private ContentAlignment _imageAlign = ContentAlignment.MiddleCenter;
+    private ContentAlignment _textAlign = ContentAlignment.MiddleCenter;
+    private bool _spaceKeyDown;
 
-    public Image? Image { get; set; }
+    [DefaultValue(FlatStyle.Standard)]
+    public FlatStyle FlatStyle
+    {
+        get => _flatStyle;
+        set
+        {
+            if (value is < FlatStyle.Flat or > FlatStyle.System)
+            {
+                throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(FlatStyle));
+            }
 
-    public ContentAlignment ImageAlign { get; set; }
+            if (_flatStyle == value)
+            {
+                return;
+            }
 
-    public ContentAlignment TextAlign { get; set; } = ContentAlignment.MiddleCenter;
+            _flatStyle = value;
+            Invalidate();
+        }
+    }
+
+    [DefaultValue(null)]
+    public Image? Image
+    {
+        get => _image;
+        set
+        {
+            if (ReferenceEquals(_image, value))
+            {
+                return;
+            }
+
+            _image = value;
+            Invalidate();
+        }
+    }
+
+    [DefaultValue(ContentAlignment.MiddleCenter)]
+    public ContentAlignment ImageAlign
+    {
+        get => _imageAlign;
+        set
+        {
+            ValidateContentAlignment(value);
+            if (_imageAlign == value)
+            {
+                return;
+            }
+
+            _imageAlign = value;
+            Invalidate();
+        }
+    }
+
+    [DefaultValue(ContentAlignment.MiddleCenter)]
+    public virtual ContentAlignment TextAlign
+    {
+        get => _textAlign;
+        set
+        {
+            ValidateContentAlignment(value);
+            if (_textAlign == value)
+            {
+                return;
+            }
+
+            _textAlign = value;
+            Invalidate();
+        }
+    }
 
     public bool UseCompatibleTextRendering { get; set; }
 
     public bool UseVisualStyleBackColor { get; set; }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (CanSelect && e.KeyCode == Keys.Space)
+        {
+            _spaceKeyDown = true;
+            e.Handled = true;
+            Invalidate();
+        }
+
+        base.OnKeyDown(e);
+    }
+
+    protected override void OnKeyUp(KeyEventArgs e)
+    {
+        bool performClick = _spaceKeyDown && CanSelect && e.KeyCode == Keys.Space;
+        if (e.KeyCode == Keys.Space)
+        {
+            _spaceKeyDown = false;
+            e.Handled = true;
+            Invalidate();
+        }
+
+        if (performClick)
+        {
+            OnClick(EventArgs.Empty);
+        }
+
+        base.OnKeyUp(e);
+    }
+
+    protected override void OnTextChanged(EventArgs e)
+    {
+        base.OnTextChanged(e);
+        Invalidate();
+    }
+
+    protected static void ValidateContentAlignment(ContentAlignment value)
+    {
+        if (value is not (ContentAlignment.TopLeft
+            or ContentAlignment.TopCenter
+            or ContentAlignment.TopRight
+            or ContentAlignment.MiddleLeft
+            or ContentAlignment.MiddleCenter
+            or ContentAlignment.MiddleRight
+            or ContentAlignment.BottomLeft
+            or ContentAlignment.BottomCenter
+            or ContentAlignment.BottomRight))
+        {
+            throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(ContentAlignment));
+        }
+    }
 }
 
 public interface IButtonControl
@@ -1048,22 +2123,86 @@ public interface IButtonControl
 
 public class Button : ButtonBase, IButtonControl
 {
+    private bool _isDefault;
+    private DialogResult _dialogResult;
+
     protected override Size DefaultSize => new(75, 23);
 
-    public DialogResult DialogResult { get; set; }
+    public DialogResult DialogResult
+    {
+        get => _dialogResult;
+        set
+        {
+            int numericValue = (int)value;
+            if (numericValue < (int)DialogResult.None
+                || numericValue > (int)DialogResult.Continue
+                || numericValue is 8 or 9)
+            {
+                throw new InvalidEnumArgumentException(nameof(value), numericValue, typeof(DialogResult));
+            }
+
+            _dialogResult = value;
+        }
+    }
+
+    [EditorBrowsable(EditorBrowsableState.Advanced)]
+    public bool IsDefault => _isDefault;
 
     public void NotifyDefault(bool value)
     {
+        if (_isDefault == value)
+        {
+            return;
+        }
+
+        _isDefault = value;
+        Invalidate();
     }
 
     public void PerformClick()
     {
+        if (!CanSelect)
+        {
+            return;
+        }
+
         OnClick(EventArgs.Empty);
+    }
+
+    protected override void OnClick(EventArgs e)
+    {
+        if (!CanSelect)
+        {
+            return;
+        }
+
+        Form? form = FindForm();
+        if (form != null && !form.TryValidateForActivation(this))
+        {
+            return;
+        }
+
+        form?.BeginDialogResultDispatch();
+        try
+        {
+            if (form != null)
+            {
+                form.DialogResult = DialogResult;
+            }
+
+            base.OnClick(e);
+        }
+        finally
+        {
+            form?.EndDialogResultDispatch();
+        }
     }
 }
 
 public class Label : Control
 {
+    public ContentAlignment ImageAlign { get; set; } = ContentAlignment.MiddleCenter;
+
     public ContentAlignment TextAlign { get; set; } = ContentAlignment.TopLeft;
 
     public BorderStyle BorderStyle { get; set; }
@@ -1075,38 +2214,315 @@ public class Label : Control
     public bool UseMnemonic { get; set; } = true;
 }
 
+[DefaultProperty(nameof(Checked))]
+[DefaultEvent(nameof(CheckedChanged))]
+[DefaultBindingProperty(nameof(CheckState))]
 public class CheckBox : ButtonBase
 {
     private CheckState _checkState;
+    private Appearance _appearance;
+    private ContentAlignment _checkAlign = ContentAlignment.MiddleLeft;
+
+    public CheckBox()
+    {
+        AutoCheck = true;
+        TextAlign = ContentAlignment.MiddleLeft;
+        UseCompatibleTextRendering = true;
+        UseVisualStyleBackColor = true;
+    }
 
     public event EventHandler? CheckedChanged;
 
-    public Appearance Appearance { get; set; }
+    public event EventHandler? CheckStateChanged;
 
-    public bool Checked
+    public event EventHandler? AppearanceChanged;
+
+    [DefaultValue(Appearance.Normal)]
+    public Appearance Appearance
     {
-        get => _checkState == CheckState.Checked;
-        set => CheckState = value ? CheckState.Checked : CheckState.Unchecked;
+        get => _appearance;
+        set
+        {
+            ValidateAppearance(value);
+            if (_appearance == value)
+            {
+                return;
+            }
+
+            _appearance = value;
+            Invalidate();
+            OnAppearanceChanged(EventArgs.Empty);
+        }
     }
 
+    [DefaultValue(true)]
+    public bool AutoCheck { get; set; }
+
+    [DefaultValue(ContentAlignment.MiddleLeft)]
+    public ContentAlignment CheckAlign
+    {
+        get => _checkAlign;
+        set
+        {
+            ValidateContentAlignment(value);
+            if (_checkAlign == value)
+            {
+                return;
+            }
+
+            _checkAlign = value;
+            Invalidate();
+        }
+    }
+
+    [DefaultValue(false)]
+    public bool Checked
+    {
+        get => _checkState != CheckState.Unchecked;
+        set
+        {
+            if (value != Checked)
+            {
+                CheckState = value ? CheckState.Checked : CheckState.Unchecked;
+            }
+        }
+    }
+
+    [DefaultValue(CheckState.Unchecked)]
     public CheckState CheckState
     {
         get => _checkState;
         set
         {
+            ValidateCheckState(value);
             if (_checkState == value)
             {
                 return;
             }
 
+            bool wasChecked = Checked;
             _checkState = value;
-            CheckedChanged?.Invoke(this, EventArgs.Empty);
+            if (wasChecked != Checked)
+            {
+                OnCheckedChanged(EventArgs.Empty);
+            }
+
+            OnCheckStateChanged(EventArgs.Empty);
+        }
+    }
+
+    [DefaultValue(false)]
+    public bool ThreeState { get; set; }
+
+    protected override Size DefaultSize => new(104, 24);
+
+    protected override void OnClick(EventArgs e)
+    {
+        if (AutoCheck)
+        {
+            CheckState = CheckState switch
+            {
+                CheckState.Unchecked => CheckState.Checked,
+                CheckState.Checked when ThreeState => CheckState.Indeterminate,
+                _ => CheckState.Unchecked
+            };
+        }
+
+        base.OnClick(e);
+    }
+
+    protected virtual void OnAppearanceChanged(EventArgs e)
+    {
+        AppearanceChanged?.Invoke(this, e);
+    }
+
+    protected virtual void OnCheckedChanged(EventArgs e)
+    {
+        CheckedChanged?.Invoke(this, e);
+    }
+
+    protected virtual void OnCheckStateChanged(EventArgs e)
+    {
+        Invalidate();
+        CheckStateChanged?.Invoke(this, e);
+    }
+
+    public override string ToString()
+    {
+        return base.ToString() + ", CheckState: " + ((int)CheckState).ToString(CultureInfo.CurrentCulture);
+    }
+
+    private static void ValidateAppearance(Appearance value)
+    {
+        if (value is < Appearance.Normal or > Appearance.Button)
+        {
+            throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(Appearance));
+        }
+    }
+
+    private static void ValidateCheckState(CheckState value)
+    {
+        if (value is < CheckState.Unchecked or > CheckState.Indeterminate)
+        {
+            throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(CheckState));
         }
     }
 }
 
-public class RadioButton : CheckBox
+[DefaultProperty(nameof(Checked))]
+[DefaultEvent(nameof(CheckedChanged))]
+[DefaultBindingProperty(nameof(Checked))]
+public class RadioButton : ButtonBase
 {
+    private bool _autoCheck = true;
+    private bool _checked;
+    private Appearance _appearance;
+    private ContentAlignment _checkAlign = ContentAlignment.MiddleLeft;
+
+    public RadioButton()
+    {
+        TextAlign = ContentAlignment.MiddleLeft;
+        TabStop = false;
+        UseCompatibleTextRendering = true;
+        UseVisualStyleBackColor = true;
+    }
+
+    public event EventHandler? CheckedChanged;
+
+    public event EventHandler? AppearanceChanged;
+
+    [DefaultValue(true)]
+    public bool AutoCheck
+    {
+        get => _autoCheck;
+        set
+        {
+            if (_autoCheck == value)
+            {
+                return;
+            }
+
+            _autoCheck = value;
+            PerformAutoUpdates();
+        }
+    }
+
+    [DefaultValue(Appearance.Normal)]
+    public Appearance Appearance
+    {
+        get => _appearance;
+        set
+        {
+            if (value is < Appearance.Normal or > Appearance.Button)
+            {
+                throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(Appearance));
+            }
+
+            if (_appearance == value)
+            {
+                return;
+            }
+
+            _appearance = value;
+            Invalidate();
+            OnAppearanceChanged(EventArgs.Empty);
+        }
+    }
+
+    [DefaultValue(ContentAlignment.MiddleLeft)]
+    public ContentAlignment CheckAlign
+    {
+        get => _checkAlign;
+        set
+        {
+            ValidateContentAlignment(value);
+            if (_checkAlign == value)
+            {
+                return;
+            }
+
+            _checkAlign = value;
+            Invalidate();
+        }
+    }
+
+    [DefaultValue(false)]
+    public bool Checked
+    {
+        get => _checked;
+        set
+        {
+            if (_checked == value)
+            {
+                return;
+            }
+
+            _checked = value;
+            Invalidate();
+            PerformAutoUpdates();
+            OnCheckedChanged(EventArgs.Empty);
+        }
+    }
+
+    protected override Size DefaultSize => new(104, 24);
+
+    public void PerformClick()
+    {
+        if (CanSelect)
+        {
+            OnClick(EventArgs.Empty);
+        }
+    }
+
+    internal void PerformAutoUpdates()
+    {
+        if (!AutoCheck)
+        {
+            return;
+        }
+
+        TabStop = Checked;
+        if (!Checked || Parent is null)
+        {
+            return;
+        }
+
+        foreach (Control sibling in Parent.Controls)
+        {
+            if (sibling is RadioButton radioButton
+                && !ReferenceEquals(radioButton, this)
+                && radioButton.AutoCheck
+                && radioButton.Checked)
+            {
+                radioButton.Checked = false;
+            }
+        }
+    }
+
+    protected override void OnClick(EventArgs e)
+    {
+        if (AutoCheck)
+        {
+            Checked = true;
+        }
+
+        base.OnClick(e);
+    }
+
+    protected virtual void OnAppearanceChanged(EventArgs e)
+    {
+        AppearanceChanged?.Invoke(this, e);
+    }
+
+    protected virtual void OnCheckedChanged(EventArgs e)
+    {
+        CheckedChanged?.Invoke(this, e);
+    }
+
+    public override string ToString()
+    {
+        return base.ToString() + ", Checked: " + Checked.ToString(CultureInfo.CurrentCulture);
+    }
 }
 
 public class GroupBox : Control
@@ -1847,6 +3263,20 @@ public class TabControl : Control
         }
     }
 
+    internal void MoveControlTabPage(TabPage page, int controlIndex)
+    {
+        if (_syncingTabPages)
+        {
+            return;
+        }
+
+        int pageIndex = TabPages.IndexOf(page);
+        if (pageIndex >= 0)
+        {
+            TabPages.MoveItem(pageIndex, controlIndex);
+        }
+    }
+
     public sealed class TabPageCollection : Collection<TabPage>
     {
         private readonly TabControl _owner;
@@ -1926,6 +3356,27 @@ public class TabControl : Control
 
             base.ClearItems();
             _owner.SelectedIndex = -1;
+            _owner.Invalidate();
+        }
+
+        internal void MoveItem(int oldIndex, int requestedIndex)
+        {
+            if (Count <= 1)
+            {
+                return;
+            }
+
+            int newIndex = Math.Clamp(requestedIndex, 0, Count - 1);
+            if (oldIndex == newIndex)
+            {
+                return;
+            }
+
+            TabPage? selectedPage = _owner.SelectedTab;
+            TabPage page = this[oldIndex];
+            base.RemoveItem(oldIndex);
+            base.InsertItem(newIndex, page);
+            _owner.SelectedIndex = selectedPage != null ? IndexOf(selectedPage) : -1;
             _owner.Invalidate();
         }
 
@@ -2373,8 +3824,10 @@ public class ProgressBar : Control
     }
 }
 
-public class NumericUpDown : Control
+public class NumericUpDown : Control, ISupportInitialize
 {
+    private decimal _value;
+
     public decimal DecimalPlaces { get; set; }
 
     public decimal Increment { get; set; } = 1;
@@ -2383,20 +3836,61 @@ public class NumericUpDown : Control
 
     public decimal Minimum { get; set; }
 
-    public decimal Value { get; set; }
+    public decimal Value
+    {
+        get => _value;
+        set
+        {
+            if (_value == value)
+            {
+                return;
+            }
+
+            _value = value;
+            ValueChanged?.Invoke(this, EventArgs.Empty);
+            Invalidate();
+        }
+    }
+
+    public event EventHandler? ValueChanged;
+
+    public void BeginInit()
+    {
+    }
+
+    public void EndInit()
+    {
+    }
 }
 
-public class TrackBar : Control
+public class TrackBar : Control, ISupportInitialize
 {
+    public event EventHandler? Scroll;
+
     public int Maximum { get; set; } = 10;
 
     public int Minimum { get; set; }
+
+    public int SmallChange { get; set; } = 1;
 
     public int TickFrequency { get; set; } = 1;
 
     public int Value { get; set; }
 
     public bool RightToLeftLayout { get; set; }
+
+    public void BeginInit()
+    {
+    }
+
+    public void EndInit()
+    {
+    }
+
+    public void RaiseScroll()
+    {
+        Scroll?.Invoke(this, EventArgs.Empty);
+    }
 }
 
 public class LinkLabel : Label
@@ -3217,22 +4711,25 @@ public abstract class FileDialog : Component
 
     protected virtual string DialogKind => "OpenFile";
 
+    protected virtual bool AllowMultipleSelection => false;
+
     public virtual DialogResult ShowDialog()
     {
-        string? selectedPath = PortableWinFormsDialogService.ShowFileDialog(
+        PortableFileDialogResult? result = PortableWinFormsDialogService.ShowFileDialog(
             DialogKind,
             Title,
             InitialDirectory,
             suggestedItemName: FileName,
             defaultExtension: DefaultExt,
             Filter,
-            FilterIndex);
-        if (string.IsNullOrEmpty(selectedPath))
+            FilterIndex,
+            AllowMultipleSelection);
+        if (result == null || result.SelectedPathCount == 0 || string.IsNullOrEmpty(result.SelectedPath))
         {
             return DialogResult.Cancel;
         }
 
-        SetSelectedPath(selectedPath);
+        SetSelectedPaths(result.SelectedPaths);
         return DialogResult.OK;
     }
 
@@ -3241,9 +4738,9 @@ public abstract class FileDialog : Component
         return ShowDialog();
     }
 
-    protected virtual void SetSelectedPath(string selectedPath)
+    protected virtual void SetSelectedPaths(ReadOnlySpan<string> selectedPaths)
     {
-        FileName = selectedPath;
+        FileName = selectedPaths[0];
     }
 }
 
@@ -3251,14 +4748,17 @@ public class OpenFileDialog : FileDialog
 {
     protected override string DialogKind => "OpenFile";
 
+    protected override bool AllowMultipleSelection => Multiselect;
+
     public bool Multiselect { get; set; }
 
     public string[] FileNames { get; set; } = Array.Empty<string>();
 
-    protected override void SetSelectedPath(string selectedPath)
+    protected override void SetSelectedPaths(ReadOnlySpan<string> selectedPaths)
     {
-        FileName = selectedPath;
-        FileNames = new[] { selectedPath };
+        int selectedPathCount = Multiselect ? selectedPaths.Length : 1;
+        FileNames = selectedPaths[..selectedPathCount].ToArray();
+        FileName = FileNames[0];
     }
 }
 
@@ -3310,7 +4810,7 @@ public class FolderBrowserDialog : Component
 
     public DialogResult ShowDialog()
     {
-        string? selectedPath = PortableWinFormsDialogService.ShowFileDialog(
+        PortableFileDialogResult? result = PortableWinFormsDialogService.ShowFileDialog(
             "PickFolder",
             Description,
             SelectedPath,
@@ -3318,12 +4818,12 @@ public class FolderBrowserDialog : Component
             defaultExtension: string.Empty,
             filter: string.Empty,
             filterIndex: 1);
-        if (string.IsNullOrEmpty(selectedPath))
+        if (result == null || string.IsNullOrEmpty(result.SelectedPath))
         {
             return DialogResult.Cancel;
         }
 
-        SelectedPath = selectedPath;
+        SelectedPath = result.SelectedPath;
         return DialogResult.OK;
     }
 
@@ -3563,13 +5063,110 @@ public class FontDialog : Component
     }
 }
 
+[DefaultProperty(nameof(Interval))]
+[DefaultEvent(nameof(Tick))]
+[ToolboxItemFilter("System.Windows.Forms")]
 public class Timer : Component
 {
+    private readonly object _gate = new();
+    private IDisposable? _registration;
+    private long _registrationVersion;
+    private bool _disposed;
+    private bool _enabled;
+    private int _interval = 100;
+
+    public Timer()
+    {
+    }
+
+    public Timer(IContainer container)
+        : this()
+    {
+        ArgumentNullException.ThrowIfNull(container);
+        container.Add(this);
+    }
+
     public event EventHandler? Tick;
 
-    public bool Enabled { get; set; }
+    [DefaultValue(false)]
+    public virtual bool Enabled
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _enabled;
+            }
+        }
+        set
+        {
+            IDisposable? registration = null;
+            bool restart = false;
+            lock (_gate)
+            {
+                ObjectDisposedException.ThrowIf(_disposed && value, this);
+                if (_disposed)
+                    return;
+                if (_enabled == value)
+                    return;
 
-    public int Interval { get; set; } = 100;
+                _enabled = value;
+                _registrationVersion++;
+                registration = _registration;
+                _registration = null;
+                restart = value;
+            }
+
+            registration?.Dispose();
+            if (restart && !DesignMode)
+                RegisterTimer();
+        }
+    }
+
+    [DefaultValue(100)]
+    public int Interval
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _interval;
+            }
+        }
+        set
+        {
+            if (value < 1)
+                throw new ArgumentOutOfRangeException(nameof(value), value, "Timer interval must be greater than zero.");
+
+            IDisposable? registration = null;
+            bool restart = false;
+            lock (_gate)
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                if (_interval == value)
+                    return;
+
+                _interval = value;
+                if (_enabled)
+                {
+                    _registrationVersion++;
+                    registration = _registration;
+                    _registration = null;
+                    restart = true;
+                }
+            }
+
+            registration?.Dispose();
+            if (restart && !DesignMode)
+                RegisterTimer();
+        }
+    }
+
+    [Bindable(true)]
+    [DefaultValue(null)]
+    [Localizable(false)]
+    [TypeConverter(typeof(StringConverter))]
+    public object? Tag { get; set; }
 
     public void Start()
     {
@@ -3581,19 +5178,131 @@ public class Timer : Component
         Enabled = false;
     }
 
+    [EditorBrowsable(EditorBrowsableState.Never)]
     public void RaiseTick()
     {
-        if (Enabled)
+        lock (_gate)
         {
-            Tick?.Invoke(this, EventArgs.Empty);
+            if (!_enabled || _disposed)
+                return;
+        }
+
+        OnTick(EventArgs.Empty);
+    }
+
+    public override string ToString()
+    {
+        return base.ToString() + ", Interval: " + Interval.ToString(CultureInfo.CurrentCulture);
+    }
+
+    protected virtual void OnTick(EventArgs e)
+    {
+        Tick?.Invoke(this, e);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        IDisposable? registration = null;
+        if (disposing)
+        {
+            lock (_gate)
+            {
+                if (!_disposed)
+                {
+                    _disposed = true;
+                    _enabled = false;
+                    _registrationVersion++;
+                    registration = _registration;
+                    _registration = null;
+                }
+            }
+
+            registration?.Dispose();
+        }
+
+        base.Dispose(disposing);
+    }
+
+    private void RegisterTimer()
+    {
+        int interval;
+        long version;
+        lock (_gate)
+        {
+            if (!_enabled || _disposed || _registration is not null)
+                return;
+
+            interval = _interval;
+            version = _registrationVersion;
+        }
+
+        IDisposable registration;
+        try
+        {
+            registration = Application.RegisterTimer(interval, OnRegisteredTimerTick);
+        }
+        catch
+        {
+            lock (_gate)
+            {
+                if (_enabled
+                    && !_disposed
+                    && _registration is null
+                    && _registrationVersion == version)
+                {
+                    _enabled = false;
+                    _registrationVersion++;
+                }
+            }
+
+            throw;
+        }
+
+        bool retainRegistration;
+        lock (_gate)
+        {
+            retainRegistration = _enabled
+                && !_disposed
+                && _registration is null
+                && _registrationVersion == version;
+            if (retainRegistration)
+                _registration = registration;
+        }
+
+        if (!retainRegistration)
+            registration.Dispose();
+    }
+
+    private void OnRegisteredTimerTick()
+    {
+        try
+        {
+            RaiseTick();
+        }
+        catch (Exception exception)
+        {
+            Application.OnThreadException(exception);
         }
     }
 }
 
 public class ListView : Control
 {
+    private const int BorderInset = 1;
     private const int HeaderHeight = 20;
     private const int RowHeight = 18;
+    private const int SmallIconRowHeight = 22;
+    private const int ListCellWidth = 140;
+    private const int LargeIconCellWidth = 96;
+    private const int LargeIconCellHeight = 72;
+    private const int TileCellWidth = 160;
+    private const int TileCellHeight = 48;
+    private ImageList? _largeImageList;
+    private ImageList? _smallImageList;
+    private View _view;
+    private int _updateCount;
+    private bool _invalidatePending;
+    private int _verticalScrollOffset;
     private bool _syncingCheckedItems;
     private bool _syncingSelection;
 
@@ -3617,9 +5326,57 @@ public class ListView : Control
 
     public IComparer? ListViewItemSorter { get; set; }
 
-    public ImageList? LargeImageList { get; set; }
+    public ImageList? LargeImageList
+    {
+        get => _largeImageList;
+        set
+        {
+            if (ReferenceEquals(_largeImageList, value))
+            {
+                return;
+            }
 
-    public ImageList? SmallImageList { get; set; }
+            if (_largeImageList != null)
+            {
+                _largeImageList.Changed -= OnImageListChanged;
+            }
+
+            _largeImageList = value;
+            if (_largeImageList != null)
+            {
+                _largeImageList.Changed += OnImageListChanged;
+            }
+
+            ClampVerticalScrollOffset();
+            Invalidate();
+        }
+    }
+
+    public ImageList? SmallImageList
+    {
+        get => _smallImageList;
+        set
+        {
+            if (ReferenceEquals(_smallImageList, value))
+            {
+                return;
+            }
+
+            if (_smallImageList != null)
+            {
+                _smallImageList.Changed -= OnImageListChanged;
+            }
+
+            _smallImageList = value;
+            if (_smallImageList != null)
+            {
+                _smallImageList.Changed += OnImageListChanged;
+            }
+
+            ClampVerticalScrollOffset();
+            Invalidate();
+        }
+    }
 
     public bool AllowColumnReorder { get; set; }
 
@@ -3628,6 +5385,8 @@ public class ListView : Control
     public BorderStyle BorderStyle { get; set; } = BorderStyle.Fixed3D;
 
     public bool HideSelection { get; set; } = true;
+
+    public bool HotTracking { get; set; }
 
     public bool CheckBoxes { get; set; }
 
@@ -3645,7 +5404,26 @@ public class ListView : Control
 
     public bool UseCompatibleStateImageBehavior { get; set; }
 
-    public View View { get; set; }
+    public View View
+    {
+        get => _view;
+        set
+        {
+            if (value is < View.LargeIcon or > View.Tile)
+            {
+                throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(View));
+            }
+
+            if (_view == value)
+            {
+                return;
+            }
+
+            _view = value;
+            _verticalScrollOffset = 0;
+            Invalidate();
+        }
+    }
 
     public ListView()
     {
@@ -3657,28 +5435,108 @@ public class ListView : Control
 
     public void BeginUpdate()
     {
+        if (_updateCount < int.MaxValue)
+        {
+            _updateCount++;
+        }
     }
 
     public void EndUpdate()
     {
+        if (_updateCount == 0)
+        {
+            return;
+        }
+
+        _updateCount--;
+        if (_updateCount == 0 && _invalidatePending)
+        {
+            _invalidatePending = false;
+            base.Invalidate();
+        }
+    }
+
+    public override void Invalidate()
+    {
+        if (_updateCount > 0)
+        {
+            _invalidatePending = true;
+            return;
+        }
+
+        base.Invalidate();
+    }
+
+    public override void Invalidate(Rectangle rc)
+    {
+        Invalidate();
     }
 
     public ListViewItem? GetItemAt(int x, int y)
     {
-        if (x < 0 || y < 0)
+        if (x < 0 || y < 0 || x >= ClientSize.Width || y >= ClientSize.Height)
         {
             return null;
         }
 
-        bool showDetails = View == View.Details || Columns.Count > 0;
-        int itemY = showDetails && HeaderStyle != ColumnHeaderStyle.None ? y - HeaderHeight : y;
-        if (itemY < 0)
-        {
-            return null;
-        }
-
-        int index = itemY / RowHeight;
+        int index = GetItemIndexAt(x, y);
         return index >= 0 && index < Items.Count ? Items[index] : null;
+    }
+
+    public Rectangle GetItemRect(int index)
+    {
+        if (index < 0 || index >= Items.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(index));
+        }
+
+        int contentWidth = GetContentWidth();
+        int contentTop = GetItemsTop();
+        return View switch
+        {
+            View.LargeIcon => GetGridItemRect(index, contentWidth, contentTop, GetLargeIconCellWidth(), GetLargeIconCellHeight()),
+            View.Tile => GetGridItemRect(index, contentWidth, contentTop, GetTileCellWidth(), GetTileCellHeight()),
+            View.SmallIcon => new Rectangle(BorderInset, contentTop + (index * GetSmallIconRowHeight()) - _verticalScrollOffset, contentWidth, GetSmallIconRowHeight()),
+            View.List => GetListItemRect(index, contentTop),
+            _ => new Rectangle(BorderInset, contentTop + (index * GetDetailsRowHeight()) - _verticalScrollOffset, contentWidth, GetDetailsRowHeight())
+        };
+    }
+
+    public void EnsureVisible(int index)
+    {
+        Rectangle itemBounds = GetItemRect(index);
+        if (View == View.List)
+        {
+            int viewportLeft = BorderInset;
+            int viewportRight = Math.Max(viewportLeft, ClientSize.Width - BorderInset);
+            int nextHorizontalOffset = _verticalScrollOffset;
+            if (itemBounds.Left < viewportLeft)
+            {
+                nextHorizontalOffset -= viewportLeft - itemBounds.Left;
+            }
+            else if (itemBounds.Right > viewportRight)
+            {
+                nextHorizontalOffset += itemBounds.Right - viewportRight;
+            }
+
+            SetVerticalScrollOffset(nextHorizontalOffset);
+            return;
+        }
+
+        int viewportTop = GetItemsTop();
+        int viewportBottom = Math.Max(viewportTop, ClientSize.Height - BorderInset);
+        int nextOffset = _verticalScrollOffset;
+
+        if (itemBounds.Top < viewportTop)
+        {
+            nextOffset -= viewportTop - itemBounds.Top;
+        }
+        else if (itemBounds.Bottom > viewportBottom)
+        {
+            nextOffset += itemBounds.Bottom - viewportBottom;
+        }
+
+        SetVerticalScrollOffset(nextOffset);
     }
 
     public void Sort()
@@ -3712,17 +5570,17 @@ public class ListView : Control
 
     public bool TryRaiseColumnClickAt(int x, int y)
     {
-        if (x < 0 || y < 0 || y >= HeaderHeight || HeaderStyle != ColumnHeaderStyle.Clickable)
+        if (x < BorderInset
+            || y < BorderInset
+            || y >= BorderInset + HeaderHeight
+            || x >= ClientSize.Width - BorderInset
+            || HeaderStyle != ColumnHeaderStyle.Clickable
+            || View != View.Details)
         {
             return false;
         }
 
-        if (View != View.Details && Columns.Count == 0)
-        {
-            return false;
-        }
-
-        int currentX = 0;
+        int currentX = BorderInset;
         for (int columnIndex = 0; columnIndex < Columns.Count; columnIndex++)
         {
             int width = Columns[columnIndex].Width > 0 ? Columns[columnIndex].Width : 120;
@@ -3887,13 +5745,21 @@ public class ListView : Control
 
     public bool TryToggleItemCheckAt(int x, int y)
     {
-        if (!CheckBoxes || x < 0 || x > 24)
+        if (!CheckBoxes)
         {
             return false;
         }
 
         ListViewItem? item = GetItemAt(x, y);
         if (item == null)
+        {
+            return false;
+        }
+
+        int index = Items.IndexOf(item);
+        Rectangle itemBounds = GetItemRect(index);
+        Rectangle checkBounds = GetCheckBoxBounds(itemBounds);
+        if (!checkBounds.Contains(x, y))
         {
             return false;
         }
@@ -3935,6 +5801,8 @@ public class ListView : Control
                 _syncingSelection = false;
             }
         }
+
+        ClampVerticalScrollOffset();
     }
 
     internal void DetachItem(ListViewItem item)
@@ -3967,6 +5835,376 @@ public class ListView : Control
 
         item.SetSelectedCore(false);
         item.SetOwner(null);
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (e.Handled || Items.Count == 0)
+        {
+            return;
+        }
+
+        int currentIndex = SelectedItems.Count > 0 ? Items.IndexOf(SelectedItems[0]) : -1;
+        int targetIndex = GetNavigationTargetIndex(currentIndex, e.KeyCode);
+        if (targetIndex < 0)
+        {
+            if (e.KeyCode == Keys.Space && CheckBoxes && currentIndex >= 0)
+            {
+                Items[currentIndex].Checked = !Items[currentIndex].Checked;
+                e.Handled = true;
+            }
+
+            return;
+        }
+
+        SelectOnly(targetIndex);
+        EnsureVisible(targetIndex);
+        e.Handled = true;
+    }
+
+    protected override void OnMouseWheel(MouseEventArgs e)
+    {
+        base.OnMouseWheel(e);
+        if (e.Delta == 0)
+        {
+            return;
+        }
+
+        int wheelSteps = Math.Max(1, Math.Abs(e.Delta) / 120);
+        int direction = e.Delta > 0 ? -1 : 1;
+        int lineHeight = View switch
+        {
+            View.LargeIcon => GetLargeIconCellHeight(),
+            View.Tile => GetTileCellHeight(),
+            View.List => GetListCellWidth(),
+            View.SmallIcon => GetSmallIconRowHeight(),
+            _ => GetDetailsRowHeight()
+        };
+        int scrollLines = View == View.List ? 1 : Math.Max(1, SystemInformation.MouseWheelScrollLines);
+        SetVerticalScrollOffset(_verticalScrollOffset + (direction * wheelSteps * scrollLines * lineHeight));
+    }
+
+    protected override void OnSizeChanged(EventArgs e)
+    {
+        ClampVerticalScrollOffset();
+        base.OnSizeChanged(e);
+    }
+
+    private Rectangle GetCheckBoxBounds(Rectangle itemBounds)
+    {
+        int top = View == View.LargeIcon
+            ? itemBounds.Top + 4
+            : itemBounds.Top + Math.Max(0, (itemBounds.Height - 12) / 2);
+        return new Rectangle(itemBounds.Left + 4, top, 12, 12);
+    }
+
+    private int GetItemIndexAt(int x, int y)
+    {
+        int contentTop = GetItemsTop();
+        if (y < contentTop)
+        {
+            return -1;
+        }
+
+        int contentWidth = GetContentWidth();
+        if (x < BorderInset || x >= BorderInset + contentWidth)
+        {
+            return -1;
+        }
+
+        if (View == View.List)
+        {
+            int listRowHeight = GetSmallIconRowHeight();
+            int row = (y - contentTop) / listRowHeight;
+            int rowsPerColumn = GetListRowsPerColumn();
+            if (row < 0 || row >= rowsPerColumn)
+            {
+                return -1;
+            }
+
+            int scrolledX = x - BorderInset + _verticalScrollOffset;
+            if (scrolledX < 0)
+            {
+                return -1;
+            }
+
+            int column = scrolledX / GetListCellWidth();
+            int index = (column * rowsPerColumn) + row;
+            return index < Items.Count ? index : -1;
+        }
+
+        int scrolledY = y - contentTop + _verticalScrollOffset;
+        if (scrolledY < 0)
+        {
+            return -1;
+        }
+
+        if (View is View.LargeIcon or View.Tile)
+        {
+            int cellWidth = View == View.LargeIcon ? GetLargeIconCellWidth() : GetTileCellWidth();
+            int cellHeight = View == View.LargeIcon ? GetLargeIconCellHeight() : GetTileCellHeight();
+            int columns = GetGridColumnCount(contentWidth, cellWidth);
+            int column = (x - BorderInset) / cellWidth;
+            int row = scrolledY / cellHeight;
+            if (column >= columns)
+            {
+                return -1;
+            }
+
+            int index = (row * columns) + column;
+            return index < Items.Count ? index : -1;
+        }
+
+        int rowHeight = View == View.SmallIcon ? GetSmallIconRowHeight() : GetDetailsRowHeight();
+        int rowIndex = scrolledY / rowHeight;
+        return rowIndex < Items.Count ? rowIndex : -1;
+    }
+
+    private Rectangle GetGridItemRect(int index, int contentWidth, int contentTop, int cellWidth, int cellHeight)
+    {
+        int columns = GetGridColumnCount(contentWidth, cellWidth);
+        int column = index % columns;
+        int row = index / columns;
+        int x = BorderInset + (column * cellWidth);
+        int width = Math.Max(0, Math.Min(cellWidth, BorderInset + contentWidth - x));
+        return new Rectangle(x, contentTop + (row * cellHeight) - _verticalScrollOffset, width, cellHeight);
+    }
+
+    private Rectangle GetListItemRect(int index, int contentTop)
+    {
+        int rowsPerColumn = GetListRowsPerColumn();
+        int column = index / rowsPerColumn;
+        int row = index % rowsPerColumn;
+        int cellWidth = GetListCellWidth();
+        return new Rectangle(
+            BorderInset + (column * cellWidth) - _verticalScrollOffset,
+            contentTop + (row * GetSmallIconRowHeight()),
+            cellWidth,
+            GetSmallIconRowHeight());
+    }
+
+    private int GetNavigationTargetIndex(int currentIndex, Keys keyCode)
+    {
+        if (keyCode == Keys.Home)
+        {
+            return 0;
+        }
+
+        if (keyCode == Keys.End)
+        {
+            return Items.Count - 1;
+        }
+
+        if (currentIndex < 0)
+        {
+            return keyCode is Keys.Down or Keys.Right or Keys.PageDown ? 0 : -1;
+        }
+
+        int delta;
+        if (View is View.LargeIcon or View.Tile)
+        {
+            int cellWidth = View == View.LargeIcon ? GetLargeIconCellWidth() : GetTileCellWidth();
+            int columns = GetGridColumnCount(GetContentWidth(), cellWidth);
+            int visibleRows = Math.Max(1, (ClientSize.Height - GetItemsTop()) / (View == View.LargeIcon ? GetLargeIconCellHeight() : GetTileCellHeight()));
+            delta = keyCode switch
+            {
+                Keys.Left => -1,
+                Keys.Right => 1,
+                Keys.Up => -columns,
+                Keys.Down => columns,
+                Keys.PageUp => -(columns * visibleRows),
+                Keys.PageDown => columns * visibleRows,
+                _ => 0
+            };
+        }
+        else if (View == View.List)
+        {
+            int rowsPerColumn = GetListRowsPerColumn();
+            int currentRow = currentIndex % rowsPerColumn;
+            return keyCode switch
+            {
+                Keys.Left => Math.Clamp(currentIndex - rowsPerColumn, 0, Items.Count - 1),
+                Keys.Right => Math.Clamp(currentIndex + rowsPerColumn, 0, Items.Count - 1),
+                Keys.Up => currentRow > 0 ? currentIndex - 1 : currentIndex,
+                Keys.Down => currentRow + 1 < rowsPerColumn && currentIndex + 1 < Items.Count
+                    ? currentIndex + 1
+                    : currentIndex,
+                Keys.PageUp => Math.Clamp(currentIndex - rowsPerColumn, 0, Items.Count - 1),
+                Keys.PageDown => Math.Clamp(currentIndex + rowsPerColumn, 0, Items.Count - 1),
+                _ => -1
+            };
+        }
+        else
+        {
+            int rowHeight = View == View.SmallIcon ? GetSmallIconRowHeight() : GetDetailsRowHeight();
+            int visibleRows = Math.Max(1, (ClientSize.Height - GetItemsTop()) / rowHeight);
+            delta = keyCode switch
+            {
+                Keys.Left or Keys.Up => -1,
+                Keys.Right or Keys.Down => 1,
+                Keys.PageUp => -visibleRows,
+                Keys.PageDown => visibleRows,
+                _ => 0
+            };
+        }
+
+        return delta == 0 ? -1 : Math.Clamp(currentIndex + delta, 0, Items.Count - 1);
+    }
+
+    private void SelectOnly(int index)
+    {
+        ListViewItem target = Items[index];
+        bool changed = false;
+        foreach (ListViewItem selectedItem in SelectedItems.ToArray())
+        {
+            if (!ReferenceEquals(selectedItem, target))
+            {
+                SetItemSelected(selectedItem, false, false);
+                changed = true;
+            }
+        }
+
+        if (!target.SelectedCore)
+        {
+            SetItemSelected(target, true, false);
+            changed = true;
+        }
+
+        if (changed)
+        {
+            OnSelectedIndexChanged(EventArgs.Empty);
+        }
+    }
+
+    private int GetItemsTop()
+    {
+        return BorderInset + (View == View.Details && HeaderStyle != ColumnHeaderStyle.None ? HeaderHeight : 0);
+    }
+
+    private int GetContentWidth()
+    {
+        return Math.Max(0, ClientSize.Width - (BorderInset * 2));
+    }
+
+    private int GetDetailsRowHeight()
+    {
+        return Math.Max(RowHeight, (_smallImageList?.ImageSize.Height ?? 0) + 2);
+    }
+
+    private int GetSmallIconRowHeight()
+    {
+        return Math.Max(SmallIconRowHeight, (_smallImageList?.ImageSize.Height ?? 0) + 4);
+    }
+
+    private int GetListCellWidth()
+    {
+        return Math.Max(ListCellWidth, (_smallImageList?.ImageSize.Width ?? 0) + 100);
+    }
+
+    private int GetListRowsPerColumn()
+    {
+        int viewportHeight = Math.Max(0, ClientSize.Height - BorderInset - GetItemsTop());
+        return Math.Max(1, viewportHeight / GetSmallIconRowHeight());
+    }
+
+    private int GetLargeIconCellWidth()
+    {
+        return Math.Max(LargeIconCellWidth, (_largeImageList?.ImageSize.Width ?? 0) + 16);
+    }
+
+    private int GetLargeIconCellHeight()
+    {
+        return Math.Max(LargeIconCellHeight, (_largeImageList?.ImageSize.Height ?? 0) + 30);
+    }
+
+    private int GetTileCellWidth()
+    {
+        return Math.Max(TileCellWidth, (_largeImageList?.ImageSize.Width ?? 0) + 96);
+    }
+
+    private int GetTileCellHeight()
+    {
+        return Math.Max(TileCellHeight, (_largeImageList?.ImageSize.Height ?? 0) + 8);
+    }
+
+    private static int GetGridColumnCount(int contentWidth, int cellWidth)
+    {
+        return Math.Max(1, contentWidth / Math.Max(1, cellWidth));
+    }
+
+    private int GetContentHeight()
+    {
+        int itemsHeight;
+        if (View is View.LargeIcon or View.Tile)
+        {
+            int cellWidth = View == View.LargeIcon ? GetLargeIconCellWidth() : GetTileCellWidth();
+            int cellHeight = View == View.LargeIcon ? GetLargeIconCellHeight() : GetTileCellHeight();
+            int columns = GetGridColumnCount(GetContentWidth(), cellWidth);
+            itemsHeight = ((Items.Count + columns - 1) / columns) * cellHeight;
+        }
+        else
+        {
+            int rowHeight = View is View.SmallIcon or View.List ? GetSmallIconRowHeight() : GetDetailsRowHeight();
+            itemsHeight = Items.Count * rowHeight;
+        }
+
+        return (GetItemsTop() - BorderInset) + itemsHeight;
+    }
+
+    private int GetMaximumVerticalScrollOffset()
+    {
+        if (View == View.List)
+        {
+            int rowsPerColumn = GetListRowsPerColumn();
+            int columns = (Items.Count + rowsPerColumn - 1) / rowsPerColumn;
+            int contentWidth = columns * GetListCellWidth();
+            return Math.Max(0, contentWidth - GetContentWidth());
+        }
+
+        int viewportHeight = Math.Max(0, ClientSize.Height - (BorderInset * 2));
+        return Math.Max(0, GetContentHeight() - viewportHeight);
+    }
+
+    private void ClampVerticalScrollOffset()
+    {
+        _verticalScrollOffset = Math.Clamp(_verticalScrollOffset, 0, GetMaximumVerticalScrollOffset());
+    }
+
+    private void SetVerticalScrollOffset(int value)
+    {
+        int next = Math.Clamp(value, 0, GetMaximumVerticalScrollOffset());
+        if (_verticalScrollOffset == next)
+        {
+            return;
+        }
+
+        _verticalScrollOffset = next;
+        Invalidate();
+    }
+
+    private void OnImageListChanged(object? sender, EventArgs e)
+    {
+        ClampVerticalScrollOffset();
+        Invalidate();
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            if (_largeImageList != null)
+            {
+                _largeImageList.Changed -= OnImageListChanged;
+            }
+
+            if (_smallImageList != null)
+            {
+                _smallImageList.Changed -= OnImageListChanged;
+            }
+        }
+
+        base.Dispose(disposing);
     }
 
     public sealed class ColumnHeaderCollection : Collection<ColumnHeader>
@@ -4082,6 +6320,7 @@ public class ListView : Control
             ListViewItem item = this[index];
             _owner.DetachItem(item);
             base.RemoveItem(index);
+            _owner.ClampVerticalScrollOffset();
             _owner.Invalidate();
         }
 
@@ -4093,6 +6332,7 @@ public class ListView : Control
             }
 
             base.ClearItems();
+            _owner.ClampVerticalScrollOffset();
             _owner.Invalidate();
         }
     }
@@ -4253,7 +6493,21 @@ public class ListView : Control
 
 public class TreeView : Control
 {
+    private const int BorderInset = 1;
+    private const int ContentTop = 3;
+    private const int DefaultRowHeight = 18;
+    private const int IndentWidth = 14;
+    private const int GlyphSlotWidth = 12;
+    private const int ImageGap = 3;
+    private ImageList? _imageList;
     private TreeNode? _selectedNode;
+    private int _updateCount;
+    private bool _invalidatePending;
+    private int _verticalScrollOffset;
+    private bool _fullRowSelect;
+    private int _imageIndex = -1;
+    private int _selectedImageIndex = -1;
+    private TreeNode? _notifyingCheckedNode;
 
     public event TreeViewCancelEventHandler? BeforeExpand;
     public event TreeViewEventHandler? AfterExpand;
@@ -4273,52 +6527,88 @@ public class TreeView : Control
     public TreeNode? SelectedNode
     {
         get => _selectedNode;
-        set
-        {
-            if (ReferenceEquals(_selectedNode, value))
-            {
-                return;
-            }
-
-            if (value != null && !ReferenceEquals(value.TreeView, this))
-            {
-                return;
-            }
-
-            if (value != null)
-            {
-                var cancelEventArgs = new TreeViewCancelEventArgs(value, false, TreeViewAction.Unknown);
-                OnBeforeSelect(cancelEventArgs);
-                if (cancelEventArgs.Cancel)
-                {
-                    return;
-                }
-            }
-
-            _selectedNode = value;
-            Invalidate();
-            if (value != null)
-            {
-                OnAfterSelect(new TreeViewEventArgs(value, TreeViewAction.Unknown));
-            }
-        }
+        set => SelectNode(value, TreeViewAction.Unknown);
     }
 
     public bool Sorted { get; set; }
 
     public IComparer? TreeViewNodeSorter { get; set; }
 
-    public ImageList? ImageList { get; set; }
+    public ImageList? ImageList
+    {
+        get => _imageList;
+        set
+        {
+            if (ReferenceEquals(_imageList, value))
+            {
+                return;
+            }
+
+            if (_imageList != null)
+            {
+                _imageList.Changed -= OnImageListChanged;
+            }
+
+            _imageList = value;
+            if (_imageList != null)
+            {
+                _imageList.Changed += OnImageListChanged;
+            }
+
+            Invalidate();
+        }
+    }
 
     public BorderStyle BorderStyle { get; set; } = BorderStyle.Fixed3D;
 
-    public int ImageIndex { get; set; } = -1;
+    public int ImageIndex
+    {
+        get => _imageIndex;
+        set
+        {
+            if (_imageIndex == value)
+            {
+                return;
+            }
 
-    public int SelectedImageIndex { get; set; } = -1;
+            _imageIndex = value;
+            Invalidate();
+        }
+    }
+
+    public int SelectedImageIndex
+    {
+        get => _selectedImageIndex;
+        set
+        {
+            if (_selectedImageIndex == value)
+            {
+                return;
+            }
+
+            _selectedImageIndex = value;
+            Invalidate();
+        }
+    }
 
     public bool LabelEdit { get; set; }
 
     public bool HideSelection { get; set; } = true;
+
+    public bool FullRowSelect
+    {
+        get => _fullRowSelect;
+        set
+        {
+            if (_fullRowSelect == value)
+            {
+                return;
+            }
+
+            _fullRowSelect = value;
+            Invalidate();
+        }
+    }
 
     public TreeViewDrawMode DrawMode { get; set; }
 
@@ -4329,11 +6619,18 @@ public class TreeView : Control
 
     public virtual TreeNode? GetNodeAt(int x, int y)
     {
-        foreach (TreeNode node in Nodes)
+        if (x < 0 || y < 0 || x >= ClientSize.Width || y >= ClientSize.Height)
         {
-            if (TryGetNodeAt(node, x, y, out TreeNode? match))
+            return null;
+        }
+
+        TreeNodeLayoutEnumerator layouts = GetVisibleNodeLayouts().GetEnumerator();
+        while (layouts.MoveNext())
+        {
+            TreeNodeLayout layout = layouts.Current;
+            if (layout.RowBounds.Contains(x, y))
             {
-                return match;
+                return layout.Node;
             }
         }
 
@@ -4347,25 +6644,151 @@ public class TreeView : Control
 
     public virtual void BeginUpdate()
     {
+        if (_updateCount < int.MaxValue)
+        {
+            _updateCount++;
+        }
     }
 
     public virtual void EndUpdate()
     {
+        if (_updateCount == 0)
+        {
+            return;
+        }
+
+        _updateCount--;
+        if (_updateCount == 0 && _invalidatePending)
+        {
+            _invalidatePending = false;
+            ClampVerticalScrollOffset();
+            base.Invalidate();
+        }
+    }
+
+    public override void Invalidate()
+    {
+        if (_updateCount > 0)
+        {
+            _invalidatePending = true;
+            return;
+        }
+
+        ClampVerticalScrollOffset();
+        base.Invalidate();
+    }
+
+    public override void Invalidate(Rectangle rc)
+    {
+        Invalidate();
+    }
+
+    public TreeNodeLayoutEnumerable GetVisibleNodeLayouts()
+    {
+        return new TreeNodeLayoutEnumerable(this);
+    }
+
+    public bool TryGetNodeLayout(TreeNode node, out TreeNodeLayout layout)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        if (!ReferenceEquals(node.TreeView, this))
+        {
+            layout = default;
+            return false;
+        }
+
+        TreeNodeLayoutEnumerator layouts = GetVisibleNodeLayouts().GetEnumerator();
+        while (layouts.MoveNext())
+        {
+            if (ReferenceEquals(layouts.Current.Node, node))
+            {
+                layout = layouts.Current;
+                return true;
+            }
+        }
+
+        layout = default;
+        return false;
+    }
+
+    public bool TryToggleExpansionAt(int x, int y)
+    {
+        if (x < 0 || y < 0 || x >= ClientSize.Width || y >= ClientSize.Height)
+        {
+            return false;
+        }
+
+        TreeNodeLayoutEnumerator layouts = GetVisibleNodeLayouts().GetEnumerator();
+        while (layouts.MoveNext())
+        {
+            TreeNodeLayout layout = layouts.Current;
+            if (!layout.GlyphBounds.IsEmpty && layout.GlyphBounds.Contains(x, y))
+            {
+                layout.Node.Toggle();
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    internal void EnsureNodeVisible(TreeNode node)
+    {
+        if (!ReferenceEquals(node.TreeView, this))
+        {
+            return;
+        }
+
+        ExpandAncestors(node.Parent);
+        if (!TryGetNodeLayout(node, out TreeNodeLayout layout))
+        {
+            return;
+        }
+
+        int viewportTop = ContentTop;
+        int viewportBottom = Math.Max(viewportTop, ClientSize.Height - BorderInset);
+        int nextOffset = _verticalScrollOffset;
+        if (layout.RowBounds.Top < viewportTop)
+        {
+            nextOffset -= viewportTop - layout.RowBounds.Top;
+        }
+        else if (layout.RowBounds.Bottom > viewportBottom)
+        {
+            nextOffset += layout.RowBounds.Bottom - viewportBottom;
+        }
+
+        SetVerticalScrollOffset(nextOffset);
     }
 
     public void ExpandAll()
     {
-        foreach (TreeNode node in Nodes)
+        BeginUpdate();
+        try
         {
-            node.Expand();
+            foreach (TreeNode node in Nodes)
+            {
+                node.ExpandAll();
+            }
+        }
+        finally
+        {
+            EndUpdate();
         }
     }
 
     public void CollapseAll()
     {
-        foreach (TreeNode node in Nodes)
+        BeginUpdate();
+        try
         {
-            node.Collapse();
+            foreach (TreeNode node in Nodes)
+            {
+                node.Collapse(false);
+            }
+        }
+        finally
+        {
+            EndUpdate();
         }
     }
 
@@ -4461,6 +6884,26 @@ public class TreeView : Control
         OnAfterCollapse(e);
     }
 
+    internal void NotifyNodeChecked(TreeNode node)
+    {
+        Invalidate();
+        if (ReferenceEquals(_notifyingCheckedNode, node))
+        {
+            return;
+        }
+
+        TreeNode? previousNotifyingNode = _notifyingCheckedNode;
+        _notifyingCheckedNode = node;
+        try
+        {
+            OnAfterCheck(new TreeViewEventArgs(node, TreeViewAction.Unknown));
+        }
+        finally
+        {
+            _notifyingCheckedNode = previousNotifyingNode;
+        }
+    }
+
     internal void ClearSelectionForRemovedNode(TreeNode node)
     {
         if (_selectedNode == null || !IsNodeOrDescendant(node, _selectedNode))
@@ -4470,6 +6913,58 @@ public class TreeView : Control
 
         _selectedNode = null;
         Invalidate();
+    }
+
+    internal TreeNodeLayout CreateNodeLayout(TreeNode node, int depth, int visibleIndex)
+    {
+        int rowHeight = GetRowHeight();
+        int rowTop = ContentTop + (visibleIndex * rowHeight) - _verticalScrollOffset;
+        int clientRight = Math.Max(BorderInset, ClientSize.Width - BorderInset);
+        var rowBounds = new Rectangle(
+            BorderInset,
+            rowTop,
+            Math.Max(0, clientRight - BorderInset),
+            rowHeight);
+
+        int glyphLeft = 4 + (depth * IndentWidth);
+        var ownerDrawBounds = new Rectangle(
+            glyphLeft,
+            rowTop,
+            Math.Max(0, clientRight - glyphLeft),
+            rowHeight);
+        Rectangle glyphBounds = node.Nodes.Count > 0
+            ? new Rectangle(glyphLeft, rowTop, GlyphSlotWidth, rowHeight)
+            : Rectangle.Empty;
+
+        int contentLeft = glyphLeft + GlyphSlotWidth;
+        Rectangle imageBounds = Rectangle.Empty;
+        if (HasNodeImage(node))
+        {
+            Size imageSize = _imageList!.ImageSize;
+            int imageTop = rowTop + Math.Max(0, (rowHeight - imageSize.Height) / 2);
+            imageBounds = new Rectangle(contentLeft, imageTop, imageSize.Width, imageSize.Height);
+            contentLeft += imageSize.Width + ImageGap;
+        }
+
+        var textBounds = new Rectangle(
+            contentLeft,
+            rowTop,
+            Math.Min(
+                Math.Max(0, clientRight - contentLeft),
+                EstimateNodeLabelWidth(node.Text)),
+            rowHeight);
+        Rectangle selectionBounds = FullRowSelect ? rowBounds : textBounds;
+        node.Bounds = textBounds;
+        return new TreeNodeLayout(
+            node,
+            visibleIndex,
+            depth,
+            rowBounds,
+            ownerDrawBounds,
+            glyphBounds,
+            imageBounds,
+            textBounds,
+            selectionBounds);
     }
 
     private static bool IsNodeOrDescendant(TreeNode root, TreeNode candidate)
@@ -4485,35 +6980,502 @@ public class TreeView : Control
         return false;
     }
 
-    private static bool TryGetNodeAt(TreeNode node, int x, int y, out TreeNode? match)
+    protected override void OnKeyDown(KeyEventArgs e)
     {
-        if (node.IsVisible && node.Bounds.Contains(x, y))
+        base.OnKeyDown(e);
+        if (e.Handled)
         {
-            match = node;
-            return true;
+            return;
         }
 
-        if (node.IsExpanded)
+        TreeNode? target = null;
+        bool handled = true;
+        switch (e.KeyCode)
         {
-            foreach (TreeNode child in node.Nodes)
-            {
-                if (TryGetNodeAt(child, x, y, out match))
+            case Keys.Home:
+                target = GetFirstVisibleNode();
+                break;
+            case Keys.End:
+                target = GetLastVisibleNode();
+                break;
+            case Keys.Up:
+                target = _selectedNode == null ? GetLastVisibleNode() : GetPreviousVisibleNode(_selectedNode);
+                break;
+            case Keys.Down:
+                target = _selectedNode == null ? GetFirstVisibleNode() : GetNextVisibleNode(_selectedNode);
+                break;
+            case Keys.Right:
+                if (_selectedNode == null)
                 {
-                    return true;
+                    target = GetFirstVisibleNode();
                 }
+                else if (_selectedNode.Nodes.Count > 0 && !_selectedNode.IsExpanded)
+                {
+                    _selectedNode.Expand();
+                    _selectedNode.EnsureVisible();
+                }
+                else if (_selectedNode.IsExpanded)
+                {
+                    target = FindFirstVisibleNode(_selectedNode.Nodes, 0);
+                }
+                break;
+            case Keys.Left:
+                if (_selectedNode?.IsExpanded == true && _selectedNode.Nodes.Count > 0)
+                {
+                    _selectedNode.Collapse();
+                    _selectedNode.EnsureVisible();
+                }
+                else
+                {
+                    target = _selectedNode?.Parent;
+                }
+                break;
+            default:
+                handled = false;
+                break;
+        }
+
+        if (!handled)
+        {
+            return;
+        }
+
+        if (target != null)
+        {
+            SelectNode(target, TreeViewAction.ByKeyboard);
+        }
+
+        e.Handled = true;
+    }
+
+    protected override void OnMouseWheel(MouseEventArgs e)
+    {
+        base.OnMouseWheel(e);
+        if (e.Delta == 0)
+        {
+            return;
+        }
+
+        int wheelSteps = Math.Max(1, Math.Abs(e.Delta) / 120);
+        int direction = e.Delta > 0 ? -1 : 1;
+        int scrollLines = Math.Max(1, SystemInformation.MouseWheelScrollLines);
+        SetVerticalScrollOffset(_verticalScrollOffset + (direction * wheelSteps * scrollLines * GetRowHeight()));
+    }
+
+    protected override void OnSizeChanged(EventArgs e)
+    {
+        ClampVerticalScrollOffset();
+        base.OnSizeChanged(e);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing && _imageList != null)
+        {
+            _imageList.Changed -= OnImageListChanged;
+        }
+
+        base.Dispose(disposing);
+    }
+
+    private void SelectNode(TreeNode? value, TreeViewAction action)
+    {
+        if (ReferenceEquals(_selectedNode, value))
+        {
+            value?.EnsureVisible();
+            return;
+        }
+
+        if (value != null && !ReferenceEquals(value.TreeView, this))
+        {
+            return;
+        }
+
+        if (value != null)
+        {
+            var cancelEventArgs = new TreeViewCancelEventArgs(value, false, action);
+            OnBeforeSelect(cancelEventArgs);
+            if (cancelEventArgs.Cancel)
+            {
+                return;
             }
         }
 
-        match = null;
+        _selectedNode = value;
+        value?.EnsureVisible();
+        Invalidate();
+        if (value != null)
+        {
+            OnAfterSelect(new TreeViewEventArgs(value, action));
+        }
+    }
+
+    private static void ExpandAncestors(TreeNode? node)
+    {
+        if (node == null)
+        {
+            return;
+        }
+
+        ExpandAncestors(node.Parent);
+        node.Expand();
+    }
+
+    private TreeNode? GetFirstVisibleNode()
+    {
+        return FindFirstVisibleNode(Nodes, 0);
+    }
+
+    private TreeNode? GetLastVisibleNode()
+    {
+        TreeNode? last = null;
+        TreeNodeLayoutEnumerator layouts = GetVisibleNodeLayouts().GetEnumerator();
+        while (layouts.MoveNext())
+        {
+            last = layouts.Current.Node;
+        }
+
+        return last;
+    }
+
+    private TreeNode? GetPreviousVisibleNode(TreeNode node)
+    {
+        TreeNode? previous = null;
+        TreeNodeLayoutEnumerator layouts = GetVisibleNodeLayouts().GetEnumerator();
+        while (layouts.MoveNext())
+        {
+            if (ReferenceEquals(layouts.Current.Node, node))
+            {
+                return previous;
+            }
+
+            previous = layouts.Current.Node;
+        }
+
+        return null;
+    }
+
+    private TreeNode? GetNextVisibleNode(TreeNode node)
+    {
+        bool found = false;
+        TreeNodeLayoutEnumerator layouts = GetVisibleNodeLayouts().GetEnumerator();
+        while (layouts.MoveNext())
+        {
+            if (found)
+            {
+                return layouts.Current.Node;
+            }
+
+            found = ReferenceEquals(layouts.Current.Node, node);
+        }
+
+        return null;
+    }
+
+    private static TreeNode? FindFirstVisibleNode(TreeNodeCollection nodes, int startIndex)
+    {
+        for (int index = Math.Max(0, startIndex); index < nodes.Count; index++)
+        {
+            if (nodes[index].IsVisible)
+            {
+                return nodes[index];
+            }
+        }
+
+        return null;
+    }
+
+    private int EstimateNodeLabelWidth(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return 0;
+        }
+
+        float fontPixels = Math.Max(1f, Font.SizeInPoints * (96f / 72f));
+        int width = (int)MathF.Ceiling(text.Length * fontPixels * 0.62f) + 4;
+        return Math.Max(1, width);
+    }
+
+    private bool HasNodeImage(TreeNode node)
+    {
+        if (_imageList == null || _imageList.Images.Count == 0)
+        {
+            return false;
+        }
+
+        bool selected = ReferenceEquals(_selectedNode, node);
+        string key = selected ? node.SelectedImageKey : node.ImageKey;
+        if (!string.IsNullOrEmpty(key) && _imageList.Images.ContainsKey(key))
+        {
+            return true;
+        }
+
+        int index = selected ? node.SelectedImageIndex : node.ImageIndex;
+        if (index < 0)
+        {
+            index = selected ? SelectedImageIndex : ImageIndex;
+        }
+
+        return index >= 0 && index < _imageList.Images.Count;
+    }
+
+    private int GetRowHeight()
+    {
+        return Math.Max(DefaultRowHeight, (_imageList?.ImageSize.Height ?? 0) + 2);
+    }
+
+    private int GetVisibleNodeCount()
+    {
+        int count = 0;
+        CountVisibleNodes(Nodes, ref count);
+        return count;
+    }
+
+    private static void CountVisibleNodes(TreeNodeCollection nodes, ref int count)
+    {
+        foreach (TreeNode node in nodes)
+        {
+            if (!node.IsVisible)
+            {
+                continue;
+            }
+
+            count++;
+            if (node.IsExpanded)
+            {
+                CountVisibleNodes(node.Nodes, ref count);
+            }
+        }
+    }
+
+    private int GetMaximumVerticalScrollOffset()
+    {
+        int contentBottom = ContentTop + (GetVisibleNodeCount() * GetRowHeight());
+        int viewportBottom = Math.Max(ContentTop, ClientSize.Height - BorderInset);
+        return Math.Max(0, contentBottom - viewportBottom);
+    }
+
+    private void ClampVerticalScrollOffset()
+    {
+        _verticalScrollOffset = Math.Clamp(_verticalScrollOffset, 0, GetMaximumVerticalScrollOffset());
+    }
+
+    private void SetVerticalScrollOffset(int value)
+    {
+        int next = Math.Clamp(value, 0, GetMaximumVerticalScrollOffset());
+        if (_verticalScrollOffset == next)
+        {
+            return;
+        }
+
+        _verticalScrollOffset = next;
+        Invalidate();
+    }
+
+    private void OnImageListChanged(object? sender, EventArgs e)
+    {
+        Invalidate();
+    }
+}
+
+public readonly struct TreeNodeLayout
+{
+    public TreeNodeLayout(
+        TreeNode node,
+        int visibleIndex,
+        int depth,
+        Rectangle rowBounds,
+        Rectangle ownerDrawBounds,
+        Rectangle glyphBounds,
+        Rectangle imageBounds,
+        Rectangle textBounds,
+        Rectangle selectionBounds)
+    {
+        Node = node;
+        VisibleIndex = visibleIndex;
+        Depth = depth;
+        RowBounds = rowBounds;
+        OwnerDrawBounds = ownerDrawBounds;
+        GlyphBounds = glyphBounds;
+        ImageBounds = imageBounds;
+        TextBounds = textBounds;
+        SelectionBounds = selectionBounds;
+    }
+
+    public TreeNode Node { get; }
+
+    public int VisibleIndex { get; }
+
+    public int Depth { get; }
+
+    public Rectangle RowBounds { get; }
+
+    public Rectangle OwnerDrawBounds { get; }
+
+    public Rectangle GlyphBounds { get; }
+
+    public Rectangle ImageBounds { get; }
+
+    public Rectangle TextBounds { get; }
+
+    public Rectangle SelectionBounds { get; }
+}
+
+public readonly struct TreeNodeLayoutEnumerable
+{
+    private readonly TreeView _owner;
+
+    internal TreeNodeLayoutEnumerable(TreeView owner)
+    {
+        _owner = owner;
+    }
+
+    public TreeNodeLayoutEnumerator GetEnumerator()
+    {
+        return new TreeNodeLayoutEnumerator(_owner);
+    }
+}
+
+[InlineArray(8)]
+internal struct TreeNodeTraversalFrameBuffer
+{
+    private TreeNodeTraversalFrame _element0;
+}
+
+internal struct TreeNodeTraversalFrame
+{
+    public TreeNodeTraversalFrame(TreeNodeCollection nodes, int depth)
+    {
+        Nodes = nodes;
+        NextIndex = 0;
+        Depth = depth;
+    }
+
+    public TreeNodeCollection Nodes;
+
+    public int NextIndex;
+
+    public int Depth;
+}
+
+public struct TreeNodeLayoutEnumerator
+{
+    private const int InlineFrameCapacity = 8;
+    private readonly TreeView _owner;
+    private TreeNodeTraversalFrameBuffer _inlineFrames;
+    private TreeNodeTraversalFrame[]? _overflowFrames;
+    private int _frameCount;
+    private int _visibleIndex;
+    private bool _initialized;
+
+    internal TreeNodeLayoutEnumerator(TreeView owner)
+    {
+        _owner = owner;
+        _inlineFrames = default;
+        _overflowFrames = null;
+        _frameCount = 0;
+        _visibleIndex = -1;
+        _initialized = false;
+        CollectionAccessCount = 0;
+        Current = default;
+    }
+
+    public TreeNodeLayout Current { get; private set; }
+
+    public int CollectionAccessCount { get; private set; }
+
+    public bool MoveNext()
+    {
+        if (!_initialized)
+        {
+            _initialized = true;
+            PushFrame(_owner.Nodes, 0);
+        }
+
+        while (_frameCount > 0)
+        {
+            int frameIndex = _frameCount - 1;
+            TreeNodeTraversalFrame frame = GetFrame(frameIndex);
+            if (frame.NextIndex >= frame.Nodes.Count)
+            {
+                _frameCount--;
+                continue;
+            }
+
+            TreeNode node = frame.Nodes[frame.NextIndex++];
+            SetFrame(frameIndex, frame);
+            CollectionAccessCount++;
+            if (!node.IsVisible)
+            {
+                continue;
+            }
+
+            int depth = frame.Depth;
+            if (node.IsExpanded && node.Nodes.Count > 0)
+            {
+                PushFrame(node.Nodes, depth + 1);
+            }
+
+            _visibleIndex++;
+            Current = _owner.CreateNodeLayout(node, depth, _visibleIndex);
+            return true;
+        }
+
         return false;
+    }
+
+    private void PushFrame(TreeNodeCollection nodes, int depth)
+    {
+        int frameIndex = _frameCount++;
+        if (frameIndex >= InlineFrameCapacity)
+        {
+            int overflowIndex = frameIndex - InlineFrameCapacity;
+            if (_overflowFrames == null)
+            {
+                _overflowFrames = new TreeNodeTraversalFrame[4];
+            }
+            else if (overflowIndex >= _overflowFrames.Length)
+            {
+                Array.Resize(ref _overflowFrames, _overflowFrames.Length * 2);
+            }
+        }
+
+        SetFrame(frameIndex, new TreeNodeTraversalFrame(nodes, depth));
+    }
+
+    private TreeNodeTraversalFrame GetFrame(int frameIndex)
+    {
+        if (frameIndex < InlineFrameCapacity)
+        {
+            return _inlineFrames[frameIndex];
+        }
+
+        return _overflowFrames![frameIndex - InlineFrameCapacity];
+    }
+
+    private void SetFrame(int frameIndex, TreeNodeTraversalFrame frame)
+    {
+        if (frameIndex < InlineFrameCapacity)
+        {
+            _inlineFrames[frameIndex] = frame;
+            return;
+        }
+
+        _overflowFrames![frameIndex - InlineFrameCapacity] = frame;
     }
 }
 
 public class TreeNode
 {
     private TreeView? _treeView;
+    private bool _checked;
+    private bool _isVisible = true;
+    private int _imageIndex = -1;
     private string _imageKey = string.Empty;
+    private int _selectedImageIndex = -1;
     private string _selectedImageKey = string.Empty;
+    private string _text = string.Empty;
 
     public TreeNode()
     {
@@ -4533,42 +7495,116 @@ public class TreeNode
         SelectedImageIndex = selectedImageIndex;
     }
 
-    public bool Checked { get; set; }
+    public bool Checked
+    {
+        get => _checked;
+        set
+        {
+            if (_checked == value)
+            {
+                return;
+            }
+
+            _checked = value;
+            TreeView?.NotifyNodeChecked(this);
+        }
+    }
 
     public bool IsEditing { get; private set; }
 
     public bool IsExpanded { get; private set; }
 
-    public bool IsVisible { get; set; } = true;
-
-    public int ImageIndex { get; set; } = -1;
-
-    public string ImageKey
+    public bool IsVisible
     {
-        get => _imageKey;
+        get => _isVisible;
         set
         {
-            _imageKey = value ?? string.Empty;
-            if (_imageKey.Length > 0)
+            if (_isVisible == value)
             {
-                ImageIndex = -1;
+                return;
+            }
+
+            _isVisible = value;
+            TreeView?.Invalidate();
+        }
+    }
+
+    public int ImageIndex
+    {
+        get => _imageIndex;
+        set
+        {
+            if (_imageIndex == value && (value < 0 || _imageKey.Length == 0))
+            {
+                return;
+            }
+
+            _imageIndex = value;
+            if (value >= 0)
+            {
+                _imageKey = string.Empty;
             }
 
             TreeView?.Invalidate();
         }
     }
 
-    public int SelectedImageIndex { get; set; } = -1;
+    public string ImageKey
+    {
+        get => _imageKey;
+        set
+        {
+            string next = value ?? string.Empty;
+            if (_imageKey == next && (next.Length == 0 || _imageIndex == -1))
+            {
+                return;
+            }
+
+            _imageKey = next;
+            if (next.Length > 0)
+            {
+                _imageIndex = -1;
+            }
+
+            TreeView?.Invalidate();
+        }
+    }
+
+    public int SelectedImageIndex
+    {
+        get => _selectedImageIndex;
+        set
+        {
+            if (_selectedImageIndex == value && (value < 0 || _selectedImageKey.Length == 0))
+            {
+                return;
+            }
+
+            _selectedImageIndex = value;
+            if (value >= 0)
+            {
+                _selectedImageKey = string.Empty;
+            }
+
+            TreeView?.Invalidate();
+        }
+    }
 
     public string SelectedImageKey
     {
         get => _selectedImageKey;
         set
         {
-            _selectedImageKey = value ?? string.Empty;
-            if (_selectedImageKey.Length > 0)
+            string next = value ?? string.Empty;
+            if (_selectedImageKey == next && (next.Length == 0 || _selectedImageIndex == -1))
             {
-                SelectedImageIndex = -1;
+                return;
+            }
+
+            _selectedImageKey = next;
+            if (next.Length > 0)
+            {
+                _selectedImageIndex = -1;
             }
 
             TreeView?.Invalidate();
@@ -4583,7 +7619,21 @@ public class TreeNode
 
     public TreeNode? Parent { get; internal set; }
 
-    public string Text { get; set; } = string.Empty;
+    public string Text
+    {
+        get => _text;
+        set
+        {
+            string next = value ?? string.Empty;
+            if (_text == next)
+            {
+                return;
+            }
+
+            _text = next;
+            TreeView?.Invalidate();
+        }
+    }
 
     public object? Tag { get; set; }
 
@@ -4607,6 +7657,7 @@ public class TreeNode
 
     public void EnsureVisible()
     {
+        TreeView?.EnsureNodeVisible(this);
     }
 
     public void Expand()
@@ -4834,6 +7885,8 @@ public class ListViewItem
     private bool _checked;
     private bool _isEditing;
     private bool _selected;
+    private int _imageIndex = -1;
+    private string _text = string.Empty;
     private ListView? _owner;
 
     public ListViewItem()
@@ -4873,11 +7926,40 @@ public class ListViewItem
 
     public ListViewSubItemCollection SubItems { get; } = new();
 
-    public string Text { get; set; } = string.Empty;
+    public string Text
+    {
+        get => _text;
+        set
+        {
+            string next = value ?? string.Empty;
+            if (string.Equals(_text, next, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _text = next;
+            _owner?.Invalidate();
+        }
+    }
 
     public object? Tag { get; set; }
 
-    public int ImageIndex { get; set; } = -1;
+    public int ImageIndex
+    {
+        get => _imageIndex;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, -1);
+
+            if (_imageIndex == value)
+            {
+                return;
+            }
+
+            _imageIndex = value;
+            _owner?.Invalidate();
+        }
+    }
 
     public ListViewGroup? Group { get; set; }
 
@@ -4924,6 +8006,15 @@ public class ListViewItem
         _isEditing = true;
     }
 
+    public void EnsureVisible()
+    {
+        int index = _owner?.Items.IndexOf(this) ?? -1;
+        if (index >= 0)
+        {
+            _owner!.EnsureVisible(index);
+        }
+    }
+
     internal void SetOwner(ListView? owner)
     {
         _owner = owner;
@@ -4968,29 +8059,64 @@ public class ListViewItem
 
 public sealed class ImageList : Component
 {
+    private Size _imageSize = new(16, 16);
+
     public ImageList()
     {
+        Images = new ImageCollection(OnChanged);
     }
 
     public ImageList(IContainer container)
+        : this()
     {
         container?.Add(this);
     }
 
-    public ImageCollection Images { get; } = new();
+    internal event EventHandler? Changed;
+
+    public ImageCollection Images { get; }
 
     public ColorDepth ColorDepth { get; set; }
 
     public ImageListStreamer? ImageStream { get; set; }
 
-    public Size ImageSize { get; set; } = new(16, 16);
+    public Size ImageSize
+    {
+        get => _imageSize;
+        set
+        {
+            if (value.Width <= 0 || value.Height <= 0)
+            {
+                throw new ArgumentException("ImageSize dimensions must be positive.", nameof(value));
+            }
+
+            if (_imageSize == value)
+            {
+                return;
+            }
+
+            _imageSize = value;
+            OnChanged();
+        }
+    }
 
     public Color TransparentColor { get; set; } = Color.Transparent;
+
+    private void OnChanged()
+    {
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
 
     public sealed class ImageCollection
     {
         private readonly List<Image> _images = new();
         private readonly List<string> _keys = new();
+        private readonly Action _changed;
+
+        internal ImageCollection(Action changed)
+        {
+            _changed = changed;
+        }
 
         public int Count => _images.Count;
 
@@ -5001,7 +8127,11 @@ public sealed class ImageList : Component
         public Image this[int index]
         {
             get => _images[index];
-            set => _images[index] = value;
+            set
+            {
+                _images[index] = value;
+                _changed();
+            }
         }
 
         public Image? this[string key]
@@ -5022,6 +8152,7 @@ public sealed class ImageList : Component
         {
             _images.Add(image);
             _keys.Add(string.Empty);
+            _changed();
             return _images.Count - 1;
         }
 
@@ -5051,8 +8182,14 @@ public sealed class ImageList : Component
 
         public void Clear()
         {
+            if (_images.Count == 0)
+            {
+                return;
+            }
+
             _images.Clear();
             _keys.Clear();
+            _changed();
         }
 
         public bool ContainsKey(string key)
@@ -5101,6 +8238,7 @@ public sealed class ImageList : Component
 
             _images.RemoveAt(index);
             _keys.RemoveAt(index);
+            _changed();
         }
 
         public void RemoveByKey(string key)
@@ -5120,6 +8258,7 @@ public sealed class ImageList : Component
             }
 
             _keys[index] = name ?? string.Empty;
+            _changed();
         }
     }
 }
@@ -5164,6 +8303,16 @@ public interface IDataObject
     bool GetDataPresent(Type format);
 
     bool GetDataPresent(string format, bool autoConvert);
+
+    string[] GetFormats()
+    {
+        return Array.Empty<string>();
+    }
+
+    string[] GetFormats(bool autoConvert)
+    {
+        return GetFormats();
+    }
 }
 
 public class DataObject : IDataObject
@@ -5212,6 +8361,16 @@ public class DataObject : IDataObject
     public bool GetDataPresent(string format, bool autoConvert)
     {
         return GetDataPresent(format);
+    }
+
+    public string[] GetFormats()
+    {
+        return _data.Keys.ToArray();
+    }
+
+    public string[] GetFormats(bool autoConvert)
+    {
+        return GetFormats();
     }
 
     public void SetData(string format, object? data)
@@ -5344,7 +8503,54 @@ public static class Application
 
     public static void RegisterPortableApplicationHost(IWinFormsApplicationHost host)
     {
-        s_applicationHost = host ?? throw new ArgumentNullException(nameof(host));
+        ArgumentNullException.ThrowIfNull(host);
+        Volatile.Write(ref s_applicationHost, host);
+    }
+
+    internal static IWinFormsDispatcherHost? GetDispatcherHost()
+    {
+        return Volatile.Read(ref s_applicationHost) as IWinFormsDispatcherHost;
+    }
+
+    internal static DragDropEffects DoDragDrop(
+        Control source,
+        IDataObject data,
+        DragDropEffects allowedEffects)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(data);
+
+        return Volatile.Read(ref s_applicationHost) is IWinFormsDragDropHost dragDropHost
+            ? dragDropHost.DoDragDrop(source, data, allowedEffects)
+            : DragDropEffects.None;
+    }
+
+    internal static bool TryPointToScreen(
+        Control control,
+        Point point,
+        out Point screenPoint)
+    {
+        if (Volatile.Read(ref s_applicationHost) is IWinFormsCoordinateHost coordinateHost)
+        {
+            return coordinateHost.TryPointToScreen(control, point, out screenPoint);
+        }
+
+        screenPoint = default;
+        return false;
+    }
+
+    internal static bool TryPointToClient(
+        Control control,
+        Point point,
+        out Point clientPoint)
+    {
+        if (Volatile.Read(ref s_applicationHost) is IWinFormsCoordinateHost coordinateHost)
+        {
+            return coordinateHost.TryPointToClient(control, point, out clientPoint);
+        }
+
+        clientPoint = default;
+        return false;
     }
 
     public static void Run()
@@ -5354,9 +8560,10 @@ public static class Application
     public static void Run(Form mainForm)
     {
         ArgumentNullException.ThrowIfNull(mainForm);
-        if (s_applicationHost != null)
+        IWinFormsApplicationHost? applicationHost = Volatile.Read(ref s_applicationHost);
+        if (applicationHost != null)
         {
-            s_applicationHost.Run(mainForm);
+            applicationHost.Run(mainForm);
             return;
         }
 
@@ -5365,67 +8572,316 @@ public static class Application
 
     public static void ExitThread()
     {
-        s_applicationHost?.ExitThread();
+        Volatile.Read(ref s_applicationHost)?.ExitThread();
     }
 
     internal static bool TryShowDialog(Form form, IWin32Window? owner, out DialogResult result)
     {
-        if (s_applicationHost == null)
+        IWinFormsApplicationHost? applicationHost = Volatile.Read(ref s_applicationHost);
+        if (applicationHost == null)
         {
             result = default;
             return false;
         }
 
-        result = s_applicationHost.ShowDialog(form, owner);
+        result = applicationHost.ShowDialog(form, owner);
         return true;
+    }
+
+    internal static void RequestDialogCompletion(Form form)
+    {
+        if (Volatile.Read(ref s_applicationHost) is IWinFormsModalDialogHost modalDialogHost)
+        {
+            modalDialogHost.RequestDialogCompletion(form);
+        }
+    }
+
+    internal static IDisposable RegisterTimer(int intervalMilliseconds, Action callback)
+    {
+        ArgumentNullException.ThrowIfNull(callback);
+        if (Volatile.Read(ref s_applicationHost) is not IWinFormsTimerHost timerHost)
+        {
+            throw new InvalidOperationException(
+                "The registered WinForms application host does not support UI timers.");
+        }
+
+        return timerHost.RegisterTimer(intervalMilliseconds, callback);
     }
 }
 
 public static class MessageBox
 {
-    public static DialogResult Show(string text)
+    public static DialogResult Show(string? text)
     {
-        return DialogResult.OK;
+        return ShowCore(
+            owner: null,
+            text,
+            caption: string.Empty,
+            MessageBoxButtons.OK,
+            MessageBoxIcon.None,
+            MessageBoxDefaultButton.Button1,
+            MessageBoxOptions.None);
     }
 
-    public static DialogResult Show(string text, string caption)
+    public static DialogResult Show(string? text, string? caption)
     {
-        return DialogResult.OK;
+        return ShowCore(
+            owner: null,
+            text,
+            caption,
+            MessageBoxButtons.OK,
+            MessageBoxIcon.None,
+            MessageBoxDefaultButton.Button1,
+            MessageBoxOptions.None);
     }
 
-    public static DialogResult Show(string text, string caption, MessageBoxButtons buttons)
+    public static DialogResult Show(string? text, string? caption, MessageBoxButtons buttons)
     {
-        return DialogResult.OK;
+        return ShowCore(
+            owner: null,
+            text,
+            caption,
+            buttons,
+            MessageBoxIcon.None,
+            MessageBoxDefaultButton.Button1,
+            MessageBoxOptions.None);
     }
 
-    public static DialogResult Show(string text, string caption, MessageBoxButtons buttons, MessageBoxIcon icon)
+    public static DialogResult Show(
+        string? text,
+        string? caption,
+        MessageBoxButtons buttons,
+        MessageBoxIcon icon)
     {
-        return DialogResult.OK;
+        return ShowCore(
+            owner: null,
+            text,
+            caption,
+            buttons,
+            icon,
+            MessageBoxDefaultButton.Button1,
+            MessageBoxOptions.None);
     }
 
-    public static DialogResult Show(IWin32Window owner, string text, string caption, MessageBoxButtons buttons)
+    public static DialogResult Show(
+        string? text,
+        string? caption,
+        MessageBoxButtons buttons,
+        MessageBoxIcon icon,
+        MessageBoxDefaultButton defaultButton)
     {
-        return DialogResult.OK;
+        return ShowCore(
+            owner: null,
+            text,
+            caption,
+            buttons,
+            icon,
+            defaultButton,
+            MessageBoxOptions.None);
     }
 
-    public static DialogResult Show(IWin32Window owner, string text, string caption, MessageBoxButtons buttons, MessageBoxIcon icon)
+    public static DialogResult Show(
+        string? text,
+        string? caption,
+        MessageBoxButtons buttons,
+        MessageBoxIcon icon,
+        MessageBoxDefaultButton defaultButton,
+        MessageBoxOptions options)
     {
-        return DialogResult.OK;
+        return ShowCore(owner: null, text, caption, buttons, icon, defaultButton, options);
     }
 
-    public static DialogResult Show(string text, string caption, MessageBoxButtons buttons, MessageBoxIcon icon, MessageBoxDefaultButton defaultButton)
+    public static DialogResult Show(IWin32Window? owner, string? text)
     {
-        return DialogResult.OK;
+        return ShowCore(
+            owner,
+            text,
+            caption: string.Empty,
+            MessageBoxButtons.OK,
+            MessageBoxIcon.None,
+            MessageBoxDefaultButton.Button1,
+            MessageBoxOptions.None);
     }
 
-    public static DialogResult Show(string text, string caption, MessageBoxButtons buttons, MessageBoxIcon icon, MessageBoxDefaultButton defaultButton, MessageBoxOptions options)
+    public static DialogResult Show(IWin32Window? owner, string? text, string? caption)
     {
-        return DialogResult.OK;
+        return ShowCore(
+            owner,
+            text,
+            caption,
+            MessageBoxButtons.OK,
+            MessageBoxIcon.None,
+            MessageBoxDefaultButton.Button1,
+            MessageBoxOptions.None);
     }
 
-    public static DialogResult Show(IWin32Window owner, string text, string caption, MessageBoxButtons buttons, MessageBoxIcon icon, MessageBoxDefaultButton defaultButton, MessageBoxOptions options)
+    public static DialogResult Show(
+        IWin32Window? owner,
+        string? text,
+        string? caption,
+        MessageBoxButtons buttons)
     {
-        return DialogResult.OK;
+        return ShowCore(
+            owner,
+            text,
+            caption,
+            buttons,
+            MessageBoxIcon.None,
+            MessageBoxDefaultButton.Button1,
+            MessageBoxOptions.None);
+    }
+
+    public static DialogResult Show(
+        IWin32Window? owner,
+        string? text,
+        string? caption,
+        MessageBoxButtons buttons,
+        MessageBoxIcon icon)
+    {
+        return ShowCore(
+            owner,
+            text,
+            caption,
+            buttons,
+            icon,
+            MessageBoxDefaultButton.Button1,
+            MessageBoxOptions.None);
+    }
+
+    public static DialogResult Show(
+        IWin32Window? owner,
+        string? text,
+        string? caption,
+        MessageBoxButtons buttons,
+        MessageBoxIcon icon,
+        MessageBoxDefaultButton defaultButton)
+    {
+        return ShowCore(
+            owner,
+            text,
+            caption,
+            buttons,
+            icon,
+            defaultButton,
+            MessageBoxOptions.None);
+    }
+
+    public static DialogResult Show(
+        IWin32Window? owner,
+        string? text,
+        string? caption,
+        MessageBoxButtons buttons,
+        MessageBoxIcon icon,
+        MessageBoxDefaultButton defaultButton,
+        MessageBoxOptions options)
+    {
+        return ShowCore(owner, text, caption, buttons, icon, defaultButton, options);
+    }
+
+    private static DialogResult ShowCore(
+        IWin32Window? owner,
+        string? text,
+        string? caption,
+        MessageBoxButtons buttons,
+        MessageBoxIcon icon,
+        MessageBoxDefaultButton defaultButton,
+        MessageBoxOptions options)
+    {
+        ValidateButtons(buttons);
+        ValidateIcon(icon);
+        ValidateDefaultButton(defaultButton);
+
+        if (owner is not null
+            && (options & (MessageBoxOptions.ServiceNotification | MessageBoxOptions.DefaultDesktopOnly)) != 0)
+        {
+            throw new ArgumentException(
+                "A message box shown with ServiceNotification or DefaultDesktopOnly cannot have an owner.",
+                nameof(options));
+        }
+
+        DialogResult fallbackResult = GetFallbackResult(buttons, defaultButton);
+        return PortableWinFormsMessageBoxService.Show(
+            owner,
+            text,
+            caption,
+            buttons,
+            icon,
+            options,
+            fallbackResult);
+    }
+
+    private static DialogResult GetFallbackResult(
+        MessageBoxButtons buttons,
+        MessageBoxDefaultButton defaultButton)
+    {
+        int defaultIndex = defaultButton switch
+        {
+            MessageBoxDefaultButton.Button2 => 1,
+            MessageBoxDefaultButton.Button3 => 2,
+            MessageBoxDefaultButton.Button4 => 3,
+            _ => 0
+        };
+
+        return buttons switch
+        {
+            MessageBoxButtons.OK => DialogResult.OK,
+            MessageBoxButtons.OKCancel when defaultIndex == 1 => DialogResult.Cancel,
+            MessageBoxButtons.OKCancel => DialogResult.OK,
+            MessageBoxButtons.AbortRetryIgnore when defaultIndex == 1 => DialogResult.Retry,
+            MessageBoxButtons.AbortRetryIgnore when defaultIndex == 2 => DialogResult.Ignore,
+            MessageBoxButtons.AbortRetryIgnore => DialogResult.Abort,
+            MessageBoxButtons.YesNoCancel when defaultIndex == 1 => DialogResult.No,
+            MessageBoxButtons.YesNoCancel when defaultIndex == 2 => DialogResult.Cancel,
+            MessageBoxButtons.YesNoCancel => DialogResult.Yes,
+            MessageBoxButtons.YesNo when defaultIndex == 1 => DialogResult.No,
+            MessageBoxButtons.YesNo => DialogResult.Yes,
+            MessageBoxButtons.RetryCancel when defaultIndex == 1 => DialogResult.Cancel,
+            MessageBoxButtons.RetryCancel => DialogResult.Retry,
+            MessageBoxButtons.CancelTryContinue when defaultIndex == 1 => DialogResult.TryAgain,
+            MessageBoxButtons.CancelTryContinue when defaultIndex == 2 => DialogResult.Continue,
+            MessageBoxButtons.CancelTryContinue => DialogResult.Cancel,
+            _ => DialogResult.OK
+        };
+    }
+
+    private static void ValidateButtons(MessageBoxButtons buttons)
+    {
+        if (buttons is not MessageBoxButtons.OK
+            and not MessageBoxButtons.OKCancel
+            and not MessageBoxButtons.AbortRetryIgnore
+            and not MessageBoxButtons.YesNoCancel
+            and not MessageBoxButtons.YesNo
+            and not MessageBoxButtons.RetryCancel
+            and not MessageBoxButtons.CancelTryContinue)
+        {
+            throw new InvalidEnumArgumentException(nameof(buttons), (int)buttons, typeof(MessageBoxButtons));
+        }
+    }
+
+    private static void ValidateIcon(MessageBoxIcon icon)
+    {
+        if (icon is not MessageBoxIcon.None
+            and not MessageBoxIcon.Hand
+            and not MessageBoxIcon.Question
+            and not MessageBoxIcon.Exclamation
+            and not MessageBoxIcon.Asterisk)
+        {
+            throw new InvalidEnumArgumentException(nameof(icon), (int)icon, typeof(MessageBoxIcon));
+        }
+    }
+
+    private static void ValidateDefaultButton(MessageBoxDefaultButton defaultButton)
+    {
+        if (defaultButton is not MessageBoxDefaultButton.Button1
+            and not MessageBoxDefaultButton.Button2
+            and not MessageBoxDefaultButton.Button3
+            and not MessageBoxDefaultButton.Button4)
+        {
+            throw new InvalidEnumArgumentException(
+                nameof(defaultButton),
+                (int)defaultButton,
+                typeof(MessageBoxDefaultButton));
+        }
     }
 }
 
@@ -5433,6 +8889,34 @@ public static class ControlPaint
 {
     public static void DrawBorder3D(Graphics graphics, Rectangle rectangle, Border3DStyle style)
     {
+        ArgumentNullException.ThrowIfNull(graphics);
+        if (rectangle.Width <= 0 || rectangle.Height <= 0)
+        {
+            return;
+        }
+
+        if (style is not Border3DStyle.RaisedInner and not Border3DStyle.Sunken)
+        {
+            throw new InvalidEnumArgumentException(nameof(style), (int)style, typeof(Border3DStyle));
+        }
+
+        Color topLeftColor = style == Border3DStyle.Sunken
+            ? SystemColors.ControlDark
+            : SystemColors.ControlLightLight;
+        Color bottomRightColor = style == Border3DStyle.Sunken
+            ? SystemColors.ControlLightLight
+            : SystemColors.ControlDark;
+
+        int left = rectangle.Left;
+        int top = rectangle.Top;
+        int right = rectangle.Right - 1;
+        int bottom = rectangle.Bottom - 1;
+        using var topLeftPen = new Pen(topLeftColor);
+        using var bottomRightPen = new Pen(bottomRightColor);
+        graphics.DrawLine(topLeftPen, left, bottom, left, top);
+        graphics.DrawLine(topLeftPen, left, top, right, top);
+        graphics.DrawLine(bottomRightPen, right, top, right, bottom);
+        graphics.DrawLine(bottomRightPen, right, bottom, left, bottom);
     }
 
     public static Color Light(Color baseColor)
@@ -5542,7 +9026,9 @@ public enum DialogResult
     Retry = 4,
     Ignore = 5,
     Yes = 6,
-    No = 7
+    No = 7,
+    TryAgain = 10,
+    Continue = 11
 }
 
 public enum MessageBoxButtons
@@ -5552,7 +9038,8 @@ public enum MessageBoxButtons
     AbortRetryIgnore = 2,
     YesNoCancel = 3,
     YesNo = 4,
-    RetryCancel = 5
+    RetryCancel = 5,
+    CancelTryContinue = 6
 }
 
 public enum MessageBoxIcon
@@ -5562,6 +9049,7 @@ public enum MessageBoxIcon
     Question = 32,
     Exclamation = 48,
     Asterisk = 64,
+    Stop = Hand,
     Error = Hand,
     Warning = Exclamation,
     Information = Asterisk
@@ -5571,7 +9059,8 @@ public enum MessageBoxDefaultButton
 {
     Button1 = 0,
     Button2 = 256,
-    Button3 = 512
+    Button3 = 512,
+    Button4 = 768
 }
 
 [Flags]
@@ -5642,7 +9131,8 @@ public enum Keys
     Up = 38,
     Down = 40,
     Shift = 0x10000,
-    Control = 0x20000
+    Control = 0x20000,
+    Alt = 0x40000
 }
 
 public struct Message
@@ -6097,6 +9587,16 @@ public enum TreeNodeStates
     Focused = 16
 }
 
+public class ControlEventArgs : EventArgs
+{
+    public ControlEventArgs(Control control)
+    {
+        Control = control ?? throw new ArgumentNullException(nameof(control));
+    }
+
+    public Control Control { get; }
+}
+
 public sealed class ColumnClickEventArgs : EventArgs
 {
     public ColumnClickEventArgs(int column)
@@ -6212,9 +9712,9 @@ public class KeyEventArgs : EventArgs
 
     public Keys KeyData { get; }
 
-    public Keys KeyCode => KeyData & ~(Keys.Control | Keys.Shift);
+    public Keys KeyCode => KeyData & ~(Keys.Control | Keys.Shift | Keys.Alt);
 
-    public Keys Modifiers => KeyData & (Keys.Control | Keys.Shift);
+    public Keys Modifiers => KeyData & (Keys.Control | Keys.Shift | Keys.Alt);
 }
 
 public class FormClosingEventArgs : CancelEventArgs
