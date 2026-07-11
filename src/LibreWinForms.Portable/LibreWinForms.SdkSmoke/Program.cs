@@ -2,6 +2,7 @@ using System;
 using System.CodeDom;
 using System.CodeDom.Compiler;
 using System.Collections;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.ComponentModel.Design;
 using System.ComponentModel.Design.Serialization;
@@ -323,6 +324,9 @@ internal static class Program
         int transactionOpened = 0;
         int transactionClosed = 0;
         int runtimeMouseDown = 0;
+        using DesignerSmokeUndoEngine? creationUndoEngine = host is null
+            ? null
+            : new DesignerSmokeUndoEngine(host);
         EventHandler transactionOpenedHandler = (_, _) => transactionOpened++;
         DesignerTransactionCloseEventHandler transactionClosedHandler = (_, _) => transactionClosed++;
         Forms.MouseEventHandler runtimeMouseDownHandler = (_, _) => runtimeMouseDown++;
@@ -364,8 +368,183 @@ internal static class Program
             && runtimeMouseDown == 0
             && component?.Capture == false
             && host?.Container.Components.Count == interactionComponentCount + 1;
+
+        string? interactionButtonName = interactionButton?.Site?.Name;
+        bool creationUndoCalled = creationUndoEngine?.UndoOnce() == true;
+        bool creationRemovedSite = interactionButton?.Site is null;
+        bool creationRemovedParent = interactionButton?.Parent is null;
+        bool creationRemovedCount = host?.Container.Components.Count == interactionComponentCount;
+        bool creationUndone = creationUndoCalled
+            && creationRemovedSite
+            && creationRemovedParent
+            && creationRemovedCount;
+        bool creationRedoCalled = creationUndoEngine?.RedoOnce() == true;
+        interactionButton = string.IsNullOrEmpty(interactionButtonName)
+            ? null
+            : host?.Container.Components[interactionButtonName] as Forms.Button;
+        bool creationRestoredComponent = interactionButton is not null;
+        bool creationRestoredLocation = interactionButton?.Location == new System.Drawing.Point(40, 48);
+        bool creationRestoredSize = interactionButton?.Size == new System.Drawing.Size(120, 32);
+        bool creationRestoredParent = ReferenceEquals(interactionButton?.Parent, component);
+        bool creationRestoredSite = ReferenceEquals(interactionButton?.Site?.Container, host?.Container);
+        bool creationRestoredDesigner = interactionButton is not null
+            && ReferenceEquals(host?.GetDesigner(interactionButton)?.Component, interactionButton);
+        string creationRestoredParentName = interactionButton?.Parent?.Site?.Name ?? "(null)";
+        string creationExpectedParentName = component?.Site?.Name ?? "(null)";
+        bool interactiveCreationUndo = creationUndone
+            && creationRedoCalled
+            && interactionButton is not null
+            && creationRestoredLocation
+            && creationRestoredSize
+            && creationRestoredParent
+            && creationRestoredSite
+            && creationRestoredDesigner
+            && creationUndoEngine?.UndoCount == 1
+            && creationUndoEngine.RedoCount == 0;
+        creationUndoEngine?.Dispose();
+
+        int manipulationTransactions = 0;
+        int manipulationTransactionsClosed = 0;
+        int locationChanging = 0;
+        int locationChanged = 0;
+        int sizeChanging = 0;
+        int sizeChanged = 0;
+        int manipulationRuntimeMouseDown = 0;
+        using DesignerSmokeUndoEngine? manipulationUndoEngine = host is null
+            ? null
+            : new DesignerSmokeUndoEngine(host);
+        int undoing = 0;
+        int undone = 0;
+        if (manipulationUndoEngine is not null)
+        {
+            manipulationUndoEngine.Undoing += (_, _) => undoing++;
+            manipulationUndoEngine.Undone += (_, _) => undone++;
+        }
+        EventHandler manipulationTransactionOpenedHandler = (_, _) => manipulationTransactions++;
+        DesignerTransactionCloseEventHandler manipulationTransactionClosedHandler = (_, _) => manipulationTransactionsClosed++;
+        ComponentChangingEventHandler manipulationChangingHandler = (_, eventArgs) =>
+        {
+            if (!ReferenceEquals(eventArgs.Component, interactionButton))
+                return;
+            if (string.Equals(eventArgs.Member?.Name, nameof(Forms.Control.Location), StringComparison.Ordinal))
+                locationChanging++;
+            if (string.Equals(eventArgs.Member?.Name, nameof(Forms.Control.Size), StringComparison.Ordinal))
+                sizeChanging++;
+        };
+        ComponentChangedEventHandler manipulationChangedHandler = (_, eventArgs) =>
+        {
+            if (!ReferenceEquals(eventArgs.Component, interactionButton))
+                return;
+            if (string.Equals(eventArgs.Member?.Name, nameof(Forms.Control.Location), StringComparison.Ordinal))
+                locationChanged++;
+            if (string.Equals(eventArgs.Member?.Name, nameof(Forms.Control.Size), StringComparison.Ordinal))
+                sizeChanged++;
+        };
+        Forms.MouseEventHandler manipulationRuntimeMouseDownHandler = (_, _) => manipulationRuntimeMouseDown++;
+        if (host is not null)
+        {
+            host.TransactionOpened += manipulationTransactionOpenedHandler;
+            host.TransactionClosed += manipulationTransactionClosedHandler;
+        }
+        if (changeService is not null)
+        {
+            changeService.ComponentChanging += manipulationChangingHandler;
+            changeService.ComponentChanged += manipulationChangedHandler;
+        }
+        if (interactionButton is not null)
+            interactionButton.MouseDown += manipulationRuntimeMouseDownHandler;
+
+        interactionButton?.RaiseMouseDown(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, 60, 16, 0));
+        interactionButton?.RaiseMouseMove(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 0, 80, 26, 0));
+        interactionButton?.RaiseMouseUp(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, 80, 26, 0));
+        interactionButton?.RaiseMouseDown(new Forms.MouseEventArgs(
+            Forms.MouseButtons.Left,
+            1,
+            interactionButton.Width,
+            interactionButton.Height,
+            0));
+        interactionButton?.RaiseMouseMove(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 0, 150, 52, 0));
+        interactionButton?.RaiseMouseUp(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, 150, 52, 0));
+
+        if (host is not null)
+        {
+            host.TransactionOpened -= manipulationTransactionOpenedHandler;
+            host.TransactionClosed -= manipulationTransactionClosedHandler;
+        }
+        if (changeService is not null)
+        {
+            changeService.ComponentChanging -= manipulationChangingHandler;
+            changeService.ComponentChanged -= manipulationChangedHandler;
+        }
+        if (interactionButton is not null)
+            interactionButton.MouseDown -= manipulationRuntimeMouseDownHandler;
+
+        bool interactiveManipulation = interactionButton is not null
+            && interactionButton.Location == new System.Drawing.Point(60, 58)
+            && interactionButton.Size == new System.Drawing.Size(150, 52)
+            && manipulationTransactions == 2
+            && manipulationTransactionsClosed == 2
+            && locationChanging == 1
+            && locationChanged == 1
+            && sizeChanging == 1
+            && sizeChanged == 1
+            && manipulationRuntimeMouseDown == 0
+            && interactionButton.Capture == false
+            && selectionService?.GetComponentSelected(interactionButton) == true;
+
+        bool resizeUndone = manipulationUndoEngine?.UndoOnce() == true
+            && interactionButton?.Location == new System.Drawing.Point(60, 58)
+            && interactionButton.Size == new System.Drawing.Size(120, 32);
+        bool moveUndone = manipulationUndoEngine?.UndoOnce() == true
+            && interactionButton?.Location == new System.Drawing.Point(40, 48)
+            && interactionButton.Size == new System.Drawing.Size(120, 32);
+        bool moveRedone = manipulationUndoEngine?.RedoOnce() == true
+            && interactionButton?.Location == new System.Drawing.Point(60, 58)
+            && interactionButton.Size == new System.Drawing.Size(120, 32);
+        bool resizeRedone = manipulationUndoEngine?.RedoOnce() == true
+            && interactionButton?.Location == new System.Drawing.Point(60, 58)
+            && interactionButton.Size == new System.Drawing.Size(150, 52);
+        bool interactiveUndo = resizeUndone
+            && moveUndone
+            && moveRedone
+            && resizeRedone
+            && manipulationUndoEngine?.UndoCount == 2
+            && manipulationUndoEngine.RedoCount == 0
+            && manipulationUndoEngine.UndoInProgress == false
+            && undoing == 4
+            && undone == 4;
+        manipulationUndoEngine?.Dispose();
+
+        string? removalButtonName = interactionButton?.Site?.Name;
+        using DesignerSmokeUndoEngine? removalUndoEngine = host is null
+            ? null
+            : new DesignerSmokeUndoEngine(host);
         if (interactionButton is not null)
             host?.DestroyComponent(interactionButton);
+        bool removalCompleted = interactionButton?.Site is null
+            && interactionButton?.Parent is null
+            && host?.Container.Components.Count == interactionComponentCount;
+        bool removalUndoCalled = removalUndoEngine?.UndoOnce() == true;
+        interactionButton = string.IsNullOrEmpty(removalButtonName)
+            ? null
+            : host?.Container.Components[removalButtonName] as Forms.Button;
+        bool removalRestored = removalUndoCalled
+            && interactionButton is not null
+            && interactionButton.Location == new System.Drawing.Point(60, 58)
+            && interactionButton.Size == new System.Drawing.Size(150, 52)
+            && ReferenceEquals(interactionButton.Parent, component)
+            && ReferenceEquals(interactionButton.Site?.Container, host?.Container)
+            && ReferenceEquals(host?.GetDesigner(interactionButton)?.Component, interactionButton);
+        bool removalRedoCalled = removalUndoEngine?.RedoOnce() == true;
+        bool interactiveRemovalUndo = removalCompleted
+            && removalRestored
+            && removalRedoCalled
+            && interactionButton?.Site is null
+            && interactionButton?.Parent is null
+            && host?.Container.Components.Count == interactionComponentCount
+            && removalUndoEngine?.UndoCount == 1
+            && removalUndoEngine.RedoCount == 0;
+        removalUndoEngine?.Dispose();
         interactivePlacement &= interactionButton?.Site is null
             && interactionButton?.Parent is null
             && (interactionButton is null || component?.Controls.Contains(interactionButton) == false)
@@ -478,6 +657,10 @@ internal static class Program
             && toolboxCreation
             && attributedDesigner
             && interactivePlacement
+            && interactiveCreationUndo
+            && interactiveManipulation
+            && interactiveUndo
+            && interactiveRemovalUndo
             && nestedContainer is not null
             && nestedOwner
             && nestedSite
@@ -494,7 +677,6 @@ internal static class Program
             && persisted
             && renamed
             && nestedRenamed;
-
         Console.WriteLine(
             "LibreWinForms SDK designer smoke result=" + (success ? "Success" : "Partial")
             + $" loaded={surface.IsLoaded} component={component is not null}"
@@ -502,6 +684,18 @@ internal static class Program
             + $" siteLocalService={siteLocalService} siteDictionary={siteDictionary} directLifecycle={directLifecycle}"
             + $" toolboxCreation={toolboxCreation} attributedDesigner={attributedDesigner} selected={selected}"
             + $" interactivePlacement={interactivePlacement}"
+            + $" interactiveCreationUndo={interactiveCreationUndo}"
+            + $" creationUndoCalled={creationUndoCalled} creationRemovedSite={creationRemovedSite}"
+            + $" creationRemovedParent={creationRemovedParent} creationRemovedCount={creationRemovedCount}"
+            + $" creationRedoCalled={creationRedoCalled} creationRestoredComponent={creationRestoredComponent}"
+            + $" creationRestoredLocation={creationRestoredLocation} creationRestoredSize={creationRestoredSize}"
+            + $" creationRestoredParent={creationRestoredParent} creationRestoredSite={creationRestoredSite}"
+            + $" creationRestoredDesigner={creationRestoredDesigner}"
+            + $" creationRestoredParentName={creationRestoredParentName}"
+            + $" creationExpectedParentName={creationExpectedParentName}"
+            + $" interactiveManipulation={interactiveManipulation}"
+            + $" interactiveUndo={interactiveUndo}"
+            + $" interactiveRemovalUndo={interactiveRemovalUndo}"
             + $" nestedOwner={nestedOwner} nestedSite={nestedSite} nestedAdding={nestedAdding} nestedAdded={nestedAdded}"
             + $" nestedHasHost={nestedHasHost} nestedHasContainer={nestedHasContainer}"
             + $" nestedHasChangeService={nestedHasChangeService}"
@@ -659,6 +853,49 @@ internal static class Program
         public void SetSelectedToolboxItem(System.Drawing.Design.ToolboxItem toolboxItem)
         {
             _selectedToolboxItem = toolboxItem;
+        }
+    }
+
+    private sealed class DesignerSmokeUndoEngine : UndoEngine
+    {
+        private readonly Stack<UndoUnit> _undo = new();
+        private readonly Stack<UndoUnit> _redo = new();
+
+        public DesignerSmokeUndoEngine(IServiceProvider provider)
+            : base(provider)
+        {
+        }
+
+        public int UndoCount => _undo.Count;
+
+        public int RedoCount => _redo.Count;
+
+        protected override void AddUndoUnit(UndoUnit unit)
+        {
+            _undo.Push(unit);
+            _redo.Clear();
+        }
+
+        public bool UndoOnce()
+        {
+            if (_undo.Count == 0)
+                return false;
+
+            UndoUnit unit = _undo.Pop();
+            unit.Undo();
+            _redo.Push(unit);
+            return true;
+        }
+
+        public bool RedoOnce()
+        {
+            if (_redo.Count == 0)
+                return false;
+
+            UndoUnit unit = _redo.Pop();
+            unit.Undo();
+            _undo.Push(unit);
+            return true;
         }
     }
 
