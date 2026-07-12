@@ -266,3 +266,18 @@ Reflection audit of the changed runtime hot paths              -> no reflected c
 ```
 
 Cross-application OS-native outbound drag remains future work; the current portable session deliberately covers in-process hosts and external inbound data. Broader reuse of upstream WinForms source groups, especially controls, designers, resources, and platform services not yet needed by SharpDevelop, also remains future work instead of expanding app-specific compatibility shims.
+
+## 2026-07-13 keyboard preprocessing checkpoint
+
+Hosted keyboard input now follows the managed WinForms preprocessing contract before ordinary `KeyDown` and dialog-key handling. `WindowsFormsHost` publishes typed `WM_KEYDOWN`/`WM_SYSKEYDOWN` and key-up `Message` values with the focused control handle, scopes `Control.ModifierKeys` to the current WPF keyboard modifiers, invokes registered `Application` message filters, and then calls the focused control's public `PreProcessMessage(...)` path. Unhandled `ProcessCmdKey(...)` calls bubble through the managed parent-control chain. Message-filter or command-key handling stops later `KeyDown` dispatch exactly once, while unhandled keys retain the existing form preview, control event, and modal dialog processing.
+
+The portable key surface now includes standard modifier key codes, Insert, F1-F12, numeric keypad operations, and common OEM punctuation keys used by existing WinForms applications. WPF system-key events use their actual `SystemKey`, so Alt-modified commands no longer fail mapping. This unblocks SharpDevelop FormsDesigner `IMessageFilter` commands for move, resize, delete, and tab selection, together with `ProcessCmdKey(...)` overrides in ExtTreeView, SideBar, XmlTreeView, and HexEditor, without reflection or Win32 message-loop ownership in LibreWinForms.
+
+Validation:
+
+```text
+LibreWinForms behavior tests             -> message filter, modifier, parent bubbling, and removal contracts pass
+LibreWinForms SDK keyboard host smoke    -> F2 filter plus Delete/F6/F12/Insert ProcessCmdKey and ordinary KeyDown pass
+LibreWinForms package-mode SDK smoke     -> keyboard route runs against packed System.Windows.Forms and WindowsFormsIntegration assemblies
+Reflection audit                         -> no System.Reflection or BindingFlags in changed product paths
+```
