@@ -58,7 +58,127 @@ internal static class Program
             return RunCustomPaintSmoke();
         }
 
+        if (args.Contains("--run-keyboard", StringComparer.Ordinal))
+        {
+            return RunKeyboardRoutingSmoke();
+        }
+
         Console.WriteLine("LibreWinForms SDK smoke build loaded.");
+        return 0;
+    }
+
+    private static int RunKeyboardRoutingSmoke()
+    {
+        bool loaded = false;
+        bool filterHandled = false;
+        bool processDeleteHandled = false;
+        bool processF6Handled = false;
+        bool processF12Handled = false;
+        bool processInsertHandled = false;
+        bool ordinaryKeyReachedKeyDown = false;
+        bool timedOut = false;
+
+        var application = new WpfApplication();
+        var commandControl = new KeyboardCommandProbeControl
+        {
+            Size = new System.Drawing.Size(240, 100)
+        };
+        var host = new DialogInputProbeHost { Child = commandControl };
+        var window = new WpfWindow
+        {
+            Title = "LibreWinForms keyboard routing smoke",
+            Width = 320,
+            Height = 180,
+            Content = host
+        };
+        var filter = new KeyboardMessageFilter(commandControl);
+        commandControl.KeyDown += (_, eventArgs) =>
+        {
+            if (eventArgs.KeyCode == Forms.Keys.A)
+            {
+                ordinaryKeyReachedKeyDown = true;
+                eventArgs.Handled = true;
+            }
+        };
+
+        using var watchdog = new System.Threading.Timer(
+            _ => window.Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    timedOut = true;
+                    window.Close();
+                })),
+            null,
+            TimeSpan.FromSeconds(30),
+            Timeout.InfiniteTimeSpan);
+
+        window.Loaded += (_, _) =>
+        {
+            loaded = true;
+            _ = commandControl.Focus();
+            window.Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    Forms.Application.AddMessageFilter(filter);
+                    try
+                    {
+                        filterHandled = host.RaiseKeyDown(window, System.Windows.Input.Key.F2);
+                    }
+                    finally
+                    {
+                        Forms.Application.RemoveMessageFilter(filter);
+                    }
+
+                    processDeleteHandled = host.RaiseKeyDown(window, System.Windows.Input.Key.Delete);
+                    processF6Handled = host.RaiseKeyDown(window, System.Windows.Input.Key.F6);
+                    processF12Handled = host.RaiseKeyDown(window, System.Windows.Input.Key.F12);
+                    processInsertHandled = host.RaiseKeyDown(window, System.Windows.Input.Key.Insert);
+                    _ = host.RaiseKeyDown(window, System.Windows.Input.Key.A);
+                    watchdog.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+                    window.Close();
+                }),
+                DispatcherPriority.ApplicationIdle);
+        };
+
+        application.Run(window);
+        host.Child = null;
+
+        bool filterContract = filter.CallCount == 1
+            && filter.LastHWnd == commandControl.Handle
+            && filter.LastMessage == 0x0100
+            && filter.LastKeyCode == Forms.Keys.F2
+            && commandControl.ProcessedKeys.Count == 5
+            && commandControl.ProcessedKeys[0] == Forms.Keys.Delete
+            && commandControl.ProcessedKeys[1] == Forms.Keys.F6
+            && commandControl.ProcessedKeys[2] == Forms.Keys.F12
+            && commandControl.ProcessedKeys[3] == Forms.Keys.Insert
+            && commandControl.ProcessedKeys[4] == Forms.Keys.A;
+        bool success = loaded
+            && filterHandled
+            && processDeleteHandled
+            && processF6Handled
+            && processF12Handled
+            && processInsertHandled
+            && ordinaryKeyReachedKeyDown
+            && filterContract
+            && !timedOut;
+        if (!success)
+        {
+            Console.Error.WriteLine(
+                "LibreWinForms keyboard routing smoke failed"
+                + $" loaded={loaded} filterHandled={filterHandled}"
+                + $" delete={processDeleteHandled} f6={processF6Handled}"
+                + $" f12={processF12Handled} insert={processInsertHandled}"
+                + $" ordinaryKey={ordinaryKeyReachedKeyDown} filterContract={filterContract}"
+                + $" filterCalls={filter.CallCount} processed={string.Join(',', commandControl.ProcessedKeys)}"
+                + $" timedOut={timedOut}");
+            return 9;
+        }
+
+        Console.WriteLine(
+            "LibreWinForms keyboard routing smoke result=Success "
+            + "messageFilter=True processCmdKey=True keyDownFallback=True "
+            + "handle=True f2=True delete=True f6=True f12=True insert=True");
         return 0;
     }
 
@@ -1374,7 +1494,7 @@ internal static class Program
 
     private sealed class DialogInputProbeHost : System.Windows.Forms.Integration.WindowsFormsHost
     {
-        public void RaiseKeyDown(System.Windows.Media.Visual inputSource, System.Windows.Input.Key key)
+        public bool RaiseKeyDown(System.Windows.Media.Visual inputSource, System.Windows.Input.Key key)
         {
             System.Windows.PresentationSource source = System.Windows.PresentationSource.FromVisual(inputSource)
                 ?? throw new InvalidOperationException("The input probe requires a connected presentation source.");
@@ -1387,6 +1507,46 @@ internal static class Program
                 RoutedEvent = System.Windows.Input.Keyboard.KeyDownEvent
             };
             OnKeyDown(keyEventArgs);
+            return keyEventArgs.Handled;
+        }
+    }
+
+    private sealed class KeyboardCommandProbeControl : Forms.Control
+    {
+        public List<Forms.Keys> ProcessedKeys { get; } = new();
+
+        protected override bool ProcessCmdKey(ref Forms.Message msg, Forms.Keys keyData)
+        {
+            ProcessedKeys.Add(keyData);
+            return keyData is Forms.Keys.Delete or Forms.Keys.F6 or Forms.Keys.F12 or Forms.Keys.Insert;
+        }
+    }
+
+    private sealed class KeyboardMessageFilter : Forms.IMessageFilter
+    {
+        private readonly Forms.Control _expectedControl;
+
+        public KeyboardMessageFilter(Forms.Control expectedControl)
+        {
+            _expectedControl = expectedControl;
+        }
+
+        public int CallCount { get; private set; }
+
+        public IntPtr LastHWnd { get; private set; }
+
+        public Forms.Keys LastKeyCode { get; private set; }
+
+        public int LastMessage { get; private set; }
+
+        public bool PreFilterMessage(ref Forms.Message message)
+        {
+            CallCount++;
+            LastHWnd = message.HWnd;
+            LastMessage = message.Msg;
+            LastKeyCode = (Forms.Keys)message.WParam.ToInt32();
+            return ReferenceEquals(Forms.Control.FromChildHandle(message.HWnd), _expectedControl)
+                && LastKeyCode == Forms.Keys.F2;
         }
     }
 

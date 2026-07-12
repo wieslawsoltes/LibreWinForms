@@ -1402,10 +1402,34 @@ public class WindowsFormsHost : FrameworkElement
             return;
         }
 
-        Forms.Keys keyData = MapKey(e.Key, Keyboard.Modifiers);
+        System.Windows.Input.Key key = e.Key == System.Windows.Input.Key.System
+            ? e.SystemKey
+            : e.Key;
+        Forms.Keys keyData = MapKey(key, Keyboard.Modifiers);
         if (keyData == Forms.Keys.None)
         {
             return;
+        }
+
+        Forms.Keys previousModifiers = Forms.Control.ModifierKeys;
+        Forms.Control.ModifierKeys = keyData & Forms.Keys.Modifiers;
+        try
+        {
+            e.Handled = ProcessHostedKeyDown(target, keyData);
+        }
+        finally
+        {
+            Forms.Control.ModifierKeys = previousModifiers;
+        }
+    }
+
+    private static bool ProcessHostedKeyDown(Forms.Control target, Forms.Keys keyData)
+    {
+        Forms.Message message = CreateHostedKeyMessage(target, keyData, keyDown: true);
+        if (Forms.Application.FilterMessage(ref message)
+            || target.PreProcessMessage(ref message))
+        {
+            return true;
         }
 
         var keyEventArgs = new Forms.KeyEventArgs(keyData);
@@ -1415,8 +1439,7 @@ public class WindowsFormsHost : FrameworkElement
             form.RaiseKeyDown(keyEventArgs);
             if (!form.Visible || form.IsDisposed)
             {
-                e.Handled = true;
-                return;
+                return true;
             }
         }
 
@@ -1433,8 +1456,7 @@ public class WindowsFormsHost : FrameworkElement
                 form.RaiseKeyPress(keyPressEventArgs);
                 if (!form.Visible || form.IsDisposed)
                 {
-                    e.Handled = true;
-                    return;
+                    return true;
                 }
             }
 
@@ -1460,7 +1482,7 @@ public class WindowsFormsHost : FrameworkElement
             keyEventArgs.SuppressKeyPress = true;
         }
 
-        e.Handled = keyEventArgs.Handled || keyEventArgs.SuppressKeyPress;
+        return keyEventArgs.Handled || keyEventArgs.SuppressKeyPress;
     }
 
     protected override void OnKeyUp(System.Windows.Input.KeyEventArgs e)
@@ -1472,29 +1494,48 @@ public class WindowsFormsHost : FrameworkElement
             return;
         }
 
-        Forms.Keys keyData = MapKey(e.Key, Keyboard.Modifiers);
+        System.Windows.Input.Key key = e.Key == System.Windows.Input.Key.System
+            ? e.SystemKey
+            : e.Key;
+        Forms.Keys keyData = MapKey(key, Keyboard.Modifiers);
         if (keyData == Forms.Keys.None)
         {
             return;
         }
 
-        var keyEventArgs = new Forms.KeyEventArgs(keyData);
-        Forms.Form? form = target.FindForm();
-        if (form?.KeyPreview == true && !ReferenceEquals(form, target))
+        Forms.Keys previousModifiers = Forms.Control.ModifierKeys;
+        Forms.Control.ModifierKeys = keyData & Forms.Keys.Modifiers;
+        try
         {
-            form.RaiseKeyUp(keyEventArgs);
-            if (!form.Visible || form.IsDisposed)
+            Forms.Message message = CreateHostedKeyMessage(target, keyData, keyDown: false);
+            if (Forms.Application.FilterMessage(ref message))
             {
                 e.Handled = true;
                 return;
             }
-        }
 
-        if (!keyEventArgs.Handled && !keyEventArgs.SuppressKeyPress)
-        {
-            target.RaiseKeyUp(keyEventArgs);
+            var keyEventArgs = new Forms.KeyEventArgs(keyData);
+            Forms.Form? form = target.FindForm();
+            if (form?.KeyPreview == true && !ReferenceEquals(form, target))
+            {
+                form.RaiseKeyUp(keyEventArgs);
+                if (!form.Visible || form.IsDisposed)
+                {
+                    e.Handled = true;
+                    return;
+                }
+            }
+
+            if (!keyEventArgs.Handled && !keyEventArgs.SuppressKeyPress)
+            {
+                target.RaiseKeyUp(keyEventArgs);
+            }
+            e.Handled = keyEventArgs.Handled || keyEventArgs.SuppressKeyPress;
         }
-        e.Handled = keyEventArgs.Handled || keyEventArgs.SuppressKeyPress;
+        finally
+        {
+            Forms.Control.ModifierKeys = previousModifiers;
+        }
     }
 
     protected override void OnTextInput(TextCompositionEventArgs e)
@@ -2458,10 +2499,30 @@ public class WindowsFormsHost : FrameworkElement
         return (int)Math.Round(value);
     }
 
+    private static Forms.Message CreateHostedKeyMessage(
+        Forms.Control target,
+        Forms.Keys keyData,
+        bool keyDown)
+    {
+        bool systemKey = (keyData & Forms.Keys.Alt) != 0;
+        return new Forms.Message
+        {
+            HWnd = target.Handle,
+            Msg = keyDown
+                ? (systemKey ? 0x0104 : 0x0100)
+                : (systemKey ? 0x0105 : 0x0101),
+            WParam = new IntPtr((int)(keyData & Forms.Keys.KeyCode))
+        };
+    }
+
     private static Forms.Keys MapKey(System.Windows.Input.Key key, ModifierKeys modifiers)
     {
         Forms.Keys keyData = key switch
         {
+            System.Windows.Input.Key.LeftShift or System.Windows.Input.Key.RightShift => Forms.Keys.ShiftKey,
+            System.Windows.Input.Key.LeftCtrl or System.Windows.Input.Key.RightCtrl => Forms.Keys.ControlKey,
+            System.Windows.Input.Key.LeftAlt or System.Windows.Input.Key.RightAlt => Forms.Keys.Menu,
+            System.Windows.Input.Key.CapsLock => Forms.Keys.CapsLock,
             System.Windows.Input.Key.Enter => Forms.Keys.Enter,
             System.Windows.Input.Key.Tab => Forms.Keys.Tab,
             System.Windows.Input.Key.Escape => Forms.Keys.Escape,
@@ -2476,7 +2537,27 @@ public class WindowsFormsHost : FrameworkElement
             System.Windows.Input.Key.Right => Forms.Keys.Right,
             System.Windows.Input.Key.Up => Forms.Keys.Up,
             System.Windows.Input.Key.Down => Forms.Keys.Down,
-            System.Windows.Input.Key.F2 => Forms.Keys.F2,
+            System.Windows.Input.Key.Insert => Forms.Keys.Insert,
+            >= System.Windows.Input.Key.F1 and <= System.Windows.Input.Key.F12
+                => (Forms.Keys)((int)Forms.Keys.F1 + ((int)key - (int)System.Windows.Input.Key.F1)),
+            >= System.Windows.Input.Key.NumPad0 and <= System.Windows.Input.Key.NumPad9
+                => (Forms.Keys)((int)Forms.Keys.NumPad0 + ((int)key - (int)System.Windows.Input.Key.NumPad0)),
+            System.Windows.Input.Key.Multiply => Forms.Keys.Multiply,
+            System.Windows.Input.Key.Add => Forms.Keys.Add,
+            System.Windows.Input.Key.Subtract => Forms.Keys.Subtract,
+            System.Windows.Input.Key.Decimal => Forms.Keys.Decimal,
+            System.Windows.Input.Key.Divide => Forms.Keys.Divide,
+            System.Windows.Input.Key.OemSemicolon => Forms.Keys.OemSemicolon,
+            System.Windows.Input.Key.OemPlus => Forms.Keys.Oemplus,
+            System.Windows.Input.Key.OemComma => Forms.Keys.Oemcomma,
+            System.Windows.Input.Key.OemMinus => Forms.Keys.OemMinus,
+            System.Windows.Input.Key.OemPeriod => Forms.Keys.OemPeriod,
+            System.Windows.Input.Key.OemQuestion => Forms.Keys.OemQuestion,
+            System.Windows.Input.Key.OemTilde => Forms.Keys.Oemtilde,
+            System.Windows.Input.Key.OemOpenBrackets => Forms.Keys.OemOpenBrackets,
+            System.Windows.Input.Key.OemPipe => Forms.Keys.OemPipe,
+            System.Windows.Input.Key.OemCloseBrackets => Forms.Keys.OemCloseBrackets,
+            System.Windows.Input.Key.OemQuotes => Forms.Keys.OemQuotes,
             >= System.Windows.Input.Key.A and <= System.Windows.Input.Key.Z
                 => (Forms.Keys)((int)Forms.Keys.A + ((int)key - (int)System.Windows.Input.Key.A)),
             >= System.Windows.Input.Key.D0 and <= System.Windows.Input.Key.D9

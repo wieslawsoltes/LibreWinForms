@@ -85,6 +85,7 @@ modes=(
   --run-checkables
   --run-listview
   --run-custom-paint
+  --run-keyboard
 )
 
 for mode in "${modes[@]}"; do

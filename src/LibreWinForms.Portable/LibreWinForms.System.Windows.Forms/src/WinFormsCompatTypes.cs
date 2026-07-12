@@ -926,7 +926,21 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
 
     protected virtual bool ProcessCmdKey(ref Message msg, Keys keyData)
     {
-        return false;
+        return Parent?.ProcessCmdKey(ref msg, keyData) ?? false;
+    }
+
+    public virtual bool PreProcessMessage(ref Message msg)
+    {
+        const int WmKeyDown = 0x0100;
+        const int WmSysKeyDown = 0x0104;
+
+        if (msg.Msg != WmKeyDown && msg.Msg != WmSysKeyDown)
+        {
+            return false;
+        }
+
+        Keys keyCode = (Keys)unchecked((int)msg.WParam.ToInt64()) & Keys.KeyCode;
+        return ProcessCmdKey(ref msg, keyCode | ModifierKeys);
     }
 
     protected virtual void OnDragDrop(DragEventArgs e)
@@ -9077,9 +9091,14 @@ public enum MessageBoxOptions
 public enum Keys
 {
     None = 0,
+    KeyCode = 0xFFFF,
     Return = 13,
     Enter = Return,
     Tab = 9,
+    ShiftKey = 16,
+    ControlKey = 17,
+    Menu = 18,
+    CapsLock = 20,
     Escape = 27,
     Space = 32,
     PageUp = 33,
@@ -9088,6 +9107,7 @@ public enum Keys
     Home = 36,
     Left = 37,
     Right = 39,
+    Insert = 45,
     Back = 8,
     Backspace = Back,
     Delete = 46,
@@ -9127,12 +9147,51 @@ public enum Keys
     X = 88,
     Y = 89,
     Z = 90,
+    NumPad0 = 96,
+    NumPad1 = 97,
+    NumPad2 = 98,
+    NumPad3 = 99,
+    NumPad4 = 100,
+    NumPad5 = 101,
+    NumPad6 = 102,
+    NumPad7 = 103,
+    NumPad8 = 104,
+    NumPad9 = 105,
+    Multiply = 106,
+    Add = 107,
+    Separator = 108,
+    Subtract = 109,
+    Decimal = 110,
+    Divide = 111,
+    F1 = 112,
     F2 = 113,
+    F3 = 114,
+    F4 = 115,
+    F5 = 116,
+    F6 = 117,
+    F7 = 118,
+    F8 = 119,
+    F9 = 120,
+    F10 = 121,
+    F11 = 122,
+    F12 = 123,
+    OemSemicolon = 186,
+    Oemplus = 187,
+    Oemcomma = 188,
+    OemMinus = 189,
+    OemPeriod = 190,
+    OemQuestion = 191,
+    Oemtilde = 192,
+    OemOpenBrackets = 219,
+    OemPipe = 220,
+    OemCloseBrackets = 221,
+    OemQuotes = 222,
     Up = 38,
     Down = 40,
     Shift = 0x10000,
     Control = 0x20000,
-    Alt = 0x40000
+    Alt = 0x40000,
+    Modifiers = unchecked((int)0xFFFF0000)
 }
 
 public struct Message
