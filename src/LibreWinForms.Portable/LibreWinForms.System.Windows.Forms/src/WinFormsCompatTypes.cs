@@ -4125,6 +4125,22 @@ public class DataGridView : Control, ISupportInitialize
         return true;
     }
 
+    public void Sort(DataGridViewColumn dataGridViewColumn, ListSortDirection direction)
+    {
+        ArgumentNullException.ThrowIfNull(dataGridViewColumn);
+        if (direction is not ListSortDirection.Ascending and not ListSortDirection.Descending)
+        {
+            throw new InvalidEnumArgumentException(nameof(direction), (int)direction, typeof(ListSortDirection));
+        }
+
+        if (!ReferenceEquals(dataGridViewColumn.DataGridView, this))
+        {
+            throw new ArgumentException("The column does not belong to this DataGridView.", nameof(dataGridViewColumn));
+        }
+
+        Rows.Sort(dataGridViewColumn.Index, direction);
+    }
+
     internal void EnsureRowCells(DataGridViewRow row)
     {
         while (row.Cells.Count < Columns.Count)
@@ -4179,6 +4195,31 @@ public class DataGridView : Control, ISupportInitialize
         internal DataGridViewColumnCollection(DataGridView owner)
         {
             _owner = owner;
+        }
+
+        public DataGridViewColumn? this[string columnName]
+        {
+            get
+            {
+                int index = IndexOf(columnName);
+                return index >= 0 ? this[index] : null;
+            }
+        }
+
+        public bool Contains(string columnName) => IndexOf(columnName) >= 0;
+
+        public int IndexOf(string columnName)
+        {
+            ArgumentNullException.ThrowIfNull(columnName);
+            for (int index = 0; index < Count; index++)
+            {
+                if (string.Equals(this[index].Name, columnName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return index;
+                }
+            }
+
+            return -1;
         }
 
         protected override void InsertItem(int index, DataGridViewColumn item)
@@ -4451,6 +4492,66 @@ public class DataGridView : Control, ISupportInitialize
             }
         }
 
+        internal void Sort(int columnIndex, ListSortDirection direction)
+        {
+            int sortableCount = NewRowIndex >= 0 ? Count - 1 : Count;
+            if (sortableCount <= 1)
+            {
+                return;
+            }
+
+            var rows = new List<(DataGridViewRow Row, int OriginalIndex)>(sortableCount);
+            for (int index = 0; index < sortableCount; index++)
+            {
+                rows.Add((this[index], index));
+            }
+
+            rows.Sort((left, right) =>
+            {
+                object? leftValue = columnIndex < left.Row.Cells.Count ? left.Row.Cells[columnIndex].Value : null;
+                object? rightValue = columnIndex < right.Row.Cells.Count ? right.Row.Cells[columnIndex].Value : null;
+                int comparison = direction == ListSortDirection.Ascending
+                    ? CompareCellValues(leftValue, rightValue)
+                    : CompareCellValues(rightValue, leftValue);
+                return comparison != 0 ? comparison : left.OriginalIndex.CompareTo(right.OriginalIndex);
+            });
+
+            for (int index = 0; index < sortableCount; index++)
+            {
+                Items[index] = rows[index].Row;
+            }
+
+            Reindex();
+            _owner.Invalidate();
+        }
+
+        private static int CompareCellValues(object? left, object? right)
+        {
+            if (ReferenceEquals(left, right))
+            {
+                return 0;
+            }
+
+            if (left is null)
+            {
+                return -1;
+            }
+
+            if (right is null)
+            {
+                return 1;
+            }
+
+            if (left.GetType() == right.GetType() && left is IComparable comparable)
+            {
+                return comparable.CompareTo(right);
+            }
+
+            string leftText = Convert.ToString(left, CultureInfo.CurrentCulture) ?? string.Empty;
+            string rightText = Convert.ToString(right, CultureInfo.CurrentCulture) ?? string.Empty;
+            return string.Compare(leftText, rightText, ignoreCase: false, CultureInfo.CurrentCulture);
+        }
+
         private void Reindex()
         {
             for (int i = 0; i < Count; i++)
@@ -4466,6 +4567,8 @@ public class DataGridViewColumn : Component
     private DataGridView? _owner;
 
     public DataGridViewAutoSizeColumnMode AutoSizeMode { get; set; }
+
+    public DataGridView? DataGridView => _owner;
 
     public string HeaderText { get; set; } = string.Empty;
 
