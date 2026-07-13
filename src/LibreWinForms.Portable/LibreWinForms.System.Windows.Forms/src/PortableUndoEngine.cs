@@ -446,6 +446,7 @@ public abstract class UndoEngine : IDisposable
         {
             private readonly string _componentName;
             private readonly string? _memberName;
+            private readonly bool _memberIsEvent;
             private PortablePropertySnapshot? _before;
             private PortablePropertySnapshot? _after;
             private PortablePropertySnapshot? _pendingState;
@@ -455,6 +456,9 @@ public abstract class UndoEngine : IDisposable
             {
                 _componentName = component.Site?.Name ?? string.Empty;
                 _memberName = member?.Name;
+                _memberIsEvent = member is PropertyDescriptor property
+                    && component.Site?.GetService(typeof(IEventBindingService)) is IEventBindingService eventBindingService
+                    && eventBindingService.GetEvent(property) is not null;
                 _before = PortablePropertySnapshot.Capture(component, member);
             }
 
@@ -473,7 +477,11 @@ public abstract class UndoEngine : IDisposable
 
                 _afterCaptured = true;
                 if (engine._host.Container.Components[_componentName] is IComponent component)
-                    _after = PortablePropertySnapshot.Capture(component, _memberName);
+                {
+                    _after = _memberIsEvent && _memberName is not null
+                        ? PortablePropertySnapshot.CaptureEvent(component, _memberName)
+                        : PortablePropertySnapshot.Capture(component, _memberName);
+                }
             }
 
             public override void Undo(UndoEngine engine)
@@ -585,7 +593,25 @@ public abstract class UndoEngine : IDisposable
 
         public static PortablePropertySnapshot? Capture(IComponent component, MemberDescriptor? member)
         {
+            if (member is PropertyDescriptor property
+                && component.Site?.GetService(typeof(IEventBindingService)) is IEventBindingService eventBindingService
+                && eventBindingService.GetEvent(property) is not null)
+            {
+                return TryCaptureValue(component, property, isEvent: true, out PropertyValue eventValue)
+                    ? new PortablePropertySnapshot(new[] { eventValue })
+                    : null;
+            }
+
             return Capture(component, member?.Name);
+        }
+
+        public static PortablePropertySnapshot? CaptureEvent(IComponent component, string eventName)
+        {
+            PropertyDescriptor? property = GetEventProperty(component, eventName);
+            return property is not null
+                && TryCaptureValue(component, property, isEvent: true, out PropertyValue eventValue)
+                    ? new PortablePropertySnapshot(new[] { eventValue })
+                    : null;
         }
 
         public static PortablePropertySnapshot? Capture(IComponent component, string? memberName)
@@ -597,7 +623,7 @@ public abstract class UndoEngine : IDisposable
                 if (property is null || property.IsReadOnly || s_excludedProperties.Contains(property.Name))
                     return null;
 
-                return TryCaptureValue(component, property, out PropertyValue value)
+                return TryCaptureValue(component, property, isEvent: false, out PropertyValue value)
                     ? new PortablePropertySnapshot(new[] { value })
                     : null;
             }
@@ -612,7 +638,7 @@ public abstract class UndoEngine : IDisposable
                     continue;
                 }
 
-                if (TryCaptureValue(component, property, out PropertyValue value))
+                if (TryCaptureValue(component, property, isEvent: false, out PropertyValue value))
                     values.Add(value);
             }
             return values.Count == 0 ? null : new PortablePropertySnapshot(values.ToArray());
@@ -623,7 +649,9 @@ public abstract class UndoEngine : IDisposable
             PropertyDescriptorCollection properties = TypeDescriptor.GetProperties(component);
             foreach (PropertyValue value in _values)
             {
-                PropertyDescriptor? property = properties[value.Name];
+                PropertyDescriptor? property = value.IsEvent
+                    ? GetEventProperty(component, value.Name)
+                    : properties[value.Name];
                 if (property is null || property.IsReadOnly)
                     continue;
 
@@ -631,9 +659,16 @@ public abstract class UndoEngine : IDisposable
                 {
                     object? oldValue = property.GetValue(component);
                     object? restoredValue = RestoreValue(value.Value);
-                    changeService.OnComponentChanging(component, property);
-                    property.SetValue(component, restoredValue);
-                    changeService.OnComponentChanged(component, property, oldValue, restoredValue);
+                    if (value.IsEvent)
+                    {
+                        property.SetValue(component, restoredValue);
+                    }
+                    else
+                    {
+                        changeService.OnComponentChanging(component, property);
+                        property.SetValue(component, restoredValue);
+                        changeService.OnComponentChanged(component, property, oldValue, restoredValue);
+                    }
                 }
                 catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or NotSupportedException)
                 {
@@ -644,11 +679,12 @@ public abstract class UndoEngine : IDisposable
         private static bool TryCaptureValue(
             IComponent component,
             PropertyDescriptor property,
+            bool isEvent,
             out PropertyValue value)
         {
             try
             {
-                value = new PropertyValue(property.Name, CaptureValue(property.GetValue(component)));
+                value = new PropertyValue(property.Name, CaptureValue(property.GetValue(component)), isEvent);
                 return true;
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or NotSupportedException)
@@ -656,6 +692,15 @@ public abstract class UndoEngine : IDisposable
                 value = default;
                 return false;
             }
+        }
+
+        private static PropertyDescriptor? GetEventProperty(IComponent component, string eventName)
+        {
+            if (component.Site?.GetService(typeof(IEventBindingService)) is not IEventBindingService eventBindingService)
+                return null;
+
+            EventDescriptor? eventDescriptor = TypeDescriptor.GetEvents(component).Find(eventName, ignoreCase: false);
+            return eventDescriptor is null ? null : eventBindingService.GetEventProperty(eventDescriptor);
         }
 
         private static object? CaptureValue(object? value)
@@ -698,7 +743,7 @@ public abstract class UndoEngine : IDisposable
             return value;
         }
 
-        private readonly record struct PropertyValue(string Name, object? Value);
+        private readonly record struct PropertyValue(string Name, object? Value, bool IsEvent);
 
         private readonly record struct ComponentReference(IContainer Container, string Name);
 

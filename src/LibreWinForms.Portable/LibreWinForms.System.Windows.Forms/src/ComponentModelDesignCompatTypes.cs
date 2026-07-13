@@ -3462,13 +3462,13 @@ namespace System.ComponentModel.Design
                 if (string.IsNullOrWhiteSpace(methodName))
                     return false;
 
-                SetEventMethodName(component, e, methodName);
+                SetEventMethodName(component, e, methodName, eventProperty: null);
                 createdMethodBinding = true;
             }
 
             bool shown = ShowCode(component, e, methodName);
             if (!shown && createdMethodBinding)
-                SetEventMethodName(component, e, null);
+                SetEventMethodName(component, e, null, eventProperty: null);
 
             return shown;
         }
@@ -3507,7 +3507,7 @@ namespace System.ComponentModel.Design
 
             EventDescriptor? eventDescriptor = TypeDescriptor.GetEvents(component).Find(eventName, false);
             if (eventDescriptor is not null)
-                SetEventMethodName(component, eventDescriptor, methodName);
+                SetEventMethodName(component, eventDescriptor, methodName, eventProperty: null);
         }
 
         internal void RemoveComponent(IComponent component)
@@ -3515,35 +3515,122 @@ namespace System.ComponentModel.Design
             _eventMethods.Remove(component);
         }
 
-        private void SetEventMethodName(IComponent component, EventDescriptor e, string? methodName)
+        private void SetEventMethodName(
+            IComponent component,
+            EventDescriptor e,
+            string? methodName,
+            EventPropertyDescriptor? eventProperty)
         {
+            if (methodName is { Length: 0 })
+                methodName = null;
+
             string? oldMethodName = GetEventMethodName(component, e);
             if (string.Equals(oldMethodName, methodName, StringComparison.Ordinal))
                 return;
 
-            if (!string.IsNullOrEmpty(oldMethodName))
-                FreeMethod(component, e, oldMethodName);
+            if (methodName is not null)
+                ValidateMethodName(methodName);
 
-            if (string.IsNullOrEmpty(methodName))
+            ISite? site = component.Site;
+            IDesignerHost? host = site?.GetService(typeof(IDesignerHost)) as IDesignerHost;
+            IComponentChangeService? changeService = site?.GetService(typeof(IComponentChangeService)) as IComponentChangeService;
+            eventProperty ??= GetEventProperty(e);
+            using DesignerTransaction? transaction = host?.CreateTransaction(
+                $"Set event handler {site?.Name ?? component.GetType().Name}.{e.Name}");
+
+            bool usedNewMethod = false;
+            bool freedOldMethod = false;
+            bool mappingChanged = false;
+            try
+            {
+                try
+                {
+                    changeService?.OnComponentChanging(component, eventProperty);
+                    changeService?.OnComponentChanging(component, e);
+                }
+                catch (CheckoutException exception) when (exception == CheckoutException.Canceled)
+                {
+                    return;
+                }
+
+                // Match the native service ordering: acquire the new method before
+                // releasing the old one so a failed acquisition cannot lose a valid binding.
+                if (methodName is not null)
+                {
+                    UseMethod(component, e, methodName);
+                    usedNewMethod = true;
+                }
+                if (oldMethodName is not null)
+                {
+                    FreeMethod(component, e, oldMethodName);
+                    freedOldMethod = true;
+                }
+
+                SetStoredEventMethodName(component, e.Name, methodName);
+                mappingChanged = true;
+
+                changeService?.OnComponentChanged(component, e, null, null);
+                changeService?.OnComponentChanged(component, eventProperty, oldMethodName, methodName);
+                eventProperty.RaiseValueChanged(component);
+                transaction?.Commit();
+            }
+            catch
+            {
+                if (mappingChanged)
+                    SetStoredEventMethodName(component, e.Name, oldMethodName);
+                if (freedOldMethod && oldMethodName is not null)
+                    TryRestoreMethodUsage(component, e, oldMethodName, useMethod: true);
+                if (usedNewMethod && methodName is not null)
+                    TryRestoreMethodUsage(component, e, methodName, useMethod: false);
+                throw;
+            }
+        }
+
+        private void SetStoredEventMethodName(IComponent component, string eventName, string? methodName)
+        {
+            if (methodName is null)
             {
                 if (_eventMethods.TryGetValue(component, out Dictionary<string, string>? componentEvents))
                 {
-                    componentEvents.Remove(e.Name);
+                    componentEvents.Remove(eventName);
                     if (componentEvents.Count == 0)
                         _eventMethods.Remove(component);
                 }
                 return;
             }
 
-            ValidateMethodName(methodName);
             if (!_eventMethods.TryGetValue(component, out Dictionary<string, string>? events))
             {
                 events = new Dictionary<string, string>(StringComparer.Ordinal);
                 _eventMethods.Add(component, events);
             }
 
-            events[e.Name] = methodName;
-            UseMethod(component, e, methodName);
+            events[eventName] = methodName;
+        }
+
+        private void TryRestoreMethodUsage(
+            IComponent component,
+            EventDescriptor e,
+            string methodName,
+            bool useMethod)
+        {
+            try
+            {
+                if (useMethod)
+                    UseMethod(component, e, methodName);
+                else
+                    FreeMethod(component, e, methodName);
+            }
+            catch (Exception)
+            {
+                // Preserve the original mutation failure. The authoritative binding
+                // dictionary has already been restored above.
+            }
+        }
+
+        private EventPropertyDescriptor GetEventProperty(EventDescriptor e)
+        {
+            return new EventPropertyDescriptor(e, this);
         }
 
         private sealed class EventPropertyDescriptor : PropertyDescriptor
@@ -3578,18 +3665,23 @@ namespace System.ComponentModel.Design
             public override void ResetValue(object component)
             {
                 if (component is IComponent target)
-                    _owner.SetEventMethodName(target, Event, null);
+                    _owner.SetEventMethodName(target, Event, null, this);
             }
 
             public override void SetValue(object? component, object? value)
             {
                 if (component is IComponent target)
-                    _owner.SetEventMethodName(target, Event, value as string);
+                    _owner.SetEventMethodName(target, Event, value as string, this);
             }
 
             public override bool ShouldSerializeValue(object component)
             {
                 return CanResetValue(component);
+            }
+
+            public void RaiseValueChanged(object component)
+            {
+                OnValueChanged(component, EventArgs.Empty);
             }
         }
     }
