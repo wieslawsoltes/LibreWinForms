@@ -151,6 +151,7 @@ public class WindowsFormsHost : FrameworkElement
     private Forms.Control? _focusedControl;
     private Forms.Control? _capturedControl;
     private Forms.Control? _pressedControl;
+    private Forms.ToolStripItem? _pressedToolStripItem;
     private Forms.MouseButtons _pressedButton;
     private Forms.Control? _externalDragTarget;
     private Forms.DragDropEffects _externalDragEffect;
@@ -205,6 +206,7 @@ public class WindowsFormsHost : FrameworkElement
             }
 
             Forms.Control? previous = _child;
+            CloseActiveContextMenu(Forms.ToolStripDropDownCloseReason.AppFocusChange);
             HandlePortableDragHostUnavailable();
             ClearExternalDragTarget(raiseLeave: true);
             if (_child != null)
@@ -219,7 +221,9 @@ public class WindowsFormsHost : FrameworkElement
             _focusedControl = null;
             _capturedControl = null;
             _pressedControl = null;
+            _pressedToolStripItem = null;
             _pressedButton = Forms.MouseButtons.None;
+            Cursor = System.Windows.Input.Cursors.Arrow;
             if (IsMouseCaptured)
             {
                 ReleaseMouseCapture();
@@ -1163,6 +1167,7 @@ public class WindowsFormsHost : FrameworkElement
         base.OnMouseDown(e);
         bool hadPressedControl = _pressedControl != null;
         _pressedControl = null;
+        _pressedToolStripItem = null;
         _pressedButton = Forms.MouseButtons.None;
         if (hadPressedControl)
         {
@@ -1222,6 +1227,11 @@ public class WindowsFormsHost : FrameworkElement
 
         ApplyDefaultSelection(target, localPoint, pressedButton);
 
+        if (pressedButton == Forms.MouseButtons.Left && target is Forms.ToolStrip toolStrip)
+        {
+            _pressedToolStripItem = SelectToolStripItemAt(toolStrip, localPoint);
+        }
+
         if (e.ChangedButton == MouseButton.Left
             && target is Forms.ComboBox comboBox
             && TryShowComboBoxDropDown(comboBox))
@@ -1249,6 +1259,7 @@ public class WindowsFormsHost : FrameworkElement
         {
             bool hadPressedControl = _pressedControl != null;
             _pressedControl = null;
+            _pressedToolStripItem = null;
             _pressedButton = Forms.MouseButtons.None;
             if (hadPressedControl)
             {
@@ -1259,18 +1270,27 @@ public class WindowsFormsHost : FrameworkElement
         }
 
         Point hostPoint = e.GetPosition(this);
+        DesignHandle hoverHandle = DesignHandle.None;
+        Forms.Control? designTarget = null;
+        Point designLocalPoint = default;
         if (_capturedControl == null && MapMouseButtons(e) == Forms.MouseButtons.None)
         {
-            _ = FindDesignAdornerTarget(hostPoint, out _, out DesignHandle hoverHandle);
-            Cursor = GetDesignHandleCursor(hoverHandle);
+            designTarget = FindDesignAdornerTarget(hostPoint, out designLocalPoint, out hoverHandle);
         }
 
-        Forms.Control? target = FindPointerTarget(hostPoint, out Point localPoint);
+        Forms.Control? target = designTarget;
+        Point localPoint = designLocalPoint;
+        if (target == null)
+        {
+            target = FindPointerTarget(hostPoint, out localPoint);
+        }
         if (target == null)
         {
             bool hadPressedControl = _pressedControl != null;
             _pressedControl = null;
+            _pressedToolStripItem = null;
             _pressedButton = Forms.MouseButtons.None;
+            Cursor = System.Windows.Input.Cursors.Arrow;
             if (hadPressedControl)
             {
                 InvalidateVisual();
@@ -1279,11 +1299,16 @@ public class WindowsFormsHost : FrameworkElement
             return;
         }
         target = ResolveDesignInputTarget(target, hostPoint, ref localPoint);
+        Cursor = hoverHandle != DesignHandle.None
+            ? GetDesignHandleCursor(hoverHandle)
+            : GetPortableCursor(target.Cursor);
 
         Forms.MouseButtons releasedButton = MapMouseButton(e.ChangedButton);
         bool matchingPress = ReferenceEquals(_pressedControl, target)
             && _pressedButton == releasedButton;
+        Forms.ToolStripItem? pressedToolStripItem = _pressedToolStripItem;
         _pressedControl = null;
+        _pressedToolStripItem = null;
         _pressedButton = Forms.MouseButtons.None;
         InvalidateVisual();
 
@@ -1308,6 +1333,15 @@ public class WindowsFormsHost : FrameworkElement
         if (matchingPress && target.CanSelect)
         {
             target.RaiseMouseClick(mouseEventArgs);
+        }
+
+        if (matchingPress
+            && releasedButton == Forms.MouseButtons.Left
+            && target is Forms.ToolStrip toolStrip
+            && TryActivateToolStripItem(toolStrip, localPoint, pressedToolStripItem))
+        {
+            e.Handled = true;
+            return;
         }
 
         if (matchingPress
@@ -1338,16 +1372,34 @@ public class WindowsFormsHost : FrameworkElement
 
         if (_child == null)
         {
+            Cursor = System.Windows.Input.Cursors.Arrow;
             return;
         }
 
         Point hostPoint = e.GetPosition(this);
-        Forms.Control? target = FindPointerTarget(hostPoint, out Point localPoint);
+        DesignHandle hoverHandle = DesignHandle.None;
+        Forms.Control? designTarget = null;
+        Point designLocalPoint = default;
+        if (_capturedControl == null && MapMouseButtons(e) == Forms.MouseButtons.None)
+        {
+            designTarget = FindDesignAdornerTarget(hostPoint, out designLocalPoint, out hoverHandle);
+        }
+
+        Forms.Control? target = designTarget;
+        Point localPoint = designLocalPoint;
         if (target == null)
         {
+            target = FindPointerTarget(hostPoint, out localPoint);
+        }
+        if (target == null)
+        {
+            Cursor = System.Windows.Input.Cursors.Arrow;
             return;
         }
         target = ResolveDesignInputTarget(target, hostPoint, ref localPoint);
+        Cursor = hoverHandle != DesignHandle.None
+            ? GetDesignHandleCursor(hoverHandle)
+            : GetPortableCursor(target.Cursor);
 
         var mouseEventArgs = new Forms.MouseEventArgs(
             MapMouseButtons(e),
@@ -1360,6 +1412,12 @@ public class WindowsFormsHost : FrameworkElement
         {
             e.Handled = true;
         }
+    }
+
+    protected override void OnMouseLeave(System.Windows.Input.MouseEventArgs e)
+    {
+        base.OnMouseLeave(e);
+        Cursor = System.Windows.Input.Cursors.Arrow;
     }
 
     protected override void OnMouseWheel(MouseWheelEventArgs e)
@@ -1634,7 +1692,7 @@ public class WindowsFormsHost : FrameworkElement
             VerticalOffset = hostPoint.Y
         };
 
-        CloseActiveContextMenu();
+        CloseActiveContextMenu(Forms.ToolStripDropDownCloseReason.AppClicked);
         contextMenuStrip.Visible = true;
         foreach (Forms.ToolStripItem item in contextMenuStrip.Items)
         {
@@ -1672,7 +1730,7 @@ public class WindowsFormsHost : FrameworkElement
             if (!closingFromStrip)
             {
                 closingFromWpf = true;
-                contextMenuStrip.Close();
+                contextMenuStrip.Close(Forms.ToolStripDropDownCloseReason.AppClicked);
                 closingFromWpf = false;
             }
 
@@ -1773,7 +1831,7 @@ public class WindowsFormsHost : FrameworkElement
             MinWidth = Math.Max(0, comboBox.Width)
         };
 
-        CloseActiveContextMenu();
+        CloseActiveContextMenu(Forms.ToolStripDropDownCloseReason.AppClicked);
         for (int i = 0; i < comboBox.Items.Count; i++)
         {
             int itemIndex = i;
@@ -1786,6 +1844,7 @@ public class WindowsFormsHost : FrameworkElement
             menuItem.Click += delegate
             {
                 comboBox.SelectedIndex = itemIndex;
+                InvalidateVisual();
                 contextMenu.IsOpen = false;
             };
             contextMenu.Items.Add(menuItem);
@@ -1806,6 +1865,150 @@ public class WindowsFormsHost : FrameworkElement
         comboBox.DroppedDown = true;
         contextMenu.IsOpen = true;
         return true;
+    }
+
+    private bool TryShowToolStripComboBoxDropDown(
+        Forms.ToolStrip toolStrip,
+        Forms.ToolStripComboBox comboBox,
+        Rect itemBounds)
+    {
+        Forms.ComboBox embeddedComboBox = comboBox.ComboBox;
+        if (_child == null
+            || embeddedComboBox.Items.Count == 0
+            || !TryGetHostPoint(
+                _child,
+                toolStrip,
+                new System.Drawing.Point(
+                    ToWinFormsCoordinate(itemBounds.X),
+                    ToWinFormsCoordinate(itemBounds.Bottom)),
+                out Point hostPoint))
+        {
+            return false;
+        }
+
+        var contextMenu = new WpfContextMenu
+        {
+            PlacementTarget = this,
+            Placement = PlacementMode.RelativePoint,
+            HorizontalOffset = hostPoint.X,
+            VerticalOffset = hostPoint.Y,
+            MinWidth = Math.Max(0, itemBounds.Width)
+        };
+
+        CloseActiveContextMenu(Forms.ToolStripDropDownCloseReason.AppClicked);
+        for (int i = 0; i < embeddedComboBox.Items.Count; i++)
+        {
+            int itemIndex = i;
+            var menuItem = new WpfMenuItem
+            {
+                Header = embeddedComboBox.Items[i]?.ToString() ?? string.Empty,
+                IsCheckable = true,
+                IsChecked = itemIndex == comboBox.SelectedIndex
+            };
+            menuItem.Click += delegate
+            {
+                comboBox.SelectedIndex = itemIndex;
+                InvalidateVisual();
+                contextMenu.IsOpen = false;
+            };
+            contextMenu.Items.Add(menuItem);
+        }
+
+        contextMenu.Closed += delegate
+        {
+            embeddedComboBox.DroppedDown = false;
+            if (ReferenceEquals(_activeContextMenu, contextMenu))
+            {
+                _activeContextMenu = null;
+                _activeContextMenuStrip = null;
+            }
+        };
+
+        _activeContextMenu = contextMenu;
+        _activeContextMenuStrip = null;
+        embeddedComboBox.DroppedDown = true;
+        contextMenu.IsOpen = true;
+        return true;
+    }
+
+    private Forms.ToolStripItem? SelectToolStripItemAt(Forms.ToolStrip toolStrip, Point localPoint)
+    {
+        Forms.ToolStripItem? selectedItem = TryGetToolStripItemAt(toolStrip, localPoint, out _);
+        foreach (Forms.ToolStripItem item in toolStrip.Items)
+        {
+            item.Selected = ReferenceEquals(item, selectedItem);
+        }
+
+        if (selectedItem != null)
+        {
+            InvalidateVisual();
+        }
+
+        return selectedItem;
+    }
+
+    private bool TryActivateToolStripItem(
+        Forms.ToolStrip toolStrip,
+        Point localPoint,
+        Forms.ToolStripItem? pressedItem)
+    {
+        Forms.ToolStripItem? releasedItem = TryGetToolStripItemAt(toolStrip, localPoint, out Rect itemBounds);
+        if (releasedItem == null
+            || !ReferenceEquals(releasedItem, pressedItem)
+            || !releasedItem.Enabled)
+        {
+            return false;
+        }
+
+        if (releasedItem is Forms.ToolStripComboBox comboBox)
+        {
+            return TryShowToolStripComboBoxDropDown(toolStrip, comboBox, itemBounds);
+        }
+
+        if (releasedItem is Forms.ToolStripControlHost { Control: Forms.NumericUpDown numericUpDown })
+        {
+            if (localPoint.X >= itemBounds.Right - 18)
+            {
+                decimal delta = localPoint.Y < itemBounds.Top + (itemBounds.Height / 2)
+                    ? numericUpDown.Increment
+                    : -numericUpDown.Increment;
+                numericUpDown.Value = Math.Clamp(
+                    numericUpDown.Value + delta,
+                    numericUpDown.Minimum,
+                    numericUpDown.Maximum);
+                InvalidateVisual();
+            }
+            else
+            {
+                numericUpDown.Focus();
+            }
+
+            return true;
+        }
+
+        releasedItem.PerformClick();
+        return true;
+    }
+
+    private Forms.ToolStripItem? TryGetToolStripItemAt(
+        Forms.ToolStrip toolStrip,
+        Point localPoint,
+        out Rect itemBounds)
+    {
+        Rect stripBounds = new(0, 0, Math.Max(0, toolStrip.Width), Math.Max(0, toolStrip.Height));
+        int itemIndex = 0;
+        double x = stripBounds.X + 4;
+        while (TryGetNextMainToolStripItem(toolStrip, stripBounds, ref itemIndex, ref x, out Forms.ToolStripItem item, out Rect bounds))
+        {
+            if (bounds.Contains(localPoint))
+            {
+                itemBounds = bounds;
+                return item;
+            }
+        }
+
+        itemBounds = Rect.Empty;
+        return null;
     }
 
     private static bool TryGetHostPoint(Forms.Control root, Forms.Control source, System.Drawing.Point sourcePoint, out Point hostPoint)
@@ -1831,15 +2034,16 @@ public class WindowsFormsHost : FrameworkElement
         return false;
     }
 
-    private void CloseActiveContextMenu()
+    private void CloseActiveContextMenu(Forms.ToolStripDropDownCloseReason closeReason)
     {
-        if (_activeContextMenu != null)
+        Forms.ContextMenuStrip? activeStrip = _activeContextMenuStrip;
+        if (activeStrip?.Visible == true)
+        {
+            activeStrip.Close(closeReason);
+        }
+        else if (_activeContextMenu != null)
         {
             _activeContextMenu.IsOpen = false;
-        }
-        else
-        {
-            _activeContextMenuStrip?.Close();
         }
 
         _activeContextMenu = null;
@@ -1977,7 +2181,7 @@ public class WindowsFormsHost : FrameworkElement
                 }
 
                 item.PerformClick();
-                owner.Close();
+                owner.Close(Forms.ToolStripDropDownCloseReason.ItemClicked);
             };
         }
 
@@ -2074,6 +2278,7 @@ public class WindowsFormsHost : FrameworkElement
 
     private void OnHostUnloaded(object sender, RoutedEventArgs e)
     {
+        CloseActiveContextMenu(Forms.ToolStripDropDownCloseReason.AppFocusChange);
         DetachExternalDropWindow();
         ClearExternalDragTarget(raiseLeave: true);
         HandlePortableDragHostUnavailable();
@@ -2376,6 +2581,16 @@ public class WindowsFormsHost : FrameworkElement
             DesignHandle.TopRight or DesignHandle.BottomLeft => System.Windows.Input.Cursors.SizeNESW,
             DesignHandle.Left or DesignHandle.Right => System.Windows.Input.Cursors.SizeWE,
             DesignHandle.Top or DesignHandle.Bottom => System.Windows.Input.Cursors.SizeNS,
+            _ => System.Windows.Input.Cursors.Arrow
+        };
+    }
+
+    private static System.Windows.Input.Cursor GetPortableCursor(Forms.Cursor cursor)
+    {
+        return cursor.PortableKind switch
+        {
+            Forms.PortableCursorKind.Wait => System.Windows.Input.Cursors.Wait,
+            Forms.PortableCursorKind.IBeam => System.Windows.Input.Cursors.IBeam,
             _ => System.Windows.Input.Cursors.Arrow
         };
     }
@@ -2929,6 +3144,11 @@ public class WindowsFormsHost : FrameworkElement
                         Math.Max(0, child.Height));
                     RenderControl(drawingContext, child, childBounds);
                 }
+            }
+
+            if (control is Forms.UserControl userControl)
+            {
+                DrawBorder(drawingContext, userControl.BorderStyle, bounds);
             }
         }
         finally
@@ -3842,31 +4062,245 @@ public class WindowsFormsHost : FrameworkElement
     private void RenderToolStrip(DrawingContext drawingContext, Forms.ToolStrip toolStrip, Rect bounds, Brush foreground)
     {
         drawingContext.DrawRectangle(SystemColors.ControlBrush, new Pen(SystemColors.ControlDarkBrush, 1), bounds);
+        int itemIndex = 0;
         double x = bounds.X + 4;
-        foreach (Forms.ToolStripItem item in toolStrip.Items)
+        while (TryGetNextMainToolStripItem(toolStrip, bounds, ref itemIndex, ref x, out Forms.ToolStripItem item, out Rect itemBounds))
         {
-            if (!item.Visible || !item.Available)
-            {
-                continue;
-            }
-
             if (item is Forms.ToolStripSeparator)
             {
-                drawingContext.DrawLine(new Pen(SystemColors.ControlDarkBrush, 1), new Point(x + 3, bounds.Y + 4), new Point(x + 3, bounds.Bottom - 4));
-                x += 8;
+                double separatorX = itemBounds.X + (itemBounds.Width / 2);
+                drawingContext.DrawLine(
+                    new Pen(SystemColors.ControlDarkBrush, 1),
+                    new Point(separatorX, bounds.Y + 4),
+                    new Point(separatorX, bounds.Bottom - 4));
                 continue;
             }
 
-            string text = string.IsNullOrEmpty(item.Text) ? item.Name : item.Text;
-            double itemWidth = Math.Max(item.Width > 0 ? item.Width : 0, MeasureText(text, 12) + 14);
-            Rect itemBounds = new(x, bounds.Y + 2, itemWidth, Math.Max(0, bounds.Height - 4));
             if (item.Selected)
             {
                 drawingContext.DrawRectangle(SystemColors.HighlightBrush, null, itemBounds);
             }
 
-            DrawText(drawingContext, text, new Point(itemBounds.X + 6, itemBounds.Y + 3), item.Enabled ? foreground : SystemColors.GrayTextBrush, 12);
-            x += itemWidth + 2;
+            Brush itemForeground = item.Enabled ? foreground : SystemColors.GrayTextBrush;
+            if (item is Forms.ToolStripComboBox comboBox)
+            {
+                RenderToolStripComboBox(drawingContext, comboBox, itemBounds, itemForeground);
+            }
+            else if (item is Forms.ToolStripControlHost controlHost)
+            {
+                RenderToolStripControlHost(drawingContext, controlHost, itemBounds, itemForeground);
+            }
+            else
+            {
+                RenderToolStripButtonLikeItem(drawingContext, item, itemBounds, itemForeground);
+            }
+        }
+    }
+
+    private bool TryGetNextMainToolStripItem(
+        Forms.ToolStrip toolStrip,
+        Rect stripBounds,
+        ref int itemIndex,
+        ref double x,
+        out Forms.ToolStripItem item,
+        out Rect itemBounds)
+    {
+        while (itemIndex < toolStrip.Items.Count)
+        {
+            Forms.ToolStripItem candidate = toolStrip.Items[itemIndex++];
+            if (!candidate.Visible
+                || !candidate.Available
+                || candidate.Overflow == Forms.ToolStripItemOverflow.Always)
+            {
+                continue;
+            }
+
+            double width = GetToolStripItemWidth(candidate);
+            Rect candidateBounds = new(
+                x,
+                stripBounds.Y + 2,
+                width,
+                Math.Max(0, stripBounds.Height - 4));
+            if (candidate.Overflow == Forms.ToolStripItemOverflow.AsNeeded
+                && candidateBounds.Right > stripBounds.Right - 4)
+            {
+                continue;
+            }
+
+            x = candidateBounds.Right + 2;
+            item = candidate;
+            itemBounds = candidateBounds;
+            return true;
+        }
+
+        item = null!;
+        itemBounds = Rect.Empty;
+        return false;
+    }
+
+    private double GetToolStripItemWidth(Forms.ToolStripItem item)
+    {
+        int configuredWidth = item.Width > 0 ? item.Width : item.Size.Width;
+        if (configuredWidth > 0)
+        {
+            return configuredWidth;
+        }
+
+        if (item is Forms.ToolStripSeparator)
+        {
+            return 8;
+        }
+
+        if (item is Forms.ToolStripComboBox comboBox)
+        {
+            string selectedText = comboBox.SelectedItem?.ToString() ?? comboBox.Text;
+            return Math.Max(80, MeasureText(selectedText, 12) + 28);
+        }
+
+        if (item is Forms.ToolStripControlHost controlHost)
+        {
+            return Math.Max(24, controlHost.Control.Width > 0 ? controlHost.Control.Width : 80);
+        }
+
+        string text = GetToolStripItemText(item);
+        bool showImage = item.Image != null
+            && item.DisplayStyle is Forms.ToolStripItemDisplayStyle.Image or Forms.ToolStripItemDisplayStyle.ImageAndText;
+        bool showText = item.DisplayStyle is Forms.ToolStripItemDisplayStyle.Text or Forms.ToolStripItemDisplayStyle.ImageAndText;
+        double contentWidth = showText ? MeasureText(text, 12) : 0;
+        if (showImage)
+        {
+            contentWidth += 16 + (showText && !string.IsNullOrEmpty(text) ? 4 : 0);
+        }
+
+        return Math.Max(18, contentWidth + 12);
+    }
+
+    private static string GetToolStripItemText(Forms.ToolStripItem item)
+    {
+        return string.IsNullOrEmpty(item.Text) ? item.Name : item.Text;
+    }
+
+    private void RenderToolStripComboBox(
+        DrawingContext drawingContext,
+        Forms.ToolStripComboBox comboBox,
+        Rect bounds,
+        Brush foreground)
+    {
+        drawingContext.DrawRectangle(SystemColors.WindowBrush, new Pen(SystemColors.ControlDarkBrush, 1), bounds);
+        double arrowWidth = Math.Min(18, Math.Max(12, bounds.Width / 3));
+        Rect textBounds = new(bounds.X + 4, bounds.Y + 2, Math.Max(0, bounds.Width - arrowWidth - 6), Math.Max(0, bounds.Height - 4));
+        string text = comboBox.SelectedItem?.ToString() ?? comboBox.Text;
+        DrawTextInBounds(drawingContext, text, textBounds, foreground, 12);
+
+        double arrowCenterX = bounds.Right - (arrowWidth / 2);
+        double arrowCenterY = bounds.Top + (bounds.Height / 2);
+        var arrow = new StreamGeometry();
+        using (StreamGeometryContext context = arrow.Open())
+        {
+            context.BeginFigure(new Point(arrowCenterX - 3, arrowCenterY - 1), isFilled: true, isClosed: true);
+            context.LineTo(new Point(arrowCenterX + 3, arrowCenterY - 1), isStroked: true, isSmoothJoin: false);
+            context.LineTo(new Point(arrowCenterX, arrowCenterY + 3), isStroked: true, isSmoothJoin: false);
+        }
+
+        drawingContext.DrawGeometry(foreground, null, arrow);
+    }
+
+    private void RenderToolStripControlHost(
+        DrawingContext drawingContext,
+        Forms.ToolStripControlHost controlHost,
+        Rect bounds,
+        Brush foreground)
+    {
+        Forms.Control control = controlHost.Control;
+        if (control is Forms.ProgressBar progressBar)
+        {
+            drawingContext.DrawRectangle(SystemColors.WindowBrush, new Pen(SystemColors.ControlDarkBrush, 1), bounds);
+            int range = Math.Max(1, progressBar.Maximum - progressBar.Minimum);
+            double progress = Math.Clamp((progressBar.Value - progressBar.Minimum) / (double)range, 0, 1);
+            Rect progressBounds = new(
+                bounds.X + 2,
+                bounds.Y + 2,
+                Math.Max(0, (bounds.Width - 4) * progress),
+                Math.Max(0, bounds.Height - 4));
+            drawingContext.DrawRectangle(SystemColors.HighlightBrush, null, progressBounds);
+            return;
+        }
+
+        if (control is Forms.NumericUpDown numericUpDown)
+        {
+            drawingContext.DrawRectangle(SystemColors.WindowBrush, new Pen(SystemColors.ControlDarkBrush, 1), bounds);
+            DrawTextInBounds(
+                drawingContext,
+                numericUpDown.Value.ToString(CultureInfo.CurrentCulture),
+                new Rect(bounds.X + 4, bounds.Y + 2, Math.Max(0, bounds.Width - 22), Math.Max(0, bounds.Height - 4)),
+                foreground,
+                12);
+            double buttonLeft = bounds.Right - 18;
+            drawingContext.DrawLine(new Pen(SystemColors.ControlDarkBrush, 1), new Point(buttonLeft, bounds.Top), new Point(buttonLeft, bounds.Bottom));
+            drawingContext.DrawLine(new Pen(SystemColors.ControlDarkBrush, 1), new Point(buttonLeft, bounds.Top + (bounds.Height / 2)), new Point(bounds.Right, bounds.Top + (bounds.Height / 2)));
+            DrawSpinnerArrow(drawingContext, new Point(buttonLeft + 9, bounds.Top + (bounds.Height / 4)), up: true, foreground);
+            DrawSpinnerArrow(drawingContext, new Point(buttonLeft + 9, bounds.Top + ((bounds.Height * 3) / 4)), up: false, foreground);
+            return;
+        }
+
+        drawingContext.DrawRectangle(
+            CreateBrush(control.BackColor, SystemColors.WindowBrush),
+            new Pen(SystemColors.ControlDarkBrush, 1),
+            bounds);
+        DrawTextInBounds(
+            drawingContext,
+            control.Text,
+            new Rect(bounds.X + 4, bounds.Y + 2, Math.Max(0, bounds.Width - 8), Math.Max(0, bounds.Height - 4)),
+            foreground,
+            12);
+    }
+
+    private static void DrawSpinnerArrow(DrawingContext drawingContext, Point center, bool up, Brush foreground)
+    {
+        double direction = up ? -1 : 1;
+        var arrow = new StreamGeometry();
+        using (StreamGeometryContext context = arrow.Open())
+        {
+            context.BeginFigure(new Point(center.X - 3, center.Y + (2 * direction)), isFilled: true, isClosed: true);
+            context.LineTo(new Point(center.X + 3, center.Y + (2 * direction)), isStroked: true, isSmoothJoin: false);
+            context.LineTo(new Point(center.X, center.Y - (2 * direction)), isStroked: true, isSmoothJoin: false);
+        }
+
+        drawingContext.DrawGeometry(foreground, null, arrow);
+    }
+
+    private void RenderToolStripButtonLikeItem(
+        DrawingContext drawingContext,
+        Forms.ToolStripItem item,
+        Rect bounds,
+        Brush foreground)
+    {
+        string text = GetToolStripItemText(item);
+        bool showImage = item.Image != null
+            && item.DisplayStyle is Forms.ToolStripItemDisplayStyle.Image or Forms.ToolStripItemDisplayStyle.ImageAndText;
+        bool showText = item.DisplayStyle is Forms.ToolStripItemDisplayStyle.Text or Forms.ToolStripItemDisplayStyle.ImageAndText;
+        double contentLeft = bounds.X + 6;
+        if (showImage && item.Image != null)
+        {
+            CachedImageSource cached = _imageSourceCache.GetValue(item.Image, static key => new CachedImageSource(CreateImageSource(key)));
+            if (cached.Source != null)
+            {
+                double imageSize = Math.Min(16, Math.Max(0, bounds.Height - 4));
+                drawingContext.DrawImage(
+                    cached.Source,
+                    new Rect(contentLeft, bounds.Y + ((bounds.Height - imageSize) / 2), imageSize, imageSize));
+                contentLeft += imageSize + 4;
+            }
+        }
+
+        if (showText)
+        {
+            DrawTextInBounds(
+                drawingContext,
+                text,
+                new Rect(contentLeft, bounds.Y + 2, Math.Max(0, bounds.Right - contentLeft - 4), Math.Max(0, bounds.Height - 4)),
+                foreground,
+                12);
         }
     }
 
@@ -4480,9 +4914,22 @@ public class WindowsFormsHost : FrameworkElement
 
     private static void DrawBorder(DrawingContext drawingContext, Forms.BorderStyle borderStyle, Rect bounds)
     {
-        if (borderStyle != Forms.BorderStyle.None)
+        if (borderStyle == Forms.BorderStyle.None || bounds.Width <= 0 || bounds.Height <= 0)
         {
-            drawingContext.DrawRectangle(null, new Pen(SystemColors.ControlDarkBrush, 1), bounds);
+            return;
+        }
+
+        if (borderStyle == Forms.BorderStyle.FixedSingle)
+        {
+            drawingContext.DrawRectangle(null, new Pen(SystemColors.WindowFrameBrush, 1), bounds);
+            return;
+        }
+
+        drawingContext.DrawRectangle(null, new Pen(SystemColors.ControlDarkDarkBrush, 1), bounds);
+        if (bounds.Width > 2 && bounds.Height > 2)
+        {
+            Rect innerBounds = new(bounds.X + 1, bounds.Y + 1, bounds.Width - 2, bounds.Height - 2);
+            drawingContext.DrawRectangle(null, new Pen(SystemColors.ControlLightLightBrush, 1), innerBounds);
         }
     }
 
