@@ -7,6 +7,7 @@ using System.Drawing;
 using System.Drawing.Design;
 using System.Linq;
 using System.Windows.Forms;
+using System.Windows.Forms.Design;
 using System.Windows.Forms.Design.Behavior;
 
 namespace System.ComponentModel.Design
@@ -2095,6 +2096,9 @@ namespace System.ComponentModel.Design
         private PortableDesignerPointerOperation _pointerOperation;
         private Point _pointerStart;
         private Rectangle _initialBounds;
+        private Rectangle _initialManipulationBounds;
+        private PortableDesignerMoveItem[] _moveItems = Array.Empty<PortableDesignerMoveItem>();
+        private Control[] _movingControls = Array.Empty<Control>();
         private DesignerTransaction? _manipulationTransaction;
         private IComponentChangeService? _manipulationChangeService;
         private PropertyDescriptor? _locationProperty;
@@ -2181,7 +2185,8 @@ namespace System.ComponentModel.Design
             if (GetService(typeof(ISelectionService)) is ISelectionService selectionService)
             {
                 wasPrimarySelection = ReferenceEquals(selectionService.PrimarySelection, _control);
-                selectionService.SetSelectedComponents(new object[] { _control }, SelectionTypes.Replace);
+                if (!wasPrimarySelection)
+                    selectionService.SetSelectedComponents(new object[] { _control }, SelectionTypes.Replace);
             }
 
             BeginManipulation(host, wasPrimarySelection, e.Location);
@@ -2243,10 +2248,11 @@ namespace System.ComponentModel.Design
             }
 
             PropertyDescriptorCollection properties = TypeDescriptor.GetProperties(_control);
-            _locationProperty = properties[nameof(Control.Location)];
+            bool canMove = TryCreateMoveItem(host, _control, parent, out PortableDesignerMoveItem primaryMoveItem);
+            _locationProperty = canMove ? primaryMoveItem.LocationProperty : properties[nameof(Control.Location)];
             _sizeProperty = properties[nameof(Control.Size)];
-            bool canMove = _locationProperty is { IsReadOnly: false };
-            bool canResize = !_control.AutoSize && _sizeProperty is { IsReadOnly: false };
+            bool locked = IsLocked(_control, properties) || IsInheritedReadOnly(_control);
+            bool canResize = !locked && !_control.AutoSize && _sizeProperty is { IsReadOnly: false };
             _pointerOperation = GetPointerOperation(location, wasPrimarySelection && canResize);
             if (_pointerOperation == PortableDesignerPointerOperation.Move && !canMove)
                 _pointerOperation = PortableDesignerPointerOperation.None;
@@ -2258,8 +2264,49 @@ namespace System.ComponentModel.Design
             _manipulationParent = parent;
             _pointerStart = parentPoint;
             _initialBounds = _control.Bounds;
+            if (_pointerOperation == PortableDesignerPointerOperation.Move)
+            {
+                _moveItems = CreateMoveItems(host, _control, parent, primaryMoveItem);
+                if (_moveItems.Length == 0)
+                {
+                    _pointerOperation = PortableDesignerPointerOperation.None;
+                    _manipulationParent = null;
+                    return;
+                }
+
+                _movingControls = new Control[_moveItems.Length];
+                _initialManipulationBounds = _moveItems[0].InitialBounds;
+                for (int index = 0; index < _moveItems.Length; index++)
+                {
+                    _movingControls[index] = _moveItems[index].Control;
+                    if (index > 0)
+                    {
+                        _initialManipulationBounds = Rectangle.Union(
+                            _initialManipulationBounds,
+                            _moveItems[index].InitialBounds);
+                    }
+                }
+            }
+            else
+            {
+                _initialManipulationBounds = _initialBounds;
+                _moveItems = Array.Empty<PortableDesignerMoveItem>();
+                _movingControls = Array.Empty<Control>();
+            }
+
             _manipulationStarted = false;
-            LayoutService.BeginManipulation(_control, parent);
+            if (_pointerOperation == PortableDesignerPointerOperation.Move)
+            {
+                LayoutService.BeginManipulation(
+                    _control,
+                    parent,
+                    _initialManipulationBounds,
+                    _movingControls);
+            }
+            else
+            {
+                LayoutService.BeginManipulation(_control, parent);
+            }
             _control.Capture = true;
         }
 
@@ -2288,12 +2335,30 @@ namespace System.ComponentModel.Design
                 if (!_manipulationStarted)
                     StartManipulationTransaction();
 
-                _control.Bounds = LayoutService.GetManipulatedBounds(
+                Rectangle manipulatedBounds = LayoutService.GetManipulatedBounds(
                     _control,
-                    _initialBounds,
+                    _pointerOperation == PortableDesignerPointerOperation.Move
+                        ? _initialManipulationBounds
+                        : _initialBounds,
                     _pointerOperation,
                     deltaX,
                     deltaY);
+                if (_pointerOperation == PortableDesignerPointerOperation.Move)
+                {
+                    int snappedDeltaX = manipulatedBounds.Left - _initialManipulationBounds.Left;
+                    int snappedDeltaY = manipulatedBounds.Top - _initialManipulationBounds.Top;
+                    for (int index = 0; index < _moveItems.Length; index++)
+                    {
+                        PortableDesignerMoveItem item = _moveItems[index];
+                        item.Control.Location = new Point(
+                            item.InitialBounds.Left + snappedDeltaX,
+                            item.InitialBounds.Top + snappedDeltaY);
+                    }
+                }
+                else
+                {
+                    _control.Bounds = manipulatedBounds;
+                }
             }
             catch
             {
@@ -2309,15 +2374,28 @@ namespace System.ComponentModel.Design
             if (GetService(typeof(IDesignerHost)) is not IDesignerHost host)
                 return;
 
-            _manipulationTransaction = host.CreateTransaction(
-                (_pointerOperation == PortableDesignerPointerOperation.Move ? "Move " : "Resize ")
-                + (_control.Site?.Name ?? _control.GetType().Name));
+            string transactionDescription = _pointerOperation == PortableDesignerPointerOperation.Move
+                && _moveItems.Length > 1
+                    ? $"Move {_moveItems.Length} controls"
+                    : (_pointerOperation == PortableDesignerPointerOperation.Move ? "Move " : "Resize ")
+                        + (_control.Site?.Name ?? _control.GetType().Name);
+            _manipulationTransaction = host.CreateTransaction(transactionDescription);
             _manipulationChangeService = GetService(typeof(IComponentChangeService)) as IComponentChangeService;
-            if (PortableDesignerLayoutService.ChangesLocation(_pointerOperation) && _locationProperty is not null)
+            _manipulationStarted = true;
+            if (_pointerOperation == PortableDesignerPointerOperation.Move)
+            {
+                for (int index = 0; index < _moveItems.Length; index++)
+                {
+                    PortableDesignerMoveItem item = _moveItems[index];
+                    _manipulationChangeService?.OnComponentChanging(item.Control, item.LocationProperty);
+                }
+            }
+            else if (PortableDesignerLayoutService.ChangesLocation(_pointerOperation) && _locationProperty is not null)
+            {
                 _manipulationChangeService?.OnComponentChanging(_control, _locationProperty);
+            }
             if (PortableDesignerLayoutService.ChangesSize(_pointerOperation) && _sizeProperty is not null)
                 _manipulationChangeService?.OnComponentChanging(_control, _sizeProperty);
-            _manipulationStarted = true;
         }
 
         private void FinishManipulation(bool commit)
@@ -2332,7 +2410,19 @@ namespace System.ComponentModel.Design
                 {
                     if (commit)
                     {
-                        if (PortableDesignerLayoutService.ChangesLocation(_pointerOperation) && _locationProperty is not null)
+                        if (_pointerOperation == PortableDesignerPointerOperation.Move)
+                        {
+                            for (int index = 0; index < _moveItems.Length; index++)
+                            {
+                                PortableDesignerMoveItem item = _moveItems[index];
+                                _manipulationChangeService?.OnComponentChanged(
+                                    item.Control,
+                                    item.LocationProperty,
+                                    item.InitialBounds.Location,
+                                    item.Control.Location);
+                            }
+                        }
+                        else if (PortableDesignerLayoutService.ChangesLocation(_pointerOperation) && _locationProperty is not null)
                         {
                             _manipulationChangeService?.OnComponentChanged(
                                 control,
@@ -2354,7 +2444,19 @@ namespace System.ComponentModel.Design
                     }
                     else
                     {
-                        control.Bounds = _initialBounds;
+                        if (_pointerOperation == PortableDesignerPointerOperation.Move)
+                        {
+                            for (int index = 0; index < _moveItems.Length; index++)
+                            {
+                                PortableDesignerMoveItem item = _moveItems[index];
+                                item.Control.Bounds = item.InitialBounds;
+                            }
+                        }
+                        else
+                        {
+                            control.Bounds = _initialBounds;
+                        }
+
                         _manipulationTransaction?.Cancel();
                     }
                 }
@@ -2365,6 +2467,9 @@ namespace System.ComponentModel.Design
                 _manipulationChangeService = null;
                 _locationProperty = null;
                 _sizeProperty = null;
+                _moveItems = Array.Empty<PortableDesignerMoveItem>();
+                _movingControls = Array.Empty<Control>();
+                _initialManipulationBounds = Rectangle.Empty;
                 _manipulationParent = null;
                 _pointerOperation = PortableDesignerPointerOperation.None;
                 _manipulationStarted = false;
@@ -2400,6 +2505,86 @@ namespace System.ComponentModel.Design
             return PortableDesignerPointerOperation.Move;
         }
 
+        private PortableDesignerMoveItem[] CreateMoveItems(
+            IDesignerHost host,
+            Control primary,
+            Control parent,
+            PortableDesignerMoveItem primaryItem)
+        {
+            var items = new List<PortableDesignerMoveItem>();
+            if (GetService(typeof(ISelectionService)) is ISelectionService selectionService)
+            {
+                foreach (object? selected in selectionService.GetSelectedComponents())
+                {
+                    if (selected is Control control
+                        && TryCreateMoveItem(host, control, parent, out PortableDesignerMoveItem item))
+                    {
+                        items.Add(item);
+                    }
+                }
+            }
+
+            if (items.Count == 0)
+                items.Add(primaryItem);
+            else if (!ReferenceEquals(items[0].Control, primary))
+            {
+                int primaryIndex = -1;
+                for (int index = 1; index < items.Count; index++)
+                {
+                    if (ReferenceEquals(items[index].Control, primary))
+                    {
+                        primaryIndex = index;
+                        break;
+                    }
+                }
+
+                if (primaryIndex < 0)
+                    items.Insert(0, primaryItem);
+                else
+                    (items[0], items[primaryIndex]) = (items[primaryIndex], items[0]);
+            }
+
+            return items.ToArray();
+        }
+
+        private static bool TryCreateMoveItem(
+            IDesignerHost host,
+            Control control,
+            Control parent,
+            out PortableDesignerMoveItem item)
+        {
+            PropertyDescriptorCollection properties = TypeDescriptor.GetProperties(control);
+            PropertyDescriptor? locationProperty = properties[nameof(Control.Location)];
+            bool designerAllowsMove = host.GetDesigner(control) is not ControlDesigner controlDesigner
+                || (controlDesigner.SelectionRules & (SelectionRules.Moveable | SelectionRules.Locked)) == SelectionRules.Moveable;
+            if (!ReferenceEquals(control.Parent, parent)
+                || !ReferenceEquals(control.Site?.GetService(typeof(IDesignerHost)), host)
+                || control.Dock != DockStyle.None
+                || locationProperty is null
+                || locationProperty.IsReadOnly
+                || IsInheritedReadOnly(control)
+                || IsLocked(control, properties)
+                || !designerAllowsMove)
+            {
+                item = default;
+                return false;
+            }
+
+            item = new PortableDesignerMoveItem(control, control.Bounds, locationProperty);
+            return true;
+        }
+
+        private static bool IsLocked(Control control, PropertyDescriptorCollection properties)
+        {
+            return properties["Locked"]?.GetValue(control) is true;
+        }
+
+        private static bool IsInheritedReadOnly(Control control)
+        {
+            return TypeDescriptor.GetAttributes(control)[typeof(InheritanceAttribute)]
+                is InheritanceAttribute { InheritanceLevel: InheritanceLevel.InheritedReadOnly };
+        }
+
         private ArrayList CreateEdgeAndMarginSnapLines()
         {
             Control control = DesignedControl;
@@ -2430,6 +2615,25 @@ namespace System.ComponentModel.Design
             return host.RootComponent is IComponent root
                 ? host.GetDesigner(root) as PortableParentControlDesigner
                 : null;
+        }
+
+        private readonly struct PortableDesignerMoveItem
+        {
+            internal PortableDesignerMoveItem(
+                Control control,
+                Rectangle initialBounds,
+                PropertyDescriptor locationProperty)
+            {
+                Control = control;
+                InitialBounds = initialBounds;
+                LocationProperty = locationProperty;
+            }
+
+            internal Control Control { get; }
+
+            internal Rectangle InitialBounds { get; }
+
+            internal PropertyDescriptor LocationProperty { get; }
         }
 
     }

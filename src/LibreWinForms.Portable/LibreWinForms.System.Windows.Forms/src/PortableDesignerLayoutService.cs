@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Windows.Forms.Design;
@@ -48,10 +49,28 @@ namespace System.ComponentModel.Design
 
         internal void BeginManipulation(Control candidate, Control parent)
         {
+            BeginManipulationCore(candidate, parent, candidate.Bounds, movingControls: null);
+        }
+
+        internal void BeginManipulation(
+            Control candidate,
+            Control parent,
+            Rectangle manipulationBounds,
+            IReadOnlyList<Control> movingControls)
+        {
+            BeginManipulationCore(candidate, parent, manipulationBounds, movingControls);
+        }
+
+        private void BeginManipulationCore(
+            Control candidate,
+            Control parent,
+            Rectangle manipulationBounds,
+            IReadOnlyList<Control>? movingControls)
+        {
             Reset();
             _candidate = candidate;
             _parent = parent;
-            _candidateInitialSize = candidate.Size;
+            _candidateInitialSize = manipulationBounds.Size;
             _options = ReadOptions();
 
             if (!_options.UseSnapLines)
@@ -66,8 +85,16 @@ namespace System.ComponentModel.Design
                     displayedOrigin.Y - candidate.Top);
             }
 
-            CacheCandidateLines(candidate);
-            CacheTargetLines(parent, candidate);
+            if (movingControls is { Count: > 1 })
+            {
+                CacheGroupCandidateLines(manipulationBounds.Size);
+                CacheManipulationTargetLines(parent, movingControls);
+            }
+            else
+            {
+                CacheCandidateLines(candidate);
+                CacheTargetLines(parent, candidate);
+            }
         }
 
         internal Rectangle GetManipulatedBounds(
@@ -429,6 +456,25 @@ namespace System.ComponentModel.Design
             }
         }
 
+        private void CacheGroupCandidateLines(Size groupSize)
+        {
+            AddCandidateLine(new SnapLine(SnapLineType.Top, 0, SnapLinePriority.Low));
+            AddCandidateLine(new SnapLine(SnapLineType.Bottom, groupSize.Height - 1, SnapLinePriority.Low));
+            AddCandidateLine(new SnapLine(SnapLineType.Left, 0, SnapLinePriority.Low));
+            AddCandidateLine(new SnapLine(SnapLineType.Right, groupSize.Width - 1, SnapLinePriority.Low));
+        }
+
+        private void CacheManipulationTargetLines(Control parent, IReadOnlyList<Control> movingControls)
+        {
+            CacheTargetDesignerLines(parent, parent);
+            for (int index = 0; index < parent.Controls.Count; index++)
+            {
+                Control target = parent.Controls[index];
+                if (!ContainsControl(movingControls, target))
+                    CacheTargetDesignerLines(target, parent);
+            }
+        }
+
         private void CacheTargetLines(Control parent, Control? candidate)
         {
             CacheTargetDesignerLines(parent, parent);
@@ -438,6 +484,17 @@ namespace System.ComponentModel.Design
                 if (!ReferenceEquals(target, candidate))
                     CacheTargetDesignerLines(target, parent);
             }
+        }
+
+        private static bool ContainsControl(IReadOnlyList<Control> controls, Control candidate)
+        {
+            for (int index = 0; index < controls.Count; index++)
+            {
+                if (ReferenceEquals(controls[index], candidate))
+                    return true;
+            }
+
+            return false;
         }
 
         private void CacheTargetDesignerLines(Control target, Control parent)
