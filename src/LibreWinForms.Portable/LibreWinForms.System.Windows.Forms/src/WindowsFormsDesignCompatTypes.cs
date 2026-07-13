@@ -150,10 +150,10 @@ namespace System.Windows.Forms.Design
 
         private void HandleMouseMove(object? sender, MouseEventArgs e)
         {
-            OnSetCursor();
             Point screenPoint = Control.PointToScreen(e.Location);
             LastPointerScreenPosition = screenPoint;
             Cursor.Position = screenPoint;
+            OnSetCursor();
             if (!_dragging)
                 return;
 

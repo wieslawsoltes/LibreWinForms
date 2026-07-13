@@ -61,6 +61,8 @@ internal static class ReportingDesignerBehaviorTests
             "Designer pointer drag hooks were not routed exactly once.");
         Assert(designer.CursorCount == 1, "Designer cursor hook was not routed on pointer movement.");
         Assert(Forms.Cursor.Position == new Point(9, 11), "Designer pointer coordinates were not published as typed screen state.");
+        Assert(designer.CursorPositionObserved == new Point(9, 11),
+            "Designer cursor hook observed the previous pointer position.");
 
         designer.Dispose();
         control.RaiseMouseDown(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, 2, 3, 0));
@@ -146,9 +148,14 @@ internal static class ReportingDesignerBehaviorTests
         public int DragBeginCount { get; private set; }
         public int DragMoveCount { get; private set; }
         public int DragEndCount { get; private set; }
+        public Point CursorPositionObserved { get; private set; }
 
         protected override void OnPaintAdornments(Forms.PaintEventArgs pe) => PaintCount++;
-        protected override void OnSetCursor() => CursorCount++;
+        protected override void OnSetCursor()
+        {
+            CursorCount++;
+            CursorPositionObserved = Forms.Cursor.Position;
+        }
         protected override void OnMouseDragBegin(int x, int y) => DragBeginCount++;
         protected override void OnMouseDragMove(int x, int y) => DragMoveCount++;
         protected override void OnMouseDragEnd(bool cancel) => DragEndCount++;
