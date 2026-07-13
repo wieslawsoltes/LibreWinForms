@@ -315,3 +315,21 @@ Typed source audit                         -> manipulation/layout paths contain 
 ```
 
 Remaining designer-fidelity work includes keyboard movement for multi-selection, group resize policies, richer BehaviorService glyph extensibility, and optional native-style dashed/fade presentation.
+
+## 2026-07-13 designer keyboard-command checkpoint
+
+The portable command set now owns all standard `MenuCommands` move and size command IDs through the active `IMenuCommandService`. Arrow move and Shift-arrow size commands use the configured grid when grid snapping is active and snap lines are disabled; Ctrl-arrow move and Ctrl+Shift-arrow size commands use one-pixel increments. Width commands adjust the right edge and height commands adjust the bottom edge while respecting typed minimum/maximum size state.
+
+Keyboard operations use the same reflection-free selection boundary as pointer manipulation. The primary selection must be eligible, and additional selected controls are processed in stable selection order only when they are sited to the same designer host and parent, writable, unlocked, non-inherited, undocked, and permitted by their designer selection rules. Auto-sized controls are excluded from sizing. Each command raises every typed changing notification before mutation, applies direct `Location` or `Size` setters, raises changed notifications, and commits one `DesignerTransaction`; a rejection or setter failure restores every changed member and cancels without an undo unit. Direct setters retain normal control and parent invalidation.
+
+`MenuCommands.SetStatusRectangle` receives the exact updated bounds for a single changed control or the union of the actual changed members for a group. The current snap-line keyboard policy is deliberately bounded: when `UseSnapLines` is true, ordinary move and size commands use one-pixel increments instead of the grid. Nearest-line keyboard snapping and transient keyboard snap guides are not implemented by this checkpoint and must not be treated as native-complete snap-line behavior.
+
+Validation:
+
+```text
+LibreWinForms FormsDesigner behavior suite -> all 16 command IDs, enablement, grid/pixel/snap-line fallback, filtering, order, feedback, invalidation, rollback, undo/redo pass
+LibreWinForms SDK --run-designer           -> packed command registration, grouped move/size, exact feedback, transaction, undo/redo smoke pass
+Typed source audit                         -> layout/command paths contain no System.Reflection, BindingFlags, or member probes
+```
+
+Remaining designer-fidelity work includes nearest-line keyboard snapping and guide feedback, richer resize-anchor/group policies, BehaviorService glyph extensibility, and optional native-style dashed/fade presentation.
