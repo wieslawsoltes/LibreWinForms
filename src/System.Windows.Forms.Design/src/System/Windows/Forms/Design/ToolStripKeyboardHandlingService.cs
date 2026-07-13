@@ -11,7 +11,7 @@ using System.Windows.Forms.Design.Behavior;
 
 namespace System.Windows.Forms.Design;
 
-internal class ToolStripKeyboardHandlingService
+internal class ToolStripKeyboardHandlingService : IPortableToolStripKeyboardHandlingService
 {
     private ISelectionService _selectionService;
     private IComponentChangeService _componentChangeService;
@@ -62,6 +62,7 @@ internal class ToolStripKeyboardHandlingService
         _designerHost = (IDesignerHost)_provider.GetService(typeof(IDesignerHost));
         Debug.Assert(_designerHost is not null, "ToolStripKeyboardHandlingService relies on the selection service, which is unavailable.");
         _designerHost?.AddService(this);
+        _designerHost?.AddService<IPortableToolStripKeyboardHandlingService>(this);
 
         _componentChangeService = (IComponentChangeService)_designerHost.GetService(typeof(IComponentChangeService));
         Debug.Assert(_componentChangeService is not null, "ToolStripKeyboardHandlingService relies on the componentChange service, which is unavailable.");
@@ -233,6 +234,8 @@ internal class ToolStripKeyboardHandlingService
             }
         }
     }
+
+    bool IPortableToolStripKeyboardHandlingService.TemplateNodeActive => TemplateNodeActive;
 
     // boolean which returns if the TemplateNode contextMenu is open.
     internal bool TemplateNodeContextMenuOpen
@@ -469,6 +472,7 @@ internal class ToolStripKeyboardHandlingService
                 keyboardHandlingService.RestoreCommands();
                 // clean up.
                 keyboardHandlingService.RemoveCommands();
+                _designerHost.RemoveService<IPortableToolStripKeyboardHandlingService>();
                 _designerHost.RemoveService<ToolStripKeyboardHandlingService>();
             }
         }
