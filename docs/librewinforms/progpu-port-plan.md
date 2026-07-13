@@ -296,4 +296,22 @@ LibreWinForms SDK --run-designer                   -> Success; snapLineAdorner=T
 Typed source audit                                 -> layout/control/contract/host paths contain no reflection probes
 ```
 
-Selection glyphs and resize handles already render through the host's design overlay. Remaining designer-fidelity work includes multi-selection/group guides, keyboard-nudge feedback, richer BehaviorService glyph extensibility, and optional native-style dashed/fade presentation; these should extend the same typed adorner contract rather than introduce host-specific or reflected designer shapes.
+Selection glyphs and resize handles already render through the host's design overlay. Remaining designer-fidelity work includes keyboard-nudge feedback, richer BehaviorService glyph extensibility, and optional native-style dashed/fade presentation; these should extend the same typed adorner contract rather than introduce host-specific or reflected designer shapes.
+
+## 2026-07-13 designer group-movement checkpoint
+
+Dragging the primary member of an existing multi-selection now moves every eligible selected sibling as one design operation. `PortableControlDesigner` snapshots the typed `ISelectionService` order, filters the selection to sited controls with the same parent and writable location state, and rejects docked, locked, inherited-read-only, or read-only-location members. The eligible controls retain their relative bounds and parent child order while one delta is applied from their initial group rectangle.
+
+Grid and snap-line calculations operate on that group rectangle rather than independently rounding each control. Snap-line mode excludes all moving controls from the target inventory, aligns the group edges to stationary typed designer targets, and derives the transient guide span from the adjusted group bounds. Alt continues to bypass snap lines while retaining configured grid snapping. Single-control move and resize behavior remains unchanged.
+
+The whole move owns one `DesignerTransaction`: every eligible location raises the normal typed `IComponentChangeService` changing/changed pair inside that transaction, a commit produces one undo unit, and cancellation or designer disposal restores every initial bound before cancelling the transaction. The implementation uses only `IDesignerHost`, `ISelectionService`, property descriptors, control parenting, and the existing portable layout/adorner contracts; it adds no reflection, dynamic dispatch, host-specific WPF logic, or ProGPU changes.
+
+Validation:
+
+```text
+LibreWinForms FormsDesigner behavior suite -> group grid/snap/Alt/member exclusion/constraints/ordering/commit/cancel/undo/redo pass
+LibreWinForms SDK --run-designer           -> Success; groupManipulation=True
+Typed source audit                         -> manipulation/layout paths contain no System.Reflection, BindingFlags, or member probes
+```
+
+Remaining designer-fidelity work includes keyboard movement for multi-selection, group resize policies, richer BehaviorService glyph extensibility, and optional native-style dashed/fade presentation.
