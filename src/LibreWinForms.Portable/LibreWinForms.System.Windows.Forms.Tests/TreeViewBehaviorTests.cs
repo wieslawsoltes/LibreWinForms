@@ -23,6 +23,12 @@ internal static class TreeViewBehaviorTests
                 return 0;
             }
 
+            if (args.Length == 1 && string.Equals(args[0], "datagridview-interaction", StringComparison.Ordinal))
+            {
+                DataGridViewInteractionBehaviorTests.Run();
+                return 0;
+            }
+
             LayoutHitTestingExpansionAndScrollingStayInSync();
             ImageGeometryUsesImageListMetrics();
             KeyboardNavigationUsesVisibleTreeOrder();
@@ -49,6 +55,7 @@ internal static class TreeViewBehaviorTests
             ScrollableControlBehaviorTests.Run();
             DataGridViewNewRowBehaviorTests.Run();
             DataGridViewLookupSortBehaviorTests.Run();
+            DataGridViewInteractionBehaviorTests.Run();
             Console.WriteLine("LibreWinForms TreeView behavior tests passed.");
             return 0;
         }

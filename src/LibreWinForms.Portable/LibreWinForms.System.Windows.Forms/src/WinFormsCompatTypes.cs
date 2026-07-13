@@ -4051,7 +4051,7 @@ public class TabPage : Panel
     public bool UseVisualStyleBackColor { get; set; }
 }
 
-public class DataGridView : Control, ISupportInitialize
+public partial class DataGridView : Control, ISupportInitialize
 {
     private bool _allowUserToAddRows = true;
 
@@ -4093,9 +4093,7 @@ public class DataGridView : Control, ISupportInitialize
 
     public int NewRowIndex => Rows.NewRowIndex;
 
-    public DataGridViewEditMode EditMode { get; set; }
-
-    public DataGridViewCell? CurrentCell { get; set; }
+    public DataGridViewEditMode EditMode { get; set; } = DataGridViewEditMode.EditOnKeystrokeOrF2;
 
     public int RowHeadersWidth { get; set; } = 41;
 
@@ -4113,16 +4111,6 @@ public class DataGridView : Control, ISupportInitialize
 
     public void EndInit()
     {
-    }
-
-    public bool EndEdit()
-    {
-        if (CurrentCell != null)
-        {
-            OnCellValueChanged(new DataGridViewCellEventArgs(CurrentCell.ColumnIndex, CurrentCell.RowIndex));
-        }
-
-        return true;
     }
 
     public void Sort(DataGridViewColumn dataGridViewColumn, ListSortDirection direction)
@@ -4565,6 +4553,7 @@ public class DataGridView : Control, ISupportInitialize
 public class DataGridViewColumn : Component
 {
     private DataGridView? _owner;
+    private bool _readOnly;
 
     public DataGridViewAutoSizeColumnMode AutoSizeMode { get; set; }
 
@@ -4576,7 +4565,20 @@ public class DataGridViewColumn : Component
 
     public string Name { get; set; } = string.Empty;
 
-    public bool ReadOnly { get; set; }
+    public bool ReadOnly
+    {
+        get => _readOnly;
+        set
+        {
+            if (_readOnly == value)
+            {
+                return;
+            }
+
+            _readOnly = value;
+            _owner?.OnColumnReadOnlyChanged(this);
+        }
+    }
 
     public object? Tag { get; set; }
 
@@ -4604,15 +4606,24 @@ public class DataGridViewTextBoxColumn : DataGridViewColumn
 
 public class DataGridViewComboBoxColumn : DataGridViewColumn
 {
+    public IList Items { get; } = new ArrayList();
+
     internal override DataGridViewCell CreateCell()
     {
-        return new DataGridViewComboBoxCell();
+        var cell = new DataGridViewComboBoxCell();
+        foreach (object item in Items)
+        {
+            cell.Items.Add(item);
+        }
+
+        return cell;
     }
 }
 
 public class DataGridViewRow
 {
     private DataGridView? _owner;
+    private bool _readOnly;
 
     public DataGridViewCellCollection Cells { get; }
 
@@ -4621,6 +4632,21 @@ public class DataGridViewRow
     public int Index { get; private set; } = -1;
 
     public bool IsNewRow => _owner is not null && _owner.NewRowIndex == Index;
+
+    public bool ReadOnly
+    {
+        get => _readOnly;
+        set
+        {
+            if (_readOnly == value)
+            {
+                return;
+            }
+
+            _readOnly = value;
+            _owner?.OnRowReadOnlyChanged(this);
+        }
+    }
 
     public object? Tag { get; set; }
 
@@ -4684,6 +4710,8 @@ public sealed class DataGridViewCellCollection : Collection<DataGridViewCell>
 
 public class DataGridViewCell
 {
+    private bool _readOnly;
+
     public int ColumnIndex { get; private set; } = -1;
 
     public DataGridView? DataGridView { get; private set; }
@@ -4692,10 +4720,49 @@ public class DataGridViewCell
 
     public int RowIndex { get; private set; } = -1;
 
+    public virtual bool ReadOnly
+    {
+        get
+        {
+            if (_readOnly)
+            {
+                return true;
+            }
+
+            DataGridView? dataGridView = DataGridView;
+            if (dataGridView is null)
+            {
+                return false;
+            }
+
+            return dataGridView.ReadOnly
+                || OwningRow?.ReadOnly == true
+                || (ColumnIndex >= 0
+                    && ColumnIndex < dataGridView.Columns.Count
+                    && dataGridView.Columns[ColumnIndex].ReadOnly);
+        }
+        set
+        {
+            if (_readOnly == value)
+            {
+                return;
+            }
+
+            _readOnly = value;
+            DataGridView?.OnCellReadOnlyChanged(this);
+        }
+    }
+
     public object? Value { get; set; }
 
     internal void SetOwner(DataGridView? dataGridView, DataGridViewRow? row, int rowIndex, int columnIndex)
     {
+        DataGridView? previousDataGridView = DataGridView;
+        if (previousDataGridView is not null && !ReferenceEquals(previousDataGridView, dataGridView))
+        {
+            previousDataGridView.OnCellDetached(this);
+        }
+
         DataGridView = dataGridView;
         OwningRow = row;
         RowIndex = rowIndex;
@@ -10775,6 +10842,17 @@ public enum DataGridViewEditMode
     EditOnKeystrokeOrF2 = 2,
     EditOnF2 = 3,
     EditProgrammatically = 4
+}
+
+public enum DataGridViewHitTestType
+{
+    None = 0,
+    Cell = 1,
+    ColumnHeader = 2,
+    RowHeader = 3,
+    TopLeftHeader = 4,
+    HorizontalScrollBar = 5,
+    VerticalScrollBar = 6
 }
 
 public enum CloseReason
