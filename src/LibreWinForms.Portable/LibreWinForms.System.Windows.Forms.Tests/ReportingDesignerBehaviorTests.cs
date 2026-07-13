@@ -18,10 +18,11 @@ internal static class ReportingDesignerBehaviorTests
         SelectionRuleValuesMatchWinForms();
         ControlDesignerRoutesTypedPaintAndPointerHooks();
         BasicDesignerLoaderCompletesPortableSurfaceLoad();
+        DesignerFiltersFlowThroughTypeDescriptorAndPropertyGrid();
         CodeDomSerializationServiceRoundTripsPortableComponents();
         WaitCursorAndDesignerPaintPrimitivesAreFunctional();
         CollectionAndAlignmentEditorsExposeExpectedStyles();
-        Console.WriteLine("LibreWinForms Reporting designer contracts passed: rules=9 hooks=7 loader=3 serialization=6 paint=6 editors=3.");
+        Console.WriteLine("LibreWinForms Reporting designer contracts passed: rules=9 hooks=7 loader=3 filters=9 serialization=6 paint=6 editors=3.");
     }
 
     private static void SelectionRuleValuesMatchWinForms()
@@ -79,6 +80,48 @@ internal static class ReportingDesignerBehaviorTests
         Assert(loader.LoadCount == 1, "BasicDesignerLoader did not perform exactly one load.");
         surface.Flush();
         Assert(loader.FlushCount == 1, "BasicDesignerLoader did not perform exactly one flush.");
+    }
+
+    private static void DesignerFiltersFlowThroughTypeDescriptorAndPropertyGrid()
+    {
+        using var surface = new ProbeFilterDesignSurface();
+        surface.BeginLoad(new ProbeDesignerLoader());
+        IDesignerHost host = (IDesignerHost)(surface.GetService(typeof(IDesignerHost))
+            ?? throw new InvalidOperationException("Design surface did not publish an IDesignerHost."));
+        var component = (ProbeFilterComponent)host.CreateComponent(typeof(ProbeFilterComponent), "FilteredComponent");
+        TypeDescriptor.Refresh(component);
+
+        Assert(component.Site?.GetService(typeof(ITypeDescriptorFilterService)) is ITypeDescriptorFilterService,
+            "Sited component did not publish the typed descriptor-filter service.");
+        PropertyDescriptorCollection properties = TypeDescriptor.GetProperties(component);
+        Assert(properties[nameof(ProbeFilterComponent.RemoveBefore)] is null,
+            "PreFilterProperties did not remove its property.");
+        Assert(properties[nameof(ProbeFilterComponent.RemoveAfter)] is null,
+            "PostFilterProperties did not remove its property.");
+        Assert(properties[nameof(ProbeFilterComponent.Visible)] is { DisplayName: "Filtered Visible", Category: "Filtered" },
+            "PostFilterProperties did not replace the visible property descriptor.");
+
+        EventDescriptorCollection events = TypeDescriptor.GetEvents(component);
+        Assert(events[nameof(ProbeFilterComponent.RemoveBeforeEvent)] is null,
+            "PreFilterEvents did not remove its event.");
+        Assert(events[nameof(ProbeFilterComponent.RemoveAfterEvent)] is null,
+            "PostFilterEvents did not remove its event.");
+        AttributeCollection attributes = TypeDescriptor.GetAttributes(component);
+        Assert(attributes[typeof(DescriptionAttribute)] is DescriptionAttribute { Description: "Filtered description" },
+            "PreFilterAttributes did not publish its descriptor.");
+        Assert(attributes[typeof(CategoryAttribute)] is CategoryAttribute { Category: "Filtered component" },
+            "PostFilterAttributes did not publish its descriptor.");
+
+        using var propertyGrid = new Forms.PropertyGrid { SelectedObject = component };
+        string[] labels = propertyGrid.DisplayRows
+            .Where(static row => !row.IsCategory)
+            .Select(static row => row.Label)
+            .ToArray();
+        Assert(labels.Contains("Filtered Visible"),
+            "PropertyGrid did not consume the designer-filtered property descriptor.");
+        Assert(!labels.Contains(nameof(ProbeFilterComponent.RemoveBefore))
+            && !labels.Contains(nameof(ProbeFilterComponent.RemoveAfter)),
+            "PropertyGrid exposed properties removed by the component designer.");
     }
 
     private static void CodeDomSerializationServiceRoundTripsPortableComponents()
@@ -173,6 +216,69 @@ internal static class ReportingDesignerBehaviorTests
         }
 
         protected override void PerformFlush(IDesignerSerializationManager serializationManager) => FlushCount++;
+    }
+
+    private sealed class ProbeFilterDesignSurface : DesignSurface
+    {
+        protected override IDesigner? CreateDesigner(IComponent component, bool rootDesigner)
+        {
+            if (component is ProbeFilterComponent)
+                return new ProbeFilterDesigner();
+
+            return base.CreateDesigner(component, rootDesigner);
+        }
+    }
+
+    private sealed class ProbeFilterDesigner : ComponentDesigner
+    {
+        protected override void PreFilterAttributes(IDictionary attributes)
+        {
+            attributes[typeof(DescriptionAttribute)] = new DescriptionAttribute("Filtered description");
+        }
+
+        protected override void PostFilterAttributes(IDictionary attributes)
+        {
+            attributes[typeof(CategoryAttribute)] = new CategoryAttribute("Filtered component");
+        }
+
+        protected override void PreFilterEvents(IDictionary events)
+        {
+            events.Remove(nameof(ProbeFilterComponent.RemoveBeforeEvent));
+        }
+
+        protected override void PostFilterEvents(IDictionary events)
+        {
+            events.Remove(nameof(ProbeFilterComponent.RemoveAfterEvent));
+        }
+
+        protected override void PreFilterProperties(IDictionary properties)
+        {
+            properties.Remove(nameof(ProbeFilterComponent.RemoveBefore));
+        }
+
+        protected override void PostFilterProperties(IDictionary properties)
+        {
+            properties.Remove(nameof(ProbeFilterComponent.RemoveAfter));
+            if (properties[nameof(ProbeFilterComponent.Visible)] is PropertyDescriptor descriptor)
+            {
+                properties[nameof(ProbeFilterComponent.Visible)] = TypeDescriptor.CreateProperty(
+                    typeof(ProbeFilterComponent),
+                    descriptor,
+                    new DisplayNameAttribute("Filtered Visible"),
+                    new CategoryAttribute("Filtered"));
+            }
+        }
+    }
+
+    private sealed class ProbeFilterComponent : Component
+    {
+        public int Visible { get; set; }
+        public int RemoveBefore { get; set; }
+        public int RemoveAfter { get; set; }
+
+        public event EventHandler? VisibleEvent { add { } remove { } }
+        public event EventHandler? RemoveBeforeEvent { add { } remove { } }
+        public event EventHandler? RemoveAfterEvent { add { } remove { } }
     }
 
     private sealed class ProbeCollectionEditor : CollectionEditor

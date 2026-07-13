@@ -173,7 +173,7 @@ namespace System.ComponentModel.Design
         }
     }
 
-    internal sealed class PortableDesignerHost : Container, IDesignerLoaderHost, IDesignerLoaderHost2, IDesignerSerializationManager, IComponentChangeService, ISelectionService, INameCreationService
+    internal sealed class PortableDesignerHost : Container, IDesignerLoaderHost, IDesignerLoaderHost2, IDesignerSerializationManager, IComponentChangeService, ISelectionService, INameCreationService, ITypeDescriptorFilterService
     {
         private readonly DesignSurface _surface;
         private readonly IServiceProvider? _serviceProvider;
@@ -446,6 +446,8 @@ namespace System.ComponentModel.Design
                 return this;
             if (serviceType == typeof(ISelectionService))
                 return this;
+            if (serviceType == typeof(ITypeDescriptorFilterService))
+                return this;
             if (serviceType == typeof(IDesignerSerializationManager))
                 return this;
             if (serviceType == typeof(IDesignerSerializationService))
@@ -456,6 +458,48 @@ namespace System.ComponentModel.Design
                 return _serviceProvider?.GetService(serviceType) ?? this;
 
             return _serviceProvider?.GetService(serviceType);
+        }
+
+        public bool FilterAttributes(IComponent component, IDictionary attributes)
+        {
+            ArgumentNullException.ThrowIfNull(component);
+            ArgumentNullException.ThrowIfNull(attributes);
+            bool hasDesigner = _designers.TryGetValue(component, out IDesigner? designer);
+            if (designer is IDesignerFilter filter)
+            {
+                filter.PreFilterAttributes(attributes);
+                filter.PostFilterAttributes(attributes);
+            }
+
+            return hasDesigner;
+        }
+
+        public bool FilterEvents(IComponent component, IDictionary events)
+        {
+            ArgumentNullException.ThrowIfNull(component);
+            ArgumentNullException.ThrowIfNull(events);
+            bool hasDesigner = _designers.TryGetValue(component, out IDesigner? designer);
+            if (designer is IDesignerFilter filter)
+            {
+                filter.PreFilterEvents(events);
+                filter.PostFilterEvents(events);
+            }
+
+            return hasDesigner;
+        }
+
+        public bool FilterProperties(IComponent component, IDictionary properties)
+        {
+            ArgumentNullException.ThrowIfNull(component);
+            ArgumentNullException.ThrowIfNull(properties);
+            bool hasDesigner = _designers.TryGetValue(component, out IDesigner? designer);
+            if (designer is IDesignerFilter filter)
+            {
+                filter.PreFilterProperties(properties);
+                filter.PostFilterProperties(properties);
+            }
+
+            return hasDesigner;
         }
 
         private IMenuCommandService GetMenuCommandService()
@@ -1752,7 +1796,7 @@ namespace System.ComponentModel.Design
         }
     }
 
-    public class ComponentDesigner : IDesigner, IComponentInitializer
+    public class ComponentDesigner : IDesigner, IComponentInitializer, IDesignerFilter
     {
         private readonly DesignerVerbCollection _verbs = new();
 
@@ -1814,6 +1858,18 @@ namespace System.ComponentModel.Design
         protected virtual void PostFilterProperties(IDictionary properties)
         {
         }
+
+        void IDesignerFilter.PreFilterAttributes(IDictionary attributes) => PreFilterAttributes(attributes);
+
+        void IDesignerFilter.PostFilterAttributes(IDictionary attributes) => PostFilterAttributes(attributes);
+
+        void IDesignerFilter.PreFilterEvents(IDictionary events) => PreFilterEvents(events);
+
+        void IDesignerFilter.PostFilterEvents(IDictionary events) => PostFilterEvents(events);
+
+        void IDesignerFilter.PreFilterProperties(IDictionary properties) => PreFilterProperties(properties);
+
+        void IDesignerFilter.PostFilterProperties(IDictionary properties) => PostFilterProperties(properties);
 
         public virtual void InitializeExistingComponent(IDictionary? defaultValues)
         {
