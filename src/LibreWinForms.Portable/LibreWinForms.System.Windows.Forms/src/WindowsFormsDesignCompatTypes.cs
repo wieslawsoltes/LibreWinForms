@@ -4,6 +4,7 @@ using System.ComponentModel.Design;
 using System.Drawing;
 using System.Drawing.Design;
 using System.Linq;
+using System.Windows.Forms.Design.Behavior;
 
 namespace System.Windows.Forms.Design
 {
@@ -30,6 +31,10 @@ namespace System.Windows.Forms.Design
         public virtual Control Control => (Control)Component;
 
         public bool AutoResizeHandles { get; set; }
+
+        public virtual bool ParticipatesWithSnapLines => true;
+
+        public virtual IList SnapLines => CreateEdgeAndMarginSnapLines();
 
         public virtual SelectionRules SelectionRules
         {
@@ -136,6 +141,25 @@ namespace System.Windows.Forms.Design
             Cursor.Current = Control.Dock == DockStyle.None ? Cursors.SizeAll : Cursors.Default;
         }
 
+        private ArrayList CreateEdgeAndMarginSnapLines()
+        {
+            int width = Control.Width;
+            int height = Control.Height;
+            Padding margin = Control.Margin;
+
+            return new ArrayList(8)
+            {
+                new SnapLine(SnapLineType.Top, 0, SnapLinePriority.Low),
+                new SnapLine(SnapLineType.Bottom, height - 1, SnapLinePriority.Low),
+                new SnapLine(SnapLineType.Left, 0, SnapLinePriority.Low),
+                new SnapLine(SnapLineType.Right, width - 1, SnapLinePriority.Low),
+                new SnapLine(SnapLineType.Horizontal, -margin.Top, SnapLine.MarginTop, SnapLinePriority.Always),
+                new SnapLine(SnapLineType.Horizontal, margin.Bottom + height, SnapLine.MarginBottom, SnapLinePriority.Always),
+                new SnapLine(SnapLineType.Vertical, -margin.Left, SnapLine.MarginLeft, SnapLinePriority.Always),
+                new SnapLine(SnapLineType.Vertical, margin.Right + width, SnapLine.MarginRight, SnapLinePriority.Always)
+            };
+        }
+
         private void HandleMouseDown(object? sender, MouseEventArgs e)
         {
             if (e.Button != MouseButtons.Left)
@@ -180,6 +204,26 @@ namespace System.Windows.Forms.Design
     {
         private ToolboxItem? _placementTool;
         private Point _placementStart;
+
+        public override IList SnapLines
+        {
+            get
+            {
+                IList snapLines = base.SnapLines;
+                Rectangle displayRectangle = Control.DisplayRectangle;
+                Padding padding = Control.Padding;
+                int left = displayRectangle.Left + padding.Left;
+                int top = displayRectangle.Top + padding.Top;
+                int right = displayRectangle.Right - padding.Right;
+                int bottom = displayRectangle.Bottom - padding.Bottom;
+
+                snapLines.Add(new SnapLine(SnapLineType.Vertical, left, SnapLine.PaddingLeft, SnapLinePriority.Always));
+                snapLines.Add(new SnapLine(SnapLineType.Vertical, right, SnapLine.PaddingRight, SnapLinePriority.Always));
+                snapLines.Add(new SnapLine(SnapLineType.Horizontal, top, SnapLine.PaddingTop, SnapLinePriority.Always));
+                snapLines.Add(new SnapLine(SnapLineType.Horizontal, bottom, SnapLine.PaddingBottom, SnapLinePriority.Always));
+                return snapLines;
+            }
+        }
 
         protected override void OnMouseDragBegin(int x, int y)
         {
