@@ -21,6 +21,8 @@ public delegate void MethodInvoker();
 
 public delegate void ControlEventHandler(object? sender, ControlEventArgs e);
 
+public delegate void ToolStripDropDownClosedEventHandler(object? sender, ToolStripDropDownClosedEventArgs e);
+
 public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWinFormsPaintSource
 {
     private static long s_nextHandle = 0x10000;
@@ -117,6 +119,7 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
     private MouseEventHandler? _designerMouseDown;
     private MouseEventHandler? _designerMouseMove;
     private MouseEventHandler? _designerMouseUp;
+    private ContextMenuStrip? _contextMenuStrip;
 
     public static bool CheckForIllegalCrossThreadCalls { get; set; }
 
@@ -153,6 +156,7 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
     public event DragEventHandler? DragEnter;
     public event EventHandler? DragLeave;
     public event DragEventHandler? DragOver;
+    public event EventHandler? ContextMenuStripChanged;
 
     public virtual bool AutoSize { get; set; }
 
@@ -352,7 +356,31 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
         }
     }
 
-    public ContextMenuStrip? ContextMenuStrip { get; set; }
+    public ContextMenuStrip? ContextMenuStrip
+    {
+        get => _contextMenuStrip;
+        set
+        {
+            ContextMenuStrip? previous = _contextMenuStrip;
+            _contextMenuStrip = value;
+            if (ReferenceEquals(previous, value))
+            {
+                return;
+            }
+
+            if (previous != null)
+            {
+                previous.Disposed -= OnContextMenuStripDisposed;
+            }
+
+            if (value != null)
+            {
+                value.Disposed += OnContextMenuStripDisposed;
+            }
+
+            OnContextMenuStripChanged(EventArgs.Empty);
+        }
+    }
 
     public virtual int Top
     {
@@ -996,6 +1024,27 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
         return Parent?.ProcessCmdKey(ref msg, keyData) ?? false;
     }
 
+    protected virtual bool IsInputKey(Keys keyData)
+    {
+        Keys keyCode = keyData & Keys.KeyCode;
+        return keyCode switch
+        {
+            Keys.Tab or
+            Keys.PageUp or
+            Keys.PageDown or
+            Keys.End or
+            Keys.Home or
+            Keys.Left or
+            Keys.Up or
+            Keys.Right or
+            Keys.Down or
+            Keys.Insert or
+            Keys.Delete => false,
+            >= Keys.F1 and <= Keys.F12 => false,
+            _ => true
+        };
+    }
+
     public virtual bool PreProcessMessage(ref Message msg)
     {
         const int WmKeyDown = 0x0100;
@@ -1007,7 +1056,42 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
         }
 
         Keys keyCode = (Keys)unchecked((int)msg.WParam.ToInt64()) & Keys.KeyCode;
-        return ProcessCmdKey(ref msg, keyCode | ModifierKeys);
+        Keys keyData = keyCode | ModifierKeys;
+        return !IsInputKey(keyData) && ProcessCmdKey(ref msg, keyData);
+    }
+
+    protected virtual bool DoubleBuffered
+    {
+        get => GetStyle(ControlStyles.OptimizedDoubleBuffer);
+        set
+        {
+            if (value == DoubleBuffered)
+            {
+                return;
+            }
+
+            if (value)
+            {
+                _controlStyles |= ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint;
+            }
+            else
+            {
+                _controlStyles &= ~ControlStyles.OptimizedDoubleBuffer;
+            }
+        }
+    }
+
+    protected virtual void OnContextMenuStripChanged(EventArgs e)
+    {
+        ContextMenuStripChanged?.Invoke(this, e);
+    }
+
+    private void OnContextMenuStripDisposed(object? sender, EventArgs e)
+    {
+        if (ReferenceEquals(sender, _contextMenuStrip))
+        {
+            ContextMenuStrip = null;
+        }
     }
 
     protected virtual void OnDragDrop(DragEventArgs e)
@@ -1223,6 +1307,12 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
 
     protected override void Dispose(bool disposing)
     {
+        if (disposing && _contextMenuStrip != null)
+        {
+            _contextMenuStrip.Disposed -= OnContextMenuStripDisposed;
+            _contextMenuStrip = null;
+        }
+
         IsDisposed = true;
         if (_handle != IntPtr.Zero)
         {
@@ -2164,9 +2254,31 @@ public class Form : ContainerControl, IWinFormsDialogKeyProcessor
 
 public class UserControl : ContainerControl
 {
+    private BorderStyle _borderStyle;
+
     public UserControl()
     {
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint, true);
+    }
+
+    public BorderStyle BorderStyle
+    {
+        get => _borderStyle;
+        set
+        {
+            if (value < BorderStyle.None || value > BorderStyle.Fixed3D)
+            {
+                throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(BorderStyle));
+            }
+
+            if (_borderStyle == value)
+            {
+                return;
+            }
+
+            _borderStyle = value;
+            Invalidate();
+        }
     }
 }
 
@@ -4671,7 +4783,7 @@ public class StatusStrip : ToolStrip
 {
 }
 
-public class ContextMenuStrip : ToolStrip
+public class ContextMenuStrip : ToolStripDropDown
 {
     public static event EventHandler<ContextMenuStripShowRequestedEventArgs>? ShowRequested;
 
@@ -4686,8 +4798,6 @@ public class ContextMenuStrip : ToolStrip
 
     public event CancelEventHandler? Opening;
     public event EventHandler? Opened;
-    public event EventHandler? Closed;
-
     public Control? SourceControl { get; private set; }
 
     public Point ShowPosition { get; private set; }
@@ -4708,14 +4818,6 @@ public class ContextMenuStrip : ToolStrip
         }
     }
 
-    public void Close()
-    {
-        if (Visible)
-        {
-            Visible = false;
-            Closed?.Invoke(this, EventArgs.Empty);
-        }
-    }
 }
 
 public sealed class ContextMenuStripShowRequestedEventArgs : EventArgs
@@ -4738,10 +4840,34 @@ public sealed class ContextMenuStripShowRequestedEventArgs : EventArgs
 
 public class ToolStripDropDown : ToolStrip
 {
+    public ToolStripDropDown()
+    {
+        Visible = false;
+    }
+
+    public event ToolStripDropDownClosedEventHandler? Closed;
+
+    public void Close()
+    {
+        Close(ToolStripDropDownCloseReason.CloseCalled);
+    }
+
+    public void Close(ToolStripDropDownCloseReason reason)
+    {
+        if (!Visible)
+        {
+            return;
+        }
+
+        Visible = false;
+        Closed?.Invoke(this, new ToolStripDropDownClosedEventArgs(reason));
+    }
 }
 
 public class ToolStripItem : Component
 {
+    private ToolStripItemOverflow _overflow = ToolStripItemOverflow.AsNeeded;
+
     public event EventHandler? Click;
     public event EventHandler? TextChanged;
 
@@ -4762,6 +4888,20 @@ public class ToolStripItem : Component
     public Color ImageTransparentColor { get; set; } = Color.Empty;
 
     public string Name { get; set; } = string.Empty;
+
+    public ToolStripItemOverflow Overflow
+    {
+        get => _overflow;
+        set
+        {
+            if (value < ToolStripItemOverflow.Never || value > ToolStripItemOverflow.AsNeeded)
+            {
+                throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(ToolStripItemOverflow));
+            }
+
+            _overflow = value;
+        }
+    }
 
     public RightToLeft RightToLeft { get; set; }
 
@@ -4931,6 +5071,11 @@ public class ToolStripComboBox : ToolStripItem
     public event KeyEventHandler? KeyDown;
     public event EventHandler? SelectedIndexChanged;
 
+    public ToolStripComboBox()
+    {
+        ComboBox.SelectedIndexChanged += OnComboBoxSelectedIndexChanged;
+    }
+
     public ComboBox ComboBox { get; } = new();
 
     public AutoCompleteMode AutoCompleteMode
@@ -4947,24 +5092,43 @@ public class ToolStripComboBox : ToolStripItem
 
     public FlatStyle FlatStyle { get; set; }
 
+    public ComboBoxStyle DropDownStyle
+    {
+        get => ComboBox.DropDownStyle;
+        set => ComboBox.DropDownStyle = value;
+    }
+
     public ListBox.ListBoxObjectCollection Items => ComboBox.Items;
 
     public int SelectedIndex
     {
         get => ComboBox.SelectedIndex;
+        set => ComboBox.SelectedIndex = value;
+    }
+
+    public object? SelectedItem
+    {
+        get => ComboBox.SelectedItem;
         set
         {
-            if (ComboBox.SelectedIndex == value)
+            if (value == null)
             {
+                SelectedIndex = -1;
                 return;
             }
 
-            ComboBox.SelectedIndex = value;
-            SelectedIndexChanged?.Invoke(this, EventArgs.Empty);
+            int index = Items.IndexOf(value);
+            if (index >= 0)
+            {
+                SelectedIndex = index;
+            }
         }
     }
 
-    public object? SelectedItem => ComboBox.SelectedItem;
+    private void OnComboBoxSelectedIndexChanged(object? sender, EventArgs e)
+    {
+        SelectedIndexChanged?.Invoke(this, e);
+    }
 
     protected virtual void OnKeyDown(KeyEventArgs e)
     {
@@ -8854,8 +9018,9 @@ public static class Clipboard
 
 public static class Cursors
 {
-    public static Cursor Default { get; } = new Cursor();
-    public static Cursor WaitCursor { get; } = new Cursor();
+    public static Cursor Default { get; } = new Cursor(PortableCursorKind.Default);
+    public static Cursor WaitCursor { get; } = new Cursor(PortableCursorKind.Wait);
+    public static Cursor IBeam { get; } = new Cursor(PortableCursorKind.IBeam);
 }
 
 public static class Application
@@ -9626,6 +9791,32 @@ public enum BorderStyle
     None = 0,
     FixedSingle = 1,
     Fixed3D = 2
+}
+
+public enum ToolStripDropDownCloseReason
+{
+    AppFocusChange = 0,
+    AppClicked = 1,
+    ItemClicked = 2,
+    Keyboard = 3,
+    CloseCalled = 4
+}
+
+public sealed class ToolStripDropDownClosedEventArgs : EventArgs
+{
+    public ToolStripDropDownClosedEventArgs(ToolStripDropDownCloseReason closeReason)
+    {
+        CloseReason = closeReason;
+    }
+
+    public ToolStripDropDownCloseReason CloseReason { get; }
+}
+
+public enum ToolStripItemOverflow
+{
+    Never = 0,
+    Always = 1,
+    AsNeeded = 2
 }
 
 public enum ErrorBlinkStyle

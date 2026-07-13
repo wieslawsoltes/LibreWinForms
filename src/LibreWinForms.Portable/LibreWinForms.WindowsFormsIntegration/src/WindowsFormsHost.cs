@@ -1646,7 +1646,7 @@ public class WindowsFormsHost : FrameworkElement
 
         bool closingFromWpf = false;
         bool closingFromStrip = false;
-        EventHandler stripClosed = null!;
+        Forms.ToolStripDropDownClosedEventHandler stripClosed = null!;
         stripClosed = delegate
         {
             if (!closingFromWpf && contextMenu.IsOpen)

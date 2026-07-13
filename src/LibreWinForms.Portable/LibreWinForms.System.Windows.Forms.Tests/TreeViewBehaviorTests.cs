@@ -24,6 +24,7 @@ internal static class TreeViewBehaviorTests
             DispatcherInvocationBehaviorTests.Run();
             KeyboardRoutingBehaviorTests.Run();
             HexEditorInputScrollDtoBehaviorTests.Run();
+            HexEditorContractBehaviorTests.Run();
             CreateGraphicsHostBehaviorTests.Run();
             TextRendererBehaviorTests.Run();
             ScrollableControlBehaviorTests.Run();
