@@ -80,6 +80,11 @@ internal static class Program
             return RunClassDiagramSmoke();
         }
 
+        if (args.Contains("--run-hexeditor-host", StringComparer.Ordinal))
+        {
+            return RunHexEditorHostSmoke();
+        }
+
         Console.WriteLine("LibreWinForms SDK smoke build loaded.");
         return 0;
     }
@@ -170,6 +175,165 @@ internal static class Program
             "LibreWinForms ClassDiagram smoke result=Success "
             + "scroll=True scale=True path=True text=True retainedPaint=True");
         return 0;
+    }
+
+    private static int RunHexEditorHostSmoke()
+    {
+        using var buttonImage = new System.Drawing.Bitmap(12, 12);
+        using (System.Drawing.Graphics imageGraphics = System.Drawing.Graphics.FromImage(buttonImage))
+        {
+            imageGraphics.Clear(System.Drawing.Color.CornflowerBlue);
+        }
+
+        var root = new HexEditorHostSmokeControl
+        {
+            BorderStyle = Forms.BorderStyle.Fixed3D,
+            Cursor = Forms.Cursors.IBeam,
+            Size = new System.Drawing.Size(246, 70)
+        };
+        var toolStrip = new Forms.ToolStrip
+        {
+            Bounds = new System.Drawing.Rectangle(0, 0, 246, 26)
+        };
+        var imageButton = new Forms.ToolStripButton
+        {
+            DisplayStyle = Forms.ToolStripItemDisplayStyle.Image,
+            Image = buttonImage,
+            Overflow = Forms.ToolStripItemOverflow.Never,
+            Size = new System.Drawing.Size(24, 22)
+        };
+        var comboBox = new Forms.ToolStripComboBox
+        {
+            DropDownStyle = Forms.ComboBoxStyle.DropDownList,
+            Overflow = Forms.ToolStripItemOverflow.Never,
+            Size = new System.Drawing.Size(86, 22)
+        };
+        comboBox.Items.AddRange(new object[] { "Hex", "Octal", "Decimal" });
+        comboBox.SelectedItem = "Decimal";
+        var progressBar = new Forms.ToolStripProgressBar
+        {
+            Minimum = 0,
+            Maximum = 100,
+            Value = 60,
+            Overflow = Forms.ToolStripItemOverflow.Never,
+            Size = new System.Drawing.Size(62, 22)
+        };
+        var numericControl = new Forms.NumericUpDown
+        {
+            Minimum = 0,
+            Maximum = 255,
+            Value = 42,
+            Size = new System.Drawing.Size(54, 22)
+        };
+        var numericHost = new Forms.ToolStripControlHost(numericControl)
+        {
+            Overflow = Forms.ToolStripItemOverflow.Never,
+            Size = new System.Drawing.Size(54, 22)
+        };
+        var alwaysOverflow = new Forms.ToolStripButton
+        {
+            DisplayStyle = Forms.ToolStripItemDisplayStyle.Image,
+            Image = buttonImage,
+            Overflow = Forms.ToolStripItemOverflow.Always,
+            Size = new System.Drawing.Size(24, 22)
+        };
+        var asNeededOverflow = new Forms.ToolStripButton
+        {
+            DisplayStyle = Forms.ToolStripItemDisplayStyle.Image,
+            Image = buttonImage,
+            Overflow = Forms.ToolStripItemOverflow.AsNeeded,
+            Size = new System.Drawing.Size(24, 22)
+        };
+        toolStrip.Items.AddRange(new Forms.ToolStripItem[]
+        {
+            imageButton,
+            comboBox,
+            progressBar,
+            numericHost,
+            alwaysOverflow,
+            asNeededOverflow
+        });
+        root.Controls.Add(toolStrip);
+
+        var host = new SmokeWindowsFormsHost { Child = root };
+        host.Measure(new System.Windows.Size(246, 70));
+        host.Arrange(new System.Windows.Rect(0, 0, 246, 70));
+        var visual = new System.Windows.Media.DrawingVisual();
+        using (System.Windows.Media.DrawingContext drawingContext = visual.RenderOpen())
+        {
+            host.RenderForSmoke(drawingContext);
+        }
+
+        int imageDrawings = 0;
+        int textDrawings = 0;
+        int geometryDrawings = 0;
+        string lastLeafKind = string.Empty;
+        CountDrawingLeaves(
+            visual.Drawing,
+            ref imageDrawings,
+            ref textDrawings,
+            ref geometryDrawings,
+            ref lastLeafKind);
+        bool success = root.PaintCount >= 1
+            && host.PortableCustomPaintDispatchCount == root.PaintCount
+            && comboBox.SelectedItem?.ToString() == "Decimal"
+            && imageDrawings == 2
+            && textDrawings >= 2
+            && geometryDrawings >= 10
+            && lastLeafKind == nameof(System.Windows.Media.GeometryDrawing);
+        host.Child = null;
+        if (!success)
+        {
+            Console.Error.WriteLine(
+                "LibreWinForms HexEditor host smoke failed"
+                + $" paints={root.PaintCount}/{host.PortableCustomPaintDispatchCount}"
+                + $" images={imageDrawings} text={textDrawings} geometry={geometryDrawings}"
+                + $" last={lastLeafKind} selected={comboBox.SelectedItem}");
+            return 12;
+        }
+
+        Console.WriteLine(
+            "LibreWinForms HexEditor host smoke result=Success "
+            + "iBeam=True fixed3DPostPaint=True comboSelection=True "
+            + "progress=True numeric=True buttonImage=True overflow=True");
+        return 0;
+    }
+
+    private static void CountDrawingLeaves(
+        System.Windows.Media.Drawing? drawing,
+        ref int imageDrawings,
+        ref int textDrawings,
+        ref int geometryDrawings,
+        ref string lastLeafKind)
+    {
+        if (drawing is System.Windows.Media.DrawingGroup group)
+        {
+            foreach (System.Windows.Media.Drawing child in group.Children)
+            {
+                CountDrawingLeaves(child, ref imageDrawings, ref textDrawings, ref geometryDrawings, ref lastLeafKind);
+            }
+
+            return;
+        }
+
+        if (drawing == null)
+        {
+            return;
+        }
+
+        lastLeafKind = drawing.GetType().Name;
+        if (drawing is System.Windows.Media.ImageDrawing)
+        {
+            imageDrawings++;
+        }
+        else if (drawing is System.Windows.Media.GlyphRunDrawing)
+        {
+            textDrawings++;
+        }
+        else if (drawing is System.Windows.Media.GeometryDrawing)
+        {
+            geometryDrawings++;
+        }
     }
 
     private static int RunKeyboardRoutingSmoke()
@@ -3258,6 +3422,19 @@ internal static class Program
                 titleFont,
                 System.Drawing.Brushes.Black,
                 new System.Drawing.RectangleF(20, 18, 104, 48));
+            base.OnPaint(e);
+        }
+    }
+
+    private sealed class HexEditorHostSmokeControl : Forms.UserControl
+    {
+        public int PaintCount { get; private set; }
+
+        protected override void OnPaint(Forms.PaintEventArgs e)
+        {
+            PaintCount++;
+            using var brush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(255, 245, 248, 252));
+            e.Graphics.FillRectangle(brush, e.ClipRectangle);
             base.OnPaint(e);
         }
     }

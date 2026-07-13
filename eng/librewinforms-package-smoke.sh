@@ -89,6 +89,7 @@ modes=(
   --run-text-renderer
   --run-keyboard
   --run-classdiagram
+  --run-hexeditor-host
 )
 
 for mode in "${modes[@]}"; do
