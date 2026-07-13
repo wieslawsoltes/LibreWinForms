@@ -35,6 +35,83 @@ namespace System.ComponentModel.Design.Serialization
         }
     }
 
+    public abstract class BasicDesignerLoader : DesignerLoader
+    {
+        private IDesignerLoaderHost? _host;
+        private IDesignerSerializationManager? _serializationManager;
+        private bool _loading;
+
+        protected virtual bool Modified { get; set; }
+
+        protected IDesignerLoaderHost LoaderHost => _host
+            ?? throw new InvalidOperationException("The designer loader has not been initialized.");
+
+        public override bool Loading => _loading;
+
+        public override void BeginLoad(IDesignerLoaderHost host)
+        {
+            ArgumentNullException.ThrowIfNull(host);
+            if (_host is not null)
+                throw new InvalidOperationException("The designer loader has already been loaded.");
+
+            _host = host;
+            _serializationManager = host.GetService(typeof(IDesignerSerializationManager)) as IDesignerSerializationManager
+                ?? host as IDesignerSerializationManager
+                ?? throw new InvalidOperationException("IDesignerSerializationManager is not available.");
+
+            List<object> errors = new();
+            bool successful = false;
+            _loading = true;
+            try
+            {
+                Initialize();
+                PerformLoad(_serializationManager);
+                successful = true;
+                Modified = false;
+            }
+            catch (Exception exception)
+            {
+                errors.Add(exception);
+            }
+            finally
+            {
+                _loading = false;
+                string rootComponentClassName = (host.GetService(typeof(IDesignerHost)) as IDesignerHost)
+                    ?.RootComponentClassName
+                    ?? string.Empty;
+                host.EndLoad(rootComponentClassName, successful, errors);
+                OnEndLoad(successful, errors);
+            }
+        }
+
+        public override void Flush()
+        {
+            if (_serializationManager is null)
+                return;
+
+            PerformFlush(_serializationManager);
+            Modified = false;
+        }
+
+        public override void Dispose()
+        {
+            _serializationManager = null;
+            _host = null;
+        }
+
+        protected virtual void Initialize()
+        {
+        }
+
+        protected virtual void OnEndLoad(bool successful, ICollection errors)
+        {
+        }
+
+        protected abstract void PerformLoad(IDesignerSerializationManager serializationManager);
+
+        protected abstract void PerformFlush(IDesignerSerializationManager serializationManager);
+    }
+
     public abstract class CodeDomDesignerLoader : DesignerLoader
     {
         private bool _loading;

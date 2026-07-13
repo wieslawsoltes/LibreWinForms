@@ -382,6 +382,14 @@ namespace System.Drawing.Design
     public class IconEditor : UITypeEditor
     {
     }
+
+    public class ContentAlignmentEditor : UITypeEditor
+    {
+        public override UITypeEditorEditStyle GetEditStyle(ITypeDescriptorContext? context)
+        {
+            return UITypeEditorEditStyle.DropDown;
+        }
+    }
 }
 
 namespace System.Windows.Forms.Design

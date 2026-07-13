@@ -1752,15 +1752,28 @@ namespace System.ComponentModel.Design
         }
     }
 
-    internal class PortableComponentDesigner : IDesigner, IComponentInitializer
+    public class ComponentDesigner : IDesigner, IComponentInitializer
     {
+        private readonly DesignerVerbCollection _verbs = new();
+
         public IComponent Component { get; private set; } = null!;
 
-        public DesignerVerbCollection Verbs { get; } = new();
+        public virtual ICollection AssociatedComponents => Array.Empty<object>();
 
-        public virtual void Dispose()
+        protected virtual IComponent? ParentComponent => null;
+
+        public virtual DesignerVerbCollection Verbs => _verbs;
+
+        public void Dispose()
         {
-            Component = null!;
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (disposing)
+                Component = null!;
         }
 
         public virtual void DoDefaultAction()
@@ -1776,6 +1789,30 @@ namespace System.ComponentModel.Design
         protected object? GetService(Type serviceType)
         {
             return Component?.Site?.GetService(serviceType);
+        }
+
+        protected virtual void PreFilterAttributes(IDictionary attributes)
+        {
+        }
+
+        protected virtual void PostFilterAttributes(IDictionary attributes)
+        {
+        }
+
+        protected virtual void PreFilterEvents(IDictionary events)
+        {
+        }
+
+        protected virtual void PostFilterEvents(IDictionary events)
+        {
+        }
+
+        protected virtual void PreFilterProperties(IDictionary properties)
+        {
+        }
+
+        protected virtual void PostFilterProperties(IDictionary properties)
+        {
         }
 
         public virtual void InitializeExistingComponent(IDictionary? defaultValues)
@@ -1806,6 +1843,10 @@ namespace System.ComponentModel.Design
                     property.SetValue(Component, entry.Value);
             }
         }
+    }
+
+    internal class PortableComponentDesigner : ComponentDesigner
+    {
     }
 
     internal class PortableControlDesigner : PortableComponentDesigner
@@ -1846,20 +1887,24 @@ namespace System.ComponentModel.Design
             _control.AddDesignerMouseHandlers(OnDesignerMouseDown, OnDesignerMouseMove, OnDesignerMouseUp);
         }
 
-        public override void Dispose()
+        protected override void Dispose(bool disposing)
         {
-            FinishManipulation(commit: false);
-            if (_control is not null)
+            if (disposing)
             {
-                _control.RemoveDesignerMouseHandlers(OnDesignerMouseDown, OnDesignerMouseMove, OnDesignerMouseUp);
-                _control.Capture = false;
+                FinishManipulation(commit: false);
+                if (_control is not null)
+                {
+                    _control.RemoveDesignerMouseHandlers(OnDesignerMouseDown, OnDesignerMouseMove, OnDesignerMouseUp);
+                    _control.Capture = false;
+                }
+
+                _control = null;
+                _placementDesigner = null;
+                _placementTool = null;
+                _manipulationParent = null;
             }
 
-            _control = null;
-            _placementDesigner = null;
-            _placementTool = null;
-            _manipulationParent = null;
-            base.Dispose();
+            base.Dispose(disposing);
         }
 
         protected override void ApplyDefaultValues(IDictionary? defaultValues)
