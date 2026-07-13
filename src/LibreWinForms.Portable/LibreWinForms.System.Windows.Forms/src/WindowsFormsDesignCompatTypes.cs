@@ -211,16 +211,11 @@ namespace System.Windows.Forms.Design
             {
                 IList snapLines = base.SnapLines;
                 Rectangle displayRectangle = Control.DisplayRectangle;
-                Padding padding = Control.Padding;
-                int left = displayRectangle.Left + padding.Left;
-                int top = displayRectangle.Top + padding.Top;
-                int right = displayRectangle.Right - padding.Right;
-                int bottom = displayRectangle.Bottom - padding.Bottom;
 
-                snapLines.Add(new SnapLine(SnapLineType.Vertical, left, SnapLine.PaddingLeft, SnapLinePriority.Always));
-                snapLines.Add(new SnapLine(SnapLineType.Vertical, right, SnapLine.PaddingRight, SnapLinePriority.Always));
-                snapLines.Add(new SnapLine(SnapLineType.Horizontal, top, SnapLine.PaddingTop, SnapLinePriority.Always));
-                snapLines.Add(new SnapLine(SnapLineType.Horizontal, bottom, SnapLine.PaddingBottom, SnapLinePriority.Always));
+                snapLines.Add(new SnapLine(SnapLineType.Vertical, displayRectangle.Left, SnapLine.PaddingLeft, SnapLinePriority.Always));
+                snapLines.Add(new SnapLine(SnapLineType.Vertical, displayRectangle.Right, SnapLine.PaddingRight, SnapLinePriority.Always));
+                snapLines.Add(new SnapLine(SnapLineType.Horizontal, displayRectangle.Top, SnapLine.PaddingTop, SnapLinePriority.Always));
+                snapLines.Add(new SnapLine(SnapLineType.Horizontal, displayRectangle.Bottom, SnapLine.PaddingBottom, SnapLinePriority.Always));
                 return snapLines;
             }
         }

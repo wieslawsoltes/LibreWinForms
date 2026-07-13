@@ -2457,22 +2457,22 @@ namespace System.ComponentModel.Design
 
         private static bool TryTranslatePoint(Control source, Control target, Point point, out Point translated)
         {
-            int x = point.X;
-            int y = point.Y;
-            for (Control? current = source; current is not null; current = current.Parent)
-            {
-                if (ReferenceEquals(current, target))
-                {
-                    translated = new Point(x, y);
-                    return true;
-                }
+            Control sourceRoot = source;
+            while (sourceRoot.Parent is Control sourceParent)
+                sourceRoot = sourceParent;
 
-                x += current.Left;
-                y += current.Top;
+            Control targetRoot = target;
+            while (targetRoot.Parent is Control targetParent)
+                targetRoot = targetParent;
+
+            if (!ReferenceEquals(sourceRoot, targetRoot))
+            {
+                translated = Point.Empty;
+                return false;
             }
 
-            translated = Point.Empty;
-            return false;
+            translated = target.PointToClient(source.PointToScreen(point));
+            return true;
         }
     }
 
