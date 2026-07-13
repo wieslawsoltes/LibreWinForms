@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.IO;
 using Forms = System.Windows.Forms;
 
 namespace LibreWinForms.SystemWindowsForms.Tests;
@@ -13,7 +14,8 @@ internal static class DataGridViewInteractionBehaviorTests
         ReadOnlyStatePreventsOrCancelsEditing();
         TextEditingCommitsAndCancelsThroughChildControls();
         ComboBoxEditingUsesTypedColumnItems();
-        Console.WriteLine("LibreWinForms DataGridView interaction tests passed: geometry=14 current=9 edit=24.");
+        HostRoutesDataGridViewInteractionWithoutReflection();
+        Console.WriteLine("LibreWinForms DataGridView interaction tests passed: geometry=14 current=9 edit=24 host=10.");
     }
 
     private static void DisplayGeometryAndHitTestingShareOneContract()
@@ -223,6 +225,51 @@ internal static class DataGridViewInteractionBehaviorTests
         Assert(grid.EndEdit() && Equals(cell.Value, "two"), "Combo child editor did not commit the selected item.");
     }
 
+    private static void HostRoutesDataGridViewInteractionWithoutReflection()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string interactionPath = Path.Combine(
+            repositoryRoot,
+            "src",
+            "LibreWinForms.Portable",
+            "LibreWinForms.System.Windows.Forms",
+            "src",
+            "DataGridViewInteractionCompatTypes.cs");
+        string hostPath = Path.Combine(
+            repositoryRoot,
+            "src",
+            "LibreWinForms.Portable",
+            "LibreWinForms.WindowsFormsIntegration",
+            "src",
+            "WindowsFormsHost.cs");
+        string interactionSource = File.ReadAllText(interactionPath);
+        string hostSource = File.ReadAllText(hostPath);
+        string combinedSource = interactionSource + hostSource;
+
+        foreach (string forbidden in new[] { "System.Reflection", "BindingFlags", "GetProperty(", "GetField(", "GetMethod(" })
+        {
+            Assert(!combinedSource.Contains(forbidden, StringComparison.Ordinal),
+                $"DataGridView interaction path reintroduced forbidden reflection token '{forbidden}'.");
+        }
+
+        Assert(hostSource.Contains("dataGridView.HitTest(x, y)", StringComparison.Ordinal),
+            "Hosted pointer selection does not use typed DataGridView.HitTest.");
+        Assert(hostSource.Contains("Forms.DataGridViewHitTestType.Cell", StringComparison.Ordinal),
+            "Hosted pointer selection does not branch on typed hit-test values.");
+        Assert(hostSource.Contains("dataGridView.CurrentCell = cell", StringComparison.Ordinal),
+            "Hosted pointer selection does not assign the typed current cell.");
+        Assert(hostSource.Contains("dataGridView.BeginEdit(selectAll: true)", StringComparison.Ordinal),
+            "Hosted pointer activation does not use the typed edit lifecycle.");
+        Assert(hostSource.Contains("dataGridView.GetCellDisplayRectangle", StringComparison.Ordinal),
+            "Hosted rendering does not share typed DataGridView display geometry.");
+        Assert(!hostSource.Contains("GetDataGridViewColumnWidth", StringComparison.Ordinal),
+            "Hosted rendering retained a second DataGridView geometry implementation.");
+        Assert(interactionSource.Contains("Controls.Add(editor)", StringComparison.Ordinal)
+            && interactionSource.Contains("new TextBox", StringComparison.Ordinal)
+            && interactionSource.Contains("new ComboBox", StringComparison.Ordinal),
+            "DataGridView editing is not backed by real typed child controls.");
+    }
+
     private static Forms.DataGridView CreateGrid()
     {
         var grid = new Forms.DataGridView
@@ -236,6 +283,23 @@ internal static class DataGridViewInteractionBehaviorTests
         grid.Rows.Add("alpha", "one");
         grid.Rows.Add("beta", "two");
         return grid;
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        foreach (string start in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
+        {
+            for (DirectoryInfo? directory = new(start); directory is not null; directory = directory.Parent)
+            {
+                if (File.Exists(Path.Combine(directory.FullName, "AGENTS.md"))
+                    && Directory.Exists(Path.Combine(directory.FullName, "src", "LibreWinForms.Portable")))
+                {
+                    return directory.FullName;
+                }
+            }
+        }
+
+        throw new InvalidOperationException("Could not locate the LibreWinForms repository root.");
     }
 
     private static void AssertThrows<TException>(Action action, string message)
