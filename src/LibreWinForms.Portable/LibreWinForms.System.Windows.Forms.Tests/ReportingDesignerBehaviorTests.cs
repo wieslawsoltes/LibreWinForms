@@ -19,11 +19,12 @@ internal static class ReportingDesignerBehaviorTests
         ControlDesignerRoutesTypedPaintAndPointerHooks();
         BasicDesignerLoaderTracksChangesAndFlushesOnlyDirtyDocuments();
         BasicDesignerLoaderDefersCompletionAndReloadsAtIdle();
+        DesignSurfaceManagerReleasesDisposedSurfaces();
         DesignerFiltersFlowThroughTypeDescriptorAndPropertyGrid();
         CodeDomSerializationServiceRoundTripsPortableComponents();
         WaitCursorAndDesignerPaintPrimitivesAreFunctional();
         CollectionAndAlignmentEditorsCommitValues();
-        Console.WriteLine("LibreWinForms Reporting designer contracts passed: rules=9 hooks=7 loader=39 filters=10 serialization=6 paint=6 editors=9.");
+        Console.WriteLine("LibreWinForms Reporting designer contracts passed: rules=9 hooks=7 loader=39 lifecycle=5 filters=10 serialization=6 paint=6 editors=9.");
     }
 
     private static void SelectionRuleValuesMatchWinForms()
@@ -292,6 +293,43 @@ internal static class ReportingDesignerBehaviorTests
         {
             TypeDescriptor.RemoveProvider(inheritedProvider, component);
         }
+    }
+
+    private static void DesignSurfaceManagerReleasesDisposedSurfaces()
+    {
+        using var manager = new DesignSurfaceManager();
+        WeakReference surfaceReference = CreateDisposedManagedSurface(
+            manager,
+            out bool activeSurfaceCleared,
+            out int disposedCount);
+
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        Assert(activeSurfaceCleared, "Disposing the active design surface did not clear its manager.");
+        Assert(disposedCount == 1, "DesignSurface did not raise its typed Disposed event exactly once.");
+        Assert(!surfaceReference.IsAlive, "DesignSurfaceManager retained a disposed design surface.");
+    }
+
+    private static WeakReference CreateDisposedManagedSurface(
+        DesignSurfaceManager manager,
+        out bool activeSurfaceCleared,
+        out int disposedCount)
+    {
+        using var services = new ServiceContainer();
+        DesignSurface surface = manager.CreateDesignSurface(services);
+        int localDisposedCount = 0;
+        surface.Disposed += (_, _) => localDisposedCount++;
+        manager.ActiveDesignSurface = surface;
+        var surfaceReference = new WeakReference(surface);
+
+        surface.Dispose();
+        surface.Dispose();
+
+        activeSurfaceCleared = manager.ActiveDesignSurface is null;
+        disposedCount = localDisposedCount;
+        return surfaceReference;
     }
 
     private static void CodeDomSerializationServiceRoundTripsPortableComponents()

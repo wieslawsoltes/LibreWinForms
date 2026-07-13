@@ -16,6 +16,7 @@ namespace System.ComponentModel.Design
         private readonly Collection<Exception> _loadErrors = new();
         private PortableDesignerHost? _host;
         private DesignerLoader? _loader;
+        private bool _disposed;
         private bool _loadCompletionRaised;
         private string[]? _reloadSelectionNames;
 
@@ -31,6 +32,7 @@ namespace System.ComponentModel.Design
         }
 
         public event EventHandler? Flushed;
+        public event EventHandler? Disposed;
         public event EventHandler<LoadedEventArgs>? Loaded;
         public event EventHandler? Loading;
         public event EventHandler? Unloaded;
@@ -94,12 +96,43 @@ namespace System.ComponentModel.Design
 
         public void Dispose()
         {
-            Unloading?.Invoke(this, EventArgs.Empty);
-            _loader?.Dispose();
-            _loader = null;
-            _host?.Dispose();
-            _host = null;
-            Unloaded?.Invoke(this, EventArgs.Empty);
+            if (_disposed)
+                return;
+
+            _disposed = true;
+            try
+            {
+                try
+                {
+                    Unloading?.Invoke(this, EventArgs.Empty);
+                }
+                finally
+                {
+                    try
+                    {
+                        _loader?.Dispose();
+                    }
+                    finally
+                    {
+                        _loader = null;
+                        try
+                        {
+                            _host?.Dispose();
+                        }
+                        finally
+                        {
+                            _host = null;
+                            IsLoaded = false;
+                            View = new Panel();
+                            Unloaded?.Invoke(this, EventArgs.Empty);
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                Disposed?.Invoke(this, EventArgs.Empty);
+            }
         }
 
         public void Flush()
@@ -2633,6 +2666,7 @@ namespace System.ComponentModel.Design
             {
                 Manager = this
             };
+            surface.Disposed += OnSurfaceDisposed;
             _surfaces.Add(surface);
             return surface;
         }
@@ -2657,6 +2691,18 @@ namespace System.ComponentModel.Design
         {
             if (surface?.GetService(typeof(IDesignerHost)) is IDesignerHost host)
                 host.Activate();
+        }
+
+        private void OnSurfaceDisposed(object? sender, EventArgs e)
+        {
+            if (sender is not DesignSurface surface)
+                return;
+
+            surface.Disposed -= OnSurfaceDisposed;
+            _surfaces.Remove(surface);
+            surface.Manager = null;
+            if (ReferenceEquals(_activeDesignSurface, surface))
+                ActiveDesignSurface = null;
         }
     }
 

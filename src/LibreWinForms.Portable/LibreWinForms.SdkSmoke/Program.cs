@@ -2920,6 +2920,8 @@ internal static class Program
         bool namedNestedRemoved = namedNestedComponent.Site is null
             && serializationManager?.GetInstance(namedNestedName) is null;
 
+        bool designSurfaceManagerDisposal = RunDesignSurfaceManagerDisposalSmoke();
+
         if (component is not null && textProperty is not null)
         {
             changeService?.OnComponentChanging(component, textProperty);
@@ -2970,6 +2972,7 @@ internal static class Program
             && interactiveClipboardCommands
             && interactiveContainerDelete
             && crossSurfaceClipboardActivation
+            && designSurfaceManagerDisposal
             && nestedContainer is not null
             && nestedOwner
             && nestedSite
@@ -3026,6 +3029,7 @@ internal static class Program
             + $" interactiveReferencedComponentGraph={interactiveReferencedComponentGraph}"
             + $" interactiveContainerDelete={interactiveContainerDelete}"
             + $" crossSurfaceClipboardActivation={crossSurfaceClipboardActivation}"
+            + $" designSurfaceManagerDisposal={designSurfaceManagerDisposal}"
             + $" nestedOwner={nestedOwner} nestedSite={nestedSite} nestedAdding={nestedAdding} nestedAdded={nestedAdded}"
             + $" nestedHasHost={nestedHasHost} nestedHasContainer={nestedHasContainer}"
             + $" nestedHasChangeService={nestedHasChangeService}"
@@ -3033,6 +3037,43 @@ internal static class Program
             + $" namedNested={namedNested} namedNestedRemoved={namedNestedRemoved}"
             + $" persisted={persisted} renamed={renamed} nestedRenamed={nestedRenamed}");
         return success ? 0 : 4;
+    }
+
+    private static bool RunDesignSurfaceManagerDisposalSmoke()
+    {
+        using var manager = new DesignSurfaceManager();
+        WeakReference surfaceReference = CreateDisposedManagedSurface(
+            manager,
+            out bool activeSurfaceCleared,
+            out int disposedCount);
+
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        return activeSurfaceCleared
+            && disposedCount == 1
+            && !surfaceReference.IsAlive;
+    }
+
+    private static WeakReference CreateDisposedManagedSurface(
+        DesignSurfaceManager manager,
+        out bool activeSurfaceCleared,
+        out int disposedCount)
+    {
+        using var services = new ServiceContainer();
+        DesignSurface surface = manager.CreateDesignSurface(services);
+        int localDisposedCount = 0;
+        surface.Disposed += (_, _) => localDisposedCount++;
+        manager.ActiveDesignSurface = surface;
+        var surfaceReference = new WeakReference(surface);
+
+        surface.Dispose();
+        surface.Dispose();
+
+        activeSurfaceCleared = manager.ActiveDesignSurface is null;
+        disposedCount = localDisposedCount;
+        return surfaceReference;
     }
 
     private static bool RunCrossSurfaceClipboardActivationSmoke()
