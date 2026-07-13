@@ -67,7 +67,7 @@ cat >"${project_dir}/LibreWinForms.PackageSmoke.csproj" <<EOF
 EOF
 
 project="${project_dir}/LibreWinForms.PackageSmoke.csproj"
-export NUGET_PACKAGES="${work_root}/nuget"
+export NUGET_PACKAGES="${LIBREWINFORMS_SMOKE_NUGET_PACKAGES:-${work_root}/nuget}"
 "${dotnet}" restore "${project}" --configfile "${project_dir}/NuGet.config" --force --no-cache
 "${dotnet}" build "${project}" --configuration Release --no-restore
 
@@ -91,6 +91,9 @@ modes=(
   --run-classdiagram
   --run-hexeditor-host
 )
+if [[ -n "${LIBREWINFORMS_SMOKE_MODES:-}" ]]; then
+  read -r -a modes <<<"${LIBREWINFORMS_SMOKE_MODES}"
+fi
 
 for mode in "${modes[@]}"; do
   "${dotnet}" "${smoke_dll}" "${mode}"
