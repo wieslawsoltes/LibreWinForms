@@ -424,7 +424,7 @@ internal static class Program
         host.Child = null;
 
         bool filterContract = filter.CallCount == 1
-            && filter.LastHWnd == commandControl.Handle
+            && filter.ExpectedHandleMatched
             && filter.LastMessage == 0x0100
             && filter.LastKeyCode == Forms.Keys.F2
             && commandControl.ProcessedKeys.Count == 5
@@ -451,6 +451,8 @@ internal static class Program
                 + $" f12={processF12Handled} insert={processInsertHandled}"
                 + $" ordinaryKey={ordinaryKeyReachedKeyDown} filterContract={filterContract}"
                 + $" filterCalls={filter.CallCount} processed={string.Join(',', commandControl.ProcessedKeys)}"
+                + $" filterHWnd=0x{filter.LastHWnd.ToInt64():X} expectedHandleMatched={filter.ExpectedHandleMatched}"
+                + $" filterMessage=0x{filter.LastMessage:X} filterKey={filter.LastKeyCode}"
                 + $" timedOut={timedOut}");
             return 9;
         }
@@ -2004,13 +2006,17 @@ internal static class Program
 
         public int LastMessage { get; private set; }
 
+        public bool ExpectedHandleMatched { get; private set; }
+
         public bool PreFilterMessage(ref Forms.Message message)
         {
             CallCount++;
             LastHWnd = message.HWnd;
             LastMessage = message.Msg;
             LastKeyCode = (Forms.Keys)message.WParam.ToInt32();
-            return ReferenceEquals(Forms.Control.FromChildHandle(message.HWnd), _expectedControl)
+            ExpectedHandleMatched = message.HWnd == _expectedControl.Handle;
+            return ExpectedHandleMatched
+                && ReferenceEquals(Forms.Control.FromChildHandle(message.HWnd), _expectedControl)
                 && LastKeyCode == Forms.Keys.F2;
         }
     }
