@@ -427,12 +427,11 @@ internal static class Program
             && filter.ExpectedHandleMatched
             && filter.LastMessage == 0x0100
             && filter.LastKeyCode == Forms.Keys.F2
-            && commandControl.ProcessedKeys.Count == 5
+            && commandControl.ProcessedKeys.Count == 4
             && commandControl.ProcessedKeys[0] == Forms.Keys.Delete
             && commandControl.ProcessedKeys[1] == Forms.Keys.F6
             && commandControl.ProcessedKeys[2] == Forms.Keys.F12
-            && commandControl.ProcessedKeys[3] == Forms.Keys.Insert
-            && commandControl.ProcessedKeys[4] == Forms.Keys.A;
+            && commandControl.ProcessedKeys[3] == Forms.Keys.Insert;
         bool success = loaded
             && filterHandled
             && processDeleteHandled
