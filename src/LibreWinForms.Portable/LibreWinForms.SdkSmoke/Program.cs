@@ -58,6 +58,11 @@ internal static class Program
             return RunCustomPaintSmoke();
         }
 
+        if (args.Contains("--run-create-graphics", StringComparer.Ordinal))
+        {
+            return RunCreateGraphicsSmoke();
+        }
+
         if (args.Contains("--run-keyboard", StringComparer.Ordinal))
         {
             return RunKeyboardRoutingSmoke();
@@ -273,6 +278,103 @@ internal static class Program
             + "reparentInvalidation=True retainedFallbackPaint=True "
             + "retainedFallbackOwnerDraw=True border3D=True");
         return 0;
+    }
+
+    private static int RunCreateGraphicsSmoke()
+    {
+        System.Windows.Forms.Integration.WindowsFormsHost.EnableWindowsFormsInterop();
+
+        var root = new Forms.Control { Size = new System.Drawing.Size(420, 120) };
+        var header = new Forms.Control
+        {
+            Name = "header",
+            Bounds = new System.Drawing.Rectangle(60, 0, 240, 20)
+        };
+        var side = new Forms.Control
+        {
+            Name = "side",
+            Bounds = new System.Drawing.Rectangle(0, 20, 60, 80)
+        };
+        var hex = new Forms.Control
+        {
+            Name = "hexView",
+            Bounds = new System.Drawing.Rectangle(60, 20, 240, 80)
+        };
+        var text = new Forms.Control
+        {
+            Name = "textView",
+            Bounds = new System.Drawing.Rectangle(300, 20, 120, 80)
+        };
+        Forms.Control[] views = { header, side, hex, text };
+        root.Controls.AddRange(views);
+
+        var host = new SmokeWindowsFormsHost { Child = root };
+        host.Measure(new System.Windows.Size(420, 120));
+        host.Arrange(new System.Windows.Rect(0, 0, 420, 120));
+
+        bool recordedBlits = true;
+        foreach (Forms.Control view in views)
+        {
+            using var buffer = new System.Drawing.Bitmap(view.Width, view.Height);
+            using (System.Drawing.Graphics bufferGraphics = System.Drawing.Graphics.FromImage(buffer))
+            {
+                bufferGraphics.Clear(System.Drawing.Color.FromArgb(255, 24, 72, 120));
+            }
+
+            using System.Drawing.Graphics presentationGraphics = view.CreateGraphics();
+            presentationGraphics.DrawImageUnscaled(buffer, 0, 0);
+            recordedBlits &= presentationGraphics.DrawingContext.Commands.Count > 0;
+        }
+
+        var visual = new System.Windows.Media.DrawingVisual();
+        using (System.Windows.Media.DrawingContext drawingContext = visual.RenderOpen())
+        {
+            host.RenderForSmoke(drawingContext);
+        }
+
+        int presentedImages = CountImageDrawings(visual.Drawing);
+        bool success = recordedBlits
+            && host.PortableCreateGraphicsDispatchCount == views.Length
+            && host.PortableCreateGraphicsSurfaceCount == views.Length
+            && presentedImages >= views.Length;
+        if (!success)
+        {
+            Console.Error.WriteLine(
+                "LibreWinForms CreateGraphics smoke failed"
+                + $" recordedBlits={recordedBlits}"
+                + $" dispatches={host.PortableCreateGraphicsDispatchCount}"
+                + $" surfaces={host.PortableCreateGraphicsSurfaceCount}"
+                + $" presentedImages={presentedImages}");
+            host.Child = null;
+            return 10;
+        }
+
+        host.Child = null;
+        Console.WriteLine(
+            "LibreWinForms CreateGraphics smoke result=Success "
+            + "typedHost=True longLivedViews=4 drawImageUnscaled=True retainedPresentation=True");
+        return 0;
+    }
+
+    private static int CountImageDrawings(System.Windows.Media.Drawing? drawing)
+    {
+        if (drawing is System.Windows.Media.ImageDrawing)
+        {
+            return 1;
+        }
+
+        if (drawing is not System.Windows.Media.DrawingGroup group)
+        {
+            return 0;
+        }
+
+        int count = 0;
+        foreach (System.Windows.Media.Drawing child in group.Children)
+        {
+            count += CountImageDrawings(child);
+        }
+
+        return count;
     }
 
     private static bool VerifyRetainedCustomPaintFallback()

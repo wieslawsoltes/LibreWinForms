@@ -762,6 +762,11 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
 
     public virtual Graphics CreateGraphics()
     {
+        if (Application.TryCreateGraphics(this, out Graphics graphics))
+        {
+            return graphics;
+        }
+
         return Graphics.FromHwnd(Handle);
     }
 
@@ -8564,6 +8569,20 @@ public static class Application
         }
 
         clientPoint = default;
+        return false;
+    }
+
+    internal static bool TryCreateGraphics(
+        Control control,
+        out Graphics graphics)
+    {
+        if (Volatile.Read(ref s_applicationHost) is IWinFormsGraphicsHost graphicsHost
+            && graphicsHost.TryCreateGraphics(control, out graphics))
+        {
+            return true;
+        }
+
+        graphics = null!;
         return false;
     }
 

@@ -60,6 +60,22 @@ public interface IWinFormsCoordinateHost
 }
 
 /// <summary>
+/// Optional typed drawing capability for controls hosted by a portable
+/// presentation surface.
+/// </summary>
+/// <remarks>
+/// The returned graphics object targets host-owned presentation state for the
+/// supplied control. Hosts that do not own the control must return
+/// <see langword="false"/> without creating a disconnected drawing surface.
+/// </remarks>
+public interface IWinFormsGraphicsHost
+{
+    bool TryCreateGraphics(
+        Control control,
+        out System.Drawing.Graphics graphics);
+}
+
+/// <summary>
 /// Optional typed extension implemented by application hosts that can end a
 /// modal loop after a form publishes a non-none <see cref="Form.DialogResult"/>.
 /// </summary>

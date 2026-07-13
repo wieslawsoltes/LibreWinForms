@@ -23,6 +23,7 @@ internal static class TreeViewBehaviorTests
             DragDropHostBehaviorTests.Run();
             DispatcherInvocationBehaviorTests.Run();
             KeyboardRoutingBehaviorTests.Run();
+            CreateGraphicsHostBehaviorTests.Run();
             Console.WriteLine("LibreWinForms TreeView behavior tests passed.");
             return 0;
         }

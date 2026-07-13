@@ -157,6 +157,7 @@ public class WindowsFormsHost : FrameworkElement
     private Window? _externalDropWindow;
     private long _portableCustomPaintDispatchCount;
     private long _portableChildInvalidationDispatchCount;
+    private long _portableCreateGraphicsDispatchCount;
     private long _portableOwnerDrawDispatchCount;
     private ISelectionService? _designSelectionService;
     private bool _designSelectionServiceLookupComplete;
@@ -166,6 +167,7 @@ public class WindowsFormsHost : FrameworkElement
     private readonly ConditionalWeakTable<object, Forms.IDataObject> _dragDataCache = new();
     private readonly HashSet<Forms.Control> _invalidationTreeSubscriptions = new(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<Forms.Control, PortablePaintSurfacePool> _portablePaintSurfacePools = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<Forms.Control, PortablePaintSurfacePool> _createGraphicsSurfacePools = new(ReferenceEqualityComparer.Instance);
     private readonly List<PortablePaintSurfacePool> _pendingRetiredPaintSurfacePools = new();
     private readonly List<PortablePaintSurfacePool> _safeRetiredPaintSurfacePools = new();
 
@@ -278,6 +280,10 @@ public class WindowsFormsHost : FrameworkElement
     public long PortableCustomPaintDispatchCount => Interlocked.Read(ref _portableCustomPaintDispatchCount);
 
     public long PortableChildInvalidationDispatchCount => Interlocked.Read(ref _portableChildInvalidationDispatchCount);
+
+    public long PortableCreateGraphicsDispatchCount => Interlocked.Read(ref _portableCreateGraphicsDispatchCount);
+
+    public int PortableCreateGraphicsSurfaceCount => _createGraphicsSurfacePools.Count;
 
     public int PortableInvalidationSubscriptionCount => _invalidationTreeSubscriptions.Count;
 
@@ -450,6 +456,27 @@ public class WindowsFormsHost : FrameworkElement
         }
 
         clientPoint = default;
+        return false;
+    }
+
+    internal static bool TryCreateControlGraphics(
+        Forms.Control control,
+        out DrawingGraphics graphics)
+    {
+        ArgumentNullException.ThrowIfNull(control);
+        foreach (WindowsFormsHost host in GetRegisteredHosts())
+        {
+            if (host._child == null
+                || !host.Dispatcher.CheckAccess()
+                || !IsControlInTree(host._child, control))
+            {
+                continue;
+            }
+
+            return host.TryCreateHostedControlGraphics(control, out graphics);
+        }
+
+        graphics = null!;
         return false;
     }
 
@@ -2802,19 +2829,18 @@ public class WindowsFormsHost : FrameworkElement
             Brush foreground = CreateBrush(control.ForeColor, Foreground);
             drawingContext.DrawRectangle(background, null, bounds);
 
+            bool renderChildren = true;
             if (control is Forms.TreeView treeView)
             {
                 RenderTreeView(drawingContext, treeView, bounds, foreground);
-                return;
+                renderChildren = false;
             }
-
-            if (control is Forms.TabControl tabControl)
+            else if (control is Forms.TabControl tabControl)
             {
                 RenderTabControl(drawingContext, tabControl, bounds, foreground);
-                return;
+                renderChildren = false;
             }
-
-            if (control is Forms.SplitContainer splitContainer)
+            else if (control is Forms.SplitContainer splitContainer)
             {
                 RenderSplitContainer(drawingContext, splitContainer, bounds);
             }
@@ -2875,14 +2901,19 @@ public class WindowsFormsHost : FrameworkElement
                 DrawText(drawingContext, control.Text, new Point(bounds.X + 4, bounds.Y + 3), foreground, 12);
             }
 
-            foreach (Forms.Control child in control.Controls)
+            RenderCreateGraphicsSurface(drawingContext, control, bounds);
+
+            if (renderChildren)
             {
-                Rect childBounds = new(
-                    bounds.X + child.Left,
-                    bounds.Y + child.Top,
-                    Math.Max(0, child.Width),
-                    Math.Max(0, child.Height));
-                RenderControl(drawingContext, child, childBounds);
+                foreach (Forms.Control child in control.Controls)
+                {
+                    Rect childBounds = new(
+                        bounds.X + child.Left,
+                        bounds.Y + child.Top,
+                        Math.Max(0, child.Width),
+                        Math.Max(0, child.Height));
+                    RenderControl(drawingContext, child, childBounds);
+                }
             }
         }
         finally
@@ -4189,6 +4220,48 @@ public class WindowsFormsHost : FrameworkElement
         return pool;
     }
 
+    private bool TryCreateHostedControlGraphics(
+        Forms.Control control,
+        out DrawingGraphics graphics)
+    {
+        if (control.IsDisposed)
+        {
+            graphics = null!;
+            return false;
+        }
+
+        int width = Math.Max(1, control.ClientSize.Width);
+        int height = Math.Max(1, control.ClientSize.Height);
+        if (!_createGraphicsSurfacePools.TryGetValue(control, out PortablePaintSurfacePool? pool))
+        {
+            pool = new PortablePaintSurfacePool();
+            _createGraphicsSurfacePools.Add(control, pool);
+        }
+
+        PortablePaintSurface surface = pool.AcquireFixed(width, height);
+        surface.MarkForPresentation();
+        graphics = DrawingGraphics.FromImage(surface.Bitmap);
+        Interlocked.Increment(ref _portableCreateGraphicsDispatchCount);
+        control.Invalidate();
+        return true;
+    }
+
+    private void RenderCreateGraphicsSurface(
+        DrawingContext drawingContext,
+        Forms.Control control,
+        Rect bounds)
+    {
+        if (!_createGraphicsSurfacePools.TryGetValue(control, out PortablePaintSurfacePool? pool)
+            || !pool.TryGetFixed(out PortablePaintSurface surface)
+            || !surface.HasPresentationContent
+            || surface.Source == null)
+        {
+            return;
+        }
+
+        drawingContext.DrawImage(surface.Source, bounds);
+    }
+
     private void ResetPortablePaintSurfacePool(Forms.Control control)
     {
         if (_portablePaintSurfacePools.TryGetValue(control, out PortablePaintSurfacePool? pool))
@@ -4200,6 +4273,11 @@ public class WindowsFormsHost : FrameworkElement
     private void RetirePortablePaintSurfacePool(Forms.Control control)
     {
         if (_portablePaintSurfacePools.Remove(control, out PortablePaintSurfacePool? pool))
+        {
+            _pendingRetiredPaintSurfacePools.Add(pool);
+        }
+
+        if (_createGraphicsSurfacePools.Remove(control, out pool))
         {
             _pendingRetiredPaintSurfacePools.Add(pool);
         }
@@ -4224,6 +4302,11 @@ public class WindowsFormsHost : FrameworkElement
             pool.Dispose();
         }
 
+        foreach (PortablePaintSurfacePool pool in _createGraphicsSurfacePools.Values)
+        {
+            pool.Dispose();
+        }
+
         foreach (PortablePaintSurfacePool pool in _pendingRetiredPaintSurfacePools)
         {
             pool.Dispose();
@@ -4235,6 +4318,7 @@ public class WindowsFormsHost : FrameworkElement
         }
 
         _portablePaintSurfacePools.Clear();
+        _createGraphicsSurfacePools.Clear();
         _pendingRetiredPaintSurfacePools.Clear();
         _safeRetiredPaintSurfacePools.Clear();
     }
@@ -4254,6 +4338,18 @@ public class WindowsFormsHost : FrameworkElement
         public PortablePaintSurface AcquireNext(int width, int height)
         {
             return Acquire(_nextSurfaceIndex++, width, height);
+        }
+
+        public bool TryGetFixed(out PortablePaintSurface surface)
+        {
+            if (_surfaces.Count != 0)
+            {
+                surface = _surfaces[0];
+                return true;
+            }
+
+            surface = null!;
+            return false;
         }
 
         public void ResetSequence()
@@ -4314,6 +4410,8 @@ public class WindowsFormsHost : FrameworkElement
 
     private sealed class PortablePaintSurface : IDisposable
     {
+        private bool _hasPresentationContent;
+
         public PortablePaintSurface(int width, int height)
         {
             Width = Math.Max(1, width);
@@ -4329,6 +4427,14 @@ public class WindowsFormsHost : FrameworkElement
         public ImageSource? Source { get; }
 
         public int Width { get; }
+
+        public bool HasPresentationContent
+            => _hasPresentationContent;
+
+        public void MarkForPresentation()
+        {
+            _hasPresentationContent = true;
+        }
 
         public void Dispose()
         {

@@ -14,7 +14,8 @@ internal sealed class WpfPortableWinFormsApplicationHost :
     Forms.IWinFormsModalDialogHost,
     Forms.IWinFormsDispatcherHost,
     Forms.IWinFormsDragDropHost,
-    Forms.IWinFormsCoordinateHost
+    Forms.IWinFormsCoordinateHost,
+    Forms.IWinFormsGraphicsHost
 {
     private readonly object _gate = new();
     private readonly Dictionary<Forms.Form, Window> _windows = new();
@@ -85,6 +86,13 @@ internal sealed class WpfPortableWinFormsApplicationHost :
         out System.Drawing.Point clientPoint)
     {
         return WindowsFormsHost.TryConvertScreenPointToControl(control, point, out clientPoint);
+    }
+
+    bool Forms.IWinFormsGraphicsHost.TryCreateGraphics(
+        Forms.Control control,
+        out System.Drawing.Graphics graphics)
+    {
+        return WindowsFormsHost.TryCreateControlGraphics(control, out graphics);
     }
 
     public void Run(Forms.Form mainForm)

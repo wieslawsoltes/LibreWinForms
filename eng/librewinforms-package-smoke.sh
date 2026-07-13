@@ -85,6 +85,7 @@ modes=(
   --run-checkables
   --run-listview
   --run-custom-paint
+  --run-create-graphics
   --run-keyboard
 )
 
