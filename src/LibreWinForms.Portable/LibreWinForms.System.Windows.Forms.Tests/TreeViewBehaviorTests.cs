@@ -23,6 +23,7 @@ internal static class TreeViewBehaviorTests
             DragDropHostBehaviorTests.Run();
             DispatcherInvocationBehaviorTests.Run();
             KeyboardRoutingBehaviorTests.Run();
+            HexEditorInputScrollDtoBehaviorTests.Run();
             CreateGraphicsHostBehaviorTests.Run();
             TextRendererBehaviorTests.Run();
             ScrollableControlBehaviorTests.Run();

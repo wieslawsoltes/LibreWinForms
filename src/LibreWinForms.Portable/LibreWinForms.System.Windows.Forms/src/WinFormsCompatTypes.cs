@@ -10036,6 +10036,12 @@ public enum ScrollEventType
     EndScroll
 }
 
+public enum ScrollOrientation
+{
+    HorizontalScroll = 0,
+    VerticalScroll = 1
+}
+
 public enum ColorDepth
 {
     Depth8Bit = 8,
@@ -10185,6 +10191,8 @@ public class KeyPressEventArgs : EventArgs
 
 public class KeyEventArgs : EventArgs
 {
+    private bool _suppressKeyPress;
+
     public KeyEventArgs(Keys keyData)
     {
         KeyData = keyData;
@@ -10192,13 +10200,36 @@ public class KeyEventArgs : EventArgs
 
     public bool Handled { get; set; }
 
-    public bool SuppressKeyPress { get; set; }
+    public virtual bool Alt => (KeyData & Keys.Alt) == Keys.Alt;
+
+    public bool Control => (KeyData & Keys.Control) == Keys.Control;
+
+    public bool SuppressKeyPress
+    {
+        get => _suppressKeyPress;
+        set
+        {
+            _suppressKeyPress = value;
+            Handled = value;
+        }
+    }
 
     public Keys KeyData { get; }
 
-    public Keys KeyCode => KeyData & ~(Keys.Control | Keys.Shift | Keys.Alt);
+    public Keys KeyCode
+    {
+        get
+        {
+            Keys keyCode = KeyData & Keys.KeyCode;
+            return Enum.IsDefined(keyCode) ? keyCode : Keys.None;
+        }
+    }
 
-    public Keys Modifiers => KeyData & (Keys.Control | Keys.Shift | Keys.Alt);
+    public int KeyValue => (int)(KeyData & Keys.KeyCode);
+
+    public Keys Modifiers => KeyData & Keys.Modifiers;
+
+    public virtual bool Shift => (KeyData & Keys.Shift) == Keys.Shift;
 }
 
 public class FormClosingEventArgs : CancelEventArgs
@@ -10595,9 +10626,21 @@ public class ScrollEventArgs : EventArgs
         NewValue = newValue;
     }
 
+    public ScrollEventArgs(
+        ScrollEventType type,
+        int oldValue,
+        int newValue,
+        ScrollOrientation scrollOrientation)
+        : this(type, oldValue, newValue)
+    {
+        ScrollOrientation = scrollOrientation;
+    }
+
     public int NewValue { get; }
 
     public int OldValue { get; }
+
+    public ScrollOrientation ScrollOrientation { get; }
 
     public ScrollEventType Type { get; }
 }

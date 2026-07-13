@@ -23,6 +23,8 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        VerifyHexEditorInputScrollContracts();
+
         if (args.Contains("--run-form", StringComparer.Ordinal))
         {
             return RunMainFormSmoke();
@@ -80,6 +82,37 @@ internal static class Program
 
         Console.WriteLine("LibreWinForms SDK smoke build loaded.");
         return 0;
+    }
+
+    private static void VerifyHexEditorInputScrollContracts()
+    {
+        var input = new Forms.KeyEventArgs(
+            Forms.Keys.Control | Forms.Keys.Shift | Forms.Keys.Alt | Forms.Keys.F);
+        var undefinedInput = new Forms.KeyEventArgs(
+            Forms.Keys.Control | Forms.Keys.Shift | Forms.Keys.Alt | (Forms.Keys)0x5D)
+        {
+            SuppressKeyPress = true
+        };
+        var scroll = new Forms.ScrollEventArgs(
+            Forms.ScrollEventType.SmallIncrement,
+            oldValue: 12,
+            newValue: 18,
+            scrollOrientation: Forms.ScrollOrientation.VerticalScroll);
+
+        if (!input.Control
+            || !input.Shift
+            || !input.Alt
+            || input.KeyValue != (int)Forms.Keys.F
+            || undefinedInput.KeyCode != Forms.Keys.None
+            || undefinedInput.KeyValue != 0x5D
+            || undefinedInput.Modifiers != (Forms.Keys.Control | Forms.Keys.Shift | Forms.Keys.Alt)
+            || !undefinedInput.Handled
+            || scroll.OldValue != 12
+            || scroll.NewValue != 18
+            || scroll.ScrollOrientation != Forms.ScrollOrientation.VerticalScroll)
+        {
+            throw new InvalidOperationException("LibreWinForms HexEditor input/scroll DTO contract failed.");
+        }
     }
 
     private static int RunClassDiagramSmoke()
@@ -3199,19 +3232,15 @@ internal static class Program
         protected override void OnPaint(Forms.PaintEventArgs e)
         {
             PaintCount++;
-            e.Graphics.PageUnit = System.Drawing.GraphicsUnit.Pixel;
-            e.Graphics.PageScale = 1.25f;
             e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
             e.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
             e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
 
-            System.Drawing.Drawing2D.GraphicsState state = e.Graphics.Save();
-            e.Graphics.TranslateTransform(12, 10);
             using var path = new System.Drawing.Drawing2D.GraphicsPath();
-            path.AddArc(0, 0, 12, 12, 180, 90);
-            path.AddArc(108, 0, 12, 12, 270, 90);
-            path.AddArc(108, 58, 12, 12, 0, 90);
-            path.AddArc(0, 58, 12, 12, 90, 90);
+            path.AddArc(12, 10, 12, 12, 180, 90);
+            path.AddArc(120, 10, 12, 12, 270, 90);
+            path.AddArc(120, 68, 12, 12, 0, 90);
+            path.AddArc(12, 68, 12, 12, 90, 90);
             path.CloseFigure();
             using var fill = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(255, 240, 242, 249));
             using var outline = new System.Drawing.Pen(System.Drawing.Color.Gray) {
@@ -3228,8 +3257,7 @@ internal static class Program
                 "ClassCanvas : SharpDevelop",
                 titleFont,
                 System.Drawing.Brushes.Black,
-                new System.Drawing.RectangleF(8, 8, 104, 48));
-            e.Graphics.Restore(state);
+                new System.Drawing.RectangleF(20, 18, 104, 48));
             base.OnPaint(e);
         }
     }
