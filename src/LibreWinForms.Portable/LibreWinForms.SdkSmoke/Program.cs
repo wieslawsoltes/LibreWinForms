@@ -1738,7 +1738,17 @@ internal static class Program
             Timeout.InfiniteTimeSpan);
 
         completionTimer.Start();
-        Dispatcher.PushFrame(frame);
+        // The portable managed dispatcher returns after draining currently queued work,
+        // so re-enter its frame until the secondary application loop has actually ended.
+        while (thread.IsAlive && frame.Continue)
+        {
+            Dispatcher.PushFrame(frame);
+            if (thread.IsAlive && frame.Continue)
+            {
+                Thread.Sleep(1);
+            }
+        }
+        completionTimer.Stop();
         watchdog.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         bool joined = thread.Join(TimeSpan.FromSeconds(2));
         bool success = Volatile.Read(ref shown) == 1
