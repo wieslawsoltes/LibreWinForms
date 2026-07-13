@@ -41,6 +41,7 @@ internal static class TreeViewBehaviorTests
             HexEditorInputScrollDtoBehaviorTests.Run();
             HexEditorContractBehaviorTests.Run();
             CursorBehaviorTests.Run();
+            FormsDesignerOptionsBehaviorTests.Run();
             ReportingDesignerBehaviorTests.Run();
             CreateGraphicsHostBehaviorTests.Run();
             TextRendererBehaviorTests.Run();

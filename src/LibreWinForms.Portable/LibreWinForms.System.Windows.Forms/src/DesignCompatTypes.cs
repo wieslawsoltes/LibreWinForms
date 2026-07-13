@@ -473,13 +473,13 @@ namespace System.Windows.Forms.Design
     {
         public virtual bool EnableInSituEditing { get; }
 
-        public virtual Size GridSize { get; }
+        public virtual Size GridSize { get; } = new(8, 8);
 
         public virtual bool ObjectBoundSmartTagAutoShow { get; }
 
-        public virtual bool ShowGrid { get; }
+        public virtual bool ShowGrid { get; } = true;
 
-        public virtual bool SnapToGrid { get; }
+        public virtual bool SnapToGrid { get; } = true;
 
         public virtual bool UseOptimizedCodeGeneration { get; }
 
@@ -490,7 +490,10 @@ namespace System.Windows.Forms.Design
 
     public class WindowsFormsDesignerOptionService : DesignerOptionService
     {
+        private const int MinGridSize = 2;
+        private const int MaxGridSize = 200;
         private bool _optionsPopulated;
+        private Size _gridSize = new(8, 8);
 
         protected override void PopulateOptionCollection(DesignerOptionCollection options)
         {
@@ -503,7 +506,13 @@ namespace System.Windows.Forms.Design
             CreateOptionCollection(options, "WindowsFormsDesigner", this);
         }
 
-        public Size GridSize { get; set; }
+        public Size GridSize
+        {
+            get => _gridSize;
+            set => _gridSize = new Size(
+                Math.Clamp(value.Width, MinGridSize, MaxGridSize),
+                Math.Clamp(value.Height, MinGridSize, MaxGridSize));
+        }
 
         public bool EnableInSituEditing { get; set; }
 
@@ -515,8 +524,8 @@ namespace System.Windows.Forms.Design
 
         public bool UseSnapLines { get; set; }
 
-        public bool ShowGrid { get; set; }
+        public bool ShowGrid { get; set; } = true;
 
-        public bool SnapToGrid { get; set; }
+        public bool SnapToGrid { get; set; } = true;
     }
 }
