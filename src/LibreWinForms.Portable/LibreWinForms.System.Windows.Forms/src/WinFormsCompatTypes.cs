@@ -9054,7 +9054,11 @@ public static class Cursors
 public static class Application
 {
     private static readonly List<IMessageFilter> s_messageFilters = new();
+    private static readonly object s_idleGate = new();
     private static IWinFormsApplicationHost? s_applicationHost;
+    private static EventHandler? s_idle;
+    private static int s_applicationHostGeneration;
+    private static int s_idleDispatchPending;
     private static bool s_useWaitCursor;
 
     public static string StartupPath => AppContext.BaseDirectory;
@@ -9072,7 +9076,26 @@ public static class Application
         }
     }
 
-    public static event EventHandler? Idle;
+    public static event EventHandler? Idle
+    {
+        add
+        {
+            lock (s_idleGate)
+            {
+                s_idle += value;
+            }
+
+            RequestIdleDispatch();
+        }
+        remove
+        {
+            lock (s_idleGate)
+            {
+                s_idle -= value;
+            }
+        }
+    }
+
     public static event ThreadExceptionEventHandler? ThreadException;
 
     public static void OnThreadException(Exception e)
@@ -9117,13 +9140,52 @@ public static class Application
 
     public static void RaiseIdle(EventArgs e)
     {
-        Idle?.Invoke(typeof(Application), e);
+        ArgumentNullException.ThrowIfNull(e);
+        EventHandler? handlers;
+        lock (s_idleGate)
+        {
+            handlers = s_idle;
+        }
+
+        handlers?.Invoke(typeof(Application), e);
     }
 
     public static void RegisterPortableApplicationHost(IWinFormsApplicationHost host)
     {
         ArgumentNullException.ThrowIfNull(host);
         Volatile.Write(ref s_applicationHost, host);
+        Interlocked.Increment(ref s_applicationHostGeneration);
+        Interlocked.Exchange(ref s_idleDispatchPending, 0);
+        RequestIdleDispatch();
+    }
+
+    private static void RequestIdleDispatch()
+    {
+        IWinFormsApplicationHost? applicationHost = Volatile.Read(ref s_applicationHost);
+        if (applicationHost is not IWinFormsIdleHost idleHost)
+            return;
+
+        lock (s_idleGate)
+        {
+            if (s_idle is null)
+                return;
+        }
+
+        if (Interlocked.CompareExchange(ref s_idleDispatchPending, 1, 0) != 0)
+            return;
+
+        int generation = Volatile.Read(ref s_applicationHostGeneration);
+        if (!idleHost.TryBeginInvokeIdle(() => RaiseIdleFromHost(generation)))
+            Interlocked.CompareExchange(ref s_idleDispatchPending, 0, 1);
+    }
+
+    private static void RaiseIdleFromHost(int generation)
+    {
+        if (generation != Volatile.Read(ref s_applicationHostGeneration))
+            return;
+
+        Interlocked.Exchange(ref s_idleDispatchPending, 0);
+        RaiseIdle(EventArgs.Empty);
     }
 
     internal static IWinFormsDispatcherHost? GetDispatcherHost()

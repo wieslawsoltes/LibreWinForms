@@ -11,6 +11,7 @@ namespace System.Windows.Forms.Integration;
 internal sealed class WpfPortableWinFormsApplicationHost :
     Forms.IWinFormsApplicationHost,
     Forms.IWinFormsTimerHost,
+    Forms.IWinFormsIdleHost,
     Forms.IWinFormsModalDialogHost,
     Forms.IWinFormsDispatcherHost,
     Forms.IWinFormsDragDropHost,
@@ -49,6 +50,23 @@ internal sealed class WpfPortableWinFormsApplicationHost :
         }
 
         _dispatcher.Invoke(callback, DispatcherPriority.Send);
+    }
+
+    bool Forms.IWinFormsIdleHost.TryBeginInvokeIdle(Action callback)
+    {
+        ArgumentNullException.ThrowIfNull(callback);
+        if (_dispatcher.HasShutdownStarted || _dispatcher.HasShutdownFinished)
+            return false;
+
+        try
+        {
+            _dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, callback);
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     Forms.DragDropEffects Forms.IWinFormsDragDropHost.DoDragDrop(

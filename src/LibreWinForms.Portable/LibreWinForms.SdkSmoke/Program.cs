@@ -2026,6 +2026,8 @@ internal static class Program
         const string renamedName = "designerContainer";
         const string updatedText = "LibreWinForms designer smoke";
 
+        bool applicationIdle = RunApplicationIdleHostSmoke();
+
         using var services = new ServiceContainer();
         var externalMenuCommandService = new MenuCommandService(services);
         services.AddService(typeof(IMenuCommandService), externalMenuCommandService);
@@ -2954,6 +2956,7 @@ internal static class Program
             && serializationManager?.GetInstance(originalNestedName) is null;
 
         bool success = surface.IsLoaded
+            && applicationIdle
             && component is not null
             && siteHasChangeService
             && siteHasHost
@@ -2991,7 +2994,7 @@ internal static class Program
             && nestedRenamed;
         Console.WriteLine(
             "LibreWinForms SDK designer smoke result=" + (success ? "Success" : "Partial")
-            + $" loaded={surface.IsLoaded} component={component is not null}"
+            + $" loaded={surface.IsLoaded} applicationIdle={applicationIdle} component={component is not null}"
             + $" siteHasChangeService={siteHasChangeService} siteHasHost={siteHasHost} siteHasContainer={siteHasContainer}"
             + $" siteLocalService={siteLocalService} siteDictionary={siteDictionary} directLifecycle={directLifecycle}"
             + $" toolboxCreation={toolboxCreation} attributedDesigner={attributedDesigner} selected={selected}"
@@ -3037,6 +3040,29 @@ internal static class Program
             + $" namedNested={namedNested} namedNestedRemoved={namedNestedRemoved}"
             + $" persisted={persisted} renamed={renamed} nestedRenamed={nestedRenamed}");
         return success ? 0 : 4;
+    }
+
+    private static bool RunApplicationIdleHostSmoke()
+    {
+        System.Windows.Forms.Integration.WindowsFormsHost.EnableWindowsFormsInterop();
+
+        int idleCount = 0;
+        EventHandler handler = (_, _) => idleCount++;
+        Forms.Application.Idle += handler;
+        try
+        {
+            var frame = new DispatcherFrame();
+            Dispatcher.CurrentDispatcher.BeginInvoke(
+                DispatcherPriority.ApplicationIdle,
+                new Action(() => frame.Continue = false));
+            Dispatcher.PushFrame(frame);
+        }
+        finally
+        {
+            Forms.Application.Idle -= handler;
+        }
+
+        return idleCount == 1;
     }
 
     private static bool RunDesignSurfaceManagerDisposalSmoke()

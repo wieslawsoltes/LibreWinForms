@@ -15,6 +15,21 @@ public interface IWinFormsTimerHost
 }
 
 /// <summary>
+/// Optional typed idle-dispatch capability implemented by application hosts with
+/// a native or portable UI message loop.
+/// </summary>
+/// <remarks>
+/// Implementations enqueue the callback supplied to <see cref="TryBeginInvokeIdle"/>
+/// once at their idle priority and return <see langword="false"/> when their
+/// dispatcher can no longer accept work. The portable Forms layer owns the
+/// <see cref="Application.Idle"/> event and coalesces outstanding requests.
+/// </remarks>
+public interface IWinFormsIdleHost
+{
+    bool TryBeginInvokeIdle(Action callback);
+}
+
+/// <summary>
 /// Optional typed UI-thread dispatcher capability implemented by application hosts.
 /// </summary>
 /// <remarks>
