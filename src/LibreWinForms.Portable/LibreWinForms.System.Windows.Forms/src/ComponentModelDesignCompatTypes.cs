@@ -15,6 +15,7 @@ namespace System.ComponentModel.Design
     public class DesignSurface : IServiceProvider, IDisposable
     {
         private readonly IServiceProvider? _serviceProvider;
+        private readonly PortableDesignSurfaceServiceCleanup _serviceCleanup = new();
         private readonly Collection<Exception> _loadErrors = new();
         private PortableDesignerHost? _host;
         private DesignerLoader? _loader;
@@ -25,12 +26,14 @@ namespace System.ComponentModel.Design
         public DesignSurface()
         {
             _host = new PortableDesignerHost(this, null);
+            _serviceCleanup.Attach(_host);
         }
 
         public DesignSurface(IServiceProvider serviceProvider)
         {
             _serviceProvider = serviceProvider;
             _host = new PortableDesignerHost(this, serviceProvider);
+            _serviceCleanup.Attach(_host);
         }
 
         public event EventHandler? Flushed;
@@ -117,16 +120,25 @@ namespace System.ComponentModel.Design
                     finally
                     {
                         _loader = null;
+                        PortableDesignerHost? unloadingHost = _host;
                         try
                         {
-                            _host?.Dispose();
+                            unloadingHost?.Dispose();
                         }
                         finally
                         {
                             _host = null;
                             IsLoaded = false;
                             View = new Panel();
-                            Unloaded?.Invoke(this, EventArgs.Empty);
+                            try
+                            {
+                                Unloaded?.Invoke(this, EventArgs.Empty);
+                            }
+                            finally
+                            {
+                                if (unloadingHost is not null)
+                                    _serviceCleanup.Detach(unloadingHost);
+                            }
                         }
                     }
                 }
@@ -158,6 +170,9 @@ namespace System.ComponentModel.Design
 
         public object? GetService(Type serviceType)
         {
+            if (serviceType == typeof(IPortableDesignSurfaceServiceCleanup))
+                return _serviceCleanup;
+
             if (_host is not null)
             {
                 object? service = ((IServiceProvider)_host).GetService(serviceType);
@@ -167,6 +182,8 @@ namespace System.ComponentModel.Design
 
             return _serviceProvider?.GetService(serviceType);
         }
+
+        internal IPortableDesignSurfaceServiceCleanup ServiceCleanup => _serviceCleanup;
 
         internal void CompleteLoad(PortableDesignerHost host)
         {
@@ -295,6 +312,7 @@ namespace System.ComponentModel.Design
         private int _transactionDepth;
         private string _transactionDescription = string.Empty;
         private object? _serializationPropertyProvider;
+        private bool _designerHostServicesRemoved;
 
         public PortableDesignerHost(DesignSurface surface, IServiceProvider? serviceProvider)
         {
@@ -304,6 +322,9 @@ namespace System.ComponentModel.Design
             _designerSerializationService = new PortableDesignerSerializationService(this);
             _designerLayoutService = new PortableDesignerLayoutService(this);
             _services[typeof(PortableDesignerLayoutService)] = _designerLayoutService;
+            _services[typeof(IPortableDesignSurfaceServiceCleanup)] = surface.ServiceCleanup;
+            _services[typeof(IPortableToolStripKeyboardHandlingService)] =
+                new PortableToolStripKeyboardHandlingService(this, this);
         }
 
         public event EventHandler? Activated;
@@ -600,6 +621,9 @@ namespace System.ComponentModel.Design
 
         protected override object? GetService(Type serviceType)
         {
+            if (_designerHostServicesRemoved && IsDesignerHostServiceAlias(serviceType))
+                return null;
+
             if (serviceType == typeof(IMenuCommandService))
                 return GetMenuCommandService();
 
@@ -633,6 +657,20 @@ namespace System.ComponentModel.Design
                 return _serviceProvider?.GetService(serviceType) ?? this;
 
             return _serviceProvider?.GetService(serviceType);
+        }
+
+        private static bool IsDesignerHostServiceAlias(Type serviceType)
+        {
+            return serviceType == typeof(IDesignerHost)
+                || serviceType == typeof(IDesignerLoaderHost)
+                || serviceType == typeof(IDesignerLoaderHost2)
+                || serviceType == typeof(IContainer)
+                || serviceType == typeof(IComponentChangeService);
+        }
+
+        internal void RemoveDesignerHostServices()
+        {
+            _designerHostServicesRemoved = true;
         }
 
         public bool FilterAttributes(IComponent component, IDictionary attributes)
@@ -1140,6 +1178,7 @@ namespace System.ComponentModel.Design
         {
             if (disposing)
             {
+                RemoveDesignerHostServices();
                 _standardCommandSet?.Dispose();
                 _standardCommandSet = null;
                 foreach (IDesigner designer in new List<IDesigner>(_designers.Values))
