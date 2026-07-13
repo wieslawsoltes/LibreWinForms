@@ -5,6 +5,7 @@ using System.ComponentModel.Design;
 using System.ComponentModel.Design.Serialization;
 using System.Drawing;
 using System.Drawing.Design;
+using System.Linq;
 using Forms = System.Windows.Forms;
 using FormsDesign = System.Windows.Forms.Design;
 
@@ -17,9 +18,10 @@ internal static class ReportingDesignerBehaviorTests
         SelectionRuleValuesMatchWinForms();
         ControlDesignerRoutesTypedPaintAndPointerHooks();
         BasicDesignerLoaderCompletesPortableSurfaceLoad();
+        CodeDomSerializationServiceRoundTripsPortableComponents();
         WaitCursorAndDesignerPaintPrimitivesAreFunctional();
         CollectionAndAlignmentEditorsExposeExpectedStyles();
-        Console.WriteLine("LibreWinForms Reporting designer contracts passed: rules=9 hooks=7 loader=3 paint=6 editors=3.");
+        Console.WriteLine("LibreWinForms Reporting designer contracts passed: rules=9 hooks=7 loader=3 serialization=6 paint=6 editors=3.");
     }
 
     private static void SelectionRuleValuesMatchWinForms()
@@ -75,6 +77,30 @@ internal static class ReportingDesignerBehaviorTests
         Assert(loader.LoadCount == 1, "BasicDesignerLoader did not perform exactly one load.");
         surface.Flush();
         Assert(loader.FlushCount == 1, "BasicDesignerLoader did not perform exactly one flush.");
+    }
+
+    private static void CodeDomSerializationServiceRoundTripsPortableComponents()
+    {
+        using var surface = new DesignSurface();
+        IDesignerHost host = (IDesignerHost)(surface.GetService(typeof(IDesignerHost))
+            ?? throw new InvalidOperationException("Design surface did not publish an IDesignerHost."));
+        var source = (Forms.Panel)host.CreateComponent(typeof(Forms.Panel), "SourcePanel");
+        source.Location = new Point(13, 17);
+        source.Size = new Size(90, 40);
+
+        var service = new CodeDomComponentSerializationService(surface);
+        using SerializationStore store = service.CreateStore();
+        service.Serialize(store, source);
+        store.Close();
+        ICollection values = service.Deserialize(store);
+
+        Assert(values.Count == 1, "CodeDom component serialization did not restore one component.");
+        var restored = (Forms.Panel)values.Cast<object>().Single();
+        Assert(!ReferenceEquals(restored, source), "CodeDom component serialization returned the source instance.");
+        Assert(restored.Location == source.Location && restored.Size == source.Size,
+            "CodeDom component serialization lost portable component properties.");
+        Assert(ReferenceEquals(restored.Site?.Container, host.Container),
+            "CodeDom component serialization restored outside the designer host.");
     }
 
     private static void WaitCursorAndDesignerPaintPrimitivesAreFunctional()
