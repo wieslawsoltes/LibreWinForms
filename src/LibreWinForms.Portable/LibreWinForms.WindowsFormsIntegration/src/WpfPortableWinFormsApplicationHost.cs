@@ -389,7 +389,7 @@ internal sealed class WpfPortableWinFormsApplicationHost :
 
         if (owner != null)
         {
-            window.Owner = owner;
+            AttachTypedOwner(window, owner);
         }
 
         window.WindowState = ToWindowState(form.WindowState);
@@ -484,6 +484,45 @@ internal sealed class WpfPortableWinFormsApplicationHost :
 
         window.Loaded += (_, _) => form.Show();
         return window;
+    }
+
+    private static void AttachTypedOwner(Window window, Window owner)
+    {
+        if (owner.IsLoaded)
+        {
+            window.Owner = owner;
+            return;
+        }
+
+        RoutedEventHandler? ownerLoadedHandler = null;
+        EventHandler? ownerClosedHandler = null;
+        EventHandler? windowClosedHandler = null;
+
+        void DetachHandlers()
+        {
+            owner.Loaded -= ownerLoadedHandler;
+            owner.Closed -= ownerClosedHandler;
+            window.Closed -= windowClosedHandler;
+        }
+
+        ownerLoadedHandler = (_, _) =>
+        {
+            DetachHandlers();
+            window.Owner = owner;
+        };
+        ownerClosedHandler = (_, _) =>
+        {
+            DetachHandlers();
+            if (window.IsVisible)
+            {
+                window.Close();
+            }
+        };
+        windowClosedHandler = (_, _) => DetachHandlers();
+
+        owner.Loaded += ownerLoadedHandler;
+        owner.Closed += ownerClosedHandler;
+        window.Closed += windowClosedHandler;
     }
 
     private static void InvokeOnDispatcher(System.Windows.Threading.Dispatcher dispatcher, Action action)

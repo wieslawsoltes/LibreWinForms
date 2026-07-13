@@ -1774,6 +1774,7 @@ internal static class Program
         bool ownerLoaded = false;
         bool formShown = false;
         bool formClosed = false;
+        bool ownerAssociationDeferred = false;
         bool ownerAssociated = false;
         bool preShowTopMostApplied = false;
         bool topMostFalseApplied = false;
@@ -1801,45 +1802,48 @@ internal static class Program
             TimeSpan.FromSeconds(30),
             Timeout.InfiniteTimeSpan);
 
+        var form = new Forms.Form
+        {
+            Name = "LibreWinFormsSdkModelessOwnedForm",
+            Text = "LibreWinForms SDK Modeless Owned Form",
+            Width = 320,
+            Height = 180,
+            StartPosition = Forms.FormStartPosition.CenterParent,
+            TopMost = true
+        };
+        modelessForm = form;
+        WpfWindow? nativeWindow = null;
+        form.FormClosed += (_, eventArgs) =>
+        {
+            formClosed = true;
+            closeReason = eventArgs.CloseReason;
+        };
+        form.Shown += (_, _) =>
+        {
+            formShown = true;
+            nativeWindow = WpfApplication.Current.Windows
+                .Cast<WpfWindow>()
+                .FirstOrDefault(window => !ReferenceEquals(window, ownerWindow));
+            preShowTopMostApplied = nativeWindow?.Topmost == true;
+        };
+
+        form.Show(ownerWindow);
+        ownerAssociationDeferred = nativeWindow is not null && nativeWindow.Owner is null;
+
         ownerWindow.Loaded += (_, _) =>
         {
             ownerLoaded = true;
-            var form = new Forms.Form
-            {
-                Name = "LibreWinFormsSdkModelessOwnedForm",
-                Text = "LibreWinForms SDK Modeless Owned Form",
-                Width = 320,
-                Height = 180,
-                StartPosition = Forms.FormStartPosition.CenterParent,
-                TopMost = true
-            };
-            modelessForm = form;
-            form.FormClosed += (_, eventArgs) =>
-            {
-                formClosed = true;
-                closeReason = eventArgs.CloseReason;
-            };
-            form.Shown += (_, _) =>
-            {
-                formShown = true;
-                WpfWindow? nativeWindow = WpfApplication.Current.Windows
-                    .Cast<WpfWindow>()
-                    .FirstOrDefault(window => !ReferenceEquals(window, ownerWindow));
-                ownerAssociated = nativeWindow is not null
-                    && ReferenceEquals(nativeWindow.Owner, ownerWindow);
-                preShowTopMostApplied = nativeWindow?.Topmost == true;
+            ownerAssociated = nativeWindow is not null
+                && ReferenceEquals(nativeWindow.Owner, ownerWindow);
 
-                form.TopMost = false;
-                topMostFalseApplied = nativeWindow?.Topmost == false;
-                form.TopMost = true;
-                topMostTrueApplied = nativeWindow?.Topmost == true;
+            form.TopMost = false;
+            topMostFalseApplied = nativeWindow?.Topmost == false;
+            form.TopMost = true;
+            topMostTrueApplied = nativeWindow?.Topmost == true;
 
-                ownerWindow.Dispatcher.BeginInvoke(
-                    DispatcherPriority.ApplicationIdle,
-                    new Action(ownerWindow.Close));
-            };
-
-            form.Show(ownerWindow);
+            ownerWindow.Dispatcher.BeginInvoke(
+                DispatcherPriority.ApplicationIdle,
+                new Action(ownerWindow.Close));
         };
 
         application.Run(ownerWindow);
@@ -1848,6 +1852,7 @@ internal static class Program
         bool success = ownerLoaded
             && formShown
             && formClosed
+            && ownerAssociationDeferred
             && ownerAssociated
             && preShowTopMostApplied
             && topMostFalseApplied
@@ -1859,7 +1864,7 @@ internal static class Program
             Console.Error.WriteLine(
                 "LibreWinForms SDK modeless-owner smoke failed"
                 + $" ownerLoaded={ownerLoaded} shown={formShown} closed={formClosed}"
-                + $" associated={ownerAssociated} preTopMost={preShowTopMostApplied}"
+                + $" deferred={ownerAssociationDeferred} associated={ownerAssociated} preTopMost={preShowTopMostApplied}"
                 + $" falseTopMost={topMostFalseApplied} trueTopMost={topMostTrueApplied}"
                 + $" closeReason={closeReason} timedOut={timedOut}");
             return 12;
@@ -1867,7 +1872,7 @@ internal static class Program
 
         Console.WriteLine(
             "LibreWinForms SDK modeless-owner smoke result=Success typedOwner=True handleRead=False "
-            + "ownerAssociated=True preShowTopMost=True liveTopMost=True ownerClose=True");
+            + "deferredOwner=True ownerAssociated=True preShowTopMost=True liveTopMost=True ownerClose=True");
         return 0;
     }
 
