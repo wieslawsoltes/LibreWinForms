@@ -7,10 +7,16 @@ namespace LibreWinForms.SystemWindowsForms.Tests;
 
 internal static class TreeViewBehaviorTests
 {
-    private static int Main()
+    private static int Main(string[] args)
     {
         try
         {
+            if (args.Length == 1 && string.Equals(args[0], "datagridview-new-row", StringComparison.Ordinal))
+            {
+                DataGridViewNewRowBehaviorTests.Run();
+                return 0;
+            }
+
             LayoutHitTestingExpansionAndScrollingStayInSync();
             ImageGeometryUsesImageListMetrics();
             KeyboardNavigationUsesVisibleTreeOrder();
@@ -33,6 +39,7 @@ internal static class TreeViewBehaviorTests
             CreateGraphicsHostBehaviorTests.Run();
             TextRendererBehaviorTests.Run();
             ScrollableControlBehaviorTests.Run();
+            DataGridViewNewRowBehaviorTests.Run();
             Console.WriteLine("LibreWinForms TreeView behavior tests passed.");
             return 0;
         }
