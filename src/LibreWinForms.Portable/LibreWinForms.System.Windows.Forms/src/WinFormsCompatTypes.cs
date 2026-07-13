@@ -4053,13 +4053,29 @@ public class TabPage : Panel
 
 public class DataGridView : Control, ISupportInitialize
 {
+    private bool _allowUserToAddRows = true;
+
+    public event EventHandler? AllowUserToAddRowsChanged;
     public event DataGridViewCellEventHandler? CellValueChanged;
     public event DataGridViewDataErrorEventHandler? DataError;
     public event DataGridViewEditingControlShowingEventHandler? EditingControlShowing;
     public event DataGridViewRowsAddedEventHandler? RowsAdded;
     public event DataGridViewRowsRemovedEventHandler? RowsRemoved;
 
-    public bool AllowUserToAddRows { get; set; } = true;
+    public bool AllowUserToAddRows
+    {
+        get => _allowUserToAddRows;
+        set
+        {
+            if (_allowUserToAddRows == value)
+            {
+                return;
+            }
+
+            _allowUserToAddRows = value;
+            OnAllowUserToAddRowsChanged(EventArgs.Empty);
+        }
+    }
 
     public bool AllowUserToDeleteRows { get; set; } = true;
 
@@ -4074,6 +4090,8 @@ public class DataGridView : Control, ISupportInitialize
     public DataGridViewColumnCollection Columns { get; }
 
     public DataGridViewRowCollection Rows { get; }
+
+    public int NewRowIndex => Rows.NewRowIndex;
 
     public DataGridViewEditMode EditMode { get; set; }
 
@@ -4125,6 +4143,13 @@ public class DataGridView : Control, ISupportInitialize
         CellValueChanged?.Invoke(this, e);
     }
 
+    protected virtual void OnAllowUserToAddRowsChanged(EventArgs e)
+    {
+        Rows.SynchronizeNewRow();
+        AllowUserToAddRowsChanged?.Invoke(this, e);
+        Invalidate();
+    }
+
     internal void OnDataError(DataGridViewDataErrorEventArgs e)
     {
         DataError?.Invoke(this, e);
@@ -4158,20 +4183,54 @@ public class DataGridView : Control, ISupportInitialize
 
         protected override void InsertItem(int index, DataGridViewColumn item)
         {
-            item.SetOwner(_owner, index);
             base.InsertItem(index, item);
             Reindex();
             foreach (DataGridViewRow row in _owner.Rows)
             {
-                _owner.EnsureRowCells(row);
+                row.Cells.Insert(index, _owner.CreateCellForColumn(item));
             }
+
+            _owner.Rows.SynchronizeNewRow();
         }
 
         protected override void RemoveItem(int index)
         {
             this[index].SetOwner(null, -1);
             base.RemoveItem(index);
+            foreach (DataGridViewRow row in _owner.Rows)
+            {
+                if (index < row.Cells.Count)
+                {
+                    row.Cells.RemoveAt(index);
+                }
+            }
+
             Reindex();
+            _owner.Rows.SynchronizeNewRow();
+        }
+
+        protected override void SetItem(int index, DataGridViewColumn item)
+        {
+            DataGridViewColumn previous = this[index];
+            if (ReferenceEquals(previous, item))
+            {
+                return;
+            }
+
+            previous.SetOwner(null, -1);
+            base.SetItem(index, item);
+            Reindex();
+            foreach (DataGridViewRow row in _owner.Rows)
+            {
+                if (index < row.Cells.Count)
+                {
+                    row.Cells.RemoveAt(index);
+                }
+
+                row.Cells.Insert(index, _owner.CreateCellForColumn(item));
+            }
+
+            _owner.Rows.SynchronizeNewRow();
         }
 
         protected override void ClearItems()
@@ -4182,6 +4241,12 @@ public class DataGridView : Control, ISupportInitialize
             }
 
             base.ClearItems();
+            foreach (DataGridViewRow row in _owner.Rows)
+            {
+                row.Cells.Clear();
+            }
+
+            _owner.Rows.SynchronizeNewRow();
         }
 
         public void AddRange(DataGridViewColumn[] columns)
@@ -4204,16 +4269,20 @@ public class DataGridView : Control, ISupportInitialize
     public sealed class DataGridViewRowCollection : Collection<DataGridViewRow>
     {
         private readonly DataGridView _owner;
+        private DataGridViewRow? _newRow;
+        private bool _synchronizingNewRow;
 
         internal DataGridViewRowCollection(DataGridView owner)
         {
             _owner = owner;
         }
 
+        internal int NewRowIndex => _newRow?.Index ?? -1;
+
         public new int Add(DataGridViewRow row)
         {
             base.Add(row);
-            return Count - 1;
+            return row.Index;
         }
 
         public int Add()
@@ -4238,7 +4307,29 @@ public class DataGridView : Control, ISupportInitialize
 
         protected override void InsertItem(int index, DataGridViewRow item)
         {
-            item.SetOwner(_owner, index);
+            ArgumentNullException.ThrowIfNull(item);
+
+            bool addingNewRow = ReferenceEquals(item, _newRow);
+            if (addingNewRow)
+            {
+                if (!_synchronizingNewRow || index != Count)
+                {
+                    throw new InvalidOperationException("The new-row placeholder is managed by the DataGridView.");
+                }
+            }
+            else
+            {
+                if (item.DataGridView is not null)
+                {
+                    throw new InvalidOperationException("The row already belongs to a DataGridView.");
+                }
+
+                if (NewRowIndex >= 0 && index > NewRowIndex)
+                {
+                    index = NewRowIndex;
+                }
+            }
+
             _owner.EnsureRowCells(item);
             base.InsertItem(index, item);
             Reindex();
@@ -4247,24 +4338,116 @@ public class DataGridView : Control, ISupportInitialize
 
         protected override void RemoveItem(int index)
         {
-            this[index].SetOwner(null, -1);
+            DataGridViewRow row = this[index];
+            bool removingNewRow = ReferenceEquals(row, _newRow);
+            if (removingNewRow && !_synchronizingNewRow)
+            {
+                throw new InvalidOperationException("The new-row placeholder cannot be removed directly.");
+            }
+
+            if (removingNewRow)
+            {
+                _newRow = null;
+            }
+
             base.RemoveItem(index);
+            row.SetOwner(null, -1);
             Reindex();
             _owner.OnRowsRemoved(new DataGridViewRowsRemovedEventArgs(index, 1));
         }
 
-        protected override void ClearItems()
+        protected override void SetItem(int index, DataGridViewRow item)
         {
-            int count = Count;
-            foreach (DataGridViewRow row in this)
+            ArgumentNullException.ThrowIfNull(item);
+            if (index == NewRowIndex)
             {
-                row.SetOwner(null, -1);
+                throw new InvalidOperationException("The new-row placeholder cannot be replaced directly.");
             }
 
-            base.ClearItems();
-            if (count > 0)
+            DataGridViewRow previous = this[index];
+            if (ReferenceEquals(previous, item))
             {
-                _owner.OnRowsRemoved(new DataGridViewRowsRemovedEventArgs(0, count));
+                return;
+            }
+
+            if (item.DataGridView is not null)
+            {
+                throw new InvalidOperationException("The row already belongs to a DataGridView.");
+            }
+
+            _owner.EnsureRowCells(item);
+            base.SetItem(index, item);
+            previous.SetOwner(null, -1);
+            Reindex();
+            _owner.Invalidate();
+        }
+
+        protected override void ClearItems()
+        {
+            int removedCount = _newRow is null ? Count : Count - 1;
+            if (_newRow is not null)
+            {
+                for (int index = removedCount - 1; index >= 0; index--)
+                {
+                    this[index].SetOwner(null, -1);
+                    Items.RemoveAt(index);
+                }
+
+                Reindex();
+            }
+            else
+            {
+                foreach (DataGridViewRow row in this)
+                {
+                    row.SetOwner(null, -1);
+                }
+
+                base.ClearItems();
+            }
+
+            if (removedCount > 0)
+            {
+                _owner.OnRowsRemoved(new DataGridViewRowsRemovedEventArgs(0, removedCount));
+            }
+        }
+
+        internal void SynchronizeNewRow()
+        {
+            bool shouldHaveNewRow = _owner.AllowUserToAddRows && _owner.Columns.Count > 0;
+            if (shouldHaveNewRow)
+            {
+                if (_newRow is null)
+                {
+                    _newRow = new DataGridViewRow();
+                    _synchronizingNewRow = true;
+                    try
+                    {
+                        InsertItem(Count, _newRow);
+                    }
+                    finally
+                    {
+                        _synchronizingNewRow = false;
+                    }
+                }
+                else
+                {
+                    _owner.EnsureRowCells(_newRow);
+                }
+
+                return;
+            }
+
+            if (_newRow is not null)
+            {
+                _synchronizingNewRow = true;
+                try
+                {
+                    RemoveItem(_newRow.Index);
+                }
+                finally
+                {
+                    _synchronizingNewRow = false;
+                }
             }
         }
 
@@ -4333,6 +4516,8 @@ public class DataGridViewRow
     public DataGridView? DataGridView => _owner;
 
     public int Index { get; private set; } = -1;
+
+    public bool IsNewRow => _owner is not null && _owner.NewRowIndex == Index;
 
     public object? Tag { get; set; }
 
