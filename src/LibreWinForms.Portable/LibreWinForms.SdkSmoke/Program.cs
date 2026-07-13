@@ -2307,6 +2307,7 @@ internal static class Program
         bool applicationIdle = RunApplicationIdleHostSmoke();
         bool snapLineAdorner = RunDesignerSnapLineAdornerSmoke();
         bool groupManipulation = RunDesignerGroupManipulationSmoke();
+        bool keyboardCommands = RunDesignerKeyboardCommandsSmoke();
 
         using var services = new ServiceContainer();
         var externalMenuCommandService = new MenuCommandService(services);
@@ -3247,6 +3248,7 @@ internal static class Program
             && applicationIdle
             && snapLineAdorner
             && groupManipulation
+            && keyboardCommands
             && component is not null
             && siteHasChangeService
             && siteHasHost
@@ -3284,7 +3286,7 @@ internal static class Program
             && nestedRenamed;
         Console.WriteLine(
             "LibreWinForms SDK designer smoke result=" + (success ? "Success" : "Partial")
-            + $" loaded={surface.IsLoaded} applicationIdle={applicationIdle} snapLineAdorner={snapLineAdorner} groupManipulation={groupManipulation} component={component is not null}"
+            + $" loaded={surface.IsLoaded} applicationIdle={applicationIdle} snapLineAdorner={snapLineAdorner} groupManipulation={groupManipulation} keyboardCommands={keyboardCommands} component={component is not null}"
             + $" siteHasChangeService={siteHasChangeService} siteHasHost={siteHasHost} siteHasContainer={siteHasContainer}"
             + $" siteLocalService={siteLocalService} siteDictionary={siteDictionary} directLifecycle={directLifecycle}"
             + $" toolboxCreation={toolboxCreation} attributedDesigner={attributedDesigner} selected={selected}"
@@ -3461,6 +3463,99 @@ internal static class Program
         }
 
         return moved && undone && redone;
+    }
+
+    private static bool RunDesignerKeyboardCommandsSmoke()
+    {
+        using var services = new ServiceContainer();
+        var menuCommands = new MenuCommandService(services);
+        var status = new DesignerStatusRectangleSmokeCommand();
+        menuCommands.AddCommand(status);
+        services.AddService(typeof(IMenuCommandService), menuCommands);
+        services.AddService(
+            typeof(DesignerOptionService),
+            new FormsDesign.WindowsFormsDesignerOptionService
+            {
+                GridSize = new System.Drawing.Size(10, 10),
+                SnapToGrid = true,
+                UseSnapLines = false,
+                ShowGrid = true
+            });
+        using var surface = new DesignSurface(services);
+        var host = (IDesignerHost)surface.GetService(typeof(IDesignerHost))!;
+        var selection = (ISelectionService)host.GetService(typeof(ISelectionService))!;
+        var root = (Forms.Panel)host.CreateComponent(typeof(Forms.Panel), "keyboardRoot");
+        root.Size = new System.Drawing.Size(240, 160);
+        var primary = (Forms.Button)host.CreateComponent(typeof(Forms.Button), "keyboardPrimary");
+        primary.Bounds = new System.Drawing.Rectangle(20, 20, 30, 20);
+        root.Controls.Add(primary);
+        var sibling = (Forms.Button)host.CreateComponent(typeof(Forms.Button), "keyboardSibling");
+        sibling.Bounds = new System.Drawing.Rectangle(70, 40, 20, 30);
+        root.Controls.Add(sibling);
+        selection.SetSelectedComponents(new object[] { primary, sibling }, SelectionTypes.Replace);
+        IMenuCommandService resolvedCommands = (IMenuCommandService)host.GetService(typeof(IMenuCommandService))!;
+        CommandID[] expectedCommands =
+        {
+            FormsDesign.MenuCommands.KeyMoveRight,
+            FormsDesign.MenuCommands.KeyNudgeDown,
+            FormsDesign.MenuCommands.KeySizeWidthIncrease,
+            FormsDesign.MenuCommands.KeyNudgeHeightDecrease
+        };
+        bool commandService = ReferenceEquals(resolvedCommands, menuCommands);
+        bool registeredAndEnabled = true;
+        for (int index = 0; index < expectedCommands.Length; index++)
+        {
+            MenuCommand? command = resolvedCommands.FindCommand(expectedCommands[index]);
+            registeredAndEnabled &= command is { Enabled: true };
+        }
+
+        using var undo = new DesignerSmokeUndoEngine(host);
+        int opened = 0;
+        int closed = 0;
+        host.TransactionOpened += (_, _) => opened++;
+        host.TransactionClosed += (_, _) => closed++;
+        bool invoked = resolvedCommands.GlobalInvoke(FormsDesign.MenuCommands.KeyMoveRight)
+            && resolvedCommands.GlobalInvoke(FormsDesign.MenuCommands.KeyNudgeDown)
+            && resolvedCommands.GlobalInvoke(FormsDesign.MenuCommands.KeySizeWidthIncrease)
+            && resolvedCommands.GlobalInvoke(FormsDesign.MenuCommands.KeyNudgeHeightDecrease);
+        bool updated = primary.Bounds == new System.Drawing.Rectangle(30, 21, 40, 19)
+            && sibling.Bounds == new System.Drawing.Rectangle(80, 41, 30, 29)
+            && selection.SelectionCount == 2
+            && ReferenceEquals(selection.PrimarySelection, primary)
+            && selection.GetComponentSelected(sibling)
+            && opened == 4
+            && closed == 4
+            && undo.UndoCount == 4
+            && status.InvokeCount == 4
+            && status.LastBounds == new System.Drawing.Rectangle(30, 21, 80, 49);
+        bool undone = undo.UndoOnce()
+            && undo.UndoOnce()
+            && undo.UndoOnce()
+            && undo.UndoOnce()
+            && primary.Bounds == new System.Drawing.Rectangle(20, 20, 30, 20)
+            && sibling.Bounds == new System.Drawing.Rectangle(70, 40, 20, 30)
+            && undo.UndoCount == 0
+            && undo.RedoCount == 4;
+        bool redone = undo.RedoOnce()
+            && undo.RedoOnce()
+            && undo.RedoOnce()
+            && undo.RedoOnce()
+            && primary.Bounds == new System.Drawing.Rectangle(30, 21, 40, 19)
+            && sibling.Bounds == new System.Drawing.Rectangle(80, 41, 30, 29)
+            && undo.UndoCount == 4
+            && undo.RedoCount == 0;
+        bool success = commandService && registeredAndEnabled && invoked && updated && undone && redone;
+        if (!success)
+        {
+            Console.WriteLine(
+                $"Designer keyboard command smoke: service={commandService} registered={registeredAndEnabled}"
+                + $" invoked={invoked} updated={updated} undone={undone} redone={redone}"
+                + $" primary={primary.Bounds} sibling={sibling.Bounds} selection={selection.SelectionCount}"
+                + $" opened={opened} closed={closed} undo={undo.UndoCount} redo={undo.RedoCount}"
+                + $" status={status.InvokeCount}:{status.LastBounds}");
+        }
+
+        return success;
     }
 
     private static bool RunApplicationIdleHostSmoke()
@@ -3781,6 +3876,27 @@ internal static class Program
             unit.Undo();
             _undo.Push(unit);
             return true;
+        }
+    }
+
+    private sealed class DesignerStatusRectangleSmokeCommand : MenuCommand
+    {
+        public DesignerStatusRectangleSmokeCommand()
+            : base((_, _) => { }, FormsDesign.MenuCommands.SetStatusRectangle)
+        {
+        }
+
+        public int InvokeCount { get; private set; }
+
+        public System.Drawing.Rectangle LastBounds { get; private set; }
+
+        public override void Invoke(object arg)
+        {
+            if (arg is System.Drawing.Rectangle bounds)
+            {
+                InvokeCount++;
+                LastBounds = bounds;
+            }
         }
     }
 

@@ -31,9 +31,15 @@ internal static class FormsDesignerLayoutBehaviorTests
         GroupMoveFiltersLockedReadOnlyAndDifferentParentControls();
         ReadOnlyPrimaryRejectsGroupMove();
         GroupMoveCancellationRestoresEveryControl();
+        KeyboardCommandsRegisterAndTrackEligibility();
+        KeyboardMoveUsesGridAndPixelStepsAtomically();
+        KeyboardSnapLineModeUsesBoundedPixelSteps();
+        KeyboardMoveFiltersSelectionWithoutReordering();
+        KeyboardSizeUsesGridAndPixelStepsAtomically();
+        KeyboardSizeFiltersSelectionAndMoveFailureRollsBack();
         LayoutServiceSourceStaysReflectionFree();
         Console.WriteLine(
-            "LibreWinForms Forms Designer layout tests passed: grid=12 toolbox=2 snap=9 adorners=18 alt=4 coordinates=1 transactions=16 group=30 sourceGuard=31.");
+            "LibreWinForms Forms Designer layout tests passed: grid=12 toolbox=2 snap=9 adorners=18 alt=4 coordinates=1 transactions=16 group=30 keyboard=89 sourceGuard=39.");
     }
 
     private static void SharpDevelopOptionsDriveGridMoveAndMidpointRounding()
@@ -594,6 +600,387 @@ internal static class FormsDesignerLayoutBehaviorTests
             "Designer disposal did not cancel and restore the complete group transaction.");
     }
 
+    private static void KeyboardCommandsRegisterAndTrackEligibility()
+    {
+        using var fixture = new DesignerFixture(new SharpStyleDesignerOptionService(
+            new Size(8, 8),
+            snapToGrid: true,
+            useSnapLines: false));
+        var commands = (IMenuCommandService)fixture.Host.GetService(typeof(IMenuCommandService))!;
+        CommandID[] movementCommands =
+        {
+            FormsDesign.MenuCommands.KeyMoveUp,
+            FormsDesign.MenuCommands.KeyMoveDown,
+            FormsDesign.MenuCommands.KeyMoveLeft,
+            FormsDesign.MenuCommands.KeyMoveRight,
+            FormsDesign.MenuCommands.KeyNudgeUp,
+            FormsDesign.MenuCommands.KeyNudgeDown,
+            FormsDesign.MenuCommands.KeyNudgeLeft,
+            FormsDesign.MenuCommands.KeyNudgeRight
+        };
+        CommandID[] sizeCommands =
+        {
+            FormsDesign.MenuCommands.KeySizeWidthIncrease,
+            FormsDesign.MenuCommands.KeySizeWidthDecrease,
+            FormsDesign.MenuCommands.KeySizeHeightIncrease,
+            FormsDesign.MenuCommands.KeySizeHeightDecrease,
+            FormsDesign.MenuCommands.KeyNudgeWidthIncrease,
+            FormsDesign.MenuCommands.KeyNudgeWidthDecrease,
+            FormsDesign.MenuCommands.KeyNudgeHeightIncrease,
+            FormsDesign.MenuCommands.KeyNudgeHeightDecrease
+        };
+        AssertCommandsEnabled(commands, movementCommands, expected: false,
+            "Root/no-selection state enabled keyboard movement commands.");
+        AssertCommandsEnabled(commands, sizeCommands, expected: false,
+            "Root/no-selection state enabled keyboard size commands.");
+
+        Forms.Button eligible = fixture.AddButton("eligible", new Rectangle(16, 16, 24, 24));
+        fixture.Select(eligible);
+        AssertCommandsEnabled(commands, movementCommands, expected: true,
+            "Eligible selection did not enable every standard move/nudge command.");
+        AssertCommandsEnabled(commands, sizeCommands, expected: true,
+            "Eligible selection did not enable every standard size/nudge command.");
+        var status = new StatusRectangleProbeCommand();
+        commands.AddCommand(status);
+        Assert(commands.GlobalInvoke(FormsDesign.MenuCommands.KeyNudgeRight)
+            && eligible.Bounds == new Rectangle(17, 16, 24, 24)
+            && status.InvokeCount == 1
+            && status.LastBounds == eligible.Bounds,
+            "Single-selection keyboard feedback did not publish the control's exact updated bounds.");
+
+        ReadOnlySizeButton readOnlySize = fixture.AddControl(
+            "readOnlySize",
+            new ReadOnlySizeButton(),
+            new Rectangle(48, 16, 24, 24));
+        fixture.Select(readOnlySize);
+        AssertCommandsEnabled(commands, movementCommands, expected: true,
+            "Writable location did not keep move commands enabled for a read-only-size control.");
+        AssertCommandsEnabled(commands, sizeCommands, expected: false,
+            "Read-only size state did not disable keyboard size commands.");
+
+        LockedButton locked = fixture.AddControl(
+            "locked",
+            new LockedButton(),
+            new Rectangle(80, 16, 24, 24));
+        fixture.Select(locked);
+        locked.Locked = true;
+        PropertyDescriptor lockedProperty = TypeDescriptor.GetProperties(locked)[nameof(LockedButton.Locked)]!;
+        ((IComponentChangeService)fixture.Host.GetService(typeof(IComponentChangeService))!)
+            .OnComponentChanged(locked, lockedProperty, false, true);
+        AssertCommandsEnabled(commands, movementCommands, expected: false,
+            "Typed Locked change did not refresh keyboard move command status.");
+        AssertCommandsEnabled(commands, sizeCommands, expected: false,
+            "Typed Locked change did not refresh keyboard size command status.");
+    }
+
+    private static void KeyboardMoveUsesGridAndPixelStepsAtomically()
+    {
+        using var fixture = new DesignerFixture(new SharpStyleDesignerOptionService(
+            new Size(8, 8),
+            snapToGrid: true,
+            useSnapLines: false));
+        Forms.Button primary = fixture.AddButton("primary", new Rectangle(16, 16, 20, 20));
+        Forms.Button sibling = fixture.AddButton("sibling", new Rectangle(48, 24, 30, 20));
+        Forms.Button stationary = fixture.AddButton("stationary", new Rectangle(140, 80, 20, 20));
+        int primaryIndex = fixture.Root.Controls.IndexOf(primary);
+        int siblingIndex = fixture.Root.Controls.IndexOf(sibling);
+        int stationaryIndex = fixture.Root.Controls.IndexOf(stationary);
+        fixture.Select(primary, sibling);
+
+        var commands = (IMenuCommandService)fixture.Host.GetService(typeof(IMenuCommandService))!;
+        var status = new StatusRectangleProbeCommand();
+        commands.AddCommand(status);
+        using var undo = new ProbeUndoEngine(fixture.Host);
+        int opened = 0;
+        int closed = 0;
+        int changing = 0;
+        int changed = 0;
+        int primaryInvalidated = 0;
+        int siblingInvalidated = 0;
+        int parentInvalidated = 0;
+        fixture.Host.TransactionOpened += (_, _) => opened++;
+        fixture.Host.TransactionClosed += (_, _) => closed++;
+        var changes = (IComponentChangeService)fixture.Host.GetService(typeof(IComponentChangeService))!;
+        changes.ComponentChanging += (_, e) => changing += IsLocationChangeFor(e.Component, e.Member, primary, sibling) ? 1 : 0;
+        changes.ComponentChanged += (_, e) => changed += IsLocationChangeFor(e.Component, e.Member, primary, sibling) ? 1 : 0;
+        primary.Invalidated += (_, _) => primaryInvalidated++;
+        sibling.Invalidated += (_, _) => siblingInvalidated++;
+        fixture.Root.Invalidated += (_, _) => parentInvalidated++;
+
+        Assert(commands.GlobalInvoke(FormsDesign.MenuCommands.KeyMoveRight),
+            "Enabled grid keyboard move was not invoked.");
+        Assert(primary.Location == new Point(24, 16) && sibling.Location == new Point(56, 24),
+            "Ordinary arrow command did not apply the configured 8-pixel grid delta to the group.");
+        Assert(commands.GlobalInvoke(FormsDesign.MenuCommands.KeyNudgeDown),
+            "Enabled pixel keyboard nudge was not invoked.");
+        Assert(primary.Location == new Point(24, 17) && sibling.Location == new Point(56, 25),
+            "Ctrl-arrow nudge did not apply exactly one pixel to the group.");
+        Assert(stationary.Bounds == new Rectangle(140, 80, 20, 20)
+            && fixture.Root.Controls.IndexOf(primary) == primaryIndex
+            && fixture.Root.Controls.IndexOf(sibling) == siblingIndex
+            && fixture.Root.Controls.IndexOf(stationary) == stationaryIndex,
+            "Keyboard group movement changed an unselected control or parent child order.");
+        var selection = (ISelectionService)fixture.Host.GetService(typeof(ISelectionService))!;
+        Assert(selection.SelectionCount == 2
+            && ReferenceEquals(selection.PrimarySelection, primary)
+            && selection.GetComponentSelected(sibling),
+            "Keyboard movement changed the established selection order.");
+        Assert(opened == 2 && closed == 2 && changing == 4 && changed == 4 && undo.UndoCount == 2,
+            "Keyboard group moves did not create one typed transaction/undo unit per command.");
+        Assert(primaryInvalidated >= 2 && siblingInvalidated >= 2 && parentInvalidated >= 4,
+            "Keyboard movement bypassed typed control/parent invalidation.");
+        Assert(status.InvokeCount == 2 && status.LastBounds == new Rectangle(24, 17, 62, 28),
+            "Keyboard movement did not publish the exact changed-group bounds through SetStatusRectangle.");
+        Assert(undo.UndoOnce()
+            && primary.Location == new Point(24, 16)
+            && sibling.Location == new Point(56, 24),
+            "Pixel-nudge undo did not restore the complete selected group.");
+        Assert(undo.UndoOnce()
+            && primary.Location == new Point(16, 16)
+            && sibling.Location == new Point(48, 24),
+            "Grid-move undo did not restore the complete selected group.");
+        Assert(undo.RedoOnce() && undo.RedoOnce()
+            && primary.Location == new Point(24, 17)
+            && sibling.Location == new Point(56, 25),
+            "Keyboard group move redo did not restore both command deltas.");
+    }
+
+    private static void KeyboardSnapLineModeUsesBoundedPixelSteps()
+    {
+        using var fixture = new DesignerFixture(new SharpStyleDesignerOptionService(
+            new Size(10, 10),
+            snapToGrid: true,
+            useSnapLines: true));
+        Forms.Button primary = fixture.AddButton("primary", new Rectangle(20, 20, 30, 20));
+        Forms.Button sibling = fixture.AddButton("sibling", new Rectangle(70, 40, 20, 30));
+        Forms.Button snapTarget = fixture.AddButton("snapTarget", new Rectangle(55, 20, 20, 20));
+        fixture.Select(primary, sibling);
+
+        var commands = (IMenuCommandService)fixture.Host.GetService(typeof(IMenuCommandService))!;
+        Assert(commands.GlobalInvoke(FormsDesign.MenuCommands.KeyMoveRight),
+            "Snap-line-mode ordinary move command was not invoked.");
+        Assert(primary.Location == new Point(21, 20)
+            && sibling.Location == new Point(71, 40)
+            && snapTarget.Location == new Point(55, 20),
+            "Snap-line-mode ordinary movement did not use the deliberate bounded one-pixel fallback.");
+        Assert(commands.GlobalInvoke(FormsDesign.MenuCommands.KeySizeWidthIncrease),
+            "Snap-line-mode ordinary size command was not invoked.");
+        Assert(primary.Size == new Size(31, 20)
+            && sibling.Size == new Size(21, 30)
+            && snapTarget.Size == new Size(20, 20),
+            "Snap-line-mode ordinary sizing did not use the deliberate bounded one-pixel fallback.");
+    }
+
+    private static void KeyboardMoveFiltersSelectionWithoutReordering()
+    {
+        using var fixture = new DesignerFixture(new SharpStyleDesignerOptionService(
+            new Size(8, 8),
+            snapToGrid: false,
+            useSnapLines: false));
+        Forms.Button primary = fixture.AddButton("primary", new Rectangle(20, 20, 20, 20));
+        Forms.Button sibling = fixture.AddButton("sibling", new Rectangle(50, 30, 20, 20));
+        LockedButton locked = fixture.AddControl(
+            "locked",
+            new LockedButton { Locked = true },
+            new Rectangle(80, 20, 20, 20));
+        ReadOnlyLocationButton readOnly = fixture.AddControl(
+            "readOnly",
+            new ReadOnlyLocationButton(),
+            new Rectangle(110, 20, 20, 20));
+        Forms.Button docked = fixture.AddButton("docked", new Rectangle(140, 20, 20, 20));
+        docked.Dock = Forms.DockStyle.Left;
+        Forms.Panel nested = fixture.AddControl(
+            "nested",
+            new Forms.Panel(),
+            new Rectangle(20, 100, 120, 80));
+        Forms.Button differentParent = fixture.AddButton(
+            "differentParent",
+            new Rectangle(10, 10, 20, 20),
+            nested);
+        int[] childOrder =
+        {
+            fixture.Root.Controls.IndexOf(primary),
+            fixture.Root.Controls.IndexOf(sibling),
+            fixture.Root.Controls.IndexOf(locked),
+            fixture.Root.Controls.IndexOf(readOnly),
+            fixture.Root.Controls.IndexOf(docked),
+            fixture.Root.Controls.IndexOf(nested)
+        };
+        fixture.Select(primary, sibling, locked, readOnly, docked, differentParent);
+
+        int changing = 0;
+        int changed = 0;
+        var changes = (IComponentChangeService)fixture.Host.GetService(typeof(IComponentChangeService))!;
+        changes.ComponentChanging += (_, e) => changing += IsLocationChangeFor(e.Component, e.Member, primary, sibling) ? 1 : 0;
+        changes.ComponentChanged += (_, e) => changed += IsLocationChangeFor(e.Component, e.Member, primary, sibling) ? 1 : 0;
+        var commands = (IMenuCommandService)fixture.Host.GetService(typeof(IMenuCommandService))!;
+        Assert(commands.GlobalInvoke(FormsDesign.MenuCommands.KeyNudgeRight),
+            "Eligible filtered group did not invoke its keyboard nudge.");
+
+        Assert(primary.Location == new Point(21, 20) && sibling.Location == new Point(51, 30),
+            "Keyboard nudge did not retain the selected siblings' relative geometry.");
+        Assert(locked.Location == new Point(80, 20)
+            && readOnly.Location == new Point(110, 20)
+            && docked.Location == new Point(140, 20)
+            && differentParent.Location == new Point(10, 10),
+            "Keyboard nudge changed a locked, read-only, docked, or different-parent selection member.");
+        Assert(changing == 2 && changed == 2,
+            "Filtered keyboard selection members emitted typed location changes.");
+        Assert(fixture.Root.Controls.IndexOf(primary) == childOrder[0]
+            && fixture.Root.Controls.IndexOf(sibling) == childOrder[1]
+            && fixture.Root.Controls.IndexOf(locked) == childOrder[2]
+            && fixture.Root.Controls.IndexOf(readOnly) == childOrder[3]
+            && fixture.Root.Controls.IndexOf(docked) == childOrder[4]
+            && fixture.Root.Controls.IndexOf(nested) == childOrder[5],
+            "Filtered keyboard movement changed parent child order.");
+
+        fixture.Select(readOnly, sibling);
+        MenuCommand readOnlyMove = commands.FindCommand(FormsDesign.MenuCommands.KeyNudgeRight)!;
+        Assert(!readOnlyMove.Enabled
+            && !commands.GlobalInvoke(FormsDesign.MenuCommands.KeyNudgeRight)
+            && sibling.Location == new Point(51, 30),
+            "Read-only primary selection initiated a partial keyboard group move.");
+    }
+
+    private static void KeyboardSizeUsesGridAndPixelStepsAtomically()
+    {
+        using var fixture = new DesignerFixture(new SharpStyleDesignerOptionService(
+            new Size(10, 10),
+            snapToGrid: true,
+            useSnapLines: false));
+        Forms.Button primary = fixture.AddButton("primary", new Rectangle(20, 20, 30, 20));
+        Forms.Button sibling = fixture.AddButton("sibling", new Rectangle(70, 40, 20, 30));
+        int primaryIndex = fixture.Root.Controls.IndexOf(primary);
+        int siblingIndex = fixture.Root.Controls.IndexOf(sibling);
+        fixture.Select(primary, sibling);
+
+        var commands = (IMenuCommandService)fixture.Host.GetService(typeof(IMenuCommandService))!;
+        var status = new StatusRectangleProbeCommand();
+        commands.AddCommand(status);
+        using var undo = new ProbeUndoEngine(fixture.Host);
+        int opened = 0;
+        int closed = 0;
+        int changing = 0;
+        int changed = 0;
+        fixture.Host.TransactionOpened += (_, _) => opened++;
+        fixture.Host.TransactionClosed += (_, _) => closed++;
+        var changes = (IComponentChangeService)fixture.Host.GetService(typeof(IComponentChangeService))!;
+        changes.ComponentChanging += (_, e) => changing += IsSizeChangeFor(e.Component, e.Member, primary, sibling) ? 1 : 0;
+        changes.ComponentChanged += (_, e) => changed += IsSizeChangeFor(e.Component, e.Member, primary, sibling) ? 1 : 0;
+
+        Assert(commands.GlobalInvoke(FormsDesign.MenuCommands.KeySizeWidthIncrease),
+            "Enabled Shift-arrow size command was not invoked.");
+        Assert(primary.Size == new Size(40, 20) && sibling.Size == new Size(30, 30),
+            "Shift-arrow size command did not apply the configured grid width to every eligible control.");
+        Assert(commands.GlobalInvoke(FormsDesign.MenuCommands.KeyNudgeHeightDecrease),
+            "Enabled Ctrl+Shift-arrow size nudge was not invoked.");
+        Assert(primary.Size == new Size(40, 19) && sibling.Size == new Size(30, 29),
+            "Ctrl+Shift-arrow size nudge did not apply exactly one height pixel.");
+        Assert(primary.Location == new Point(20, 20)
+            && sibling.Location == new Point(70, 40)
+            && fixture.Root.Controls.IndexOf(primary) == primaryIndex
+            && fixture.Root.Controls.IndexOf(sibling) == siblingIndex,
+            "Keyboard size commands changed selected control locations or order.");
+        Assert(opened == 2 && closed == 2 && changing == 4 && changed == 4 && undo.UndoCount == 2,
+            "Keyboard group sizing did not create one typed transaction/undo unit per command.");
+        Assert(status.InvokeCount == 2 && status.LastBounds == new Rectangle(20, 20, 80, 49),
+            "Keyboard sizing did not publish the exact changed-group bounds through SetStatusRectangle.");
+        Assert(undo.UndoOnce()
+            && primary.Size == new Size(40, 20)
+            && sibling.Size == new Size(30, 30),
+            "Pixel-size undo did not restore the complete eligible group.");
+        Assert(undo.UndoOnce()
+            && primary.Size == new Size(30, 20)
+            && sibling.Size == new Size(20, 30),
+            "Grid-size undo did not restore the complete eligible group.");
+        Assert(undo.RedoOnce() && undo.RedoOnce()
+            && primary.Size == new Size(40, 19)
+            && sibling.Size == new Size(30, 29),
+            "Keyboard group size redo did not restore both command deltas.");
+    }
+
+    private static void KeyboardSizeFiltersSelectionAndMoveFailureRollsBack()
+    {
+        using (var fixture = new DesignerFixture(new SharpStyleDesignerOptionService(
+            new Size(8, 8),
+            snapToGrid: false,
+            useSnapLines: false)))
+        {
+            Forms.Button primary = fixture.AddButton("primary", new Rectangle(20, 20, 24, 24));
+            Forms.Button sibling = fixture.AddButton("sibling", new Rectangle(60, 20, 24, 24));
+            LockedButton locked = fixture.AddControl(
+                "locked",
+                new LockedButton { Locked = true },
+                new Rectangle(100, 20, 24, 24));
+            ReadOnlySizeButton readOnly = fixture.AddControl(
+                "readOnly",
+                new ReadOnlySizeButton(),
+                new Rectangle(140, 20, 24, 24));
+            Forms.Button autoSize = fixture.AddButton("autoSize", new Rectangle(180, 20, 24, 24));
+            autoSize.AutoSize = true;
+            Forms.Panel nested = fixture.AddControl(
+                "nested",
+                new Forms.Panel(),
+                new Rectangle(20, 100, 120, 80));
+            Forms.Button differentParent = fixture.AddButton(
+                "differentParent",
+                new Rectangle(10, 10, 24, 24),
+                nested);
+            fixture.Select(primary, sibling, locked, readOnly, autoSize, differentParent);
+
+            var commands = (IMenuCommandService)fixture.Host.GetService(typeof(IMenuCommandService))!;
+            Assert(commands.GlobalInvoke(FormsDesign.MenuCommands.KeyNudgeWidthIncrease),
+                "Eligible filtered group did not invoke its keyboard size nudge.");
+            Assert(primary.Size == new Size(25, 24) && sibling.Size == new Size(25, 24),
+                "Keyboard size nudge did not resize both eligible siblings.");
+            Assert(locked.Size == new Size(24, 24)
+                && readOnly.Size == new Size(24, 24)
+                && autoSize.Size == new Size(24, 24)
+                && differentParent.Size == new Size(24, 24),
+                "Keyboard size nudge changed a locked, read-only, auto-size, or different-parent member.");
+
+            fixture.Select(readOnly, sibling);
+            Assert(!commands.FindCommand(FormsDesign.MenuCommands.KeyNudgeWidthIncrease)!.Enabled
+                && !commands.GlobalInvoke(FormsDesign.MenuCommands.KeyNudgeWidthIncrease)
+                && sibling.Size == new Size(25, 24),
+                "Read-only-size primary initiated a partial keyboard group resize.");
+        }
+
+        using (var fixture = new DesignerFixture(new SharpStyleDesignerOptionService(
+            new Size(8, 8),
+            snapToGrid: false,
+            useSnapLines: false)))
+        {
+            Forms.Button primary = fixture.AddButton("primary", new Rectangle(20, 20, 24, 24));
+            ThrowingLocationButton throwing = fixture.AddControl(
+                "throwing",
+                new ThrowingLocationButton(),
+                new Rectangle(60, 20, 24, 24));
+            fixture.Select(primary, throwing);
+            using var undo = new ProbeUndoEngine(fixture.Host);
+            int cancelled = 0;
+            fixture.Host.TransactionClosed += (_, e) => cancelled += e.TransactionCommitted ? 0 : 1;
+            throwing.ThrowOnLocationChange = true;
+            var commands = (IMenuCommandService)fixture.Host.GetService(typeof(IMenuCommandService))!;
+            bool threw = false;
+            try
+            {
+                commands.GlobalInvoke(FormsDesign.MenuCommands.KeyNudgeRight);
+            }
+            catch (InvalidOperationException)
+            {
+                threw = true;
+            }
+
+            Assert(threw
+                && primary.Location == new Point(20, 20)
+                && throwing.Location == new Point(60, 20)
+                && cancelled == 1
+                && undo.UndoCount == 0,
+                "Failed keyboard group move did not restore every control and cancel its atomic transaction.");
+        }
+    }
+
     private static bool IsLocationChangeFor(
         object? component,
         MemberDescriptor? member,
@@ -608,6 +995,36 @@ internal static class FormsDesignerLayoutBehaviorTests
         }
 
         return false;
+    }
+
+    private static bool IsSizeChangeFor(
+        object? component,
+        MemberDescriptor? member,
+        params Forms.Control[] expected)
+    {
+        if (!string.Equals(member?.Name, nameof(Forms.Control.Size), StringComparison.Ordinal))
+            return false;
+        for (int index = 0; index < expected.Length; index++)
+        {
+            if (ReferenceEquals(component, expected[index]))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static void AssertCommandsEnabled(
+        IMenuCommandService commands,
+        CommandID[] commandIds,
+        bool expected,
+        string message)
+    {
+        for (int index = 0; index < commandIds.Length; index++)
+        {
+            MenuCommand? command = commands.FindCommand(commandIds[index]);
+            if (command is null || command.Enabled != expected)
+                throw new InvalidOperationException(message + $" Command={commandIds[index]}");
+        }
     }
 
     private static void CountChange(
@@ -661,10 +1078,25 @@ internal static class FormsDesignerLayoutBehaviorTests
         Assert(layoutSource.Contains("CacheGroupCandidateLines", StringComparison.Ordinal)
             && layoutSource.Contains("ContainsControl(movingControls, target)", StringComparison.Ordinal),
             "Layout service stopped snapping group bounds or excluding moving controls from targets.");
+        Assert(layoutSource.Contains("GetKeyboardIncrement", StringComparison.Ordinal)
+            && layoutSource.Contains("!precise && !options.UseSnapLines && options.SnapToGrid", StringComparison.Ordinal),
+            "Layout service stopped deriving typed grid-versus-pixel keyboard increments.");
         Assert(designerSource.Contains("selectionService.GetSelectedComponents()", StringComparison.Ordinal)
             && designerSource.Contains("ReferenceEquals(control.Parent, parent)", StringComparison.Ordinal)
             && designerSource.Contains("Move {_moveItems.Length} controls", StringComparison.Ordinal),
             "Designer manipulation stopped using typed selection/parent/transaction contracts.");
+        Assert(designerSource.Contains("MenuCommands.KeyMoveUp", StringComparison.Ordinal)
+            && designerSource.Contains("MenuCommands.KeyNudgeRight", StringComparison.Ordinal)
+            && designerSource.Contains("MenuCommands.KeySizeWidthIncrease", StringComparison.Ordinal)
+            && designerSource.Contains("MenuCommands.KeyNudgeHeightDecrease", StringComparison.Ordinal),
+            "Designer command set stopped owning the standard move/nudge/size command IDs.");
+        Assert(designerSource.Contains("_host.OnComponentChanging(change.Control, change.Property)", StringComparison.Ordinal)
+            && designerSource.Contains("_host.OnComponentChanged(", StringComparison.Ordinal)
+            && designerSource.Contains("_host.CreateTransaction(description)", StringComparison.Ordinal),
+            "Keyboard manipulation stopped using typed change and transaction contracts.");
+        Assert(designerSource.Contains("MenuCommands.SetStatusRectangle", StringComparison.Ordinal)
+            && designerSource.Contains("Rectangle.Union(changedBounds, changes[index].UpdatedBounds)", StringComparison.Ordinal),
+            "Keyboard manipulation stopped publishing typed designer bounds feedback.");
         Assert(controlSource.Contains("IPortableWinFormsAdornerSource", StringComparison.Ordinal)
             && contractSource.Contains("PaintPortableAdornments", StringComparison.Ordinal),
             "Control stopped exposing the typed portable adorner contract.");
@@ -813,6 +1245,53 @@ internal static class FormsDesignerLayoutBehaviorTests
         {
             get => base.Location;
             set => base.Location = value;
+        }
+    }
+
+    private sealed class ReadOnlySizeButton : Forms.Button
+    {
+        [ReadOnly(true)]
+        public new Size Size
+        {
+            get => base.Size;
+            set => base.Size = value;
+        }
+    }
+
+    private sealed class ThrowingLocationButton : Forms.Button
+    {
+        internal bool ThrowOnLocationChange { get; set; }
+
+        public override Point Location
+        {
+            get => base.Location;
+            set
+            {
+                if (ThrowOnLocationChange && value != base.Location)
+                    throw new InvalidOperationException("Synthetic keyboard move failure.");
+                base.Location = value;
+            }
+        }
+    }
+
+    private sealed class StatusRectangleProbeCommand : MenuCommand
+    {
+        internal StatusRectangleProbeCommand()
+            : base((_, _) => { }, FormsDesign.MenuCommands.SetStatusRectangle)
+        {
+        }
+
+        internal int InvokeCount { get; private set; }
+
+        internal Rectangle LastBounds { get; private set; }
+
+        public override void Invoke(object arg)
+        {
+            if (arg is Rectangle bounds)
+            {
+                InvokeCount++;
+                LastBounds = bounds;
+            }
         }
     }
 
