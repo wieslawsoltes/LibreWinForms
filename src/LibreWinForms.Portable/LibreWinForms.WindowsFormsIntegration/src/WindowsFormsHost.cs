@@ -1215,6 +1215,11 @@ public class WindowsFormsHost : FrameworkElement
             return;
         }
         target = ResolveDesignInputTarget(target, hostPoint, ref localPoint);
+        Forms.DataGridView? editingDataGridView = FindOwningDataGridView(_focusedControl);
+        if (editingDataGridView is not null && !IsControlInTree(editingDataGridView, target))
+        {
+            editingDataGridView.EndEdit();
+        }
 
         Forms.MouseButtons pressedButton = MapMouseButton(e.ChangedButton);
         Focus();
@@ -1254,6 +1259,10 @@ public class WindowsFormsHost : FrameworkElement
         }
 
         ApplyDefaultSelection(target, localPoint, pressedButton);
+        if (target is Forms.DataGridView { EditingControl: { Focused: true } editingControl })
+        {
+            _focusedControl = editingControl;
+        }
 
         if (pressedButton == Forms.MouseButtons.Left && target is Forms.ToolStrip toolStrip)
         {
@@ -2218,7 +2227,24 @@ public class WindowsFormsHost : FrameworkElement
 
     private static void ApplyDefaultSelection(Forms.Control target, Point localPoint, Forms.MouseButtons pressedButton)
     {
-        if (target is Forms.CheckedListBox checkedListBox)
+        if (target is Forms.DataGridView dataGridView && pressedButton == Forms.MouseButtons.Left)
+        {
+            int x = ToWinFormsCoordinate(localPoint.X);
+            int y = ToWinFormsCoordinate(localPoint.Y);
+            Forms.DataGridView.HitTestInfo hit = dataGridView.HitTest(x, y);
+            if (hit.Type == Forms.DataGridViewHitTestType.Cell)
+            {
+                Forms.DataGridViewCell cell = dataGridView.Rows[hit.RowIndex].Cells[hit.ColumnIndex];
+                bool wasCurrentCell = ReferenceEquals(dataGridView.CurrentCell, cell);
+                dataGridView.CurrentCell = cell;
+                if (dataGridView.EditMode == Forms.DataGridViewEditMode.EditOnEnter
+                    || (wasCurrentCell && dataGridView.EditMode != Forms.DataGridViewEditMode.EditProgrammatically))
+                {
+                    dataGridView.BeginEdit(selectAll: true);
+                }
+            }
+        }
+        else if (target is Forms.CheckedListBox checkedListBox)
         {
             int x = ToWinFormsCoordinate(localPoint.X);
             int y = ToWinFormsCoordinate(localPoint.Y);
@@ -2277,6 +2303,19 @@ public class WindowsFormsHost : FrameworkElement
                 listView.Invalidate();
             }
         }
+    }
+
+    private static Forms.DataGridView? FindOwningDataGridView(Forms.Control? control)
+    {
+        for (Forms.Control? current = control; current is not null; current = current.Parent)
+        {
+            if (current is Forms.DataGridView dataGridView)
+            {
+                return dataGridView;
+            }
+        }
+
+        return null;
     }
 
     private static void ApplyDefaultActivation(Forms.Control target, Point localPoint)
@@ -3879,68 +3918,88 @@ public class WindowsFormsHost : FrameworkElement
     {
         DrawBorder(drawingContext, Forms.BorderStyle.Fixed3D, bounds);
 
-        double rowHeaderWidth = Math.Max(0, Math.Min(bounds.Width * 0.35, dataGridView.RowHeadersWidth));
-        const double headerHeight = 22;
-        const double rowHeight = 20;
-        double x = bounds.X + 1 + rowHeaderWidth;
-        double y = bounds.Y + 1;
-        double bodyRight = bounds.Right - 1;
-
-        if (rowHeaderWidth > 0)
+        DrawingRectangle topLeft = dataGridView.GetCellDisplayRectangle(-1, -1, cutOverflow: true);
+        if (topLeft.Width > 0 && topLeft.Height > 0)
         {
-            drawingContext.DrawRectangle(SystemColors.ControlBrush, new Pen(SystemColors.ControlDarkBrush, 1), new Rect(bounds.X + 1, y, rowHeaderWidth, headerHeight));
+            drawingContext.DrawRectangle(
+                SystemColors.ControlBrush,
+                new Pen(SystemColors.ControlDarkBrush, 1),
+                OffsetDataGridViewRectangle(bounds, topLeft));
         }
 
-        foreach (Forms.DataGridViewColumn column in dataGridView.Columns)
+        for (int columnIndex = 0; columnIndex < dataGridView.Columns.Count; columnIndex++)
         {
-            double columnWidth = GetDataGridViewColumnWidth(dataGridView, column, bounds.Width - rowHeaderWidth - 2);
-            Rect headerBounds = new(x, y, columnWidth, headerHeight);
-            drawingContext.DrawRectangle(SystemColors.ControlBrush, new Pen(SystemColors.ControlDarkBrush, 1), headerBounds);
-            string header = string.IsNullOrEmpty(column.HeaderText) ? column.Name : column.HeaderText;
-            DrawTextInBounds(drawingContext, header, new Rect(headerBounds.X + 4, headerBounds.Y + 3, Math.Max(0, headerBounds.Width - 8), headerHeight - 4), foreground, 12);
-            x += columnWidth;
-            if (x > bodyRight)
+            Forms.DataGridViewColumn column = dataGridView.Columns[columnIndex];
+            DrawingRectangle displayRectangle = dataGridView.GetCellDisplayRectangle(columnIndex, -1, cutOverflow: true);
+            if (displayRectangle.Width <= 0 || displayRectangle.Height <= 0)
             {
                 break;
             }
+
+            Rect headerBounds = OffsetDataGridViewRectangle(bounds, displayRectangle);
+            drawingContext.DrawRectangle(SystemColors.ControlBrush, new Pen(SystemColors.ControlDarkBrush, 1), headerBounds);
+            string header = string.IsNullOrEmpty(column.HeaderText) ? column.Name : column.HeaderText;
+            DrawTextInBounds(
+                drawingContext,
+                header,
+                new Rect(headerBounds.X + 4, headerBounds.Y + 3, Math.Max(0, headerBounds.Width - 8), Math.Max(0, headerBounds.Height - 4)),
+                foreground,
+                12);
         }
 
-        y += headerHeight;
-        for (int rowIndex = 0; rowIndex < dataGridView.Rows.Count && y + rowHeight <= bounds.Bottom - 1; rowIndex++)
+        for (int rowIndex = 0; rowIndex < dataGridView.Rows.Count; rowIndex++)
         {
             Forms.DataGridViewRow row = dataGridView.Rows[rowIndex];
-            if (rowHeaderWidth > 0)
+            DrawingRectangle rowHeaderRectangle = dataGridView.GetCellDisplayRectangle(-1, rowIndex, cutOverflow: true);
+            DrawingRectangle firstCellRectangle = dataGridView.Columns.Count > 0
+                ? dataGridView.GetCellDisplayRectangle(0, rowIndex, cutOverflow: true)
+                : rowHeaderRectangle;
+            if (firstCellRectangle.Height <= 0)
             {
-                Rect rowHeaderBounds = new(bounds.X + 1, y, rowHeaderWidth, rowHeight);
-                drawingContext.DrawRectangle(SystemColors.ControlBrush, new Pen(SystemColors.ControlLightBrush, 1), rowHeaderBounds);
-                DrawTextInBounds(drawingContext, (rowIndex + 1).ToString(CultureInfo.CurrentCulture), new Rect(rowHeaderBounds.X + 3, rowHeaderBounds.Y + 2, Math.Max(0, rowHeaderBounds.Width - 6), rowHeight - 4), foreground, 11);
+                break;
             }
 
-            x = bounds.X + 1 + rowHeaderWidth;
-            for (int columnIndex = 0; columnIndex < dataGridView.Columns.Count && x < bodyRight; columnIndex++)
+            if (rowHeaderRectangle.Width > 0 && rowHeaderRectangle.Height > 0)
             {
-                Forms.DataGridViewColumn column = dataGridView.Columns[columnIndex];
-                double columnWidth = GetDataGridViewColumnWidth(dataGridView, column, bounds.Width - rowHeaderWidth - 2);
-                Rect cellBounds = new(x, y, columnWidth, rowHeight);
+                Rect rowHeaderBounds = OffsetDataGridViewRectangle(bounds, rowHeaderRectangle);
+                drawingContext.DrawRectangle(SystemColors.ControlBrush, new Pen(SystemColors.ControlLightBrush, 1), rowHeaderBounds);
+                DrawTextInBounds(
+                    drawingContext,
+                    (rowIndex + 1).ToString(CultureInfo.CurrentCulture),
+                    new Rect(rowHeaderBounds.X + 3, rowHeaderBounds.Y + 2, Math.Max(0, rowHeaderBounds.Width - 6), Math.Max(0, rowHeaderBounds.Height - 4)),
+                    foreground,
+                    11);
+            }
+
+            for (int columnIndex = 0; columnIndex < dataGridView.Columns.Count; columnIndex++)
+            {
+                DrawingRectangle displayRectangle = dataGridView.GetCellDisplayRectangle(columnIndex, rowIndex, cutOverflow: true);
+                if (displayRectangle.Width <= 0 || displayRectangle.Height <= 0)
+                {
+                    break;
+                }
+
+                Rect cellBounds = OffsetDataGridViewRectangle(bounds, displayRectangle);
                 bool current = ReferenceEquals(dataGridView.CurrentCell, columnIndex < row.Cells.Count ? row.Cells[columnIndex] : null);
                 drawingContext.DrawRectangle(current ? SystemColors.HighlightBrush : SystemColors.WindowBrush, new Pen(SystemColors.ControlLightBrush, 1), cellBounds);
                 string text = columnIndex < row.Cells.Count ? Convert.ToString(row.Cells[columnIndex].Value, CultureInfo.CurrentCulture) ?? string.Empty : string.Empty;
-                DrawTextInBounds(drawingContext, text, new Rect(cellBounds.X + 4, cellBounds.Y + 2, Math.Max(0, cellBounds.Width - 8), rowHeight - 4), current ? SystemColors.HighlightTextBrush : foreground, 12);
-                x += columnWidth;
+                DrawTextInBounds(
+                    drawingContext,
+                    text,
+                    new Rect(cellBounds.X + 4, cellBounds.Y + 2, Math.Max(0, cellBounds.Width - 8), Math.Max(0, cellBounds.Height - 4)),
+                    current ? SystemColors.HighlightTextBrush : foreground,
+                    12);
             }
-
-            y += rowHeight;
         }
     }
 
-    private static double GetDataGridViewColumnWidth(Forms.DataGridView dataGridView, Forms.DataGridViewColumn column, double availableWidth)
+    private static Rect OffsetDataGridViewRectangle(Rect bounds, DrawingRectangle rectangle)
     {
-        if (column.AutoSizeMode == Forms.DataGridViewAutoSizeColumnMode.Fill && dataGridView.Columns.Count > 0)
-        {
-            return Math.Max(40, availableWidth / dataGridView.Columns.Count);
-        }
-
-        return Math.Max(40, column.Width > 0 ? column.Width : 100);
+        return new Rect(
+            bounds.X + rectangle.X,
+            bounds.Y + rectangle.Y,
+            rectangle.Width,
+            rectangle.Height);
     }
 
     private void RenderListView(DrawingContext drawingContext, Forms.ListView listView, Rect bounds, Brush foreground)
