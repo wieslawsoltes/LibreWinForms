@@ -1,3 +1,5 @@
+using System.Drawing;
+
 namespace System.Windows.Forms;
 
 /// <summary>
@@ -8,7 +10,8 @@ public enum PortableCursorKind
 {
     Default = 0,
     Wait = 1,
-    IBeam = 2
+    IBeam = 2,
+    SizeAll = 3
 }
 
 /// <summary>
@@ -24,6 +27,8 @@ public sealed class Cursor
         get => s_current ?? Cursors.Default;
         set => s_current = value;
     }
+
+    public static Point Position { get; set; }
 
     public Cursor()
         : this(PortableCursorKind.Default)

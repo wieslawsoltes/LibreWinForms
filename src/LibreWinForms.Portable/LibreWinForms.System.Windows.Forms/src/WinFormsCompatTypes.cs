@@ -9030,6 +9030,7 @@ public static class Cursors
     public static Cursor Default { get; } = new Cursor(PortableCursorKind.Default);
     public static Cursor WaitCursor { get; } = new Cursor(PortableCursorKind.Wait);
     public static Cursor IBeam { get; } = new Cursor(PortableCursorKind.IBeam);
+    public static Cursor SizeAll { get; } = new Cursor(PortableCursorKind.SizeAll);
 }
 
 public static class Application
