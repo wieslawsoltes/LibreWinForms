@@ -120,6 +120,7 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
     private MouseEventHandler? _designerMouseMove;
     private MouseEventHandler? _designerMouseUp;
     private ContextMenuStrip? _contextMenuStrip;
+    private Control? _parent;
 
     public static bool CheckForIllegalCrossThreadCalls { get; set; }
 
@@ -297,7 +298,24 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
 
     public string Name { get; set; } = string.Empty;
 
-    public Control? Parent { get; internal set; }
+    public Control? Parent
+    {
+        get => _parent;
+        set
+        {
+            if (ReferenceEquals(_parent, value))
+                return;
+            if (value is null)
+            {
+                _parent?.Controls.Remove(this);
+                return;
+            }
+
+            value.Controls.Add(this);
+        }
+    }
+
+    internal void AssignParent(Control? parent) => _parent = parent;
 
     public RightToLeft RightToLeft { get; set; }
 
@@ -1350,7 +1368,7 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
 
                 // Repair an inconsistent parent pointer before attaching the
                 // control to the owner's authoritative child collection.
-                item.Parent = null;
+                item.AssignParent(null);
             }
             else
             {
@@ -1358,7 +1376,7 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
             }
 
             base.InsertItem(index, item);
-            item.Parent = _owner;
+            item.AssignParent(_owner);
             if (item is RadioButton radioButton)
             {
                 radioButton.PerformAutoUpdates();
@@ -1404,7 +1422,7 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
                     return;
                 }
 
-                item.Parent = null;
+                item.AssignParent(null);
             }
             else
             {
@@ -1413,11 +1431,11 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
 
             if (ReferenceEquals(previous.Parent, _owner))
             {
-                previous.Parent = null;
+                previous.AssignParent(null);
             }
 
             base.SetItem(index, item);
-            item.Parent = _owner;
+            item.AssignParent(_owner);
 
             if (_owner is TabControl tabControl)
             {
@@ -1448,7 +1466,7 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
             base.RemoveItem(index);
             if (ReferenceEquals(control.Parent, _owner))
             {
-                control.Parent = null;
+                control.AssignParent(null);
             }
 
             if (_owner is TabControl tabControl && control is TabPage tabPage)
@@ -1470,7 +1488,7 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
             {
                 if (ReferenceEquals(control.Parent, _owner))
                 {
-                    control.Parent = null;
+                    control.AssignParent(null);
                 }
             }
 
@@ -9037,8 +9055,22 @@ public static class Application
 {
     private static readonly List<IMessageFilter> s_messageFilters = new();
     private static IWinFormsApplicationHost? s_applicationHost;
+    private static bool s_useWaitCursor;
 
     public static string StartupPath => AppContext.BaseDirectory;
+
+    public static bool UseWaitCursor
+    {
+        get => s_useWaitCursor;
+        set
+        {
+            if (s_useWaitCursor == value)
+                return;
+
+            s_useWaitCursor = value;
+            Cursor.Current = value ? Cursors.WaitCursor : Cursors.Default;
+        }
+    }
 
     public static event EventHandler? Idle;
     public static event ThreadExceptionEventHandler? ThreadException;
@@ -9496,15 +9528,15 @@ public static class ControlPaint
             return;
         }
 
-        if (style is not Border3DStyle.RaisedInner and not Border3DStyle.Sunken)
+        if (style is not Border3DStyle.RaisedInner and not Border3DStyle.Sunken and not Border3DStyle.Etched)
         {
             throw new InvalidEnumArgumentException(nameof(style), (int)style, typeof(Border3DStyle));
         }
 
-        Color topLeftColor = style == Border3DStyle.Sunken
+        Color topLeftColor = style is Border3DStyle.Sunken or Border3DStyle.Etched
             ? SystemColors.ControlDark
             : SystemColors.ControlLightLight;
-        Color bottomRightColor = style == Border3DStyle.Sunken
+        Color bottomRightColor = style is Border3DStyle.Sunken or Border3DStyle.Etched
             ? SystemColors.ControlLightLight
             : SystemColors.ControlDark;
 
@@ -9518,6 +9550,29 @@ public static class ControlPaint
         graphics.DrawLine(topLeftPen, left, top, right, top);
         graphics.DrawLine(bottomRightPen, right, top, right, bottom);
         graphics.DrawLine(bottomRightPen, right, bottom, left, bottom);
+
+        if (style == Border3DStyle.Etched && rectangle.Width > 2 && rectangle.Height > 2)
+        {
+            graphics.DrawLine(bottomRightPen, left + 1, bottom - 1, left + 1, top + 1);
+            graphics.DrawLine(bottomRightPen, left + 1, top + 1, right - 1, top + 1);
+            graphics.DrawLine(topLeftPen, right - 1, top + 1, right - 1, bottom - 1);
+            graphics.DrawLine(topLeftPen, right - 1, bottom - 1, left + 1, bottom - 1);
+        }
+    }
+
+    public static void DrawGrabHandle(Graphics graphics, Rectangle rectangle, bool primary, bool enabled)
+    {
+        ArgumentNullException.ThrowIfNull(graphics);
+        if (rectangle.Width <= 0 || rectangle.Height <= 0)
+            return;
+
+        Color fillColor = enabled
+            ? (primary ? Color.White : SystemColors.Control)
+            : SystemColors.ControlDark;
+        using var brush = new SolidBrush(fillColor);
+        using var pen = new Pen(Color.Black);
+        graphics.FillRectangle(brush, rectangle);
+        graphics.DrawRectangle(pen, rectangle.X, rectangle.Y, rectangle.Width - 1, rectangle.Height - 1);
     }
 
     public static Color Light(Color baseColor)
@@ -9793,7 +9848,8 @@ public struct Message
 public enum Border3DStyle
 {
     RaisedInner = 4,
-    Sunken = 2
+    Sunken = 2,
+    Etched = 6
 }
 
 public enum BorderStyle

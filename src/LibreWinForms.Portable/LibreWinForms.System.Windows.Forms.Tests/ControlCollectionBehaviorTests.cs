@@ -9,6 +9,7 @@ internal static class ControlCollectionBehaviorTests
     {
         AddedRemovedReplacementAndClearPublishTypedEvents();
         ReparentingMovesTheControlAndPublishesBalancedEvents();
+        PublicParentSetterUsesTheAuthoritativeCollectionPath();
         ReplacementDetachesFromThePreviousParent();
         ReaddingAndReorderingDoNotDuplicateChildren();
         NonGenericListAddsUseTheAuthoritativeControlCollectionPath();
@@ -71,6 +72,34 @@ internal static class ControlCollectionBehaviorTests
         Assert(ReferenceEquals(child.Parent, newParent), "Reparenting left an incorrect Parent value.");
         Assert(string.Join(",", events) == "remove:child,add:child",
             "Reparenting events were not balanced and ordered.");
+    }
+
+    private static void PublicParentSetterUsesTheAuthoritativeCollectionPath()
+    {
+        var oldParent = new Forms.Control();
+        var newParent = new Forms.Control();
+        var child = new Forms.Control();
+
+        child.Parent = oldParent;
+        Assert(oldParent.Controls.Count == 1
+            && ReferenceEquals(oldParent.Controls[0], child)
+            && ReferenceEquals(child.Parent, oldParent),
+            "Control.Parent did not add the child through the parent collection.");
+
+        child.Parent = oldParent;
+        Assert(oldParent.Controls.Count == 1,
+            "Assigning the same Control.Parent duplicated the child.");
+
+        child.Parent = newParent;
+        Assert(oldParent.Controls.Count == 0
+            && newParent.Controls.Count == 1
+            && ReferenceEquals(newParent.Controls[0], child)
+            && ReferenceEquals(child.Parent, newParent),
+            "Control.Parent reparenting left the collections out of sync.");
+
+        child.Parent = null;
+        Assert(newParent.Controls.Count == 0 && child.Parent is null,
+            "Clearing Control.Parent left the child in its old collection.");
     }
 
     private static void ReplacementDetachesFromThePreviousParent()

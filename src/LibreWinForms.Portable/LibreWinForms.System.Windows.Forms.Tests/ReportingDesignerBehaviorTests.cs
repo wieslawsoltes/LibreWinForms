@@ -17,8 +17,9 @@ internal static class ReportingDesignerBehaviorTests
         SelectionRuleValuesMatchWinForms();
         ControlDesignerRoutesTypedPaintAndPointerHooks();
         BasicDesignerLoaderCompletesPortableSurfaceLoad();
+        WaitCursorAndDesignerPaintPrimitivesAreFunctional();
         CollectionAndAlignmentEditorsExposeExpectedStyles();
-        Console.WriteLine("LibreWinForms Reporting designer contracts passed: rules=9 hooks=7 loader=3 editors=3.");
+        Console.WriteLine("LibreWinForms Reporting designer contracts passed: rules=9 hooks=7 loader=3 paint=6 editors=3.");
     }
 
     private static void SelectionRuleValuesMatchWinForms()
@@ -74,6 +75,26 @@ internal static class ReportingDesignerBehaviorTests
         Assert(loader.LoadCount == 1, "BasicDesignerLoader did not perform exactly one load.");
         surface.Flush();
         Assert(loader.FlushCount == 1, "BasicDesignerLoader did not perform exactly one flush.");
+    }
+
+    private static void WaitCursorAndDesignerPaintPrimitivesAreFunctional()
+    {
+        Forms.Application.UseWaitCursor = true;
+        Assert(Forms.Application.UseWaitCursor
+            && ReferenceEquals(Forms.Cursor.Current, Forms.Cursors.WaitCursor),
+            "Application.UseWaitCursor did not publish the typed wait cursor.");
+        Forms.Application.UseWaitCursor = false;
+        Assert(!Forms.Application.UseWaitCursor
+            && ReferenceEquals(Forms.Cursor.Current, Forms.Cursors.Default),
+            "Application.UseWaitCursor did not restore the typed default cursor.");
+
+        using var bitmap = new Bitmap(12, 12);
+        using Graphics graphics = Graphics.FromImage(bitmap);
+        graphics.Clear(Color.Transparent);
+        Forms.ControlPaint.DrawBorder3D(graphics, new Rectangle(1, 1, 10, 10), Forms.Border3DStyle.Etched);
+        Forms.ControlPaint.DrawGrabHandle(graphics, new Rectangle(4, 4, 4, 4), primary: true, enabled: true);
+        Assert(bitmap.GetPixel(1, 1).A != 0, "Etched border did not render its outer edge.");
+        Assert(bitmap.GetPixel(4, 4).A != 0, "Grab handle did not render its border.");
     }
 
     private static void CollectionAndAlignmentEditorsExposeExpectedStyles()
