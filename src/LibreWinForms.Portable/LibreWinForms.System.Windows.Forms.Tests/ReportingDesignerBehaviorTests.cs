@@ -122,6 +122,20 @@ internal static class ReportingDesignerBehaviorTests
         Assert(!labels.Contains(nameof(ProbeFilterComponent.RemoveBefore))
             && !labels.Contains(nameof(ProbeFilterComponent.RemoveAfter)),
             "PropertyGrid exposed properties removed by the component designer.");
+
+        TypeDescriptionProvider inheritedProvider = TypeDescriptor.AddAttributes(
+            component,
+            InheritanceAttribute.Inherited);
+        try
+        {
+            Assert(TypeDescriptor.GetAttributes(component)[typeof(InheritanceAttribute)]
+                is InheritanceAttribute { InheritanceLevel: InheritanceLevel.Inherited },
+                "Descriptor filtering cached away a live instance attribute provider.");
+        }
+        finally
+        {
+            TypeDescriptor.RemoveProvider(inheritedProvider, component);
+        }
     }
 
     private static void CodeDomSerializationServiceRoundTripsPortableComponents()

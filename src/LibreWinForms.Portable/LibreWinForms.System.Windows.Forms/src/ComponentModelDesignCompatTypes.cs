@@ -471,7 +471,10 @@ namespace System.ComponentModel.Design
                 filter.PostFilterAttributes(attributes);
             }
 
-            return hasDesigner;
+            // Attribute providers can be added to a live design-time instance.
+            // Keep the composed attribute set dynamic so TypeDescriptor observes
+            // those instance providers instead of retaining a pre-provider cache.
+            return false;
         }
 
         public bool FilterEvents(IComponent component, IDictionary events)

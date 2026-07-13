@@ -2416,20 +2416,31 @@ internal static class Program
         TypeDescriptionProvider? inheritedProvider = interactionButton is null
             ? null
             : TypeDescriptor.AddAttributes(interactionButton, InheritanceAttribute.Inherited);
+        InheritanceAttribute? appliedInheritance = interactionButton is null
+            ? null
+            : TypeDescriptor.GetAttributes(interactionButton)[typeof(InheritanceAttribute)] as InheritanceAttribute;
         if (interactionButton is not null && mixedSelectionButton is not null)
         {
             selectionService?.SetSelectedComponents(
                 new object[] { interactionButton, mixedSelectionButton },
                 SelectionTypes.Replace);
         }
+        bool inheritedCutDisabled = cutCommand?.Enabled == false;
+        bool inheritedDeleteDisabled = deleteCommand?.Enabled == false;
+        bool inheritedCutRejected = inheritedCutDisabled
+            && menuCommandService?.GlobalInvoke(StandardCommands.Cut) == false;
+        bool inheritedDeleteRejected = inheritedDeleteDisabled
+            && menuCommandService?.GlobalInvoke(StandardCommands.Delete) == false;
+        bool inheritedButtonSite = ReferenceEquals(interactionButton?.Site?.Container, host?.Container);
+        bool mixedButtonSite = ReferenceEquals(mixedSelectionButton?.Site?.Container, host?.Container);
         bool mixedInheritedEditingProtected = interactionButton is not null
             && mixedSelectionButton is not null
-            && cutCommand?.Enabled == false
-            && deleteCommand?.Enabled == false
-            && menuCommandService?.GlobalInvoke(StandardCommands.Cut) == false
-            && menuCommandService?.GlobalInvoke(StandardCommands.Delete) == false
-            && ReferenceEquals(interactionButton.Site?.Container, host?.Container)
-            && ReferenceEquals(mixedSelectionButton.Site?.Container, host?.Container);
+            && inheritedCutDisabled
+            && inheritedDeleteDisabled
+            && inheritedCutRejected
+            && inheritedDeleteRejected
+            && inheritedButtonSite
+            && mixedButtonSite;
         if (interactionButton is not null && inheritedProvider is not null)
             TypeDescriptor.RemoveProvider(inheritedProvider, interactionButton);
         if (mixedSelectionButton is not null)
@@ -2990,6 +3001,21 @@ internal static class Program
             + $" interactiveUndo={interactiveUndo}"
             + $" interactiveRemovalUndo={interactiveRemovalUndo}"
             + $" interactiveStandardCommands={interactiveStandardCommands}"
+            + $" standardCommandService={ReferenceEquals(menuCommandService, externalMenuCommandService)}"
+            + $" standardCommandInstances={copyCommand is not null && cutCommand is not null && deleteCommand is not null && pasteCommand is not null && selectAllCommand is not null}"
+            + $" rootEditingProtected={rootEditingProtected}"
+            + $" mixedRootEditingProtected={mixedRootEditingProtected}"
+            + $" mixedInheritedEditingProtected={mixedInheritedEditingProtected}"
+            + $" inheritedCutDisabled={inheritedCutDisabled}"
+            + $" inheritedDeleteDisabled={inheritedDeleteDisabled}"
+            + $" inheritedCutRejected={inheritedCutRejected}"
+            + $" inheritedDeleteRejected={inheritedDeleteRejected}"
+            + $" appliedInheritance={appliedInheritance?.InheritanceLevel}"
+            + $" inheritedButtonSite={inheritedButtonSite}"
+            + $" mixedButtonSite={mixedButtonSite}"
+            + $" selectAllInvoked={selectAllInvoked}"
+            + $" selectAllSelectedButton={selectAllSelectedButton}"
+            + $" deleteEnabled={deleteEnabled} deleteInvoked={deleteInvoked}"
             + $" interactiveClipboardCommands={interactiveClipboardCommands}"
             + $" interactiveComponentGraph={interactiveComponentGraph}"
             + $" interactiveReferencedComponentGraph={interactiveReferencedComponentGraph}"
