@@ -17,9 +17,10 @@ internal static class HexEditorContractBehaviorTests
         DropDownCloseReasonsAreTypedAndIdempotent();
         UserControlBorderStyleValidatesAndInvalidates();
         ToolStripComboBoxForwardsSelectionAndStyle();
+        ComboBoxItemRangesPreserveDesignerOrder();
         ToolStripOverflowStateValidates();
         Console.WriteLine(
-            "LibreWinForms HexEditor contracts passed: cursor=3 doubleBuffer=1 inputKey=2 menu=4 close=2 border=3 combo=3 overflow=3.");
+            "LibreWinForms HexEditor contracts passed: cursor=3 doubleBuffer=1 inputKey=2 menu=4 close=2 border=3 combo=3 range=3 overflow=3.");
     }
 
     private static void CursorKindsAreStableTypedSingletons()
@@ -157,6 +158,15 @@ internal static class HexEditorContractBehaviorTests
         AssertThrowsInvalidEnum(() => item.Overflow = (Forms.ToolStripItemOverflow)(-1));
         AssertThrowsInvalidEnum(() => item.Overflow = (Forms.ToolStripItemOverflow)3);
         Assert(item.Overflow == Forms.ToolStripItemOverflow.Never, "Invalid Overflow assignment mutated state.");
+    }
+
+    private static void ComboBoxItemRangesPreserveDesignerOrder()
+    {
+        using var combo = new Forms.ToolStripComboBox();
+        combo.Items.AddRange(new object[] { "Hexadecimal", "Octal", "Decimal" });
+        Assert(combo.Items.Count == 3, "ComboBox item range did not add every designer item.");
+        Assert((string)combo.Items[0] == "Hexadecimal", "ComboBox item range changed the first item.");
+        Assert((string)combo.Items[2] == "Decimal", "ComboBox item range changed item order.");
     }
 
     private static void AssertThrowsInvalidEnum(Action action)

@@ -3332,6 +3332,15 @@ public class ListBox : Control
             Insert(index, item);
             return index;
         }
+
+        public void AddRange(object[] items)
+        {
+            ArgumentNullException.ThrowIfNull(items);
+            foreach (object item in items)
+            {
+                Add(item);
+            }
+        }
     }
 
     public sealed class SelectedObjectCollection : IReadOnlyList<object>, ICollection
