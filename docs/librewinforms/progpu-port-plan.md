@@ -281,3 +281,19 @@ LibreWinForms SDK keyboard host smoke    -> F2 filter plus Delete/F6/F12/Insert 
 LibreWinForms package-mode SDK smoke     -> keyboard route runs against packed System.Windows.Forms and WindowsFormsIntegration assemblies
 Reflection audit                         -> no System.Reflection or BindingFlags in changed product paths
 ```
+
+## 2026-07-13 designer snap-line feedback checkpoint
+
+The portable designer layout service now publishes live snap-line feedback for move, resize, drag-created toolbox controls, and point placement. It retains the exact typed target selected by the existing deterministic snap engine and derives each clipped guide from that target and the adjusted candidate bounds, so the visual feedback cannot disagree with the applied layout. Changing a match removes the stale guide; Alt bypass, grid fallback, commit, cancellation, and designer disposal clear the guides and invalidate only the union of their old and new bounds.
+
+The transient overlay uses the public `IPortableWinFormsAdornerSource` contract. Source-built `Control` owns the versioned paint source, while `WindowsFormsHost` invokes it after the complete hosted child tree and existing control border. Native frames record directly into the current ProGPU drawing context; retained fallback frames use a dedicated reusable transparent surface pool so adorner recording cannot alias ordinary custom-control paint. The product path contains no WPF-local WinForms shim, runtime reflection, arbitrary object probes, or `src/SkiaSharp` changes.
+
+Validation:
+
+```text
+LibreWinForms FormsDesigner layout behavior suite -> grid/toolbox/snap/move/resize/Alt/commit/cancel/disposal pass
+LibreWinForms SDK --run-designer                   -> Success; snapLineAdorner=True
+Typed source audit                                 -> layout/control/contract/host paths contain no reflection probes
+```
+
+Selection glyphs and resize handles already render through the host's design overlay. Remaining designer-fidelity work includes multi-selection/group guides, keyboard-nudge feedback, richer BehaviorService glyph extensibility, and optional native-style dashed/fade presentation; these should extend the same typed adorner contract rather than introduce host-specific or reflected designer shapes.
