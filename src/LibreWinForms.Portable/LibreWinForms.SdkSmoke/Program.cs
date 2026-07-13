@@ -258,6 +258,7 @@ internal static class Program
         var host = new SmokeWindowsFormsHost { Child = root };
         host.Measure(new System.Windows.Size(246, 70));
         host.Arrange(new System.Windows.Rect(0, 0, 246, 70));
+        host.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.FrameworkElement.LoadedEvent));
         var visual = new System.Windows.Media.DrawingVisual();
         using (System.Windows.Media.DrawingContext drawingContext = visual.RenderOpen())
         {
@@ -277,10 +278,17 @@ internal static class Program
         bool success = root.PaintCount >= 1
             && host.PortableCustomPaintDispatchCount == root.PaintCount
             && comboBox.SelectedItem?.ToString() == "Decimal"
-            && imageDrawings == 2
+            && imageDrawings == 3
             && textDrawings >= 2
             && geometryDrawings >= 10
-            && lastLeafKind == nameof(System.Windows.Media.GeometryDrawing);
+            && lastLeafKind == nameof(System.Windows.Media.GeometryDrawing)
+            && root.HostAttachCount == 1
+            && root.HostDetachCount == 0
+            && host.PortableCreateGraphicsSurfaceCount == 1;
+        host.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.FrameworkElement.UnloadedEvent));
+        success = success
+            && root.HostDetachCount == 1
+            && root.HostGraphics == null;
         host.Child = null;
         if (!success)
         {
@@ -288,14 +296,17 @@ internal static class Program
                 "LibreWinForms HexEditor host smoke failed"
                 + $" paints={root.PaintCount}/{host.PortableCustomPaintDispatchCount}"
                 + $" images={imageDrawings} text={textDrawings} geometry={geometryDrawings}"
-                + $" last={lastLeafKind} selected={comboBox.SelectedItem}");
+                + $" last={lastLeafKind} selected={comboBox.SelectedItem}"
+                + $" lifecycle={root.HostAttachCount}/{root.HostDetachCount}"
+                + $" surfaces={host.PortableCreateGraphicsSurfaceCount}");
             return 12;
         }
 
         Console.WriteLine(
             "LibreWinForms HexEditor host smoke result=Success "
             + "iBeam=True fixed3DPostPaint=True comboSelection=True "
-            + "progress=True numeric=True buttonImage=True overflow=True");
+            + "progress=True numeric=True buttonImage=True overflow=True "
+            + "hostLifecycle=True hostGraphics=True");
         return 0;
     }
 
@@ -3426,9 +3437,30 @@ internal static class Program
         }
     }
 
-    private sealed class HexEditorHostSmokeControl : Forms.UserControl
+    private sealed class HexEditorHostSmokeControl : Forms.UserControl, Forms.IPortableWinFormsHostLifecycle
     {
         public int PaintCount { get; private set; }
+
+        public int HostAttachCount { get; private set; }
+
+        public int HostDetachCount { get; private set; }
+
+        public System.Drawing.Graphics? HostGraphics { get; private set; }
+
+        public void OnPortableHostAttached()
+        {
+            HostAttachCount++;
+            HostGraphics?.Dispose();
+            HostGraphics = CreateGraphics();
+            HostGraphics.DrawLine(System.Drawing.Pens.Black, 0, 0, 10, 10);
+        }
+
+        public void OnPortableHostDetached()
+        {
+            HostDetachCount++;
+            HostGraphics?.Dispose();
+            HostGraphics = null;
+        }
 
         protected override void OnPaint(Forms.PaintEventArgs e)
         {

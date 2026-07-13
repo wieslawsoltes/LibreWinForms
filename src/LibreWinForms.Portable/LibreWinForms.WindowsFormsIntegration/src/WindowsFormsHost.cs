@@ -213,6 +213,10 @@ public class WindowsFormsHost : FrameworkElement
             {
                 UnsubscribeInvalidationTree(_child);
                 ClearRemainingInvalidationSubscriptions();
+                if (IsLoaded)
+                {
+                    NotifyPortableHostLifecycle(_child, attached: false);
+                }
             }
             DetachDesignSelectionService();
             _designSelectionServiceLookupComplete = false;
@@ -233,6 +237,10 @@ public class WindowsFormsHost : FrameworkElement
                 _child.CreateControl();
                 SubscribeInvalidationTree(_child);
                 EnsureDesignSelectionService();
+                if (IsLoaded)
+                {
+                    NotifyPortableHostLifecycle(_child, attached: true);
+                }
             }
 
             ChildChanged?.Invoke(this, new ChildChangedEventArgs(previous));
@@ -2274,10 +2282,18 @@ public class WindowsFormsHost : FrameworkElement
         AttachExternalDropWindow();
         _designSelectionServiceLookupComplete = false;
         EnsureDesignSelectionService();
+        if (_child != null)
+        {
+            NotifyPortableHostLifecycle(_child, attached: true);
+        }
     }
 
     private void OnHostUnloaded(object sender, RoutedEventArgs e)
     {
+        if (_child != null)
+        {
+            NotifyPortableHostLifecycle(_child, attached: false);
+        }
         CloseActiveContextMenu(Forms.ToolStripDropDownCloseReason.AppFocusChange);
         DetachExternalDropWindow();
         ClearExternalDragTarget(raiseLeave: true);
@@ -2849,12 +2865,20 @@ public class WindowsFormsHost : FrameworkElement
     private void OnHostedControlAdded(object? sender, Forms.ControlEventArgs e)
     {
         SubscribeInvalidationTree(e.Control);
+        if (IsLoaded)
+        {
+            NotifyPortableHostLifecycle(e.Control, attached: true);
+        }
         InvalidateMeasure();
         InvalidateVisual();
     }
 
     private void OnHostedControlRemoved(object? sender, Forms.ControlEventArgs e)
     {
+        if (IsLoaded)
+        {
+            NotifyPortableHostLifecycle(e.Control, attached: false);
+        }
         UnsubscribeInvalidationTree(e.Control);
         InvalidateMeasure();
         InvalidateVisual();
@@ -2873,6 +2897,26 @@ public class WindowsFormsHost : FrameworkElement
         foreach (Forms.Control child in control.Controls)
         {
             SubscribeInvalidationTree(child);
+        }
+    }
+
+    private static void NotifyPortableHostLifecycle(Forms.Control control, bool attached)
+    {
+        if (control is Forms.IPortableWinFormsHostLifecycle lifecycle)
+        {
+            if (attached)
+            {
+                lifecycle.OnPortableHostAttached();
+            }
+            else
+            {
+                lifecycle.OnPortableHostDetached();
+            }
+        }
+
+        foreach (Forms.Control child in control.Controls)
+        {
+            NotifyPortableHostLifecycle(child, attached);
         }
     }
 
