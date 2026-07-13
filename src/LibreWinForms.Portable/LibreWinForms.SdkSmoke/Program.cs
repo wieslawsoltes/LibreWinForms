@@ -2306,6 +2306,7 @@ internal static class Program
 
         bool applicationIdle = RunApplicationIdleHostSmoke();
         bool snapLineAdorner = RunDesignerSnapLineAdornerSmoke();
+        bool groupManipulation = RunDesignerGroupManipulationSmoke();
 
         using var services = new ServiceContainer();
         var externalMenuCommandService = new MenuCommandService(services);
@@ -3245,6 +3246,7 @@ internal static class Program
         bool success = surface.IsLoaded
             && applicationIdle
             && snapLineAdorner
+            && groupManipulation
             && component is not null
             && siteHasChangeService
             && siteHasHost
@@ -3282,7 +3284,7 @@ internal static class Program
             && nestedRenamed;
         Console.WriteLine(
             "LibreWinForms SDK designer smoke result=" + (success ? "Success" : "Partial")
-            + $" loaded={surface.IsLoaded} applicationIdle={applicationIdle} snapLineAdorner={snapLineAdorner} component={component is not null}"
+            + $" loaded={surface.IsLoaded} applicationIdle={applicationIdle} snapLineAdorner={snapLineAdorner} groupManipulation={groupManipulation} component={component is not null}"
             + $" siteHasChangeService={siteHasChangeService} siteHasHost={siteHasHost} siteHasContainer={siteHasContainer}"
             + $" siteLocalService={siteLocalService} siteDictionary={siteDictionary} directLifecycle={directLifecycle}"
             + $" toolboxCreation={toolboxCreation} attributedDesigner={attributedDesigner} selected={selected}"
@@ -3400,6 +3402,65 @@ internal static class Program
         }
 
         return active && cleared;
+    }
+
+    private static bool RunDesignerGroupManipulationSmoke()
+    {
+        using var services = new ServiceContainer();
+        services.AddService(
+            typeof(DesignerOptionService),
+            new FormsDesign.WindowsFormsDesignerOptionService
+            {
+                GridSize = new System.Drawing.Size(10, 10),
+                SnapToGrid = true,
+                UseSnapLines = false,
+                ShowGrid = true
+            });
+        using var surface = new DesignSurface(services);
+        var designerHost = (IDesignerHost)surface.GetService(typeof(IDesignerHost))!;
+        var selection = (ISelectionService)designerHost.GetService(typeof(ISelectionService))!;
+        var root = (Forms.Panel)designerHost.CreateComponent(typeof(Forms.Panel), "groupRoot");
+        root.Size = new System.Drawing.Size(220, 140);
+        var primary = (Forms.Button)designerHost.CreateComponent(typeof(Forms.Button), "groupPrimary");
+        primary.Bounds = new System.Drawing.Rectangle(13, 17, 20, 20);
+        root.Controls.Add(primary);
+        var sibling = (Forms.Button)designerHost.CreateComponent(typeof(Forms.Button), "groupSibling");
+        sibling.Bounds = new System.Drawing.Rectangle(43, 37, 30, 20);
+        root.Controls.Add(sibling);
+        selection.SetSelectedComponents(new object[] { primary, sibling }, SelectionTypes.Replace);
+        using var undo = new DesignerSmokeUndoEngine(designerHost);
+        int opened = 0;
+        int closed = 0;
+        designerHost.TransactionOpened += (_, _) => opened++;
+        designerHost.TransactionClosed += (_, _) => closed++;
+
+        primary.RaiseMouseDown(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, 10, 10, 0));
+        primary.RaiseMouseMove(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 0, 24, 24, 0));
+        primary.RaiseMouseUp(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, 24, 24, 0));
+
+        bool moved = primary.Bounds == new System.Drawing.Rectangle(30, 30, 20, 20)
+            && sibling.Bounds == new System.Drawing.Rectangle(60, 50, 30, 20)
+            && selection.SelectionCount == 2
+            && ReferenceEquals(selection.PrimarySelection, primary)
+            && selection.GetComponentSelected(sibling)
+            && opened == 1
+            && closed == 1
+            && undo.UndoCount == 1;
+        bool undone = undo.UndoOnce()
+            && primary.Bounds == new System.Drawing.Rectangle(13, 17, 20, 20)
+            && sibling.Bounds == new System.Drawing.Rectangle(43, 37, 30, 20);
+        bool redone = undo.RedoOnce()
+            && primary.Bounds == new System.Drawing.Rectangle(30, 30, 20, 20)
+            && sibling.Bounds == new System.Drawing.Rectangle(60, 50, 30, 20);
+        if (!moved || !undone || !redone)
+        {
+            Console.WriteLine(
+                $"Designer group manipulation smoke: moved={moved} undone={undone} redone={redone}"
+                + $" primary={primary.Bounds} sibling={sibling.Bounds} selection={selection.SelectionCount}"
+                + $" opened={opened} closed={closed} undo={undo.UndoCount} redo={undo.RedoCount}");
+        }
+
+        return moved && undone && redone;
     }
 
     private static bool RunApplicationIdleHostSmoke()

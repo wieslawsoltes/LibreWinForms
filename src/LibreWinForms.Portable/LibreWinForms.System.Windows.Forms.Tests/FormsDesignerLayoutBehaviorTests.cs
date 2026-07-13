@@ -25,9 +25,15 @@ internal static class FormsDesignerLayoutBehaviorTests
         AltBypassesSnapLinesButKeepsGridActive();
         ScrolledNestedToolboxCoordinatesUseTypedConversion();
         TransactionsChangesAndUndoCountsStayExact();
+        GroupMovePreservesGeometryOrderAndOneUndoUnit();
+        GroupBoundsDriveSnapLinesAndAdorners();
+        GroupMoveHonorsAltGridAndMemberExclusion();
+        GroupMoveFiltersLockedReadOnlyAndDifferentParentControls();
+        ReadOnlyPrimaryRejectsGroupMove();
+        GroupMoveCancellationRestoresEveryControl();
         LayoutServiceSourceStaysReflectionFree();
         Console.WriteLine(
-            "LibreWinForms Forms Designer layout tests passed: grid=12 toolbox=2 snap=9 adorners=15 alt=2 coordinates=1 transactions=8 sourceGuard=25.");
+            "LibreWinForms Forms Designer layout tests passed: grid=12 toolbox=2 snap=9 adorners=18 alt=4 coordinates=1 transactions=16 group=30 sourceGuard=31.");
     }
 
     private static void SharpDevelopOptionsDriveGridMoveAndMidpointRounding()
@@ -375,6 +381,235 @@ internal static class FormsDesignerLayoutBehaviorTests
             "Move/resize redo did not restore the snapped final bounds.");
     }
 
+    private static void GroupMovePreservesGeometryOrderAndOneUndoUnit()
+    {
+        using var fixture = new DesignerFixture(new SharpStyleDesignerOptionService(
+            new Size(10, 10),
+            snapToGrid: true,
+            useSnapLines: false));
+        Forms.Button primary = fixture.AddButton("primary", new Rectangle(13, 17, 20, 20));
+        Forms.Button sibling = fixture.AddButton("sibling", new Rectangle(43, 37, 30, 20));
+        Forms.Button stationary = fixture.AddButton("stationary", new Rectangle(140, 80, 20, 20));
+        int primaryIndex = fixture.Root.Controls.IndexOf(primary);
+        int siblingIndex = fixture.Root.Controls.IndexOf(sibling);
+        int stationaryIndex = fixture.Root.Controls.IndexOf(stationary);
+        fixture.Select(primary, sibling);
+
+        using var undo = new ProbeUndoEngine(fixture.Host);
+        var changes = (IComponentChangeService)fixture.Host.GetService(typeof(IComponentChangeService))!;
+        int opened = 0;
+        int closed = 0;
+        int changing = 0;
+        int changed = 0;
+        string description = string.Empty;
+        fixture.Host.TransactionOpened += (_, _) =>
+        {
+            opened++;
+            description = fixture.Host.TransactionDescription;
+        };
+        fixture.Host.TransactionClosed += (_, _) => closed++;
+        changes.ComponentChanging += (_, e) => changing += IsLocationChangeFor(e.Component, e.Member, primary, sibling) ? 1 : 0;
+        changes.ComponentChanged += (_, e) => changed += IsLocationChangeFor(e.Component, e.Member, primary, sibling) ? 1 : 0;
+
+        Drag(primary, new Point(10, 10), new Point(24, 24));
+
+        var selection = (ISelectionService)fixture.Host.GetService(typeof(ISelectionService))!;
+        Assert(primary.Bounds == new Rectangle(30, 30, 20, 20)
+            && sibling.Bounds == new Rectangle(60, 50, 30, 20)
+            && stationary.Bounds == new Rectangle(140, 80, 20, 20),
+            "Group grid move did not apply one snapped delta while preserving relative geometry.");
+        Assert(fixture.Root.Controls.IndexOf(primary) == primaryIndex
+            && fixture.Root.Controls.IndexOf(sibling) == siblingIndex
+            && fixture.Root.Controls.IndexOf(stationary) == stationaryIndex,
+            "Group move changed sibling/z-order in the parent control collection.");
+        Assert(selection.SelectionCount == 2
+            && ReferenceEquals(selection.PrimarySelection, primary)
+            && selection.GetComponentSelected(sibling),
+            "Dragging the primary control did not preserve the existing multi-selection.");
+        Assert(opened == 1 && closed == 1 && changing == 2 && changed == 2
+            && description == "Move 2 controls" && undo.UndoCount == 1,
+            "Group move did not produce one typed transaction and one undo unit.");
+        Assert(undo.UndoOnce()
+            && primary.Bounds == new Rectangle(13, 17, 20, 20)
+            && sibling.Bounds == new Rectangle(43, 37, 30, 20),
+            "Group undo did not restore every initial bound atomically.");
+        Assert(undo.RedoOnce()
+            && primary.Bounds == new Rectangle(30, 30, 20, 20)
+            && sibling.Bounds == new Rectangle(60, 50, 30, 20),
+            "Group redo did not restore the common snapped delta atomically.");
+    }
+
+    private static void GroupBoundsDriveSnapLinesAndAdorners()
+    {
+        using var fixture = CreateSnapLineFixture();
+        Forms.Button target = fixture.AddButton("target", new Rectangle(100, 100, 20, 20));
+        Forms.Button primary = fixture.AddButton("primary", new Rectangle(20, 30, 20, 20));
+        Forms.Button sibling = fixture.AddButton("sibling", new Rectangle(50, 30, 30, 20));
+        fixture.Select(primary, sibling);
+        var adorners = (Forms.IPortableWinFormsAdornerSource)fixture.Root;
+
+        BeginDrag(primary, new Point(10, 10), new Point(45, 10));
+
+        Rectangle movedGroupBounds = Rectangle.Union(primary.Bounds, sibling.Bounds);
+        Assert(primary.Location == new Point(60, 30)
+            && sibling.Location == new Point(90, 30)
+            && movedGroupBounds.Right == target.Right,
+            "Snap-line move did not align the selected group bounds to the external target.");
+        Assert(adorners.SupportsPortableAdornments
+            && PaintAdornerCommandCount(adorners, fixture.Root.ClientSize) == 1,
+            "Group-bound snap did not publish the one matched external guide.");
+
+        primary.RaiseMouseUp(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, 45, 10, 0));
+        Assert(!adorners.SupportsPortableAdornments,
+            "Committed group move did not clear its transient snap-line adorner.");
+    }
+
+    private static void GroupMoveHonorsAltGridAndMemberExclusion()
+    {
+        using (var fixture = CreateSnapLineFixture())
+        {
+            Forms.Button primary = fixture.AddButton("primary", new Rectangle(20, 20, 20, 20));
+            Forms.Button sibling = fixture.AddButton("sibling", new Rectangle(50, 20, 20, 20));
+            fixture.Select(primary, sibling);
+
+            Drag(primary, new Point(10, 10), new Point(15, 10));
+            Assert(primary.Location == new Point(25, 20) && sibling.Location == new Point(55, 20),
+                "Selected group members were incorrectly retained as their own snap-line targets.");
+        }
+
+        using (var fixture = new DesignerFixture(new SharpStyleDesignerOptionService(
+            new Size(10, 10),
+            snapToGrid: true,
+            useSnapLines: true)))
+        {
+            Forms.Button primary = fixture.AddButton("primary", new Rectangle(20, 30, 20, 20));
+            Forms.Button sibling = fixture.AddButton("sibling", new Rectangle(50, 30, 20, 20));
+            fixture.AddButton("target", new Rectangle(100, 100, 20, 20));
+            fixture.Select(primary, sibling);
+
+            Forms.Keys previousModifiers = Forms.Control.ModifierKeys;
+            try
+            {
+                Forms.Control.ModifierKeys = Forms.Keys.Alt;
+                Drag(primary, new Point(10, 10), new Point(23, 10));
+            }
+            finally
+            {
+                Forms.Control.ModifierKeys = previousModifiers;
+            }
+
+            Assert(primary.Location == new Point(30, 30) && sibling.Location == new Point(60, 30),
+                "Alt did not bypass group snap lines while retaining group-grid snapping.");
+        }
+    }
+
+    private static void GroupMoveFiltersLockedReadOnlyAndDifferentParentControls()
+    {
+        using var fixture = new DesignerFixture(new SharpStyleDesignerOptionService(
+            new Size(8, 8),
+            snapToGrid: false,
+            useSnapLines: false));
+        Forms.Button primary = fixture.AddButton("primary", new Rectangle(20, 20, 20, 20));
+        LockedButton locked = fixture.AddControl(
+            "locked",
+            new LockedButton { Locked = true },
+            new Rectangle(50, 20, 20, 20));
+        ReadOnlyLocationButton readOnly = fixture.AddControl(
+            "readOnly",
+            new ReadOnlyLocationButton(),
+            new Rectangle(80, 20, 20, 20));
+        Forms.Panel nested = fixture.AddControl(
+            "nested",
+            new Forms.Panel(),
+            new Rectangle(20, 100, 120, 80));
+        Forms.Button differentParent = fixture.AddButton(
+            "differentParent",
+            new Rectangle(10, 10, 20, 20),
+            nested);
+        fixture.Select(primary, locked, readOnly, differentParent);
+
+        int locationChanging = 0;
+        int locationChanged = 0;
+        var changes = (IComponentChangeService)fixture.Host.GetService(typeof(IComponentChangeService))!;
+        changes.ComponentChanging += (_, e) => locationChanging += IsLocationChangeFor(e.Component, e.Member, primary) ? 1 : 0;
+        changes.ComponentChanged += (_, e) => locationChanged += IsLocationChangeFor(e.Component, e.Member, primary) ? 1 : 0;
+
+        Drag(primary, new Point(10, 10), new Point(25, 20));
+
+        Assert(primary.Location == new Point(35, 30),
+            "Eligible primary control did not receive the raw group delta.");
+        Assert(locked.Location == new Point(50, 20)
+            && readOnly.Location == new Point(80, 20)
+            && differentParent.Location == new Point(10, 10),
+            "Group move changed a locked, read-only, or different-parent selection member.");
+        Assert(locationChanging == 1 && locationChanged == 1,
+            "Filtered selection members emitted designer location changes.");
+    }
+
+    private static void ReadOnlyPrimaryRejectsGroupMove()
+    {
+        using var fixture = new DesignerFixture(new SharpStyleDesignerOptionService(
+            new Size(8, 8),
+            snapToGrid: false,
+            useSnapLines: false));
+        ReadOnlyLocationButton primary = fixture.AddControl(
+            "readOnlyPrimary",
+            new ReadOnlyLocationButton(),
+            new Rectangle(20, 20, 20, 20));
+        Forms.Button sibling = fixture.AddButton("sibling", new Rectangle(50, 20, 20, 20));
+        fixture.Select(primary, sibling);
+        int opened = 0;
+        fixture.Host.TransactionOpened += (_, _) => opened++;
+
+        Drag(primary, new Point(10, 10), new Point(30, 20));
+
+        Assert(primary.Location == new Point(20, 20)
+            && sibling.Location == new Point(50, 20)
+            && opened == 0,
+            "A read-only primary control initiated a partial group move.");
+    }
+
+    private static void GroupMoveCancellationRestoresEveryControl()
+    {
+        var fixture = new DesignerFixture(new SharpStyleDesignerOptionService(
+            new Size(8, 8),
+            snapToGrid: false,
+            useSnapLines: false));
+        Forms.Button primary = fixture.AddButton("primary", new Rectangle(20, 20, 20, 20));
+        Forms.Button sibling = fixture.AddButton("sibling", new Rectangle(50, 30, 20, 20));
+        fixture.Select(primary, sibling);
+        using var undo = new ProbeUndoEngine(fixture.Host);
+        int cancelled = 0;
+        fixture.Host.TransactionClosed += (_, e) => cancelled += e.TransactionCommitted ? 0 : 1;
+
+        BeginDrag(primary, new Point(10, 10), new Point(30, 25));
+        Assert(primary.Location == new Point(40, 35) && sibling.Location == new Point(70, 45),
+            "Cancellation fixture did not enter an active group move.");
+        fixture.Dispose();
+
+        Assert(primary.Bounds == new Rectangle(20, 20, 20, 20)
+            && sibling.Bounds == new Rectangle(50, 30, 20, 20)
+            && cancelled == 1
+            && undo.UndoCount == 0,
+            "Designer disposal did not cancel and restore the complete group transaction.");
+    }
+
+    private static bool IsLocationChangeFor(
+        object? component,
+        MemberDescriptor? member,
+        params Forms.Control[] expected)
+    {
+        if (!string.Equals(member?.Name, nameof(Forms.Control.Location), StringComparison.Ordinal))
+            return false;
+        for (int index = 0; index < expected.Length; index++)
+        {
+            if (ReferenceEquals(component, expected[index]))
+                return true;
+        }
+
+        return false;
+    }
+
     private static void CountChange(
         object? component,
         MemberDescriptor? member,
@@ -393,6 +628,7 @@ internal static class FormsDesignerLayoutBehaviorTests
     private static void LayoutServiceSourceStaysReflectionFree()
     {
         string layoutSource = File.ReadAllText(FindSourceFile("PortableDesignerLayoutService.cs"));
+        string designerSource = File.ReadAllText(FindSourceFile("ComponentModelDesignCompatTypes.cs"));
         string controlSource = File.ReadAllText(FindSourceFile("WinFormsCompatTypes.cs"));
         string contractSource = File.ReadAllText(FindSourceFile("IPortableWinFormsAdornerSource.cs"));
         string hostSource = File.ReadAllText(FindSourceFile("WindowsFormsHost.cs"));
@@ -407,6 +643,7 @@ internal static class FormsDesignerLayoutBehaviorTests
         foreach (string token in forbidden)
         {
             Assert(!layoutSource.Contains(token, StringComparison.Ordinal), $"Layout service reintroduced reflection token '{token}'.");
+            Assert(!designerSource.Contains(token, StringComparison.Ordinal), $"Designer manipulation reintroduced reflection token '{token}'.");
             Assert(!controlSource.Contains(token, StringComparison.Ordinal), $"Control adorner path introduced reflection token '{token}'.");
             Assert(!contractSource.Contains(token, StringComparison.Ordinal), $"Adorner contract introduced reflection token '{token}'.");
             Assert(!hostSource.Contains(token, StringComparison.Ordinal), $"Adorner host path introduced reflection token '{token}'.");
@@ -421,6 +658,13 @@ internal static class FormsDesignerLayoutBehaviorTests
             && layoutSource.Contains("RemoveDesignerAdornerPaintHandler(PaintAdornments)", StringComparison.Ordinal)
             && layoutSource.Contains("graphics.DrawLine(", StringComparison.Ordinal),
             "Layout service stopped publishing and painting typed snap-line adorners.");
+        Assert(layoutSource.Contains("CacheGroupCandidateLines", StringComparison.Ordinal)
+            && layoutSource.Contains("ContainsControl(movingControls, target)", StringComparison.Ordinal),
+            "Layout service stopped snapping group bounds or excluding moving controls from targets.");
+        Assert(designerSource.Contains("selectionService.GetSelectedComponents()", StringComparison.Ordinal)
+            && designerSource.Contains("ReferenceEquals(control.Parent, parent)", StringComparison.Ordinal)
+            && designerSource.Contains("Move {_moveItems.Length} controls", StringComparison.Ordinal),
+            "Designer manipulation stopped using typed selection/parent/transaction contracts.");
         Assert(controlSource.Contains("IPortableWinFormsAdornerSource", StringComparison.Ordinal)
             && contractSource.Contains("PaintPortableAdornments", StringComparison.Ordinal),
             "Control stopped exposing the typed portable adorner contract.");
@@ -512,12 +756,21 @@ internal static class FormsDesignerLayoutBehaviorTests
 
         internal Forms.Panel Root { get; }
 
-        internal Forms.Button AddButton(string name, Rectangle bounds)
+        internal Forms.Button AddButton(string name, Rectangle bounds, Forms.Control? parent = null)
         {
             var button = (Forms.Button)Host.CreateComponent(typeof(Forms.Button), name);
             button.Bounds = bounds;
-            Root.Controls.Add(button);
+            (parent ?? Root).Controls.Add(button);
             return button;
+        }
+
+        internal T AddControl<T>(string name, T control, Rectangle bounds, Forms.Control? parent = null)
+            where T : Forms.Control
+        {
+            Host.Container.Add(control, name);
+            control.Bounds = bounds;
+            (parent ?? Root).Controls.Add(control);
+            return control;
         }
 
         internal Forms.Button FindOnlyButton()
@@ -535,16 +788,31 @@ internal static class FormsDesignerLayoutBehaviorTests
             return found ?? throw new InvalidOperationException("Toolbox placement did not create a button.");
         }
 
-        internal void Select(Forms.Control control)
+        internal void Select(params Forms.Control[] controls)
         {
             ((ISelectionService)Host.GetService(typeof(ISelectionService))!)
-                .SetSelectedComponents(new object[] { control }, SelectionTypes.Replace);
+                .SetSelectedComponents(controls, SelectionTypes.Replace);
         }
 
         public void Dispose()
         {
             _surface.Dispose();
             _services.Dispose();
+        }
+    }
+
+    private sealed class LockedButton : Forms.Button
+    {
+        public bool Locked { get; set; }
+    }
+
+    private sealed class ReadOnlyLocationButton : Forms.Button
+    {
+        [ReadOnly(true)]
+        public new Point Location
+        {
+            get => base.Location;
+            set => base.Location = value;
         }
     }
 
