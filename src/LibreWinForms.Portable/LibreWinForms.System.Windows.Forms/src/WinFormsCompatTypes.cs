@@ -901,6 +901,20 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
         Invalidate();
     }
 
+    public void Invalidate(bool invalidateChildren)
+    {
+        Invalidate();
+        if (!invalidateChildren)
+        {
+            return;
+        }
+
+        for (int index = 0; index < Controls.Count; index++)
+        {
+            Controls[index].Invalidate(invalidateChildren: true);
+        }
+    }
+
     public Point PointToClient(Point p)
     {
         if (Application.TryPointToClient(this, p, out Point clientPoint))
@@ -9122,6 +9136,8 @@ public static class Cursors
     public static Cursor WaitCursor { get; } = new Cursor(PortableCursorKind.Wait);
     public static Cursor IBeam { get; } = new Cursor(PortableCursorKind.IBeam);
     public static Cursor SizeAll { get; } = new Cursor(PortableCursorKind.SizeAll);
+    public static Cursor SizeWE { get; } = new Cursor(PortableCursorKind.SizeWE);
+    public static Cursor SizeNS { get; } = new Cursor(PortableCursorKind.SizeNS);
 }
 
 public static class Application

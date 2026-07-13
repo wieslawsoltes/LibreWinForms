@@ -2627,6 +2627,8 @@ public class WindowsFormsHost : FrameworkElement
         {
             Forms.PortableCursorKind.Wait => System.Windows.Input.Cursors.Wait,
             Forms.PortableCursorKind.IBeam => System.Windows.Input.Cursors.IBeam,
+            Forms.PortableCursorKind.SizeWE => System.Windows.Input.Cursors.SizeWE,
+            Forms.PortableCursorKind.SizeNS => System.Windows.Input.Cursors.SizeNS,
             _ => System.Windows.Input.Cursors.Arrow
         };
     }

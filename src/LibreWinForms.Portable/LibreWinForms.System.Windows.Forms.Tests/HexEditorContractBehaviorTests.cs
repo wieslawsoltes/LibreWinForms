@@ -20,7 +20,7 @@ internal static class HexEditorContractBehaviorTests
         ComboBoxItemRangesPreserveDesignerOrder();
         ToolStripOverflowStateValidates();
         Console.WriteLine(
-            "LibreWinForms HexEditor contracts passed: cursor=3 doubleBuffer=1 inputKey=2 menu=4 close=2 border=3 combo=3 range=3 overflow=3.");
+            "LibreWinForms HexEditor contracts passed: cursor=5 doubleBuffer=1 inputKey=2 menu=4 close=2 border=3 combo=3 range=3 overflow=3.");
     }
 
     private static void CursorKindsAreStableTypedSingletons()
@@ -32,6 +32,10 @@ internal static class HexEditorContractBehaviorTests
         Assert(Forms.Cursors.Default.PortableKind == Forms.PortableCursorKind.Default, "Default cursor kind changed.");
         Assert(Forms.Cursors.WaitCursor.PortableKind == Forms.PortableCursorKind.Wait, "Wait cursor kind changed.");
         Assert(Forms.Cursors.IBeam.PortableKind == Forms.PortableCursorKind.IBeam, "IBeam cursor kind changed.");
+        Assert(ReferenceEquals(Forms.Cursors.SizeWE, Forms.Cursors.SizeWE), "Cursors.SizeWE is not a stable singleton.");
+        Assert(ReferenceEquals(Forms.Cursors.SizeNS, Forms.Cursors.SizeNS), "Cursors.SizeNS is not a stable singleton.");
+        Assert(Forms.Cursors.SizeWE.PortableKind == Forms.PortableCursorKind.SizeWE, "SizeWE cursor kind changed.");
+        Assert(Forms.Cursors.SizeNS.PortableKind == Forms.PortableCursorKind.SizeNS, "SizeNS cursor kind changed.");
     }
 
     private static void DoubleBufferedMatchesAsymmetricStyleSemantics()

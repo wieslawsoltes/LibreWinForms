@@ -12,7 +12,9 @@ public enum PortableCursorKind
     Wait = 1,
     IBeam = 2,
     SizeAll = 3,
-    Custom = 4
+    Custom = 4,
+    SizeWE = 5,
+    SizeNS = 6
 }
 
 /// <summary>

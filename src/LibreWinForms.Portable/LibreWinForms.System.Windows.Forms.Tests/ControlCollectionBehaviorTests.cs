@@ -16,8 +16,33 @@ internal static class ControlCollectionBehaviorTests
         TabPageReparentingKeepsBothCollectionsSynchronized();
         ParentingCyclesFailClosed();
         ControlSizesClampNegativeDimensions();
+        RecursiveInvalidationHonorsTheChildrenFlag();
         SplitContainerSupportsDesignerInitialization();
         Console.WriteLine("LibreWinForms control collection event tests passed.");
+    }
+
+    private static void RecursiveInvalidationHonorsTheChildrenFlag()
+    {
+        using var root = new Forms.Control();
+        using var child = new Forms.Control();
+        using var grandchild = new Forms.Control();
+        root.Controls.Add(child);
+        child.Controls.Add(grandchild);
+
+        int rootInvalidated = 0;
+        int childInvalidated = 0;
+        int grandchildInvalidated = 0;
+        root.Invalidated += (_, _) => rootInvalidated++;
+        child.Invalidated += (_, _) => childInvalidated++;
+        grandchild.Invalidated += (_, _) => grandchildInvalidated++;
+
+        root.Invalidate(invalidateChildren: false);
+        Assert(rootInvalidated == 1 && childInvalidated == 0 && grandchildInvalidated == 0,
+            "Invalidate(false) reached descendant controls.");
+
+        root.Invalidate(invalidateChildren: true);
+        Assert(rootInvalidated == 2 && childInvalidated == 1 && grandchildInvalidated == 1,
+            "Invalidate(true) did not recursively invalidate each descendant exactly once.");
     }
 
     private static void AddedRemovedReplacementAndClearPublishTypedEvents()
