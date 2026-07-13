@@ -12,6 +12,7 @@ using System.Threading;
 using System.Windows.Threading;
 using ProGPU.Wpf.Interop;
 using Forms = System.Windows.Forms;
+using FormsDesign = System.Windows.Forms.Design;
 using WpfApplication = System.Windows.Application;
 using WpfWindow = System.Windows.Window;
 
@@ -2308,6 +2309,14 @@ internal static class Program
         using var services = new ServiceContainer();
         var externalMenuCommandService = new MenuCommandService(services);
         services.AddService(typeof(IMenuCommandService), externalMenuCommandService);
+        services.AddService(
+            typeof(DesignerOptionService),
+            new FormsDesign.WindowsFormsDesignerOptionService
+            {
+                ShowGrid = false,
+                SnapToGrid = false,
+                UseSnapLines = false
+            });
         using var surface = new DesignSurface(services);
         var loader = new DesignerSmokeLoader();
         surface.BeginLoad(loader);
