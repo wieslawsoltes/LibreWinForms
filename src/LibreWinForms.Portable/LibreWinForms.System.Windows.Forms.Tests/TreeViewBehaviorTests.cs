@@ -48,6 +48,7 @@ internal static class TreeViewBehaviorTests
             HexEditorContractBehaviorTests.Run();
             CursorBehaviorTests.Run();
             FormsDesignerOptionsBehaviorTests.Run();
+            FormsDesignerEventBindingBehaviorTests.Run();
             FormsDesignerSnapLineBehaviorTests.Run();
             FormsDesignerLayoutBehaviorTests.Run();
             ReportingDesignerBehaviorTests.Run();
