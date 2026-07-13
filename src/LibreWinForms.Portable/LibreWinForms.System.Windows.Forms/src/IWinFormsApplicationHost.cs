@@ -126,6 +126,20 @@ public interface IWinFormsModalDialogHost
 }
 
 /// <summary>
+/// Optional typed modeless-window capability implemented by application hosts.
+/// </summary>
+/// <remarks>
+/// The portable Forms layer owns form state and lifetime. Hosts associate that
+/// state with their native or portable top-level without inspecting Win32 handles.
+/// </remarks>
+public interface IWinFormsWindowHost
+{
+    bool TryShow(Form form, IWin32Window owner);
+
+    bool TrySetTopMost(Form form, bool topMost);
+}
+
+/// <summary>
 /// Typed dialog-key entry point used by portable input hosts.
 /// </summary>
 public interface IWinFormsDialogKeyProcessor

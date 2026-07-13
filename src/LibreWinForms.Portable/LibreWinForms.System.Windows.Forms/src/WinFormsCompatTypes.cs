@@ -1988,6 +1988,8 @@ public class Form : ContainerControl, IWinFormsDialogKeyProcessor
     private DialogResult _dialogResult;
     private IButtonControl? _acceptButton;
     private IButtonControl? _cancelButton;
+    private Form? _owner;
+    private bool _topMost;
 
     public event CancelEventHandler? Closing;
     public event FormClosingEventHandler? FormClosing;
@@ -2077,7 +2079,49 @@ public class Form : ContainerControl, IWinFormsDialogKeyProcessor
 
     public Icon? Icon { get; set; }
 
-    public Form? Owner { get; set; }
+    public Form? Owner
+    {
+        get => _owner;
+        set
+        {
+            if (ReferenceEquals(_owner, value))
+            {
+                return;
+            }
+
+            if (ReferenceEquals(this, value))
+            {
+                throw new ArgumentException("A form cannot own itself.", nameof(value));
+            }
+
+            if (_owner is not null)
+            {
+                _owner.FormClosed -= OnOwnerFormClosed;
+            }
+
+            _owner = value;
+            if (_owner is not null)
+            {
+                _owner.FormClosed += OnOwnerFormClosed;
+            }
+        }
+    }
+
+    [DefaultValue(false)]
+    public bool TopMost
+    {
+        get => _topMost;
+        set
+        {
+            if (_topMost == value)
+            {
+                return;
+            }
+
+            _topMost = value;
+            _ = Application.TrySetTopMost(this, value);
+        }
+    }
 
     public bool KeyPreview { get; set; }
 
@@ -2091,6 +2135,23 @@ public class Form : ContainerControl, IWinFormsDialogKeyProcessor
     {
         base.Show();
         RaiseShownOnce();
+    }
+
+    public void Show(IWin32Window owner)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        if (ReferenceEquals(owner, this))
+        {
+            throw new InvalidOperationException("A form cannot be shown with itself as its owner.");
+        }
+
+        if (owner is Form ownerForm)
+        {
+            Owner = ownerForm;
+        }
+
+        _ = Application.TryShow(this, owner);
+        Show();
     }
 
     public DialogResult ShowDialog()
@@ -2243,6 +2304,24 @@ public class Form : ContainerControl, IWinFormsDialogKeyProcessor
 
         _shown = true;
         OnShown(EventArgs.Empty);
+    }
+
+    private void OnOwnerFormClosed(object? sender, FormClosedEventArgs e)
+    {
+        if (!IsDisposed)
+        {
+            _ = Close(CloseReason.FormOwnerClosing);
+        }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            Owner = null;
+        }
+
+        base.Dispose(disposing);
     }
 
     protected virtual void OnClosing(CancelEventArgs e)
@@ -5393,13 +5472,6 @@ public class PrintDialog : Component
 public class PrintPreviewDialog : Form
 {
     public PrintDocument? Document { get; set; }
-
-    public bool TopMost { get; set; }
-
-    public void Show(IWin32Window owner)
-    {
-        Show();
-    }
 }
 
 public class FolderBrowserDialog : Component
@@ -9349,6 +9421,21 @@ public static class Application
         return true;
     }
 
+    internal static bool TryShow(Form form, IWin32Window owner)
+    {
+        ArgumentNullException.ThrowIfNull(form);
+        ArgumentNullException.ThrowIfNull(owner);
+        return Volatile.Read(ref s_applicationHost) is IWinFormsWindowHost windowHost
+            && windowHost.TryShow(form, owner);
+    }
+
+    internal static bool TrySetTopMost(Form form, bool topMost)
+    {
+        ArgumentNullException.ThrowIfNull(form);
+        return Volatile.Read(ref s_applicationHost) is IWinFormsWindowHost windowHost
+            && windowHost.TrySetTopMost(form, topMost);
+    }
+
     internal static void RequestDialogCompletion(Form form)
     {
         if (Volatile.Read(ref s_applicationHost) is IWinFormsModalDialogHost modalDialogHost)
@@ -9871,6 +9958,7 @@ public enum MessageBoxOptions
 }
 
 [Flags]
+[TypeConverter(typeof(KeysConverter))]
 public enum Keys
 {
     None = 0,
