@@ -86,6 +86,7 @@ modes=(
   --run-listview
   --run-custom-paint
   --run-create-graphics
+  --run-text-renderer
   --run-keyboard
 )
 

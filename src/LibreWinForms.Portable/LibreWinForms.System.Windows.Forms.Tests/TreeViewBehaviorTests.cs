@@ -24,6 +24,7 @@ internal static class TreeViewBehaviorTests
             DispatcherInvocationBehaviorTests.Run();
             KeyboardRoutingBehaviorTests.Run();
             CreateGraphicsHostBehaviorTests.Run();
+            TextRendererBehaviorTests.Run();
             Console.WriteLine("LibreWinForms TreeView behavior tests passed.");
             return 0;
         }

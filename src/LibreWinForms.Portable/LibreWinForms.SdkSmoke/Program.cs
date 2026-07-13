@@ -63,6 +63,11 @@ internal static class Program
             return RunCreateGraphicsSmoke();
         }
 
+        if (args.Contains("--run-text-renderer", StringComparer.Ordinal))
+        {
+            return RunTextRendererSmoke();
+        }
+
         if (args.Contains("--run-keyboard", StringComparer.Ordinal))
         {
             return RunKeyboardRoutingSmoke();
@@ -353,6 +358,94 @@ internal static class Program
         Console.WriteLine(
             "LibreWinForms CreateGraphics smoke result=Success "
             + "typedHost=True longLivedViews=4 drawImageUnscaled=True retainedPresentation=True");
+        return 0;
+    }
+
+    private static int RunTextRendererSmoke()
+    {
+        System.Windows.Forms.Integration.WindowsFormsHost.EnableWindowsFormsInterop();
+
+        var hexView = new Forms.Panel
+        {
+            Name = "hexView",
+            Size = new System.Drawing.Size(240, 80)
+        };
+        var host = new SmokeWindowsFormsHost { Child = hexView };
+        host.Measure(new System.Windows.Size(240, 80));
+        host.Arrange(new System.Windows.Rect(0, 0, 240, 80));
+
+        System.Drawing.Font font = System.Drawing.SystemFonts.DefaultFont;
+        System.Drawing.Size defaultMeasure = Forms.TextRenderer.MeasureText("_", font);
+        bool directTextCommands;
+        using (System.Drawing.Graphics graphics = hexView.CreateGraphics())
+        {
+            System.Drawing.Size proposedMeasure = Forms.TextRenderer.MeasureText(
+                graphics,
+                "00 FF",
+                font,
+                new System.Drawing.Size(short.MaxValue, short.MaxValue),
+                Forms.TextFormatFlags.NoPadding
+                    | Forms.TextFormatFlags.NoPrefix
+                    | Forms.TextFormatFlags.PreserveGraphicsClipping);
+            Forms.TextRenderer.DrawText(
+                graphics,
+                "Offset && data",
+                font,
+                new System.Drawing.Rectangle(1, 1, 180, 20),
+                System.Drawing.Color.DarkSlateBlue,
+                System.Drawing.Color.White,
+                Forms.TextFormatFlags.Left & Forms.TextFormatFlags.Top);
+            Forms.TextRenderer.DrawText(
+                graphics,
+                "41 42",
+                font,
+                new System.Drawing.Point(0, 24),
+                System.Drawing.Color.Black,
+                System.Drawing.Color.White);
+            directTextCommands = proposedMeasure.Width > 0
+                && proposedMeasure.Height > 0
+                && graphics.DrawingContext.Commands.Count >= 4;
+
+            Forms.TextRenderer.DrawText(
+                hexView,
+                "43 44",
+                font,
+                new System.Drawing.Rectangle(0, 48, 80, 20),
+                System.Drawing.Color.White,
+                System.Drawing.SystemColors.Highlight,
+                Forms.TextFormatFlags.Left & Forms.TextFormatFlags.SingleLine);
+        }
+
+        var visual = new System.Windows.Media.DrawingVisual();
+        using (System.Windows.Media.DrawingContext drawingContext = visual.RenderOpen())
+        {
+            host.RenderForSmoke(drawingContext);
+        }
+
+        int presentedImages = CountImageDrawings(visual.Drawing);
+        bool success = defaultMeasure.Width > 0
+            && defaultMeasure.Height > 0
+            && directTextCommands
+            && host.PortableCreateGraphicsDispatchCount == 2
+            && host.PortableCreateGraphicsSurfaceCount == 1
+            && presentedImages >= 1;
+        if (!success)
+        {
+            Console.Error.WriteLine(
+                "LibreWinForms TextRenderer smoke failed"
+                + $" defaultMeasure={defaultMeasure}"
+                + $" directTextCommands={directTextCommands}"
+                + $" dispatches={host.PortableCreateGraphicsDispatchCount}"
+                + $" surfaces={host.PortableCreateGraphicsSurfaceCount}"
+                + $" presentedImages={presentedImages}");
+            host.Child = null;
+            return 11;
+        }
+
+        host.Child = null;
+        Console.WriteLine(
+            "LibreWinForms TextRenderer smoke result=Success "
+            + "hexMeasure=True flags=True graphicsDraw=True controlDraw=True retainedPresentation=True");
         return 0;
     }
 
