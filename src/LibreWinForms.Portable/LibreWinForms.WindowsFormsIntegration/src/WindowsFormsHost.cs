@@ -498,6 +498,9 @@ public class WindowsFormsHost : FrameworkElement
 
             x -= current.Left;
             y -= current.Top;
+            Point parentOffset = GetChildDisplayOffset(current.Parent);
+            x -= parentOffset.X;
+            y -= parentOffset.Y;
         }
 
         controlPoint = default;
@@ -1819,6 +1822,9 @@ public class WindowsFormsHost : FrameworkElement
 
             x += current.Left;
             y += current.Top;
+            Point parentOffset = GetChildDisplayOffset(current.Parent);
+            x += parentOffset.X;
+            y += parentOffset.Y;
         }
 
         hostPoint = default;
@@ -2335,6 +2341,9 @@ public class WindowsFormsHost : FrameworkElement
 
             x += current.Left;
             y += current.Top;
+            Point parentOffset = GetChildDisplayOffset(current.Parent);
+            x += parentOffset.X;
+            y += parentOffset.Y;
         }
 
         bounds = Rect.Empty;
@@ -2450,6 +2459,9 @@ public class WindowsFormsHost : FrameworkElement
         {
             x += current.Left;
             y += current.Top;
+            Point parentOffset = GetChildDisplayOffset(current.Parent);
+            x += parentOffset.X;
+            y += parentOffset.Y;
             if (ReferenceEquals(current, root))
             {
                 localPoint = new Point(hostPoint.X - x, hostPoint.Y - y);
@@ -2471,10 +2483,12 @@ public class WindowsFormsHost : FrameworkElement
             return null;
         }
 
+        Point childOffset = GetChildDisplayOffset(control);
+        Point childOrigin = new(origin.X + childOffset.X, origin.Y + childOffset.Y);
         for (int i = control.Controls.Count - 1; i >= 0; i--)
         {
             Forms.Control child = control.Controls[i];
-            Forms.Control? result = FindControlAt(child, origin, hostPoint, out localPoint);
+            Forms.Control? result = FindControlAt(child, childOrigin, hostPoint, out localPoint);
             if (result != null)
             {
                 return result;
@@ -2905,11 +2919,12 @@ public class WindowsFormsHost : FrameworkElement
 
             if (renderChildren)
             {
+                Point childOffset = GetChildDisplayOffset(control);
                 foreach (Forms.Control child in control.Controls)
                 {
                     Rect childBounds = new(
-                        bounds.X + child.Left,
-                        bounds.Y + child.Top,
+                        bounds.X + childOffset.X + child.Left,
+                        bounds.Y + childOffset.Y + child.Top,
                         Math.Max(0, child.Width),
                         Math.Max(0, child.Height));
                     RenderControl(drawingContext, child, childBounds);
@@ -2920,6 +2935,17 @@ public class WindowsFormsHost : FrameworkElement
         {
             drawingContext.Pop();
         }
+    }
+
+    private static Point GetChildDisplayOffset(Forms.Control? control)
+    {
+        if (control is not Forms.ScrollableControl scrollable || !scrollable.AutoScroll)
+        {
+            return default;
+        }
+
+        System.Drawing.Point location = scrollable.DisplayRectangle.Location;
+        return new Point(location.X, location.Y);
     }
 
     private bool RenderPortableCustomPaint(

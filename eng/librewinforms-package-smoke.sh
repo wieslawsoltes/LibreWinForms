@@ -88,6 +88,7 @@ modes=(
   --run-create-graphics
   --run-text-renderer
   --run-keyboard
+  --run-classdiagram
 )
 
 for mode in "${modes[@]}"; do

@@ -26,6 +26,7 @@
     <ProjectReference Include="..\..\..\..\..\external\ProGPU\src\ProGPU.Scene\ProGPU.Scene.csproj" />
     <ProjectReference Include="..\..\..\..\..\external\ProGPU\src\ProGPU.DirectX\ProGPU.DirectX.csproj" />
     <ProjectReference Include="..\..\..\..\..\external\ProGPU\src\ProGPU.Wpf.Interop\ProGPU.Wpf.Interop.csproj" />
+    <ProjectReference Include="..\..\..\..\..\external\ProGPU\src\System.Drawing.Common\System.Drawing.Common.csproj" />
     <ProjectReference Include="..\LibreWinForms.System.Windows.Forms\LibreWinForms.System.Windows.Forms.csproj"
                       AdditionalProperties="LibreWinFormsReferenceMode=Project" />
     <ProjectReference Include="..\LibreWinForms.WindowsFormsIntegration\LibreWinForms.WindowsFormsIntegration.csproj"

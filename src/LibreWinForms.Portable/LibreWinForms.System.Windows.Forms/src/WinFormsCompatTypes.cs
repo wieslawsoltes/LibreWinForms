@@ -299,6 +299,8 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
 
     public int Right => Left + Width;
 
+    public int Bottom => Top + Height;
+
     public bool ResizeRedraw { get; set; }
 
     public virtual Size Size
@@ -865,6 +867,12 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
         {
             x -= current.Left;
             y -= current.Top;
+            if (current.Parent is ScrollableControl scrollableParent && scrollableParent.AutoScroll)
+            {
+                Point displayOffset = scrollableParent.DisplayRectangle.Location;
+                x -= displayOffset.X;
+                y -= displayOffset.Y;
+            }
         }
 
         return new Point(x, y);
@@ -883,6 +891,12 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
         {
             x += current.Left;
             y += current.Top;
+            if (current.Parent is ScrollableControl scrollableParent && scrollableParent.AutoScroll)
+            {
+                Point displayOffset = scrollableParent.DisplayRectangle.Location;
+                x += displayOffset.X;
+                y += displayOffset.Y;
+            }
         }
 
         return new Point(x, y);
@@ -927,6 +941,54 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
     public virtual void SetBounds(int x, int y, int width, int height)
     {
         Bounds = new Rectangle(x, y, width, height);
+    }
+
+    public void Scale(SizeF factor)
+    {
+        if (!float.IsFinite(factor.Width)
+            || !float.IsFinite(factor.Height)
+            || factor.Width < 0
+            || factor.Height < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(factor));
+        }
+
+        ScaleControl(factor, BoundsSpecified.All);
+        if (ScaleChildren)
+        {
+            foreach (Control child in Controls)
+            {
+                child.Scale(factor);
+            }
+        }
+
+        PerformLayout();
+        Invalidate();
+    }
+
+    protected virtual bool ScaleChildren => true;
+
+    protected virtual void ScaleControl(SizeF factor, BoundsSpecified specified)
+    {
+        Rectangle bounds = Bounds;
+        int left = (specified & BoundsSpecified.X) != 0
+            ? ScaleCoordinate(bounds.X, factor.Width)
+            : bounds.X;
+        int top = (specified & BoundsSpecified.Y) != 0
+            ? ScaleCoordinate(bounds.Y, factor.Height)
+            : bounds.Y;
+        int width = (specified & BoundsSpecified.Width) != 0
+            ? ScaleCoordinate(bounds.Width, factor.Width)
+            : bounds.Width;
+        int height = (specified & BoundsSpecified.Height) != 0
+            ? ScaleCoordinate(bounds.Height, factor.Height)
+            : bounds.Height;
+        Bounds = new Rectangle(left, top, width, height);
+    }
+
+    private static int ScaleCoordinate(int value, float factor)
+    {
+        return checked((int)Math.Round(value * (double)factor, MidpointRounding.AwayFromZero));
     }
 
     protected virtual bool ProcessCmdKey(ref Message msg, Keys keyData)
@@ -1392,8 +1454,339 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
     }
 }
 
+public abstract class ScrollProperties
+{
+    private readonly ScrollableControl _owner;
+    private readonly bool _horizontal;
+    private int _minimum;
+    private int _maximum = 100;
+    private int _largeChange = 10;
+    private int _smallChange = 1;
+    private int _value;
+    private bool _visible;
+
+    internal ScrollProperties(ScrollableControl owner, bool horizontal)
+    {
+        _owner = owner;
+        _horizontal = horizontal;
+    }
+
+    public bool Enabled { get; set; } = true;
+
+    public int LargeChange
+    {
+        get
+        {
+            _owner.SynchronizeScrollProperties();
+            return Math.Min(_largeChange, Math.Max(0, _maximum - _minimum + 1));
+        }
+        set
+        {
+            _largeChange = Math.Max(0, value);
+            CoerceValue();
+        }
+    }
+
+    public int Maximum
+    {
+        get
+        {
+            _owner.SynchronizeScrollProperties();
+            return _maximum;
+        }
+        set
+        {
+            _maximum = Math.Max(_minimum, value);
+            CoerceValue();
+        }
+    }
+
+    public int Minimum
+    {
+        get => _minimum;
+        set
+        {
+            _minimum = Math.Max(0, value);
+            _maximum = Math.Max(_minimum, _maximum);
+            CoerceValue();
+        }
+    }
+
+    public int SmallChange
+    {
+        get => Math.Min(_smallChange, LargeChange);
+        set => _smallChange = Math.Max(0, value);
+    }
+
+    public int Value
+    {
+        get
+        {
+            _owner.SynchronizeScrollProperties();
+            return _value;
+        }
+        set => _owner.SetScrollValue(this, value);
+    }
+
+    public bool Visible
+    {
+        get
+        {
+            _owner.SynchronizeScrollProperties();
+            return _visible;
+        }
+    }
+
+    internal bool IsHorizontal => _horizontal;
+
+    internal int ValueCore => _value;
+
+    internal void ApplyMetrics(int maximum, int largeChange, bool visible)
+    {
+        _maximum = Math.Max(_minimum, maximum);
+        _largeChange = Math.Max(0, largeChange);
+        _visible = visible;
+        CoerceValue();
+    }
+
+    internal int ClampValue(int value)
+    {
+        int effectiveLargeChange = Math.Min(_largeChange, Math.Max(0, _maximum - _minimum + 1));
+        int maximumValue = Math.Max(_minimum, _maximum - Math.Max(0, effectiveLargeChange - 1));
+        return Math.Clamp(value, _minimum, maximumValue);
+    }
+
+    internal bool SetValueCore(int value)
+    {
+        int next = ClampValue(value);
+        if (_value == next)
+        {
+            return false;
+        }
+
+        _value = next;
+        return true;
+    }
+
+    private void CoerceValue()
+    {
+        _value = ClampValue(_value);
+    }
+}
+
+public sealed class HScrollProperties : ScrollProperties
+{
+    internal HScrollProperties(ScrollableControl owner)
+        : base(owner, horizontal: true)
+    {
+    }
+}
+
+public sealed class VScrollProperties : ScrollProperties
+{
+    internal VScrollProperties(ScrollableControl owner)
+        : base(owner, horizontal: false)
+    {
+    }
+}
+
 public class ScrollableControl : Control
 {
+    private readonly HScrollProperties _horizontalScroll;
+    private readonly VScrollProperties _verticalScroll;
+    private bool _autoScroll;
+    private Size _autoScrollMargin;
+    private Size _autoScrollMinSize;
+    private bool _synchronizingScrollProperties;
+
+    public ScrollableControl()
+    {
+        _horizontalScroll = new HScrollProperties(this);
+        _verticalScroll = new VScrollProperties(this);
+    }
+
+    public event ScrollEventHandler? Scroll;
+
+    public virtual bool AutoScroll
+    {
+        get => _autoScroll;
+        set
+        {
+            if (_autoScroll == value)
+            {
+                return;
+            }
+
+            _autoScroll = value;
+            SynchronizeScrollProperties();
+            if (!value)
+            {
+                _horizontalScroll.SetValueCore(0);
+                _verticalScroll.SetValueCore(0);
+            }
+
+            Invalidate();
+        }
+    }
+
+    public Size AutoScrollMargin
+    {
+        get => _autoScrollMargin;
+        set
+        {
+            Size normalized = new(Math.Max(0, value.Width), Math.Max(0, value.Height));
+            if (_autoScrollMargin == normalized)
+            {
+                return;
+            }
+
+            _autoScrollMargin = normalized;
+            SynchronizeScrollProperties();
+            Invalidate();
+        }
+    }
+
+    public Size AutoScrollMinSize
+    {
+        get => _autoScrollMinSize;
+        set
+        {
+            Size normalized = new(Math.Max(0, value.Width), Math.Max(0, value.Height));
+            if (_autoScrollMinSize == normalized)
+            {
+                return;
+            }
+
+            _autoScrollMinSize = normalized;
+            SynchronizeScrollProperties();
+            Invalidate();
+        }
+    }
+
+    public Point AutoScrollPosition
+    {
+        get
+        {
+            SynchronizeScrollProperties();
+            return new Point(-_horizontalScroll.ValueCore, -_verticalScroll.ValueCore);
+        }
+        set
+        {
+            HorizontalScroll.Value = Math.Abs(value.X);
+            VerticalScroll.Value = Math.Abs(value.Y);
+        }
+    }
+
+    public HScrollProperties HorizontalScroll => _horizontalScroll;
+
+    public VScrollProperties VerticalScroll => _verticalScroll;
+
+    public override Rectangle DisplayRectangle
+    {
+        get
+        {
+            SynchronizeScrollProperties();
+            Size extent = GetScrollExtent();
+            return new Rectangle(
+                -_horizontalScroll.ValueCore,
+                -_verticalScroll.ValueCore,
+                Math.Max(ClientSize.Width, extent.Width),
+                Math.Max(ClientSize.Height, extent.Height));
+        }
+    }
+
+    internal Point ChildDisplayOffset
+    {
+        get
+        {
+            if (!AutoScroll)
+            {
+                return Point.Empty;
+            }
+
+            SynchronizeScrollProperties();
+            return new Point(-_horizontalScroll.ValueCore, -_verticalScroll.ValueCore);
+        }
+    }
+
+    internal void SynchronizeScrollProperties()
+    {
+        if (_synchronizingScrollProperties)
+        {
+            return;
+        }
+
+        _synchronizingScrollProperties = true;
+        try
+        {
+            Size extent = AutoScroll ? GetScrollExtent() : ClientSize;
+            int clientWidth = Math.Max(0, ClientSize.Width);
+            int clientHeight = Math.Max(0, ClientSize.Height);
+            bool horizontalVisible = AutoScroll && extent.Width > clientWidth;
+            bool verticalVisible = AutoScroll && extent.Height > clientHeight;
+            _horizontalScroll.ApplyMetrics(
+                Math.Max(0, extent.Width - 1),
+                clientWidth,
+                horizontalVisible);
+            _verticalScroll.ApplyMetrics(
+                Math.Max(0, extent.Height - 1),
+                clientHeight,
+                verticalVisible);
+        }
+        finally
+        {
+            _synchronizingScrollProperties = false;
+        }
+    }
+
+    internal void SetScrollValue(ScrollProperties properties, int value)
+    {
+        SynchronizeScrollProperties();
+        int oldValue = properties.ValueCore;
+        if (!properties.SetValueCore(value))
+        {
+            return;
+        }
+
+        Scroll?.Invoke(this, new ScrollEventArgs(ScrollEventType.ThumbPosition, oldValue, properties.ValueCore));
+        Invalidate();
+    }
+
+    protected override void OnControlAdded(ControlEventArgs e)
+    {
+        base.OnControlAdded(e);
+        SynchronizeScrollProperties();
+    }
+
+    protected override void OnControlRemoved(ControlEventArgs e)
+    {
+        base.OnControlRemoved(e);
+        SynchronizeScrollProperties();
+    }
+
+    protected override void OnResize(EventArgs e)
+    {
+        base.OnResize(e);
+        SynchronizeScrollProperties();
+    }
+
+    private Size GetScrollExtent()
+    {
+        int width = Math.Max(ClientSize.Width, AutoScrollMinSize.Width);
+        int height = Math.Max(ClientSize.Height, AutoScrollMinSize.Height);
+        foreach (Control child in Controls)
+        {
+            if (!child.Visible)
+            {
+                continue;
+            }
+
+            width = Math.Max(width, child.Right + AutoScrollMargin.Width);
+            height = Math.Max(height, child.Bottom + AutoScrollMargin.Height);
+        }
+
+        return new Size(Math.Max(0, width), Math.Max(0, height));
+    }
 }
 
 public class ContainerControl : ScrollableControl
@@ -9477,6 +9870,19 @@ public enum DockStyle
     Left = 3,
     Right = 4,
     Fill = 5
+}
+
+[Flags]
+public enum BoundsSpecified
+{
+    None = 0,
+    X = 1,
+    Y = 2,
+    Width = 4,
+    Height = 8,
+    Location = X | Y,
+    Size = Width | Height,
+    All = Location | Size
 }
 
 public enum FlatStyle

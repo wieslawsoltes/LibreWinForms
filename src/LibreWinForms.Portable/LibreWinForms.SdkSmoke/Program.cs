@@ -73,7 +73,69 @@ internal static class Program
             return RunKeyboardRoutingSmoke();
         }
 
+        if (args.Contains("--run-classdiagram", StringComparer.Ordinal))
+        {
+            return RunClassDiagramSmoke();
+        }
+
         Console.WriteLine("LibreWinForms SDK smoke build loaded.");
+        return 0;
+    }
+
+    private static int RunClassDiagramSmoke()
+    {
+        var panel = new Forms.Panel
+        {
+            AutoScroll = true,
+            Size = new System.Drawing.Size(180, 120)
+        };
+        var canvas = new ClassDiagramShapeSmokeControl
+        {
+            Bounds = new System.Drawing.Rectangle(60, 45, 320, 240)
+        };
+        panel.Controls.Add(canvas);
+        panel.HorizontalScroll.Value = 40;
+        panel.VerticalScroll.Value = 30;
+
+        var editor = new Forms.TextBox
+        {
+            Bounds = new System.Drawing.Rectangle(90, 70, 120, 24)
+        };
+        editor.Scale(new System.Drawing.SizeF(1.5f, 1.5f));
+        panel.Controls.Add(editor);
+        panel.Controls.SetChildIndex(editor, 0);
+
+        var host = new SmokeWindowsFormsHost { Child = panel };
+        host.Measure(new System.Windows.Size(180, 120));
+        host.Arrange(new System.Windows.Rect(0, 0, 180, 120));
+        var visual = new System.Windows.Media.DrawingVisual();
+        using (System.Windows.Media.DrawingContext drawingContext = visual.RenderOpen())
+        {
+            host.RenderForSmoke(drawingContext);
+        }
+
+        bool success = panel.HorizontalScroll.Visible
+            && panel.VerticalScroll.Visible
+            && panel.AutoScrollPosition == new System.Drawing.Point(-40, -30)
+            && editor.Bounds == new System.Drawing.Rectangle(135, 105, 180, 36)
+            && canvas.PaintCount >= 1
+            && host.PortableCustomPaintDispatchCount >= 1;
+        if (!success)
+        {
+            Console.Error.WriteLine(
+                "LibreWinForms ClassDiagram smoke failed"
+                + $" horizontal={panel.HorizontalScroll.Value}/{panel.HorizontalScroll.Visible}"
+                + $" vertical={panel.VerticalScroll.Value}/{panel.VerticalScroll.Visible}"
+                + $" editor={editor.Bounds} paints={canvas.PaintCount}"
+                + $" hostPaints={host.PortableCustomPaintDispatchCount}");
+            host.Child = null;
+            return 10;
+        }
+
+        host.Child = null;
+        Console.WriteLine(
+            "LibreWinForms ClassDiagram smoke result=Success "
+            + "scroll=True scale=True path=True text=True retainedPaint=True");
         return 0;
     }
 
@@ -3117,6 +3179,57 @@ internal static class Program
                 e.Graphics,
                 e.ClipRectangle,
                 Forms.Border3DStyle.RaisedInner);
+            base.OnPaint(e);
+        }
+    }
+
+    private sealed class ClassDiagramShapeSmokeControl : Forms.Control
+    {
+        public ClassDiagramShapeSmokeControl()
+        {
+            SetStyle(
+                Forms.ControlStyles.UserPaint
+                    | Forms.ControlStyles.AllPaintingInWmPaint
+                    | Forms.ControlStyles.OptimizedDoubleBuffer,
+                true);
+        }
+
+        public int PaintCount { get; private set; }
+
+        protected override void OnPaint(Forms.PaintEventArgs e)
+        {
+            PaintCount++;
+            e.Graphics.PageUnit = System.Drawing.GraphicsUnit.Pixel;
+            e.Graphics.PageScale = 1.25f;
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
+            e.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+            e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+
+            System.Drawing.Drawing2D.GraphicsState state = e.Graphics.Save();
+            e.Graphics.TranslateTransform(12, 10);
+            using var path = new System.Drawing.Drawing2D.GraphicsPath();
+            path.AddArc(0, 0, 12, 12, 180, 90);
+            path.AddArc(108, 0, 12, 12, 270, 90);
+            path.AddArc(108, 58, 12, 12, 0, 90);
+            path.AddArc(0, 58, 12, 12, 90, 90);
+            path.CloseFigure();
+            using var fill = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(255, 240, 242, 249));
+            using var outline = new System.Drawing.Pen(System.Drawing.Color.Gray) {
+                DashStyle = System.Drawing.Drawing2D.DashStyle.Dash
+            };
+            using var titleFont = new System.Drawing.Font(
+                System.Drawing.FontFamily.GenericSansSerif,
+                11,
+                System.Drawing.FontStyle.Bold,
+                System.Drawing.GraphicsUnit.Pixel);
+            e.Graphics.FillPath(fill, path);
+            e.Graphics.DrawPath(outline, path);
+            e.Graphics.DrawString(
+                "ClassCanvas : SharpDevelop",
+                titleFont,
+                System.Drawing.Brushes.Black,
+                new System.Drawing.RectangleF(8, 8, 104, 48));
+            e.Graphics.Restore(state);
             base.OnPaint(e);
         }
     }
