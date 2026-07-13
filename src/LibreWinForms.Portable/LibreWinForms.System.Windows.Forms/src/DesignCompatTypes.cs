@@ -385,9 +385,46 @@ namespace System.Drawing.Design
 
     public class ContentAlignmentEditor : UITypeEditor
     {
+        private static readonly ContentAlignment[] s_values =
+        {
+            ContentAlignment.TopLeft,
+            ContentAlignment.TopCenter,
+            ContentAlignment.TopRight,
+            ContentAlignment.MiddleLeft,
+            ContentAlignment.MiddleCenter,
+            ContentAlignment.MiddleRight,
+            ContentAlignment.BottomLeft,
+            ContentAlignment.BottomCenter,
+            ContentAlignment.BottomRight
+        };
+
         public override UITypeEditorEditStyle GetEditStyle(ITypeDescriptorContext? context)
         {
             return UITypeEditorEditStyle.DropDown;
+        }
+
+        public override object? EditValue(ITypeDescriptorContext? context, IServiceProvider provider, object? value)
+        {
+            ArgumentNullException.ThrowIfNull(provider);
+            if (provider.GetService(typeof(System.Windows.Forms.Design.IWindowsFormsEditorService))
+                    is not System.Windows.Forms.Design.IWindowsFormsEditorService editorService)
+            {
+                return value;
+            }
+
+            using var list = new System.Windows.Forms.ListBox
+            {
+                Name = "ContentAlignmentList",
+                BorderStyle = System.Windows.Forms.BorderStyle.None,
+                IntegralHeight = true
+            };
+            list.Items.AddRange(Array.ConvertAll(s_values, static alignment => (object)alignment));
+            list.SelectedIndex = value is ContentAlignment alignment
+                ? Array.IndexOf(s_values, alignment)
+                : -1;
+            list.SelectedIndexChanged += (_, _) => editorService.CloseDropDown();
+            editorService.DropDownControl(list);
+            return list.SelectedItem ?? value;
         }
     }
 }

@@ -21,8 +21,8 @@ internal static class ReportingDesignerBehaviorTests
         DesignerFiltersFlowThroughTypeDescriptorAndPropertyGrid();
         CodeDomSerializationServiceRoundTripsPortableComponents();
         WaitCursorAndDesignerPaintPrimitivesAreFunctional();
-        CollectionAndAlignmentEditorsExposeExpectedStyles();
-        Console.WriteLine("LibreWinForms Reporting designer contracts passed: rules=9 hooks=7 loader=3 filters=9 serialization=6 paint=6 editors=3.");
+        CollectionAndAlignmentEditorsCommitValues();
+        Console.WriteLine("LibreWinForms Reporting designer contracts passed: rules=9 hooks=7 loader=3 filters=9 serialization=6 paint=6 editors=9.");
     }
 
     private static void SelectionRuleValuesMatchWinForms()
@@ -168,14 +168,31 @@ internal static class ReportingDesignerBehaviorTests
         Assert(bitmap.GetPixel(4, 4).A != 0, "Grab handle did not render its border.");
     }
 
-    private static void CollectionAndAlignmentEditorsExposeExpectedStyles()
+    private static void CollectionAndAlignmentEditorsCommitValues()
     {
         var editor = new ProbeCollectionEditor(typeof(ArrayList));
         Assert(editor.GetEditStyle(null) == UITypeEditorEditStyle.Modal, "CollectionEditor is not modal.");
         Assert(editor.Create(typeof(ProbeCollectionItem)) is ProbeCollectionItem, "CollectionEditor did not create the requested typed item.");
+        var acceptedItems = new ArrayList();
+        object? acceptedResult = editor.EditValue(null, new ProbeEditorService(acceptCollection: true), acceptedItems);
+        Assert(ReferenceEquals(acceptedResult, acceptedItems)
+            && acceptedItems.Count == 1
+            && acceptedItems[0] is ProbeCollectionItem,
+            "CollectionEditor did not commit the accepted item list.");
+
+        var cancelledItems = new ArrayList();
+        object? cancelledResult = editor.EditValue(null, new ProbeEditorService(acceptCollection: false), cancelledItems);
+        Assert(ReferenceEquals(cancelledResult, cancelledItems) && cancelledItems.Count == 0,
+            "CollectionEditor mutated the collection after cancellation.");
 
         var alignmentEditor = new ContentAlignmentEditor();
         Assert(alignmentEditor.GetEditStyle(null) == UITypeEditorEditStyle.DropDown, "ContentAlignmentEditor is not a drop-down editor.");
+        var alignmentService = new ProbeEditorService(acceptCollection: false);
+        object? alignment = alignmentEditor.EditValue(null, alignmentService, ContentAlignment.MiddleCenter);
+        Assert(alignment is ContentAlignment.BottomRight,
+            "ContentAlignmentEditor did not commit the selected alignment.");
+        Assert(alignmentService.CloseDropDownCount == 1,
+            "ContentAlignmentEditor did not close after a typed selection.");
     }
 
     private static void Assert(bool condition, string message)
@@ -288,10 +305,47 @@ internal static class ReportingDesignerBehaviorTests
         }
 
         public object Create(Type itemType) => CreateInstance(itemType);
+
+        protected override Type[] CreateNewItemTypes() => new[] { typeof(ProbeCollectionItem) };
     }
 
     private sealed class ProbeCollectionItem
     {
+    }
+
+    private sealed class ProbeEditorService : IServiceProvider, FormsDesign.IWindowsFormsEditorService
+    {
+        private readonly bool _acceptCollection;
+
+        public ProbeEditorService(bool acceptCollection) => _acceptCollection = acceptCollection;
+
+        public int CloseDropDownCount { get; private set; }
+
+        public object? GetService(Type serviceType)
+        {
+            return serviceType == typeof(FormsDesign.IWindowsFormsEditorService) ? this : null;
+        }
+
+        public void CloseDropDown() => CloseDropDownCount++;
+
+        public void DropDownControl(Forms.Control control)
+        {
+            var list = (Forms.ListBox)control;
+            list.SelectedIndex = list.Items.IndexOf(ContentAlignment.BottomRight);
+        }
+
+        public Forms.DialogResult ShowDialog(Forms.Form dialog)
+        {
+            Forms.Button add = dialog.Controls.Cast<Forms.Control>()
+                .OfType<Forms.Button>()
+                .Single(static button => button.Name == "AddButton");
+            add.PerformClick();
+            Forms.Button completion = dialog.Controls.Cast<Forms.Control>()
+                .OfType<Forms.Button>()
+                .Single(button => button.Name == (_acceptCollection ? "OkButton" : "CancelButton"));
+            completion.PerformClick();
+            return dialog.DialogResult;
+        }
     }
 
     private sealed class DesignModeSite : ISite
