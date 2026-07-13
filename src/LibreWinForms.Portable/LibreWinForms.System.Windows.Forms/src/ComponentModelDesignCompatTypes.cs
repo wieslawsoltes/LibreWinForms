@@ -1168,6 +1168,7 @@ namespace System.ComponentModel.Design
             private readonly MenuCommand? _deleteCommand;
             private readonly MenuCommand? _pasteCommand;
             private readonly MenuCommand? _selectAllCommand;
+            private readonly List<PortableKeyboardMenuCommand> _keyboardCommands = new(16);
 
             public PortableDesignerCommandSet(
                 PortableDesignerHost host,
@@ -1206,9 +1207,27 @@ namespace System.ComponentModel.Design
                     menuCommandService.AddCommand(_selectAllCommand);
                 }
 
+                AddKeyboardCommand(MenuCommands.KeyMoveUp, PortableKeyboardLayoutKind.Move);
+                AddKeyboardCommand(MenuCommands.KeyMoveDown, PortableKeyboardLayoutKind.Move);
+                AddKeyboardCommand(MenuCommands.KeyMoveLeft, PortableKeyboardLayoutKind.Move);
+                AddKeyboardCommand(MenuCommands.KeyMoveRight, PortableKeyboardLayoutKind.Move);
+                AddKeyboardCommand(MenuCommands.KeyNudgeUp, PortableKeyboardLayoutKind.Move);
+                AddKeyboardCommand(MenuCommands.KeyNudgeDown, PortableKeyboardLayoutKind.Move);
+                AddKeyboardCommand(MenuCommands.KeyNudgeLeft, PortableKeyboardLayoutKind.Move);
+                AddKeyboardCommand(MenuCommands.KeyNudgeRight, PortableKeyboardLayoutKind.Move);
+                AddKeyboardCommand(MenuCommands.KeySizeWidthIncrease, PortableKeyboardLayoutKind.ResizeWidth);
+                AddKeyboardCommand(MenuCommands.KeySizeWidthDecrease, PortableKeyboardLayoutKind.ResizeWidth);
+                AddKeyboardCommand(MenuCommands.KeyNudgeWidthIncrease, PortableKeyboardLayoutKind.ResizeWidth);
+                AddKeyboardCommand(MenuCommands.KeyNudgeWidthDecrease, PortableKeyboardLayoutKind.ResizeWidth);
+                AddKeyboardCommand(MenuCommands.KeySizeHeightIncrease, PortableKeyboardLayoutKind.ResizeHeight);
+                AddKeyboardCommand(MenuCommands.KeySizeHeightDecrease, PortableKeyboardLayoutKind.ResizeHeight);
+                AddKeyboardCommand(MenuCommands.KeyNudgeHeightIncrease, PortableKeyboardLayoutKind.ResizeHeight);
+                AddKeyboardCommand(MenuCommands.KeyNudgeHeightDecrease, PortableKeyboardLayoutKind.ResizeHeight);
+
                 _host.SelectionChanged += OnDesignerStateChanged;
                 _host.Activated += OnDesignerStateChanged;
                 _host.ComponentAdded += OnComponentStateChanged;
+                _host.ComponentChanged += OnComponentChanged;
                 _host.ComponentRemoved += OnComponentStateChanged;
                 RefreshStatus();
             }
@@ -1220,6 +1239,7 @@ namespace System.ComponentModel.Design
                 _host.SelectionChanged -= OnDesignerStateChanged;
                 _host.Activated -= OnDesignerStateChanged;
                 _host.ComponentAdded -= OnComponentStateChanged;
+                _host.ComponentChanged -= OnComponentChanged;
                 _host.ComponentRemoved -= OnComponentStateChanged;
 
                 RemoveOwnedCommand(_copyCommand, StandardCommands.Copy);
@@ -1227,6 +1247,13 @@ namespace System.ComponentModel.Design
                 RemoveOwnedCommand(_deleteCommand, StandardCommands.Delete);
                 RemoveOwnedCommand(_pasteCommand, StandardCommands.Paste);
                 RemoveOwnedCommand(_selectAllCommand, StandardCommands.SelectAll);
+                for (int index = 0; index < _keyboardCommands.Count; index++)
+                {
+                    PortableKeyboardMenuCommand entry = _keyboardCommands[index];
+                    if (entry.Command.CommandID is CommandID commandId)
+                        RemoveOwnedCommand(entry.Command, commandId);
+                }
+                _keyboardCommands.Clear();
             }
 
             private void OnDesignerStateChanged(object? sender, EventArgs e)
@@ -1235,6 +1262,11 @@ namespace System.ComponentModel.Design
             }
 
             private void OnComponentStateChanged(object? sender, ComponentEventArgs e)
+            {
+                RefreshStatus();
+            }
+
+            private void OnComponentChanged(object? sender, ComponentChangedEventArgs e)
             {
                 RefreshStatus();
             }
@@ -1253,6 +1285,349 @@ namespace System.ComponentModel.Design
                     _pasteCommand.Enabled = FindPasteParent() is not null && TryGetClipboardData(out _);
                 if (_selectAllCommand is not null)
                     _selectAllCommand.Enabled = GetSelectableComponents().Length > 0;
+
+                bool canMove = CanExecuteKeyboardLayout(PortableKeyboardLayoutKind.Move);
+                bool canResizeWidth = CanExecuteKeyboardLayout(PortableKeyboardLayoutKind.ResizeWidth);
+                bool canResizeHeight = CanExecuteKeyboardLayout(PortableKeyboardLayoutKind.ResizeHeight);
+                for (int index = 0; index < _keyboardCommands.Count; index++)
+                {
+                    PortableKeyboardMenuCommand entry = _keyboardCommands[index];
+                    entry.Command.Enabled = entry.Kind switch
+                    {
+                        PortableKeyboardLayoutKind.Move => canMove,
+                        PortableKeyboardLayoutKind.ResizeWidth => canResizeWidth,
+                        PortableKeyboardLayoutKind.ResizeHeight => canResizeHeight,
+                        _ => false
+                    };
+                }
+            }
+
+            private void AddKeyboardCommand(CommandID commandId, PortableKeyboardLayoutKind kind)
+            {
+                if (MenuCommandService.FindCommand(commandId) is not null)
+                    return;
+
+                var command = new MenuCommand(OnKeyboardLayout, commandId);
+                MenuCommandService.AddCommand(command);
+                _keyboardCommands.Add(new PortableKeyboardMenuCommand(command, kind));
+            }
+
+            private void OnKeyboardLayout(object? sender, EventArgs e)
+            {
+                if (sender is not MenuCommand command
+                    || command.CommandID is not CommandID commandId
+                    || !TryGetKeyboardAdjustment(commandId, out PortableKeyboardAdjustment adjustment))
+                {
+                    return;
+                }
+
+                ExecuteKeyboardLayout(adjustment);
+            }
+
+            private void ExecuteKeyboardLayout(PortableKeyboardAdjustment adjustment)
+            {
+                PortableKeyboardLayoutItem[] items = GetKeyboardLayoutItems(adjustment.Kind);
+                if (items.Length == 0)
+                    return;
+
+                Size increment = _host._designerLayoutService.GetKeyboardIncrement(
+                    adjustment.Precise,
+                    out bool usesGrid);
+                int deltaX = adjustment.DirectionX * increment.Width;
+                int deltaY = adjustment.DirectionY * increment.Height;
+                var changes = new List<PortableKeyboardLayoutChange>(items.Length);
+                for (int index = 0; index < items.Length; index++)
+                {
+                    if (!TryCreateKeyboardChange(
+                            items[index],
+                            adjustment.Kind,
+                            deltaX,
+                            deltaY,
+                            increment,
+                            usesGrid,
+                            out PortableKeyboardLayoutChange change))
+                    {
+                        return;
+                    }
+
+                    if (change.InitialBounds != change.UpdatedBounds)
+                        changes.Add(change);
+                }
+
+                if (changes.Count == 0)
+                    return;
+
+                string operation = adjustment.Kind == PortableKeyboardLayoutKind.Move ? "Move" : "Resize";
+                string description = changes.Count == 1
+                    ? operation + " " + (changes[0].Control.Site?.Name ?? changes[0].Control.GetType().Name)
+                    : $"{operation} {changes.Count} controls";
+                using DesignerTransaction transaction = _host.CreateTransaction(description);
+                bool commit = false;
+                try
+                {
+                    for (int index = 0; index < changes.Count; index++)
+                    {
+                        PortableKeyboardLayoutChange change = changes[index];
+                        _host.OnComponentChanging(change.Control, change.Property);
+                    }
+
+                    for (int index = 0; index < changes.Count; index++)
+                        ApplyKeyboardChange(changes[index], useUpdatedBounds: true);
+
+                    for (int index = 0; index < changes.Count; index++)
+                    {
+                        PortableKeyboardLayoutChange change = changes[index];
+                        _host.OnComponentChanged(
+                            change.Control,
+                            change.Property,
+                            change.InitialValue,
+                            change.UpdatedValue);
+                    }
+
+                    commit = true;
+                }
+                catch (CheckoutException exception) when (ReferenceEquals(exception, CheckoutException.Canceled))
+                {
+                    RestoreKeyboardChanges(changes);
+                }
+                catch
+                {
+                    RestoreKeyboardChanges(changes);
+                    throw;
+                }
+                finally
+                {
+                    if (commit)
+                        transaction.Commit();
+                    else
+                        transaction.Cancel();
+                    RefreshStatus();
+                }
+
+                if (commit)
+                    PublishKeyboardFeedback(changes);
+            }
+
+            private bool CanExecuteKeyboardLayout(PortableKeyboardLayoutKind kind)
+            {
+                return _host.PrimarySelection is Control primary
+                    && primary.Parent is Control parent
+                    && TryCreateKeyboardLayoutItem(primary, parent, kind, out _);
+            }
+
+            private PortableKeyboardLayoutItem[] GetKeyboardLayoutItems(PortableKeyboardLayoutKind kind)
+            {
+                if (_host.PrimarySelection is not Control primary
+                    || primary.Parent is not Control parent
+                    || !TryCreateKeyboardLayoutItem(primary, parent, kind, out PortableKeyboardLayoutItem primaryItem))
+                {
+                    return Array.Empty<PortableKeyboardLayoutItem>();
+                }
+
+                var items = new List<PortableKeyboardLayoutItem>();
+                foreach (object? selected in _host.GetSelectedComponents())
+                {
+                    if (selected is Control control
+                        && TryCreateKeyboardLayoutItem(control, parent, kind, out PortableKeyboardLayoutItem item))
+                    {
+                        items.Add(item);
+                    }
+                }
+
+                if (items.Count == 0)
+                {
+                    items.Add(primaryItem);
+                }
+                else if (!ReferenceEquals(items[0].Control, primary))
+                {
+                    int primaryIndex = -1;
+                    for (int index = 1; index < items.Count; index++)
+                    {
+                        if (ReferenceEquals(items[index].Control, primary))
+                        {
+                            primaryIndex = index;
+                            break;
+                        }
+                    }
+
+                    if (primaryIndex < 0)
+                        items.Insert(0, primaryItem);
+                    else
+                        (items[0], items[primaryIndex]) = (items[primaryIndex], items[0]);
+                }
+
+                return items.ToArray();
+            }
+
+            private bool TryCreateKeyboardLayoutItem(
+                Control control,
+                Control parent,
+                PortableKeyboardLayoutKind kind,
+                out PortableKeyboardLayoutItem item)
+            {
+                PropertyDescriptorCollection properties = TypeDescriptor.GetProperties(control);
+                string propertyName = kind == PortableKeyboardLayoutKind.Move
+                    ? nameof(Control.Location)
+                    : nameof(Control.Size);
+                Type propertyType = kind == PortableKeyboardLayoutKind.Move ? typeof(Point) : typeof(Size);
+                PropertyDescriptor? property = properties[propertyName];
+                SelectionRules requiredRule = kind switch
+                {
+                    PortableKeyboardLayoutKind.Move => SelectionRules.Moveable,
+                    PortableKeyboardLayoutKind.ResizeWidth => SelectionRules.RightSizeable,
+                    PortableKeyboardLayoutKind.ResizeHeight => SelectionRules.BottomSizeable,
+                    _ => SelectionRules.None
+                };
+                bool designerAllowsChange = _host.GetDesigner(control) is not ControlDesigner controlDesigner
+                    || (controlDesigner.SelectionRules & (requiredRule | SelectionRules.Locked)) == requiredRule;
+                if (ReferenceEquals(control, _host.RootComponent)
+                    || !ReferenceEquals(control.Parent, parent)
+                    || !ReferenceEquals(control.Site?.GetService(typeof(IDesignerHost)), _host)
+                    || control.Dock != DockStyle.None
+                    || property is null
+                    || property.PropertyType != propertyType
+                    || property.IsReadOnly
+                    || PortableControlDesigner.IsInheritedReadOnly(control)
+                    || PortableControlDesigner.IsLocked(control, properties)
+                    || !designerAllowsChange
+                    || (kind != PortableKeyboardLayoutKind.Move && control.AutoSize))
+                {
+                    item = default;
+                    return false;
+                }
+
+                item = new PortableKeyboardLayoutItem(control, property, control.Bounds);
+                return true;
+            }
+
+            private static bool TryCreateKeyboardChange(
+                PortableKeyboardLayoutItem item,
+                PortableKeyboardLayoutKind kind,
+                int deltaX,
+                int deltaY,
+                Size increment,
+                bool usesGrid,
+                out PortableKeyboardLayoutChange change)
+            {
+                Rectangle updatedBounds = item.InitialBounds;
+                if (kind == PortableKeyboardLayoutKind.Move)
+                {
+                    long updatedX = (long)updatedBounds.X + deltaX;
+                    long updatedY = (long)updatedBounds.Y + deltaY;
+                    if (updatedX is < int.MinValue or > int.MaxValue
+                        || updatedY is < int.MinValue or > int.MaxValue)
+                    {
+                        change = default;
+                        return false;
+                    }
+
+                    updatedBounds.Location = new Point((int)updatedX, (int)updatedY);
+                }
+                else if (kind == PortableKeyboardLayoutKind.ResizeWidth)
+                {
+                    updatedBounds.Width = GetConstrainedKeyboardSize(
+                        updatedBounds.Width,
+                        deltaX,
+                        item.Control.MinimumSize.Width,
+                        item.Control.MaximumSize.Width,
+                        usesGrid ? increment.Width : 1);
+                }
+                else if (kind == PortableKeyboardLayoutKind.ResizeHeight)
+                {
+                    updatedBounds.Height = GetConstrainedKeyboardSize(
+                        updatedBounds.Height,
+                        deltaY,
+                        item.Control.MinimumSize.Height,
+                        item.Control.MaximumSize.Height,
+                        usesGrid ? increment.Height : 1);
+                }
+
+                change = new PortableKeyboardLayoutChange(item.Control, item.Property, kind, item.InitialBounds, updatedBounds);
+                return true;
+            }
+
+            private static int GetConstrainedKeyboardSize(
+                int current,
+                int delta,
+                int configuredMinimum,
+                int configuredMaximum,
+                int keyboardMinimum)
+            {
+                int minimum = Math.Max(Math.Max(1, configuredMinimum), keyboardMinimum);
+                int maximum = configuredMaximum > 0 ? Math.Max(minimum, configuredMaximum) : int.MaxValue;
+                long requested = (long)current + delta;
+                return (int)Math.Clamp(requested, minimum, maximum);
+            }
+
+            private static void ApplyKeyboardChange(
+                PortableKeyboardLayoutChange change,
+                bool useUpdatedBounds)
+            {
+                Rectangle bounds = useUpdatedBounds ? change.UpdatedBounds : change.InitialBounds;
+                if (change.Kind == PortableKeyboardLayoutKind.Move)
+                    change.Control.Location = bounds.Location;
+                else
+                    change.Control.Size = bounds.Size;
+            }
+
+            private static void RestoreKeyboardChanges(IReadOnlyList<PortableKeyboardLayoutChange> changes)
+            {
+                for (int index = changes.Count - 1; index >= 0; index--)
+                    ApplyKeyboardChange(changes[index], useUpdatedBounds: false);
+            }
+
+            private void PublishKeyboardFeedback(IReadOnlyList<PortableKeyboardLayoutChange> changes)
+            {
+                Rectangle changedBounds = changes[0].UpdatedBounds;
+                for (int index = 1; index < changes.Count; index++)
+                    changedBounds = Rectangle.Union(changedBounds, changes[index].UpdatedBounds);
+
+                MenuCommandService.FindCommand(MenuCommands.SetStatusRectangle)?.Invoke(changedBounds);
+            }
+
+            private static bool TryGetKeyboardAdjustment(
+                CommandID commandId,
+                out PortableKeyboardAdjustment adjustment)
+            {
+                if (commandId.Equals(MenuCommands.KeyMoveUp))
+                    adjustment = new(PortableKeyboardLayoutKind.Move, 0, -1, precise: false);
+                else if (commandId.Equals(MenuCommands.KeyMoveDown))
+                    adjustment = new(PortableKeyboardLayoutKind.Move, 0, 1, precise: false);
+                else if (commandId.Equals(MenuCommands.KeyMoveLeft))
+                    adjustment = new(PortableKeyboardLayoutKind.Move, -1, 0, precise: false);
+                else if (commandId.Equals(MenuCommands.KeyMoveRight))
+                    adjustment = new(PortableKeyboardLayoutKind.Move, 1, 0, precise: false);
+                else if (commandId.Equals(MenuCommands.KeyNudgeUp))
+                    adjustment = new(PortableKeyboardLayoutKind.Move, 0, -1, precise: true);
+                else if (commandId.Equals(MenuCommands.KeyNudgeDown))
+                    adjustment = new(PortableKeyboardLayoutKind.Move, 0, 1, precise: true);
+                else if (commandId.Equals(MenuCommands.KeyNudgeLeft))
+                    adjustment = new(PortableKeyboardLayoutKind.Move, -1, 0, precise: true);
+                else if (commandId.Equals(MenuCommands.KeyNudgeRight))
+                    adjustment = new(PortableKeyboardLayoutKind.Move, 1, 0, precise: true);
+                else if (commandId.Equals(MenuCommands.KeySizeWidthIncrease))
+                    adjustment = new(PortableKeyboardLayoutKind.ResizeWidth, 1, 0, precise: false);
+                else if (commandId.Equals(MenuCommands.KeySizeWidthDecrease))
+                    adjustment = new(PortableKeyboardLayoutKind.ResizeWidth, -1, 0, precise: false);
+                else if (commandId.Equals(MenuCommands.KeyNudgeWidthIncrease))
+                    adjustment = new(PortableKeyboardLayoutKind.ResizeWidth, 1, 0, precise: true);
+                else if (commandId.Equals(MenuCommands.KeyNudgeWidthDecrease))
+                    adjustment = new(PortableKeyboardLayoutKind.ResizeWidth, -1, 0, precise: true);
+                else if (commandId.Equals(MenuCommands.KeySizeHeightIncrease))
+                    adjustment = new(PortableKeyboardLayoutKind.ResizeHeight, 0, 1, precise: false);
+                else if (commandId.Equals(MenuCommands.KeySizeHeightDecrease))
+                    adjustment = new(PortableKeyboardLayoutKind.ResizeHeight, 0, -1, precise: false);
+                else if (commandId.Equals(MenuCommands.KeyNudgeHeightIncrease))
+                    adjustment = new(PortableKeyboardLayoutKind.ResizeHeight, 0, 1, precise: true);
+                else if (commandId.Equals(MenuCommands.KeyNudgeHeightDecrease))
+                    adjustment = new(PortableKeyboardLayoutKind.ResizeHeight, 0, -1, precise: true);
+                else
+                {
+                    adjustment = default;
+                    return false;
+                }
+
+                return true;
             }
 
             private void OnCopy(object? sender, EventArgs e)
@@ -1575,6 +1950,105 @@ namespace System.ComponentModel.Design
                 }
 
                 return commonParent;
+            }
+
+            private enum PortableKeyboardLayoutKind
+            {
+                Move,
+                ResizeWidth,
+                ResizeHeight
+            }
+
+            private readonly struct PortableKeyboardMenuCommand
+            {
+                internal PortableKeyboardMenuCommand(
+                    MenuCommand command,
+                    PortableKeyboardLayoutKind kind)
+                {
+                    Command = command;
+                    Kind = kind;
+                }
+
+                internal MenuCommand Command { get; }
+
+                internal PortableKeyboardLayoutKind Kind { get; }
+            }
+
+            private readonly struct PortableKeyboardAdjustment
+            {
+                internal PortableKeyboardAdjustment(
+                    PortableKeyboardLayoutKind kind,
+                    int directionX,
+                    int directionY,
+                    bool precise)
+                {
+                    Kind = kind;
+                    DirectionX = directionX;
+                    DirectionY = directionY;
+                    Precise = precise;
+                }
+
+                internal PortableKeyboardLayoutKind Kind { get; }
+
+                internal int DirectionX { get; }
+
+                internal int DirectionY { get; }
+
+                internal bool Precise { get; }
+            }
+
+            private readonly struct PortableKeyboardLayoutItem
+            {
+                internal PortableKeyboardLayoutItem(
+                    Control control,
+                    PropertyDescriptor property,
+                    Rectangle initialBounds)
+                {
+                    Control = control;
+                    Property = property;
+                    InitialBounds = initialBounds;
+                }
+
+                internal Control Control { get; }
+
+                internal PropertyDescriptor Property { get; }
+
+                internal Rectangle InitialBounds { get; }
+            }
+
+            private readonly struct PortableKeyboardLayoutChange
+            {
+                internal PortableKeyboardLayoutChange(
+                    Control control,
+                    PropertyDescriptor property,
+                    PortableKeyboardLayoutKind kind,
+                    Rectangle initialBounds,
+                    Rectangle updatedBounds)
+                {
+                    Control = control;
+                    Property = property;
+                    Kind = kind;
+                    InitialBounds = initialBounds;
+                    UpdatedBounds = updatedBounds;
+                }
+
+                internal Control Control { get; }
+
+                internal PropertyDescriptor Property { get; }
+
+                internal PortableKeyboardLayoutKind Kind { get; }
+
+                internal Rectangle InitialBounds { get; }
+
+                internal Rectangle UpdatedBounds { get; }
+
+                internal object InitialValue => Kind == PortableKeyboardLayoutKind.Move
+                    ? InitialBounds.Location
+                    : InitialBounds.Size;
+
+                internal object UpdatedValue => Kind == PortableKeyboardLayoutKind.Move
+                    ? UpdatedBounds.Location
+                    : UpdatedBounds.Size;
             }
         }
 
@@ -2574,12 +3048,12 @@ namespace System.ComponentModel.Design
             return true;
         }
 
-        private static bool IsLocked(Control control, PropertyDescriptorCollection properties)
+        internal static bool IsLocked(Control control, PropertyDescriptorCollection properties)
         {
             return properties["Locked"]?.GetValue(control) is true;
         }
 
-        private static bool IsInheritedReadOnly(Control control)
+        internal static bool IsInheritedReadOnly(Control control)
         {
             return TypeDescriptor.GetAttributes(control)[typeof(InheritanceAttribute)]
                 is InheritanceAttribute { InheritanceLevel: InheritanceLevel.InheritedReadOnly };

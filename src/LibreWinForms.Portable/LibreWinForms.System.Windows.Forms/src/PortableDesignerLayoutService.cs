@@ -199,6 +199,13 @@ namespace System.ComponentModel.Design
             return adjusted;
         }
 
+        internal Size GetKeyboardIncrement(bool precise, out bool usesGrid)
+        {
+            DesignerLayoutOptions options = ReadOptions();
+            usesGrid = !precise && !options.UseSnapLines && options.SnapToGrid;
+            return usesGrid ? options.GridSize : new Size(1, 1);
+        }
+
         internal void EndToolPlacement()
         {
             Reset();
