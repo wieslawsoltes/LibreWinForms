@@ -17,12 +17,13 @@ internal static class ReportingDesignerBehaviorTests
     {
         SelectionRuleValuesMatchWinForms();
         ControlDesignerRoutesTypedPaintAndPointerHooks();
-        BasicDesignerLoaderCompletesPortableSurfaceLoad();
+        BasicDesignerLoaderTracksChangesAndFlushesOnlyDirtyDocuments();
+        BasicDesignerLoaderDefersCompletionAndReloadsAtIdle();
         DesignerFiltersFlowThroughTypeDescriptorAndPropertyGrid();
         CodeDomSerializationServiceRoundTripsPortableComponents();
         WaitCursorAndDesignerPaintPrimitivesAreFunctional();
         CollectionAndAlignmentEditorsCommitValues();
-        Console.WriteLine("LibreWinForms Reporting designer contracts passed: rules=9 hooks=7 loader=3 filters=9 serialization=6 paint=6 editors=9.");
+        Console.WriteLine("LibreWinForms Reporting designer contracts passed: rules=9 hooks=7 loader=39 filters=10 serialization=6 paint=6 editors=9.");
     }
 
     private static void SelectionRuleValuesMatchWinForms()
@@ -70,7 +71,7 @@ internal static class ReportingDesignerBehaviorTests
         Assert(designer.DragBeginCount == 1, "Disposed designer retained its pointer subscription.");
     }
 
-    private static void BasicDesignerLoaderCompletesPortableSurfaceLoad()
+    private static void BasicDesignerLoaderTracksChangesAndFlushesOnlyDirtyDocuments()
     {
         using var surface = new DesignSurface();
         var loader = new ProbeDesignerLoader();
@@ -78,8 +79,163 @@ internal static class ReportingDesignerBehaviorTests
 
         Assert(surface.IsLoaded, "BasicDesignerLoader did not complete a successful surface load.");
         Assert(loader.LoadCount == 1, "BasicDesignerLoader did not perform exactly one load.");
+        Assert(!loader.IsModified, "BasicDesignerLoader started in a modified state.");
+        Assert(surface.GetService(typeof(IDesignerLoaderService)) is IDesignerLoaderService service
+            && ReferenceEquals(service, loader),
+            "BasicDesignerLoader did not register its typed loader service.");
+        Assert(((IDesignerHost)surface.GetService(typeof(IDesignerHost))!).RootComponentClassName == "Portable.Reporting.Root",
+            "BasicDesignerLoader did not publish its base component class name.");
+
+        loader.PublishPropertyProvider(new LoaderPropertyProvider { DocumentName = "report.srd" });
+        var manager = (IDesignerSerializationManager)surface.GetService(typeof(IDesignerSerializationManager))!;
+        Assert(manager.Properties[nameof(LoaderPropertyProvider.DocumentName)]?.GetValue(loader.PropertyProviderValue) as string == "report.srd",
+            "BasicDesignerLoader property provider did not flow into the serialization manager.");
+
         surface.Flush();
-        Assert(loader.FlushCount == 1, "BasicDesignerLoader did not perform exactly one flush.");
+        Assert(loader.FlushCount == 0, "BasicDesignerLoader flushed a clean document.");
+
+        var host = (IDesignerHost)surface.GetService(typeof(IDesignerHost))!;
+        var changes = (IComponentChangeService)surface.GetService(typeof(IComponentChangeService))!;
+        var root = (Forms.Panel)host.RootComponent;
+        PropertyDescriptor textProperty = TypeDescriptor.GetProperties(root)[nameof(Forms.Control.Text)]!;
+        changes.OnComponentChanging(root, textProperty);
+        string oldText = root.Text;
+        root.Text = "Modified report";
+        changes.OnComponentChanged(root, textProperty, oldText, root.Text);
+        Assert(loader.IsModified && loader.ModifyingCount == 1,
+            "BasicDesignerLoader did not track a typed component change.");
+
+        surface.Flush();
+        Assert(loader.FlushCount == 1 && !loader.IsModified,
+            "BasicDesignerLoader did not flush and clear one dirty document.");
+        surface.Flush();
+        Assert(loader.FlushCount == 1, "BasicDesignerLoader flushed the unchanged document twice.");
+    }
+
+    private static void BasicDesignerLoaderDefersCompletionAndReloadsAtIdle()
+    {
+        using (var reentrantSurface = new DesignSurface())
+        {
+            var reentrantLoader = new ReentrantBeginProbeDesignerLoader();
+            reentrantSurface.BeginLoad(reentrantLoader);
+            Assert(reentrantLoader.BeginLoadCount == 1 && reentrantLoader.Loading && !reentrantSurface.IsLoaded,
+                "Reentrant load dependency recursively restarted OnBeginLoad.");
+            reentrantLoader.CompleteDependency();
+            Assert(reentrantSurface.IsLoaded && !reentrantLoader.Loading,
+                "Reentrant load dependency did not complete the designer load.");
+        }
+
+        using (var asynchronousSurface = new DesignSurface())
+        {
+            var asynchronousLoader = new DeferredProbeDesignerLoader();
+            int asynchronousLoadedCount = 0;
+            asynchronousSurface.Loaded += (_, _) => asynchronousLoadedCount++;
+            asynchronousSurface.BeginLoad(asynchronousLoader);
+            Assert(asynchronousLoader.Loading && !asynchronousSurface.IsLoaded && asynchronousLoadedCount == 0,
+                "DesignSurface force-completed a pending designer load dependency.");
+            Assert(!((IDesignerLoaderService)asynchronousSurface.GetService(typeof(IDesignerLoaderService))!).Reload(),
+                "IDesignerLoaderService accepted reload while a dependency was pending.");
+            asynchronousLoader.CompleteDependency();
+            Assert(!asynchronousLoader.Loading && asynchronousSurface.IsLoaded && asynchronousLoadedCount == 1,
+                "DesignSurface did not complete after the final typed load dependency.");
+        }
+
+        var failingSurface = new DesignSurface();
+        var failingLoader = new DeferredProbeDesignerLoader();
+        int failedUnloadingCount = 0;
+        int failedUnloadedCount = 0;
+        failingSurface.Unloading += (_, _) => failedUnloadingCount++;
+        failingSurface.Unloaded += (_, _) => failedUnloadedCount++;
+        failingSurface.BeginLoad(failingLoader);
+        IDesignerHost failingHost = (IDesignerHost)failingSurface.GetService(typeof(IDesignerHost))!;
+        IComponent failedRoot = failingHost.RootComponent;
+        failingLoader.CompleteDependency(new InvalidOperationException("dependent load failed"));
+        Assert(!failingSurface.IsLoaded && failingSurface.LoadErrors.Count == 1,
+            "Failed dependent load did not flow its error into DesignSurface.");
+        Assert(failingHost.RootComponent is null && failingHost.Container.Components.Count == 0,
+            "Failed dependent load retained its partial component tree.");
+        Assert(failingSurface.View is Forms.Panel && !ReferenceEquals(failingSurface.View, failedRoot),
+            "Failed dependent load exposed its partial root view.");
+        Assert(failingLoader.BeginUnloadCount == 1 && failedUnloadingCount == 1 && failedUnloadedCount == 1,
+            "Failed dependent load did not unload exactly one active document.");
+        failingSurface.Dispose();
+        Assert(failingLoader.BeginUnloadCount == 1,
+            "Disposing a failed load invoked the document unload hook twice.");
+
+        var reportedErrorSurface = new FailureProbeDesignSurface();
+        var reportedErrorLoader = new ReportedErrorProbeDesignerLoader();
+        reportedErrorSurface.BeginLoad(reportedErrorLoader);
+        Assert(!reportedErrorSurface.IsLoaded && reportedErrorSurface.LoadErrors.Count == 1,
+            "IDesignerSerializationManager.ReportError did not fail the designer load.");
+        Assert(reportedErrorLoader.CreatedComponent is { IsDisposed: true }
+            && reportedErrorSurface.RootDesigner is { IsDisposed: true },
+            "Failed reported-error load did not dispose its partial component and designer.");
+        Assert(((IDesignerHost)reportedErrorSurface.GetService(typeof(IDesignerHost))!).Container.Components.Count == 0,
+            "Failed reported-error load retained a component in the designer host.");
+        Assert(reportedErrorLoader.BeginUnloadCount == 1,
+            "Failed reported-error load did not invoke its unload hook.");
+        reportedErrorSurface.Dispose();
+        Assert(reportedErrorLoader.BeginUnloadCount == 1,
+            "Disposing a reported-error load invoked the unload hook twice.");
+
+        var pendingSurface = new DesignSurface();
+        var pendingLoader = new DeferredProbeDesignerLoader();
+        pendingSurface.BeginLoad(pendingLoader);
+        pendingSurface.Dispose();
+        Assert(pendingLoader.BeginUnloadCount == 1,
+            "Disposing a pending designer load skipped its document unload hook.");
+
+        using var surface = new DesignSurface();
+        var loader = new ProbeDesignerLoader();
+        int loadingCount = 0;
+        int loadedCount = 0;
+        int unloadingCount = 0;
+        int unloadedCount = 0;
+        int flushedCount = 0;
+        surface.Loading += (_, _) => loadingCount++;
+        surface.Loaded += (_, _) => loadedCount++;
+        surface.Unloading += (_, _) => unloadingCount++;
+        surface.Unloaded += (_, _) => unloadedCount++;
+        surface.Flushed += (_, _) => flushedCount++;
+        surface.BeginLoad(loader);
+
+        var host = (IDesignerHost)surface.GetService(typeof(IDesignerHost))!;
+        var selection = (ISelectionService)surface.GetService(typeof(ISelectionService))!;
+        var serializationManager = (IDesignerSerializationManager)surface.GetService(typeof(IDesignerSerializationManager))!;
+        IComponent previousSelection = (IComponent)serializationManager.GetInstance("Root.NestedSelection")!;
+        selection.SetSelectedComponents(new object[] { previousSelection }, SelectionTypes.Replace);
+        host.CreateComponent(typeof(Forms.Button), "DirtyBeforeReload");
+        Assert(loader.IsModified, "Component addition did not dirty the designer before reload.");
+
+        var loaderService = (IDesignerLoaderService)surface.GetService(typeof(IDesignerLoaderService))!;
+        Assert(loaderService.Reload() && loader.IsReloadPending,
+            "IDesignerLoaderService did not schedule a supported reload.");
+        Assert(loader.LoadCount == 1, "Designer reload ran synchronously instead of at idle.");
+        Forms.Application.RaiseIdle(EventArgs.Empty);
+
+        Assert(loader.LoadCount == 2 && loader.FlushCount == 1 && flushedCount == 1,
+            "Designer reload did not flush once and load once at idle.");
+        Assert(surface.IsLoaded && loadingCount == 2 && loadedCount == 2
+            && unloadingCount == 1 && unloadedCount == 1,
+            "DesignSurface reload lifecycle events were incomplete.");
+        IComponent restoredSelection = (IComponent)serializationManager.GetInstance("Root.NestedSelection")!;
+        Assert(!ReferenceEquals(previousSelection, restoredSelection)
+            && ReferenceEquals(selection.PrimarySelection, restoredSelection),
+            "Designer reload did not restore selection by its typed nested component name.");
+        Assert(loader.BeginLoadCount == 2 && loader.EndLoadCount == 2 && loader.BeginUnloadCount == 1,
+            "BasicDesignerLoader protected lifecycle hooks were not balanced.");
+
+        loader.ReloadNeeded = false;
+        loader.RequestConditionalReload();
+        Forms.Application.RaiseIdle(EventArgs.Empty);
+        Assert(loader.LoadCount == 2 && !loader.IsReloadPending,
+            "Conditional reload ignored IsReloadNeeded or remained pending.");
+
+        host.CreateComponent(typeof(Forms.Button), "DiscardedChange");
+        loader.RequestDiscardingReload();
+        Forms.Application.RaiseIdle(EventArgs.Empty);
+        Assert(loader.LoadCount == 3 && loader.FlushCount == 1 && flushedCount == 1 && !loader.IsModified,
+            "NoFlush reload did not discard a dirty designer document.");
     }
 
     private static void DesignerFiltersFlowThroughTypeDescriptorAndPropertyGrid()
@@ -239,14 +395,195 @@ internal static class ReportingDesignerBehaviorTests
     {
         public int LoadCount { get; private set; }
         public int FlushCount { get; private set; }
+        public int BeginLoadCount { get; private set; }
+        public int EndLoadCount { get; private set; }
+        public int BeginUnloadCount { get; private set; }
+        public int ModifyingCount { get; private set; }
+        public bool IsModified => Modified;
+        public bool IsReloadPending => ReloadPending;
+        public object? PropertyProviderValue => PropertyProvider;
+        public bool ReloadNeeded { get; set; } = true;
+
+        public void PublishPropertyProvider(object provider) => PropertyProvider = provider;
+        public void RequestConditionalReload() => Reload(ReloadOptions.Default);
+        public void RequestDiscardingReload() => Reload(ReloadOptions.Force | ReloadOptions.NoFlush);
+
+        protected override void OnBeginLoad()
+        {
+            BeginLoadCount++;
+            base.OnBeginLoad();
+        }
+
+        protected override void OnBeginUnload()
+        {
+            BeginUnloadCount++;
+            base.OnBeginUnload();
+        }
+
+        protected override void OnEndLoad(bool successful, ICollection? errors)
+        {
+            EndLoadCount++;
+            base.OnEndLoad(successful, errors);
+        }
+
+        protected override void OnModifying()
+        {
+            ModifyingCount++;
+            base.OnModifying();
+        }
+
+        protected override bool IsReloadNeeded() => ReloadNeeded;
 
         protected override void PerformLoad(IDesignerSerializationManager serializationManager)
         {
             LoadCount++;
-            LoaderHost.CreateComponent(typeof(Forms.Panel), "Root");
+            var root = (Forms.Panel)LoaderHost.CreateComponent(typeof(Forms.Panel), "Root");
+            var selectionTarget = (Forms.Button)LoaderHost.CreateComponent(typeof(Forms.Button), "SelectionTarget");
+            root.Controls.Add(selectionTarget);
+            var nestedContainer = (INestedContainer)(root.Site?.GetService(typeof(INestedContainer))
+                ?? throw new InvalidOperationException("Root component did not publish its nested container."));
+            nestedContainer.Add(new Forms.Button(), "NestedSelection");
+            SetBaseComponentClassName("Portable.Reporting.Root");
         }
 
         protected override void PerformFlush(IDesignerSerializationManager serializationManager) => FlushCount++;
+    }
+
+    private sealed class DeferredProbeDesignerLoader : BasicDesignerLoader
+    {
+        private IDesignerLoaderService? _loaderService;
+
+        public int BeginUnloadCount { get; private set; }
+
+        public void CompleteDependency(Exception? error = null)
+        {
+            IDesignerLoaderService service = _loaderService
+                ?? throw new InvalidOperationException("No deferred load dependency is active.");
+            _loaderService = null;
+            service.DependentLoadComplete(
+                successful: error is null,
+                errorCollection: error is null ? null : new object[] { error });
+        }
+
+        protected override void PerformLoad(IDesignerSerializationManager serializationManager)
+        {
+            LoaderHost.CreateComponent(typeof(Forms.Panel), "Root");
+            _loaderService = (IDesignerLoaderService)LoaderHost.GetService(typeof(IDesignerLoaderService))!;
+            _loaderService.AddLoadDependency();
+        }
+
+        protected override void PerformFlush(IDesignerSerializationManager serializationManager)
+        {
+        }
+
+        protected override void OnBeginUnload()
+        {
+            BeginUnloadCount++;
+            base.OnBeginUnload();
+        }
+    }
+
+    private sealed class ReentrantBeginProbeDesignerLoader : BasicDesignerLoader
+    {
+        private IDesignerLoaderService? _loaderService;
+
+        public int BeginLoadCount { get; private set; }
+
+        public void CompleteDependency()
+        {
+            IDesignerLoaderService service = _loaderService
+                ?? throw new InvalidOperationException("No reentrant dependency is active.");
+            _loaderService = null;
+            service.DependentLoadComplete(successful: true, errorCollection: null);
+        }
+
+        protected override void OnBeginLoad()
+        {
+            BeginLoadCount++;
+            base.OnBeginLoad();
+            _loaderService = (IDesignerLoaderService)LoaderHost.GetService(typeof(IDesignerLoaderService))!;
+            _loaderService.AddLoadDependency();
+        }
+
+        protected override void PerformLoad(IDesignerSerializationManager serializationManager)
+        {
+            LoaderHost.CreateComponent(typeof(Forms.Panel), "Root");
+        }
+
+        protected override void PerformFlush(IDesignerSerializationManager serializationManager)
+        {
+        }
+    }
+
+    private sealed class ReportedErrorProbeDesignerLoader : BasicDesignerLoader
+    {
+        public DisposableProbeComponent? CreatedComponent { get; private set; }
+        public int BeginUnloadCount { get; private set; }
+
+        protected override void PerformLoad(IDesignerSerializationManager serializationManager)
+        {
+            CreatedComponent = (DisposableProbeComponent)LoaderHost.CreateComponent(typeof(DisposableProbeComponent), "Root");
+            serializationManager.ReportError(new InvalidOperationException("reported load error"));
+        }
+
+        protected override void PerformFlush(IDesignerSerializationManager serializationManager)
+        {
+        }
+
+        protected override void OnBeginUnload()
+        {
+            BeginUnloadCount++;
+            base.OnBeginUnload();
+        }
+    }
+
+    private sealed class FailureProbeDesignSurface : DesignSurface
+    {
+        public DisposableProbeRootDesigner? RootDesigner { get; private set; }
+
+        protected override IDesigner? CreateDesigner(IComponent component, bool rootDesigner)
+        {
+            if (rootDesigner && component is DisposableProbeComponent)
+            {
+                RootDesigner = new DisposableProbeRootDesigner();
+                return RootDesigner;
+            }
+
+            return base.CreateDesigner(component, rootDesigner);
+        }
+    }
+
+    private sealed class DisposableProbeComponent : Component
+    {
+        public bool IsDisposed { get; private set; }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                IsDisposed = true;
+            base.Dispose(disposing);
+        }
+    }
+
+    private sealed class DisposableProbeRootDesigner : ComponentDesigner, IRootDesigner
+    {
+        public bool IsDisposed { get; private set; }
+
+        public ViewTechnology[] SupportedTechnologies => new[] { ViewTechnology.Default };
+
+        public object GetView(ViewTechnology technology) => new Forms.Panel();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                IsDisposed = true;
+            base.Dispose(disposing);
+        }
+    }
+
+    private sealed class LoaderPropertyProvider
+    {
+        public string DocumentName { get; set; } = string.Empty;
     }
 
     private sealed class ProbeFilterDesignSurface : DesignSurface

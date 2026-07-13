@@ -35,81 +35,487 @@ namespace System.ComponentModel.Design.Serialization
         }
     }
 
-    public abstract class BasicDesignerLoader : DesignerLoader
+    public abstract class BasicDesignerLoader : DesignerLoader, IDesignerLoaderService
     {
         private IDesignerLoaderHost? _host;
         private IDesignerSerializationManager? _serializationManager;
+        private readonly List<object> _loadErrors = new();
+        private string? _baseComponentClassName;
+        private object? _propertyProvider;
+        private int _loadDependencyCount;
+        private bool _disposed;
+        private bool _documentActive;
+        private bool _flushInProgress;
+        private bool _initialized;
+        private bool _loaded;
+        private bool _loadFailed;
         private bool _loading;
+        private bool _modified;
+        private bool _notificationsAttached;
+        private bool _notificationsEnabled;
+        private bool _reloadPending;
+        private ReloadOptions _reloadOptions;
 
-        protected virtual bool Modified { get; set; }
+        [Flags]
+        protected enum ReloadOptions
+        {
+            Default = 0,
+            ModifyOnError = 1,
+            Force = 2,
+            NoFlush = 4
+        }
 
-        protected IDesignerLoaderHost LoaderHost => _host
-            ?? throw new InvalidOperationException("The designer loader has not been initialized.");
+        protected virtual bool Modified
+        {
+            get => _modified;
+            set => _modified = value;
+        }
 
-        public override bool Loading => _loading;
+        protected IDesignerLoaderHost LoaderHost
+        {
+            get
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                return _host ?? throw new InvalidOperationException("The designer loader has not been initialized.");
+            }
+        }
+
+        protected object? PropertyProvider
+        {
+            get
+            {
+                EnsureInitialized();
+                return _propertyProvider;
+            }
+            set
+            {
+                EnsureInitialized();
+                _propertyProvider = value;
+                if (_host is PortableDesignerHost portableHost)
+                    portableHost.SerializationPropertyProvider = value;
+            }
+        }
+
+        protected bool ReloadPending => _reloadPending;
+
+        public override bool Loading => _loading || _loadDependencyCount > 0;
 
         public override void BeginLoad(IDesignerLoaderHost host)
         {
             ArgumentNullException.ThrowIfNull(host);
-            if (_host is not null)
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_loaded || Loading)
                 throw new InvalidOperationException("The designer loader has already been loaded.");
+            if (_host is not null && !ReferenceEquals(_host, host))
+                throw new InvalidOperationException("The designer loader cannot be loaded by a different host.");
 
-            _host = host;
-            _serializationManager = host.GetService(typeof(IDesignerSerializationManager)) as IDesignerSerializationManager
-                ?? host as IDesignerSerializationManager
-                ?? throw new InvalidOperationException("IDesignerSerializationManager is not available.");
+            if (_host is null)
+            {
+                _host = host;
+                _serializationManager = host.GetService(typeof(IDesignerSerializationManager)) as IDesignerSerializationManager
+                    ?? host as IDesignerSerializationManager
+                    ?? throw new InvalidOperationException("IDesignerSerializationManager is not available.");
+                _initialized = true;
+                Initialize();
+            }
 
-            List<object> errors = new();
+            bool dependencyAdded = false;
             bool successful = false;
-            _loading = true;
+            List<object>? errors = null;
             try
             {
-                Initialize();
-                PerformLoad(_serializationManager);
+                AddLoadDependency();
+                dependencyAdded = true;
+                PerformLoad(_serializationManager!);
                 successful = true;
-                Modified = false;
             }
             catch (Exception exception)
             {
-                errors.Add(exception);
+                errors = new List<object> { exception };
             }
             finally
             {
-                _loading = false;
-                string rootComponentClassName = (host.GetService(typeof(IDesignerHost)) as IDesignerHost)
-                    ?.RootComponentClassName
-                    ?? string.Empty;
-                host.EndLoad(rootComponentClassName, successful, errors);
-                OnEndLoad(successful, errors);
+                if (dependencyAdded)
+                    DependentLoadComplete(successful, errors);
+                else
+                    OnEndLoad(false, errors);
             }
         }
 
         public override void Flush()
         {
-            if (_serializationManager is null)
+            if (_serializationManager is null || !_loaded || !Modified || _flushInProgress)
                 return;
 
-            PerformFlush(_serializationManager);
-            Modified = false;
+            _flushInProgress = true;
+            Cursor? previousCursor = Cursor.Current;
+            Cursor.Current = Cursors.WaitCursor;
+            try
+            {
+                var errors = new List<object>();
+                if (_host is PortableDesignerHost portableHost)
+                    portableHost.BeginSerializationOperation();
+                try
+                {
+                    PerformFlush(_serializationManager);
+                }
+                catch (Exception exception)
+                {
+                    errors.Add(exception);
+                }
+
+                if (_host is PortableDesignerHost completedHost)
+                    errors.AddRange(completedHost.SerializationErrors);
+
+                if (errors.Count > 0)
+                    ReportFlushErrors(errors);
+
+                Modified = false;
+            }
+            finally
+            {
+                Cursor.Current = previousCursor;
+                _flushInProgress = false;
+            }
         }
 
         public override void Dispose()
         {
+            if (_disposed)
+                return;
+
+            if (_reloadPending)
+            {
+                Application.Idle -= OnIdle;
+                _reloadPending = false;
+            }
+
+            EnableComponentNotification(false);
+            DisableComponentNotifications();
+            UnloadDocument();
+            if (_host?.GetService(typeof(IDesignerLoaderService)) is IDesignerLoaderService service
+                && ReferenceEquals(service, this))
+            {
+                _host.RemoveService(typeof(IDesignerLoaderService));
+            }
+
+            if (_host is PortableDesignerHost portableHost)
+                portableHost.SerializationPropertyProvider = null;
+
+            _disposed = true;
+            _loaded = false;
+            _loading = false;
+            _loadDependencyCount = 0;
             _serializationManager = null;
             _host = null;
         }
 
         protected virtual void Initialize()
         {
+            LoaderHost.AddService(typeof(IDesignerLoaderService), this);
         }
 
-        protected virtual void OnEndLoad(bool successful, ICollection errors)
+        protected virtual bool IsReloadNeeded()
         {
+            return true;
+        }
+
+        protected virtual void OnBeginLoad()
+        {
+            EnableComponentNotification(false);
+            DisableComponentNotifications();
+            _loadErrors.Clear();
+            if (_host is PortableDesignerHost portableHost)
+                portableHost.BeginSerializationOperation();
+            _loadFailed = false;
+            _loading = true;
+            _loaded = false;
+        }
+
+        protected virtual void OnBeginUnload()
+        {
+        }
+
+        protected virtual bool EnableComponentNotification(bool enable)
+        {
+            bool previous = _notificationsEnabled;
+            _notificationsEnabled = enable;
+            return previous;
+        }
+
+        protected virtual void OnEndLoad(bool successful, ICollection? errors)
+        {
+            if (errors is not null)
+            {
+                foreach (object? error in errors)
+                {
+                    if (error is not null)
+                        _loadErrors.Add(error);
+                }
+            }
+
+            if (_host is PortableDesignerHost portableHost)
+            {
+                foreach (object error in portableHost.SerializationErrors)
+                {
+                    if (!_loadErrors.Contains(error))
+                        _loadErrors.Add(error);
+                }
+            }
+
+            successful = successful && !_loadFailed && _loadErrors.Count == 0;
+            _loading = false;
+            string rootComponentClassName = _baseComponentClassName
+                ?? (_host?.GetService(typeof(IDesignerHost)) as IDesignerHost)?.RootComponentClassName
+                ?? string.Empty;
+            if (successful)
+            {
+                _loaded = true;
+                Modified = false;
+                EnableComponentNotifications();
+                EnableComponentNotification(true);
+            }
+            else
+            {
+                UnloadDocument();
+            }
+
+            LoaderHost.EndLoad(rootComponentClassName, successful, _loadErrors);
+
+            if (!successful && (_reloadOptions & ReloadOptions.ModifyOnError) != 0)
+                Modified = true;
+
+            _reloadOptions = ReloadOptions.Default;
+        }
+
+        protected virtual void OnModifying()
+        {
+        }
+
+        protected virtual void ReportFlushErrors(ICollection errors)
+        {
+            object? lastError = null;
+            foreach (object? error in errors)
+                lastError = error;
+
+            if (lastError is Exception exception)
+                throw exception;
+            if (lastError is not null)
+                throw new InvalidOperationException(lastError.ToString());
+        }
+
+        protected void Reload(ReloadOptions flags)
+        {
+            EnsureInitialized();
+            if (_flushInProgress || _reloadPending)
+                return;
+
+            _reloadOptions = flags;
+            _reloadPending = true;
+            Application.Idle += OnIdle;
+        }
+
+        protected void SetBaseComponentClassName(string name)
+        {
+            ArgumentNullException.ThrowIfNull(name);
+            _baseComponentClassName = name;
         }
 
         protected abstract void PerformLoad(IDesignerSerializationManager serializationManager);
 
         protected abstract void PerformFlush(IDesignerSerializationManager serializationManager);
+
+        void IDesignerLoaderService.AddLoadDependency() => AddLoadDependency();
+
+        void IDesignerLoaderService.DependentLoadComplete(bool successful, ICollection? errorCollection)
+            => DependentLoadComplete(successful, errorCollection);
+
+        bool IDesignerLoaderService.Reload()
+        {
+            if (_disposed || !_initialized || Loading)
+                return false;
+
+            Reload(ReloadOptions.Force);
+            return true;
+        }
+
+        private void AddLoadDependency()
+        {
+            EnsureInitialized();
+            if (_loadDependencyCount++ != 0)
+                return;
+
+            _documentActive = true;
+            try
+            {
+                OnBeginLoad();
+            }
+            catch
+            {
+                _loadDependencyCount = 0;
+                UnloadDocument();
+                throw;
+            }
+        }
+
+        private void DependentLoadComplete(bool successful, ICollection? errorCollection)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_loadDependencyCount == 0)
+                throw new InvalidOperationException("No designer load dependency is active.");
+
+            if (!successful)
+                _loadFailed = true;
+            if (errorCollection is not null)
+            {
+                foreach (object? error in errorCollection)
+                {
+                    if (error is not null)
+                        _loadErrors.Add(error);
+                }
+            }
+
+            if (--_loadDependencyCount == 0)
+                OnEndLoad(!_loadFailed, null);
+        }
+
+        private void DisableComponentNotifications()
+        {
+            if (!_notificationsAttached || _host?.GetService(typeof(IComponentChangeService)) is not IComponentChangeService changes)
+            {
+                _notificationsAttached = false;
+                return;
+            }
+
+            changes.ComponentAdded -= OnComponentAdded;
+            changes.ComponentAdding -= OnComponentAdding;
+            changes.ComponentChanged -= OnComponentChanged;
+            changes.ComponentChanging -= OnComponentChanging;
+            changes.ComponentRemoved -= OnComponentRemoved;
+            changes.ComponentRemoving -= OnComponentRemoving;
+            changes.ComponentRename -= OnComponentRename;
+            _notificationsAttached = false;
+        }
+
+        private void EnableComponentNotifications()
+        {
+            if (_notificationsAttached || _host?.GetService(typeof(IComponentChangeService)) is not IComponentChangeService changes)
+                return;
+
+            changes.ComponentAdded += OnComponentAdded;
+            changes.ComponentAdding += OnComponentAdding;
+            changes.ComponentChanged += OnComponentChanged;
+            changes.ComponentChanging += OnComponentChanging;
+            changes.ComponentRemoved += OnComponentRemoved;
+            changes.ComponentRemoving += OnComponentRemoving;
+            changes.ComponentRename += OnComponentRename;
+            _notificationsAttached = true;
+        }
+
+        private void EnsureInitialized()
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (!_initialized || _host is null || _serializationManager is null)
+                throw new InvalidOperationException("The designer loader has not been initialized.");
+        }
+
+        private void OnComponentAdded(object? sender, ComponentEventArgs e)
+        {
+            if (_notificationsEnabled && !LoaderHost.Loading)
+                Modified = true;
+        }
+
+        private void OnComponentAdding(object? sender, ComponentEventArgs e)
+        {
+            if (_notificationsEnabled && !LoaderHost.Loading)
+                OnModifying();
+        }
+
+        private void OnComponentChanged(object? sender, ComponentChangedEventArgs e)
+        {
+            if (_notificationsEnabled && !LoaderHost.Loading)
+                Modified = true;
+        }
+
+        private void OnComponentChanging(object? sender, ComponentChangingEventArgs e)
+        {
+            if (_notificationsEnabled && !LoaderHost.Loading)
+                OnModifying();
+        }
+
+        private void OnComponentRemoved(object? sender, ComponentEventArgs e)
+        {
+            if (_notificationsEnabled && !LoaderHost.Loading)
+                Modified = true;
+        }
+
+        private void OnComponentRemoving(object? sender, ComponentEventArgs e)
+        {
+            if (_notificationsEnabled && !LoaderHost.Loading)
+                OnModifying();
+        }
+
+        private void OnComponentRename(object? sender, ComponentRenameEventArgs e)
+        {
+            if (!_notificationsEnabled || LoaderHost.Loading)
+                return;
+
+            OnModifying();
+            Modified = true;
+        }
+
+        private void OnIdle(object? sender, EventArgs e)
+        {
+            Application.Idle -= OnIdle;
+            if (!_reloadPending)
+                return;
+
+            _reloadPending = false;
+            ReloadOptions options = _reloadOptions;
+            if ((options & ReloadOptions.Force) == 0 && !IsReloadNeeded())
+            {
+                _reloadOptions = ReloadOptions.Default;
+                return;
+            }
+
+            try
+            {
+                if (LoaderHost is PortableDesignerHost portableHost)
+                {
+                    if ((options & ReloadOptions.NoFlush) == 0)
+                        portableHost.FlushSurface();
+
+                    UnloadDocument();
+                    portableHost.Reload(flush: false);
+                }
+                else
+                {
+                    if ((options & ReloadOptions.NoFlush) == 0)
+                        Flush();
+
+                    UnloadDocument();
+                    LoaderHost.Reload();
+                }
+            }
+            finally
+            {
+                _reloadOptions = ReloadOptions.Default;
+            }
+        }
+
+        private void UnloadDocument()
+        {
+            if (!_documentActive)
+                return;
+
+            _documentActive = false;
+            EnableComponentNotification(false);
+            DisableComponentNotifications();
+            OnBeginUnload();
+            _loaded = false;
+            _loading = false;
+            _baseComponentClassName = null;
+        }
     }
 
     public abstract class CodeDomDesignerLoader : DesignerLoader

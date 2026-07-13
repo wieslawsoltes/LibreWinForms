@@ -16,6 +16,8 @@ namespace System.ComponentModel.Design
         private readonly Collection<Exception> _loadErrors = new();
         private PortableDesignerHost? _host;
         private DesignerLoader? _loader;
+        private bool _loadCompletionRaised;
+        private string[]? _reloadSelectionNames;
 
         public DesignSurface()
         {
@@ -55,45 +57,39 @@ namespace System.ComponentModel.Design
         {
             ArgumentNullException.ThrowIfNull(loader);
 
+            BeginLoadCore(loader, replaceLoader: true);
+        }
+
+        private void BeginLoadCore(DesignerLoader loader, bool replaceLoader)
+        {
+            ObjectDisposedException.ThrowIf(_host is null, this);
+
             Loading?.Invoke(this, EventArgs.Empty);
             _loadErrors.Clear();
-            _loader = loader;
-
-            ObjectDisposedException.ThrowIf(_host is null, this);
+            _loadCompletionRaised = false;
+            if (replaceLoader)
+                _loader = loader;
+            _host.BeginLoadState();
 
             try
             {
                 loader.BeginLoad(_host);
 
-                if (!_host.LoadCompleted)
+                if (!_host.LoadCompleted && !loader.Loading)
                 {
                     _host.EndLoad(_host.RootComponentClassName, true, Array.Empty<object>());
                 }
-
-                _host.EnsureRootComponent();
-
-                foreach (object? error in _host.LoadErrors)
-                {
-                    if (error is Exception exception)
-                    {
-                        _loadErrors.Add(exception);
-                    }
-                    else if (error is not null)
-                    {
-                        _loadErrors.Add(new InvalidOperationException(error.ToString()));
-                    }
-                }
-
-                IsLoaded = _host.LoadSucceeded && _loadErrors.Count == 0;
-                View = GetRootDesignerView(_host);
             }
             catch (Exception ex)
             {
-                _loadErrors.Add(ex);
-                IsLoaded = false;
+                if (!_host.LoadCompleted)
+                    _host.EndLoad(_host.RootComponentClassName, false, new object[] { ex });
+                else if (!_loadCompletionRaised)
+                {
+                    _loadErrors.Add(ex);
+                    CompleteLoad(_host);
+                }
             }
-
-            Loaded?.Invoke(this, new LoadedEventArgs(IsLoaded, _loadErrors));
         }
 
         public void Dispose()
@@ -135,6 +131,78 @@ namespace System.ComponentModel.Design
             }
 
             return _serviceProvider?.GetService(serviceType);
+        }
+
+        internal void CompleteLoad(PortableDesignerHost host)
+        {
+            if (_loadCompletionRaised || !ReferenceEquals(host, _host))
+                return;
+
+            _loadCompletionRaised = true;
+            foreach (object? error in host.LoadErrors)
+            {
+                if (error is Exception exception)
+                    _loadErrors.Add(exception);
+                else if (error is not null)
+                    _loadErrors.Add(new InvalidOperationException(error.ToString()));
+            }
+
+            IsLoaded = host.LoadSucceeded && _loadErrors.Count == 0;
+            if (IsLoaded)
+            {
+                host.EnsureRootComponent();
+                RestoreReloadSelection(host);
+            }
+
+            View = IsLoaded ? GetRootDesignerView(host) : new Panel();
+            Loaded?.Invoke(this, new LoadedEventArgs(IsLoaded, _loadErrors));
+        }
+
+        internal void Reload(bool flush = true)
+        {
+            ObjectDisposedException.ThrowIf(_host is null, this);
+            if (_loader is null)
+                return;
+
+            if (flush)
+                Flush();
+            _reloadSelectionNames = _host.GetSelectedComponentNames();
+            Unloading?.Invoke(this, EventArgs.Empty);
+            _host.ResetForReload();
+            IsLoaded = false;
+            View = new Panel();
+            Unloaded?.Invoke(this, EventArgs.Empty);
+            BeginLoadCore(_loader, replaceLoader: false);
+        }
+
+        private void RestoreReloadSelection(PortableDesignerHost host)
+        {
+            string[]? names = _reloadSelectionNames;
+            _reloadSelectionNames = null;
+            if (names is not { Length: > 0 })
+                return;
+
+            var restored = new List<object>(names.Length);
+            foreach (string name in names)
+            {
+                if (host.GetInstance(name) is IComponent component)
+                    restored.Add(component);
+            }
+
+            if (restored.Count > 0)
+                host.SetSelectedComponents(restored, SelectionTypes.Replace);
+        }
+
+        internal void UnloadFailedDocument(PortableDesignerHost host)
+        {
+            if (!ReferenceEquals(host, _host))
+                return;
+
+            Unloading?.Invoke(this, EventArgs.Empty);
+            host.ResetFailedLoad();
+            IsLoaded = false;
+            View = new Panel();
+            Unloaded?.Invoke(this, EventArgs.Empty);
         }
 
         protected internal virtual IDesigner? CreateDesigner(IComponent component, bool rootDesigner)
@@ -183,12 +251,14 @@ namespace System.ComponentModel.Design
         private readonly Dictionary<Type, object> _services = new();
         private readonly Dictionary<Type, ServiceCreatorCallback> _serviceCreators = new();
         private readonly List<IDesignerSerializationProvider> _serializationProviders = new();
+        private readonly List<object> _serializationErrors = new();
         private readonly List<object> _selection = new();
         private readonly PortableEventBindingService _eventBindingService;
         private readonly PortableDesignerSerializationService _designerSerializationService;
         private PortableDesignerCommandSet? _standardCommandSet;
         private int _transactionDepth;
         private string _transactionDescription = string.Empty;
+        private object? _serializationPropertyProvider;
 
         public PortableDesignerHost(DesignSurface surface, IServiceProvider? serviceProvider)
         {
@@ -241,7 +311,17 @@ namespace System.ComponentModel.Design
 
         public ContextStack Context { get; } = new();
 
-        public PropertyDescriptorCollection Properties => PropertyDescriptorCollection.Empty;
+        public PropertyDescriptorCollection Properties => _serializationPropertyProvider is null
+            ? PropertyDescriptorCollection.Empty
+            : TypeDescriptor.GetProperties(_serializationPropertyProvider);
+
+        internal object? SerializationPropertyProvider
+        {
+            get => _serializationPropertyProvider;
+            set => _serializationPropertyProvider = value;
+        }
+
+        internal IReadOnlyList<object> SerializationErrors => _serializationErrors;
 
         public object? PrimarySelection => _selection.Count > 0 ? _selection[0] : RootComponent;
 
@@ -388,8 +468,12 @@ namespace System.ComponentModel.Design
             LoadSucceeded = successful;
             LoadErrors = errorCollection ?? Array.Empty<object>();
             LoadCompleted = true;
+            if (!successful)
+                _surface.UnloadFailedDocument(this);
             _ = GetService(typeof(IMenuCommandService));
-            LoadComplete?.Invoke(this, EventArgs.Empty);
+            if (successful)
+                LoadComplete?.Invoke(this, EventArgs.Empty);
+            _surface.CompleteLoad(this);
         }
 
         public IDesigner? GetDesigner(IComponent component)
@@ -414,6 +498,58 @@ namespace System.ComponentModel.Design
 
         public void Reload()
         {
+            _surface.Reload(flush: true);
+        }
+
+        internal void Reload(bool flush) => _surface.Reload(flush);
+
+        internal void FlushSurface() => _surface.Flush();
+
+        internal void BeginLoadState()
+        {
+            LoadCompleted = false;
+            LoadSucceeded = false;
+            LoadErrors = Array.Empty<object>();
+            _serializationErrors.Clear();
+        }
+
+        internal void BeginSerializationOperation() => _serializationErrors.Clear();
+
+        internal string[] GetSelectedComponentNames()
+        {
+            return _selection
+                .OfType<IComponent>()
+                .Select(GetName)
+                .Where(static name => !string.IsNullOrEmpty(name))
+                .Cast<string>()
+                .ToArray();
+        }
+
+        internal void ResetForReload()
+        {
+            ResetDocument();
+            BeginLoadState();
+        }
+
+        internal void ResetFailedLoad()
+        {
+            ResetDocument();
+        }
+
+        private void ResetDocument()
+        {
+            IComponent[] components = Components.Cast<IComponent>().ToArray();
+            for (int i = components.Length - 1; i >= 0; i--)
+                Remove(components[i]);
+            for (int i = components.Length - 1; i >= 0; i--)
+                components[i].Dispose();
+
+            _selection.Clear();
+            _instances.Clear();
+            _names.Clear();
+            _designers.Clear();
+            RootComponent = null;
+            RootComponentClassName = typeof(Panel).FullName!;
         }
 
         public INestedContainer CreateNestedContainer(IComponent owningComponent, string? containerName)
@@ -711,14 +847,14 @@ namespace System.ComponentModel.Design
 
         public void ReportError(object errorInformation)
         {
-            if (errorInformation is Exception exception)
-            {
-                LoadErrors = new object[] { exception };
-            }
-            else if (errorInformation is not null)
-            {
-                LoadErrors = new object[] { new InvalidOperationException(errorInformation.ToString()) };
-            }
+            if (errorInformation is null)
+                return;
+
+            object error = errorInformation is Exception
+                ? errorInformation
+                : new InvalidOperationException(errorInformation.ToString());
+            _serializationErrors.Add(error);
+            LoadErrors = _serializationErrors.ToArray();
         }
 
         public void SetName(object instance, string name)
