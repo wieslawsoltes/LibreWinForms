@@ -19,8 +19,8 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 120
     env:
-      LIBREWINFORMS_DEV_PACKAGE_VERSION: 0.1.0-preview.10
-      LIBREWINFORMS_BRIDGE_PACKAGE_VERSION: 0.1.0-preview.10
+      LIBREWINFORMS_DEV_PACKAGE_VERSION: 0.1.0-preview.11
+      LIBREWINFORMS_BRIDGE_PACKAGE_VERSION: 0.1.0-preview.11
       LIBREWINFORMS_BRIDGE_REF: progpu-rendering-port
 
     steps:
