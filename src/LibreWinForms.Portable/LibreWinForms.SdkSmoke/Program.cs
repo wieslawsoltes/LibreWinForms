@@ -2305,6 +2305,7 @@ internal static class Program
         const string updatedText = "LibreWinForms designer smoke";
 
         bool applicationIdle = RunApplicationIdleHostSmoke();
+        bool snapLineAdorner = RunDesignerSnapLineAdornerSmoke();
 
         using var services = new ServiceContainer();
         var externalMenuCommandService = new MenuCommandService(services);
@@ -3243,6 +3244,7 @@ internal static class Program
 
         bool success = surface.IsLoaded
             && applicationIdle
+            && snapLineAdorner
             && component is not null
             && siteHasChangeService
             && siteHasHost
@@ -3280,7 +3282,7 @@ internal static class Program
             && nestedRenamed;
         Console.WriteLine(
             "LibreWinForms SDK designer smoke result=" + (success ? "Success" : "Partial")
-            + $" loaded={surface.IsLoaded} applicationIdle={applicationIdle} component={component is not null}"
+            + $" loaded={surface.IsLoaded} applicationIdle={applicationIdle} snapLineAdorner={snapLineAdorner} component={component is not null}"
             + $" siteHasChangeService={siteHasChangeService} siteHasHost={siteHasHost} siteHasContainer={siteHasContainer}"
             + $" siteLocalService={siteLocalService} siteDictionary={siteDictionary} directLifecycle={directLifecycle}"
             + $" toolboxCreation={toolboxCreation} attributedDesigner={attributedDesigner} selected={selected}"
@@ -3326,6 +3328,78 @@ internal static class Program
             + $" namedNested={namedNested} namedNestedRemoved={namedNestedRemoved}"
             + $" persisted={persisted} renamed={renamed} nestedRenamed={nestedRenamed}");
         return success ? 0 : 4;
+    }
+
+    private static bool RunDesignerSnapLineAdornerSmoke()
+    {
+        using var services = new ServiceContainer();
+        services.AddService(
+            typeof(DesignerOptionService),
+            new FormsDesign.WindowsFormsDesignerOptionService
+            {
+                SnapToGrid = false,
+                UseSnapLines = true,
+                ShowGrid = false
+            });
+        using var surface = new DesignSurface(services);
+        var designerHost = (IDesignerHost)surface.GetService(typeof(IDesignerHost))!;
+        var root = (Forms.Panel)designerHost.CreateComponent(typeof(Forms.Panel), "adornerRoot");
+        root.Size = new System.Drawing.Size(180, 100);
+        var target = (Forms.Button)designerHost.CreateComponent(typeof(Forms.Button), "adornerTarget");
+        target.Bounds = new System.Drawing.Rectangle(80, 30, 40, 24);
+        root.Controls.Add(target);
+        var candidate = (Forms.Button)designerHost.CreateComponent(typeof(Forms.Button), "adornerCandidate");
+        candidate.Bounds = new System.Drawing.Rectangle(30, 30, 40, 24);
+        root.Controls.Add(candidate);
+        var adornerSource = (Forms.IPortableWinFormsAdornerSource)root;
+
+        candidate.RaiseMouseDown(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, 20, 12, 0));
+        candidate.RaiseMouseMove(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 0, 73, 12, 0));
+
+        int commandCount;
+        using (var bitmap = new System.Drawing.Bitmap(root.Width, root.Height))
+        using (System.Drawing.Graphics graphics = System.Drawing.Graphics.FromImage(bitmap))
+        {
+            adornerSource.PaintPortableAdornments(
+                new Forms.PaintEventArgs(graphics, root.ClientRectangle));
+            commandCount = graphics.DrawingContext.Commands.Count;
+        }
+
+        var presentationHost = new SmokeWindowsFormsHost { Child = root };
+        presentationHost.Measure(new System.Windows.Size(root.Width, root.Height));
+        presentationHost.Arrange(new System.Windows.Rect(0, 0, root.Width, root.Height));
+        long dispatchesBeforeExplicitRender = presentationHost.PortableDesignerAdornerDispatchCount;
+        var visual = new System.Windows.Media.DrawingVisual();
+        using (System.Windows.Media.DrawingContext drawingContext = visual.RenderOpen())
+        {
+            presentationHost.RenderForSmoke(drawingContext);
+        }
+
+        bool activeSource = adornerSource.SupportsPortableAdornments;
+        long activeDispatchCount = presentationHost.PortableDesignerAdornerDispatchCount;
+        bool active = activeSource
+            && commandCount == 2
+            && activeDispatchCount == dispatchesBeforeExplicitRender + 1;
+        candidate.RaiseMouseUp(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, 73, 12, 0));
+        using (System.Windows.Media.DrawingContext drawingContext = visual.RenderOpen())
+        {
+            presentationHost.RenderForSmoke(drawingContext);
+        }
+
+        bool clearedSource = !adornerSource.SupportsPortableAdornments;
+        long clearedDispatchCount = presentationHost.PortableDesignerAdornerDispatchCount;
+        bool cleared = clearedSource && clearedDispatchCount == activeDispatchCount;
+        presentationHost.Child = null;
+        if (!active || !cleared)
+        {
+            Console.WriteLine(
+                $"Designer snap-line adorner smoke: commands={commandCount}"
+                + $" activeSource={activeSource} priorDispatches={dispatchesBeforeExplicitRender}"
+                + $" activeDispatches={activeDispatchCount}"
+                + $" clearedSource={clearedSource} clearedDispatches={clearedDispatchCount}");
+        }
+
+        return active && cleared;
     }
 
     private static bool RunApplicationIdleHostSmoke()

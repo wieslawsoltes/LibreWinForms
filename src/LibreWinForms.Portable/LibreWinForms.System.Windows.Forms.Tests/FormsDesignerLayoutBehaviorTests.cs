@@ -19,12 +19,15 @@ internal static class FormsDesignerLayoutBehaviorTests
         GridToolboxPlacementUsesSnappedBounds();
         SnapLinesTakePrecedenceAndIncludePaddingMargins();
         SnapLineSelectionIsDeterministicPerAxis();
+        SnapLineAdornersUpdateClearAndCommit();
+        SnapLineResizeAndToolPlacementAdornersStayLive();
+        SnapLineAdornersCancelWithDesignerDisposal();
         AltBypassesSnapLinesButKeepsGridActive();
         ScrolledNestedToolboxCoordinatesUseTypedConversion();
         TransactionsChangesAndUndoCountsStayExact();
         LayoutServiceSourceStaysReflectionFree();
         Console.WriteLine(
-            "LibreWinForms Forms Designer layout tests passed: grid=12 toolbox=2 snap=9 alt=2 coordinates=1 transactions=8 sourceGuard=7.");
+            "LibreWinForms Forms Designer layout tests passed: grid=12 toolbox=2 snap=9 adorners=15 alt=2 coordinates=1 transactions=8 sourceGuard=25.");
     }
 
     private static void SharpDevelopOptionsDriveGridMoveAndMidpointRounding()
@@ -180,6 +183,104 @@ internal static class FormsDesignerLayoutBehaviorTests
             useSnapLines: true));
     }
 
+    private static void SnapLineAdornersUpdateClearAndCommit()
+    {
+        using var fixture = new DesignerFixture(new SharpStyleDesignerOptionService(
+            new Size(10, 10),
+            snapToGrid: true,
+            useSnapLines: true));
+        fixture.AddButton("target", new Rectangle(50, 30, 20, 20));
+        Forms.Button candidate = fixture.AddButton("candidate", new Rectangle(20, 30, 20, 20));
+        var adorners = (Forms.IPortableWinFormsAdornerSource)fixture.Root;
+
+        BeginDrag(candidate, new Point(10, 10), new Point(33, 10));
+        Assert(candidate.Left == 50 && adorners.SupportsPortableAdornments,
+            "Snapped move did not activate the typed parent adorner source.");
+        Assert(PaintAdornerCommandCount(adorners, fixture.Root.ClientSize) == 2,
+            "Snapped move did not paint one matched line per axis.");
+        long initialVersion = adorners.PortableAdornerVersion;
+
+        candidate.RaiseMouseMove(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 0, 100, 10, 0));
+        Assert(candidate.Left != 50,
+            "Second move did not leave the stale horizontal-axis snap target.");
+        Assert(PaintAdornerCommandCount(adorners, fixture.Root.ClientSize) == 1
+            && adorners.PortableAdornerVersion > initialVersion,
+            "Changing snap matches did not remove the stale line and invalidate the adorner source.");
+
+        Forms.Keys previousModifiers = Forms.Control.ModifierKeys;
+        try
+        {
+            Forms.Control.ModifierKeys = Forms.Keys.Alt;
+            candidate.RaiseMouseMove(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 0, 100, 10, 0));
+            Assert(PaintAdornerCommandCount(adorners, fixture.Root.ClientSize) == 0,
+                "Alt bypass retained stale snap-line feedback.");
+        }
+        finally
+        {
+            Forms.Control.ModifierKeys = previousModifiers;
+        }
+
+        candidate.RaiseMouseUp(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, 100, 10, 0));
+        Assert(!adorners.SupportsPortableAdornments
+            && PaintAdornerCommandCount(adorners, fixture.Root.ClientSize) == 0,
+            "Committed manipulation did not detach and clear the typed adorner source.");
+    }
+
+    private static void SnapLineResizeAndToolPlacementAdornersStayLive()
+    {
+        using (var fixture = CreateSnapLineFixture())
+        {
+            fixture.AddButton("target", new Rectangle(50, 30, 20, 20));
+            Forms.Button candidate = fixture.AddButton("candidate", new Rectangle(20, 30, 20, 20));
+            fixture.Select(candidate);
+            var adorners = (Forms.IPortableWinFormsAdornerSource)fixture.Root;
+
+            BeginDrag(candidate, new Point(candidate.Width, 10), new Point(45, 10));
+            Assert(candidate.Bounds == new Rectangle(20, 30, 50, 20),
+                "Right-edge resize did not snap to the target edge.");
+            Assert(adorners.SupportsPortableAdornments
+                && PaintAdornerCommandCount(adorners, fixture.Root.ClientSize) == 1,
+                "Resize did not retain the active vertical snap-line adorner.");
+            candidate.RaiseMouseUp(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, 45, 10, 0));
+            Assert(!adorners.SupportsPortableAdornments,
+                "Committed resize did not detach its parent adorner source.");
+        }
+
+        using (var fixture = CreateSnapLineFixture())
+        {
+            fixture.AddButton("target", new Rectangle(50, 30, 20, 20));
+            var toolbox = new ProbeToolboxService();
+            ((IServiceContainer)fixture.Host).AddService(typeof(IToolboxService), toolbox);
+            toolbox.SetSelectedToolboxItem(new ToolboxItem(typeof(Forms.Button)));
+            var adorners = (Forms.IPortableWinFormsAdornerSource)fixture.Root;
+
+            BeginDrag(fixture.Root, new Point(43, 30), new Point(80, 60));
+            Assert(adorners.SupportsPortableAdornments
+                && PaintAdornerCommandCount(adorners, fixture.Root.ClientSize) == 2,
+                "Toolbox drag did not publish its matched placement adorners.");
+            fixture.Root.RaiseMouseUp(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, 80, 60, 0));
+            Assert(!adorners.SupportsPortableAdornments
+                && toolbox.SelectedToolboxItemUsedCount == 1,
+                "Toolbox commit did not clear adorners and consume the selected tool.");
+        }
+    }
+
+    private static void SnapLineAdornersCancelWithDesignerDisposal()
+    {
+        var fixture = CreateSnapLineFixture();
+        fixture.AddButton("target", new Rectangle(50, 30, 20, 20));
+        Forms.Button candidate = fixture.AddButton("candidate", new Rectangle(20, 30, 20, 20));
+        var adorners = (Forms.IPortableWinFormsAdornerSource)fixture.Root;
+
+        BeginDrag(candidate, new Point(10, 10), new Point(33, 10));
+        Assert(adorners.SupportsPortableAdornments && candidate.Left == 50,
+            "Cancellation fixture did not enter an active snapped manipulation.");
+        fixture.Dispose();
+        Assert(!adorners.SupportsPortableAdornments
+            && PaintAdornerCommandCount(adorners, fixture.Root.ClientSize) == 0,
+            "Designer disposal did not cancel and detach the active adorner source.");
+    }
+
     private static void AltBypassesSnapLinesButKeepsGridActive()
     {
         using var fixture = new DesignerFixture(new SharpStyleDesignerOptionService(
@@ -291,8 +392,10 @@ internal static class FormsDesignerLayoutBehaviorTests
 
     private static void LayoutServiceSourceStaysReflectionFree()
     {
-        string path = FindSourceFile("PortableDesignerLayoutService.cs");
-        string source = File.ReadAllText(path);
+        string layoutSource = File.ReadAllText(FindSourceFile("PortableDesignerLayoutService.cs"));
+        string controlSource = File.ReadAllText(FindSourceFile("WinFormsCompatTypes.cs"));
+        string contractSource = File.ReadAllText(FindSourceFile("IPortableWinFormsAdornerSource.cs"));
+        string hostSource = File.ReadAllText(FindSourceFile("WindowsFormsHost.cs"));
         string[] forbidden =
         {
             "System.Reflection",
@@ -302,13 +405,28 @@ internal static class FormsDesignerLayoutBehaviorTests
             "GetMethod("
         };
         foreach (string token in forbidden)
-            Assert(!source.Contains(token, StringComparison.Ordinal), $"Layout service reintroduced reflection token '{token}'.");
+        {
+            Assert(!layoutSource.Contains(token, StringComparison.Ordinal), $"Layout service reintroduced reflection token '{token}'.");
+            Assert(!controlSource.Contains(token, StringComparison.Ordinal), $"Control adorner path introduced reflection token '{token}'.");
+            Assert(!contractSource.Contains(token, StringComparison.Ordinal), $"Adorner contract introduced reflection token '{token}'.");
+            Assert(!hostSource.Contains(token, StringComparison.Ordinal), $"Adorner host path introduced reflection token '{token}'.");
+        }
 
-        Assert(source.Contains("service is WindowsFormsDesignerOptionService", StringComparison.Ordinal)
-            && source.Contains("service is IDesignerOptionService", StringComparison.Ordinal),
+        Assert(layoutSource.Contains("service is WindowsFormsDesignerOptionService", StringComparison.Ordinal)
+            && layoutSource.Contains("service is IDesignerOptionService", StringComparison.Ordinal),
             "Layout service stopped consuming SharpDevelop/native options through typed services.");
-        Assert(source.Contains("target.PointToClient(source.PointToScreen(point))", StringComparison.Ordinal),
+        Assert(layoutSource.Contains("target.PointToClient(source.PointToScreen(point))", StringComparison.Ordinal),
             "Layout service stopped using the typed coordinate conversion contract.");
+        Assert(layoutSource.Contains("AddDesignerAdornerPaintHandler(PaintAdornments)", StringComparison.Ordinal)
+            && layoutSource.Contains("RemoveDesignerAdornerPaintHandler(PaintAdornments)", StringComparison.Ordinal)
+            && layoutSource.Contains("graphics.DrawLine(", StringComparison.Ordinal),
+            "Layout service stopped publishing and painting typed snap-line adorners.");
+        Assert(controlSource.Contains("IPortableWinFormsAdornerSource", StringComparison.Ordinal)
+            && contractSource.Contains("PaintPortableAdornments", StringComparison.Ordinal),
+            "Control stopped exposing the typed portable adorner contract.");
+        Assert(hostSource.Contains("RenderPortableDesignerAdornments(drawingContext, control, bounds);", StringComparison.Ordinal)
+            && hostSource.Contains("_portableDesignerAdornerSurfacePools", StringComparison.Ordinal),
+            "WindowsFormsHost stopped rendering adorners after children on an isolated overlay surface.");
     }
 
     private static string FindSourceFile(string fileName)
@@ -325,6 +443,16 @@ internal static class FormsDesignerLayoutBehaviorTests
                 fileName);
             if (File.Exists(candidate))
                 return candidate;
+
+            candidate = Path.Combine(
+                directory.FullName,
+                "src",
+                "LibreWinForms.Portable",
+                "LibreWinForms.WindowsFormsIntegration",
+                "src",
+                fileName);
+            if (File.Exists(candidate))
+                return candidate;
             directory = directory.Parent;
         }
 
@@ -336,6 +464,25 @@ internal static class FormsDesignerLayoutBehaviorTests
         control.RaiseMouseDown(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, start.X, start.Y, 0));
         control.RaiseMouseMove(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 0, end.X, end.Y, 0));
         control.RaiseMouseUp(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, end.X, end.Y, 0));
+    }
+
+    private static void BeginDrag(Forms.Control control, Point start, Point end)
+    {
+        control.RaiseMouseDown(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, start.X, start.Y, 0));
+        control.RaiseMouseMove(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 0, end.X, end.Y, 0));
+    }
+
+    private static int PaintAdornerCommandCount(
+        Forms.IPortableWinFormsAdornerSource adorners,
+        Size size)
+    {
+        using var bitmap = new Bitmap(Math.Max(1, size.Width), Math.Max(1, size.Height));
+        using Graphics graphics = Graphics.FromImage(bitmap);
+        adorners.PaintPortableAdornments(
+            new Forms.PaintEventArgs(
+                graphics,
+                new Rectangle(Point.Empty, size)));
+        return graphics.DrawingContext.Commands.Count;
     }
 
     private static void Assert(bool condition, string message)
