@@ -9,6 +9,32 @@ public interface IWinFormsApplicationHost
     void ExitThread();
 }
 
+/// <summary>
+/// Optional typed application-loop capability for hosts that can isolate nested
+/// or secondary WinForms UI threads from their process-wide native application.
+/// </summary>
+/// <remarks>
+/// <see cref="Application"/> registers the returned context against the calling
+/// managed thread for the duration of <see cref="Application.Run()"/>. Controls
+/// created on that thread then marshal through the context instead of the host's
+/// process-wide dispatcher, and <see cref="Application.ExitThread()"/> terminates
+/// only that context.
+/// </remarks>
+public interface IWinFormsThreadApplicationHost
+{
+    IWinFormsApplicationThreadContext CreateThreadContext(Form? mainForm);
+}
+
+/// <summary>
+/// Owns one typed portable WinForms application loop.
+/// </summary>
+public interface IWinFormsApplicationThreadContext : IWinFormsDispatcherHost, IDisposable
+{
+    void Run();
+
+    void ExitThread();
+}
+
 public interface IWinFormsTimerHost
 {
     IDisposable RegisterTimer(int intervalMilliseconds, Action callback);

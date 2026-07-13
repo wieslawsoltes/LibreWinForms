@@ -79,6 +79,7 @@ fi
 
 modes=(
   --run-form
+  --run-thread-loop
   --run-dialog
   --run-designer
   --run-message-box

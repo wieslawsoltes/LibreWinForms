@@ -108,6 +108,7 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
     }
 
     private bool _isHandleCreated;
+    private readonly int _owningThreadId = Environment.CurrentManagedThreadId;
     private IntPtr _handle;
     private Point _location;
     private Size _size;
@@ -434,7 +435,7 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
 
     public static Keys ModifierKeys { get; set; }
 
-    public bool InvokeRequired => Application.GetDispatcherHost() is { } dispatcherHost
+    public bool InvokeRequired => Application.GetDispatcherHost(_owningThreadId) is { } dispatcherHost
         && !dispatcherHost.CheckAccess();
 
     internal Size DefaultSizeForDesigner => DefaultSize;
@@ -673,7 +674,7 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
     {
         ArgumentNullException.ThrowIfNull(method);
 
-        IWinFormsDispatcherHost? dispatcherHost = Application.GetDispatcherHost();
+        IWinFormsDispatcherHost? dispatcherHost = Application.GetDispatcherHost(_owningThreadId);
         var asyncResult = new PortableControlAsyncResult(this, dispatcherHost, method, args);
         if (dispatcherHost != null)
         {
@@ -730,7 +731,7 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
     {
         ArgumentNullException.ThrowIfNull(method);
 
-        IWinFormsDispatcherHost? dispatcherHost = Application.GetDispatcherHost();
+        IWinFormsDispatcherHost? dispatcherHost = Application.GetDispatcherHost(_owningThreadId);
         if (dispatcherHost == null || dispatcherHost.CheckAccess())
         {
             return InvokePortableDelegate(method, args);
@@ -9055,6 +9056,8 @@ public static class Application
 {
     private static readonly List<IMessageFilter> s_messageFilters = new();
     private static readonly object s_idleGate = new();
+    private static readonly object s_threadContextGate = new();
+    private static readonly Dictionary<int, IWinFormsApplicationThreadContext> s_threadContexts = new();
     private static IWinFormsApplicationHost? s_applicationHost;
     private static EventHandler? s_idle;
     private static int s_applicationHostGeneration;
@@ -9188,8 +9191,14 @@ public static class Application
         RaiseIdle(EventArgs.Empty);
     }
 
-    internal static IWinFormsDispatcherHost? GetDispatcherHost()
+    internal static IWinFormsDispatcherHost? GetDispatcherHost(int owningThreadId)
     {
+        lock (s_threadContextGate)
+        {
+            if (s_threadContexts.TryGetValue(owningThreadId, out IWinFormsApplicationThreadContext? threadContext))
+                return threadContext;
+        }
+
         return Volatile.Read(ref s_applicationHost) as IWinFormsDispatcherHost;
     }
 
@@ -9250,11 +9259,15 @@ public static class Application
 
     public static void Run()
     {
+        RunThreadContext(mainForm: null);
     }
 
     public static void Run(Form mainForm)
     {
         ArgumentNullException.ThrowIfNull(mainForm);
+        if (RunThreadContext(mainForm))
+            return;
+
         IWinFormsApplicationHost? applicationHost = Volatile.Read(ref s_applicationHost);
         if (applicationHost != null)
         {
@@ -9267,7 +9280,60 @@ public static class Application
 
     public static void ExitThread()
     {
+        int currentThreadId = Environment.CurrentManagedThreadId;
+        IWinFormsApplicationThreadContext? threadContext;
+        lock (s_threadContextGate)
+        {
+            s_threadContexts.TryGetValue(currentThreadId, out threadContext);
+        }
+
+        if (threadContext != null)
+        {
+            threadContext.ExitThread();
+            return;
+        }
+
         Volatile.Read(ref s_applicationHost)?.ExitThread();
+    }
+
+    private static bool RunThreadContext(Form? mainForm)
+    {
+        IWinFormsApplicationHost? applicationHost = Volatile.Read(ref s_applicationHost);
+        if (applicationHost is not IWinFormsThreadApplicationHost threadApplicationHost)
+            return mainForm is null;
+
+        int currentThreadId = Environment.CurrentManagedThreadId;
+        IWinFormsApplicationThreadContext threadContext = threadApplicationHost.CreateThreadContext(mainForm);
+        lock (s_threadContextGate)
+        {
+            if (s_threadContexts.ContainsKey(currentThreadId))
+            {
+                threadContext.Dispose();
+                throw new InvalidOperationException("A portable WinForms application loop is already running on this thread.");
+            }
+
+            s_threadContexts.Add(currentThreadId, threadContext);
+        }
+
+        try
+        {
+            threadContext.Run();
+        }
+        finally
+        {
+            lock (s_threadContextGate)
+            {
+                if (s_threadContexts.TryGetValue(currentThreadId, out IWinFormsApplicationThreadContext? currentContext)
+                    && ReferenceEquals(currentContext, threadContext))
+                {
+                    s_threadContexts.Remove(currentThreadId);
+                }
+            }
+
+            threadContext.Dispose();
+        }
+
+        return true;
     }
 
     internal static bool TryShowDialog(Form form, IWin32Window? owner, out DialogResult result)
@@ -9294,6 +9360,19 @@ public static class Application
     internal static IDisposable RegisterTimer(int intervalMilliseconds, Action callback)
     {
         ArgumentNullException.ThrowIfNull(callback);
+        IWinFormsTimerHost? threadTimerHost = null;
+        lock (s_threadContextGate)
+        {
+            if (s_threadContexts.TryGetValue(Environment.CurrentManagedThreadId, out IWinFormsApplicationThreadContext? threadContext)
+                && threadContext is IWinFormsTimerHost contextTimerHost)
+            {
+                threadTimerHost = contextTimerHost;
+            }
+        }
+
+        if (threadTimerHost != null)
+            return threadTimerHost.RegisterTimer(intervalMilliseconds, callback);
+
         if (Volatile.Read(ref s_applicationHost) is not IWinFormsTimerHost timerHost)
         {
             throw new InvalidOperationException(

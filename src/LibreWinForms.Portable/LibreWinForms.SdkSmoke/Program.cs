@@ -30,6 +30,11 @@ internal static class Program
             return RunMainFormSmoke();
         }
 
+        if (args.Contains("--run-thread-loop", StringComparer.Ordinal))
+        {
+            return RunApplicationThreadLoopSmoke();
+        }
+
         if (args.Contains("--run-dialog", StringComparer.Ordinal))
         {
             return RunOwnedDialogSmoke();
@@ -1606,6 +1611,125 @@ internal static class Program
             $"timerStopped={stopPreventedFurtherTicks} timerDisposed={disposePreventedFurtherTicks} " +
             $"timerExceptionRouted={timerExceptionRouted} timerContract={timerContract} " +
             $"checkableRenderTree={checkableRenderTree}");
+        return 0;
+    }
+
+    private static int RunApplicationThreadLoopSmoke()
+    {
+        System.Windows.Forms.Integration.WindowsFormsHost.EnableWindowsFormsInterop();
+        WpfApplication application = WpfApplication.Current ?? new WpfApplication();
+        int primaryThreadId = Environment.CurrentManagedThreadId;
+        int shown = 0;
+        int disposed = 0;
+        int runReturned = 0;
+        int timedOut = 0;
+        int callbackThreadId = 0;
+        using var formReady = new ManualResetEventSlim(initialState: false);
+        Forms.Form? form = null;
+
+        var thread = new Thread(
+            () =>
+            {
+                form = new Forms.Form
+                {
+                    Name = "LibreWinFormsThreadLoopSmoke",
+                    Text = "LibreWinForms Thread Loop Smoke",
+                    Width = 260,
+                    Height = 120
+                };
+                form.Disposed += (_, _) => Interlocked.Exchange(ref disposed, 1);
+                form.Shown += (_, _) =>
+                {
+                    Interlocked.Exchange(ref shown, 1);
+                    form.BeginInvoke(
+                        (Action)(() =>
+                        {
+                            callbackThreadId = Environment.CurrentManagedThreadId;
+                            form.Dispose();
+                        }));
+                };
+                formReady.Set();
+                Forms.Application.Run(form);
+                Interlocked.Exchange(ref runReturned, 1);
+            })
+        {
+            IsBackground = true,
+            Name = "LibreWinForms secondary application loop smoke"
+        };
+
+        thread.Start();
+        if (!formReady.Wait(TimeSpan.FromSeconds(5)))
+        {
+            Console.Error.WriteLine("LibreWinForms application thread-loop smoke failed reason=FormInitializationTimeout");
+            return 11;
+        }
+
+        var frame = new DispatcherFrame();
+        var completionTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromMilliseconds(20)
+        };
+        completionTimer.Tick += (_, _) =>
+        {
+            if (!thread.IsAlive)
+            {
+                completionTimer.Stop();
+                frame.Continue = false;
+            }
+        };
+        using var watchdog = new System.Threading.Timer(
+            _ =>
+            {
+                Interlocked.Exchange(ref timedOut, 1);
+                application.Dispatcher.BeginInvoke(
+                    new Action(
+                        () =>
+                        {
+                            if (form is { IsDisposed: false })
+                            {
+                                form.BeginInvoke(
+                                    (Action)(() =>
+                                    {
+                                        form.Dispose();
+                                        Forms.Application.ExitThread();
+                                    }));
+                            }
+
+                            completionTimer.Stop();
+                            frame.Continue = false;
+                        }));
+            },
+            null,
+            TimeSpan.FromSeconds(10),
+            Timeout.InfiniteTimeSpan);
+
+        completionTimer.Start();
+        Dispatcher.PushFrame(frame);
+        watchdog.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        bool joined = thread.Join(TimeSpan.FromSeconds(2));
+        bool success = Volatile.Read(ref shown) == 1
+            && Volatile.Read(ref disposed) == 1
+            && Volatile.Read(ref runReturned) == 1
+            && Volatile.Read(ref timedOut) == 0
+            && joined
+            && callbackThreadId == thread.ManagedThreadId
+            && callbackThreadId != primaryThreadId
+            && !application.Dispatcher.HasShutdownStarted
+            && !application.Dispatcher.HasShutdownFinished;
+
+        if (!success)
+        {
+            Console.Error.WriteLine(
+                "LibreWinForms application thread-loop smoke failed"
+                + $" shown={shown} disposed={disposed} returned={runReturned} timeout={timedOut}"
+                + $" joined={joined} callbackThread={callbackThreadId} ownerThread={thread.ManagedThreadId}"
+                + $" primaryThread={primaryThreadId} appShutdown={application.Dispatcher.HasShutdownStarted}");
+            return 11;
+        }
+
+        Console.WriteLine(
+            "LibreWinForms application thread-loop smoke result=Success contexts=1 ownerDispatch=True "
+            + "disposedExit=True primaryApplicationAlive=True nativeWindowOnPrimary=True");
         return 0;
     }
 

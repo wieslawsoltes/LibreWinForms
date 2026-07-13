@@ -21,6 +21,7 @@ internal static class TreeViewBehaviorTests
             ListViewListModeUsesColumnarGeometry();
             ControlCollectionBehaviorTests.Run();
             DragDropHostBehaviorTests.Run();
+            ApplicationThreadLifecycleBehaviorTests.Run();
             ApplicationIdleHostBehaviorTests.Run();
             DispatcherInvocationBehaviorTests.Run();
             KeyboardRoutingBehaviorTests.Run();
