@@ -492,6 +492,26 @@ public class WindowsFormsHost : FrameworkElement
         return false;
     }
 
+    internal static bool TryGetOwningWindow(
+        Forms.Control control,
+        out Window? window)
+    {
+        ArgumentNullException.ThrowIfNull(control);
+        foreach (WindowsFormsHost host in GetRegisteredHosts())
+        {
+            if (host._child == null || !IsControlInTree(host._child, control))
+            {
+                continue;
+            }
+
+            window = Window.GetWindow(host);
+            return window is not null;
+        }
+
+        window = null;
+        return false;
+    }
+
     private static bool TryConvertHostPointToControl(
         Forms.Control root,
         Forms.Control target,

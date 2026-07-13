@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Windows;
-using System.Windows.Interop;
 using System.Windows.Threading;
 using Forms = System.Windows.Forms;
 using WpfApplication = System.Windows.Application;
@@ -16,6 +15,7 @@ internal sealed class WpfPortableWinFormsApplicationHost :
     Forms.IWinFormsTimerHost,
     Forms.IWinFormsIdleHost,
     Forms.IWinFormsModalDialogHost,
+    Forms.IWinFormsWindowHost,
     Forms.IWinFormsDispatcherHost,
     Forms.IWinFormsDragDropHost,
     Forms.IWinFormsCoordinateHost,
@@ -116,6 +116,74 @@ internal sealed class WpfPortableWinFormsApplicationHost :
         return WindowsFormsHost.TryCreateControlGraphics(control, out graphics);
     }
 
+    bool Forms.IWinFormsWindowHost.TryShow(Forms.Form form, Forms.IWin32Window owner)
+    {
+        ArgumentNullException.ThrowIfNull(form);
+        ArgumentNullException.ThrowIfNull(owner);
+        ThrowIfDispatcherUnavailable();
+
+        bool shown = false;
+        void ShowCore()
+        {
+            Window? ownerWindow = ResolveOwnerWindow(owner);
+            if (ownerWindow is null)
+            {
+                return;
+            }
+
+            Window? existingWindow;
+            lock (_gate)
+            {
+                _windows.TryGetValue(form, out existingWindow);
+            }
+
+            if (existingWindow is not null)
+            {
+                if (!existingWindow.IsVisible)
+                {
+                    existingWindow.Show();
+                }
+
+                _ = existingWindow.Activate();
+                shown = true;
+                return;
+            }
+
+            Window window = CreateWindow(form, ownerWindow, modal: false);
+            window.Show();
+            shown = true;
+        }
+
+        if (_dispatcher.CheckAccess())
+        {
+            ShowCore();
+        }
+        else
+        {
+            _dispatcher.Invoke(ShowCore, DispatcherPriority.Send);
+        }
+
+        return shown;
+    }
+
+    bool Forms.IWinFormsWindowHost.TrySetTopMost(Forms.Form form, bool topMost)
+    {
+        ArgumentNullException.ThrowIfNull(form);
+        Window? window;
+        lock (_gate)
+        {
+            _windows.TryGetValue(form, out window);
+        }
+
+        if (window is null)
+        {
+            return false;
+        }
+
+        InvokeOnDispatcher(window.Dispatcher, () => window.Topmost = topMost);
+        return true;
+    }
+
     public void Run(Forms.Form mainForm)
     {
         ArgumentNullException.ThrowIfNull(mainForm);
@@ -167,28 +235,25 @@ internal sealed class WpfPortableWinFormsApplicationHost :
         {
             lock (_gate)
             {
-                if (_windows.TryGetValue(ownerForm, out Window? ownerWindow))
+                if (_windows.TryGetValue(ownerForm, out Window? mappedOwnerWindow))
                 {
-                    return ownerWindow;
+                    return mappedOwnerWindow;
                 }
             }
         }
 
-        IntPtr ownerHandle = owner.Handle;
-        if (ownerHandle == IntPtr.Zero)
+        if (owner is Window directOwnerWindow)
         {
-            return null;
+            return directOwnerWindow;
         }
 
-        HwndSource? source = HwndSource.FromHwnd(ownerHandle);
-        if (source?.RootVisual is Window sourceWindow)
+        if (owner is Forms.Control ownerControl
+            && WindowsFormsHost.TryGetOwningWindow(ownerControl, out Window? hostedOwnerWindow))
         {
-            return sourceWindow;
+            return hostedOwnerWindow;
         }
 
-        return source?.RootVisual is DependencyObject rootVisual
-            ? Window.GetWindow(rootVisual)
-            : null;
+        return null;
     }
 
     public void ExitThread()
@@ -306,6 +371,7 @@ internal sealed class WpfPortableWinFormsApplicationHost :
             MinHeight = form.MinimumSize.Height > 0 ? form.MinimumSize.Height : 0,
             Content = host,
             ShowInTaskbar = form.ShowInTaskbar,
+            Topmost = form.TopMost,
             ResizeMode = ToResizeMode(form),
             WindowStyle = form.FormBorderStyle == Forms.FormBorderStyle.None ? WindowStyle.None : WindowStyle.SingleBorderWindow,
             WindowStartupLocation = ToStartupLocation(form, owner, modal)
@@ -321,7 +387,7 @@ internal sealed class WpfPortableWinFormsApplicationHost :
             window.MaxHeight = form.MaximumSize.Height;
         }
 
-        if (owner != null && modal)
+        if (owner != null)
         {
             window.Owner = owner;
         }
@@ -863,7 +929,7 @@ internal sealed class WpfPortableWinFormsApplicationHost :
         return form.StartPosition switch
         {
             Forms.FormStartPosition.CenterScreen => WindowStartupLocation.CenterScreen,
-            Forms.FormStartPosition.CenterParent when owner != null && modal => WindowStartupLocation.CenterOwner,
+            Forms.FormStartPosition.CenterParent when owner != null => WindowStartupLocation.CenterOwner,
             _ => WindowStartupLocation.Manual
         };
     }

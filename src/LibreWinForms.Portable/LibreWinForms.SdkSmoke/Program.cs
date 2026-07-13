@@ -9,7 +9,6 @@ using System.ComponentModel.Design.Serialization;
 using System.Linq;
 using System.Numerics;
 using System.Threading;
-using System.Windows.Interop;
 using System.Windows.Threading;
 using ProGPU.Wpf.Interop;
 using Forms = System.Windows.Forms;
@@ -24,6 +23,7 @@ internal static class Program
     private static int Main(string[] args)
     {
         VerifyHexEditorInputScrollContracts();
+        VerifyKeysConverterContracts();
 
         if (args.Contains("--run-form", StringComparer.Ordinal))
         {
@@ -38,6 +38,11 @@ internal static class Program
         if (args.Contains("--run-dialog", StringComparer.Ordinal))
         {
             return RunOwnedDialogSmoke();
+        }
+
+        if (args.Contains("--run-modeless-owner", StringComparer.Ordinal))
+        {
+            return RunModelessOwnerSmoke();
         }
 
         if (args.Contains("--run-designer", StringComparer.Ordinal))
@@ -122,6 +127,35 @@ internal static class Program
             || scroll.ScrollOrientation != Forms.ScrollOrientation.VerticalScroll)
         {
             throw new InvalidOperationException("LibreWinForms HexEditor input/scroll DTO contract failed.");
+        }
+    }
+
+    private static void VerifyKeysConverterContracts()
+    {
+        TypeConverter converter = TypeDescriptor.GetConverter(typeof(Forms.Keys));
+        object? find = converter.ConvertFromInvariantString("Control+Shift+F");
+        object? replace = converter.ConvertFromInvariantString("Control+H");
+        string? formatted = converter.ConvertToInvariantString(
+            Forms.Keys.Control | Forms.Keys.Alt | Forms.Keys.Shift | Forms.Keys.F1);
+        bool rejectedInvalid = false;
+        try
+        {
+            _ = converter.ConvertFromInvariantString("Control+DefinitelyNotAKey");
+        }
+        catch (ArgumentException)
+        {
+            rejectedInvalid = true;
+        }
+
+        if (converter is not Forms.KeysConverter
+            || find is not Forms.Keys findKeys
+            || findKeys != (Forms.Keys.Control | Forms.Keys.Shift | Forms.Keys.F)
+            || replace is not Forms.Keys replaceKeys
+            || replaceKeys != (Forms.Keys.Control | Forms.Keys.H)
+            || formatted != "Ctrl+Alt+Shift+F1"
+            || !rejectedInvalid)
+        {
+            throw new InvalidOperationException("LibreWinForms KeysConverter package contract failed.");
         }
     }
 
@@ -1733,6 +1767,110 @@ internal static class Program
         return 0;
     }
 
+    private static int RunModelessOwnerSmoke()
+    {
+        System.Windows.Forms.Integration.WindowsFormsHost.EnableWindowsFormsInterop();
+
+        bool ownerLoaded = false;
+        bool formShown = false;
+        bool formClosed = false;
+        bool ownerAssociated = false;
+        bool preShowTopMostApplied = false;
+        bool topMostFalseApplied = false;
+        bool topMostTrueApplied = false;
+        bool timedOut = false;
+        Forms.CloseReason closeReason = Forms.CloseReason.None;
+        Forms.Form? modelessForm = null;
+
+        var application = new WpfApplication();
+        var ownerWindow = new TypedWpfOwnerWindow
+        {
+            Title = "LibreWinForms SDK Modeless Owner",
+            Width = 480,
+            Height = 300
+        };
+        using var watchdog = new System.Threading.Timer(
+            _ => ownerWindow.Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    timedOut = true;
+                    modelessForm?.Close();
+                    ownerWindow.Close();
+                })),
+            null,
+            TimeSpan.FromSeconds(30),
+            Timeout.InfiniteTimeSpan);
+
+        ownerWindow.Loaded += (_, _) =>
+        {
+            ownerLoaded = true;
+            var form = new Forms.Form
+            {
+                Name = "LibreWinFormsSdkModelessOwnedForm",
+                Text = "LibreWinForms SDK Modeless Owned Form",
+                Width = 320,
+                Height = 180,
+                StartPosition = Forms.FormStartPosition.CenterParent,
+                TopMost = true
+            };
+            modelessForm = form;
+            form.FormClosed += (_, eventArgs) =>
+            {
+                formClosed = true;
+                closeReason = eventArgs.CloseReason;
+            };
+            form.Shown += (_, _) =>
+            {
+                formShown = true;
+                WpfWindow? nativeWindow = WpfApplication.Current.Windows
+                    .Cast<WpfWindow>()
+                    .FirstOrDefault(window => !ReferenceEquals(window, ownerWindow));
+                ownerAssociated = nativeWindow is not null
+                    && ReferenceEquals(nativeWindow.Owner, ownerWindow);
+                preShowTopMostApplied = nativeWindow?.Topmost == true;
+
+                form.TopMost = false;
+                topMostFalseApplied = nativeWindow?.Topmost == false;
+                form.TopMost = true;
+                topMostTrueApplied = nativeWindow?.Topmost == true;
+
+                ownerWindow.Dispatcher.BeginInvoke(
+                    DispatcherPriority.ApplicationIdle,
+                    new Action(ownerWindow.Close));
+            };
+
+            form.Show(ownerWindow);
+        };
+
+        application.Run(ownerWindow);
+        watchdog.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+
+        bool success = ownerLoaded
+            && formShown
+            && formClosed
+            && ownerAssociated
+            && preShowTopMostApplied
+            && topMostFalseApplied
+            && topMostTrueApplied
+            && closeReason == Forms.CloseReason.UserClosing
+            && !timedOut;
+        if (!success)
+        {
+            Console.Error.WriteLine(
+                "LibreWinForms SDK modeless-owner smoke failed"
+                + $" ownerLoaded={ownerLoaded} shown={formShown} closed={formClosed}"
+                + $" associated={ownerAssociated} preTopMost={preShowTopMostApplied}"
+                + $" falseTopMost={topMostFalseApplied} trueTopMost={topMostTrueApplied}"
+                + $" closeReason={closeReason} timedOut={timedOut}");
+            return 12;
+        }
+
+        Console.WriteLine(
+            "LibreWinForms SDK modeless-owner smoke result=Success typedOwner=True handleRead=False "
+            + "ownerAssociated=True preShowTopMost=True liveTopMost=True ownerClose=True");
+        return 0;
+    }
+
     private static int RunOwnedDialogSmoke()
     {
         bool ownerLoaded = false;
@@ -1763,7 +1901,7 @@ internal static class Program
         Forms.Form? activeDialog = null;
 
         var application = new WpfApplication();
-        var ownerWindow = new WpfWindow
+        var ownerWindow = new TypedWpfOwnerWindow
         {
             Title = "LibreWinForms SDK Dialog Owner",
             Width = 480,
@@ -1885,7 +2023,7 @@ internal static class Program
                     };
                     dialog.FormClosed += (_, _) => dialogClosed = true;
 
-                    dialogResult = dialog.ShowDialog(new WpfWindowOwner(ownerWindow));
+                    dialogResult = dialog.ShowDialog(ownerWindow);
                     activeDialog = null;
                     closeTimer.Stop();
 
@@ -1946,7 +2084,7 @@ internal static class Program
                         vetoButton.PerformClick();
                     };
                     vetoDialog.Shown += (_, _) => vetoTimer.Start();
-                    vetoDialogResult = vetoDialog.ShowDialog(new WpfWindowOwner(ownerWindow));
+                    vetoDialogResult = vetoDialog.ShowDialog(ownerWindow);
                     activeDialog = null;
                     vetoTimer.Stop();
 
@@ -1981,7 +2119,7 @@ internal static class Program
                             .TryProcessDialogKey(Forms.Keys.Escape, cancelDialog);
                     };
                     cancelDialog.Shown += (_, _) => escapeTimer.Start();
-                    cancelDialogResult = cancelDialog.ShowDialog(new WpfWindowOwner(ownerWindow));
+                    cancelDialogResult = cancelDialog.ShowDialog(ownerWindow);
                     activeDialog = null;
                     escapeTimer.Stop();
 
@@ -2022,7 +2160,7 @@ internal static class Program
                         userCloseDialog.Close();
                     };
                     userCloseDialog.Shown += (_, _) => userCloseTimer.Start();
-                    userCloseDialogResult = userCloseDialog.ShowDialog(new WpfWindowOwner(ownerWindow));
+                    userCloseDialogResult = userCloseDialog.ShowDialog(ownerWindow);
                     activeDialog = null;
                     userCloseTimer.Stop();
                     watchdog.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
@@ -3299,16 +3437,10 @@ internal static class Program
         public IntPtr Handle { get; }
     }
 
-    private sealed class WpfWindowOwner : Forms.IWin32Window
+    private sealed class TypedWpfOwnerWindow : WpfWindow, Forms.IWin32Window
     {
-        private readonly WpfWindow _window;
-
-        public WpfWindowOwner(WpfWindow window)
-        {
-            _window = window;
-        }
-
-        public IntPtr Handle => new WindowInteropHelper(_window).Handle;
+        public IntPtr Handle => throw new InvalidOperationException(
+            "Typed WPF owners must not be resolved through an HWND.");
     }
 
     private sealed class DesignerSmokeService

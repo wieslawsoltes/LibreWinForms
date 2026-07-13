@@ -81,6 +81,7 @@ modes=(
   --run-form
   --run-thread-loop
   --run-dialog
+  --run-modeless-owner
   --run-designer
   --run-message-box
   --run-checkables
