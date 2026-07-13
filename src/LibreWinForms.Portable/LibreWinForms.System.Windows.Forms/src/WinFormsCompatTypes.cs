@@ -23,7 +23,7 @@ public delegate void ControlEventHandler(object? sender, ControlEventArgs e);
 
 public delegate void ToolStripDropDownClosedEventHandler(object? sender, ToolStripDropDownClosedEventArgs e);
 
-public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWinFormsPaintSource
+public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWinFormsPaintSource, IPortableWinFormsAdornerSource
 {
     private static long s_nextHandle = 0x10000;
     private static readonly object s_handleSync = new();
@@ -117,9 +117,11 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
     private bool _focused;
     private ControlStyles _controlStyles;
     private long _portablePaintVersion;
+    private long _portableAdornerVersion;
     private MouseEventHandler? _designerMouseDown;
     private MouseEventHandler? _designerMouseMove;
     private MouseEventHandler? _designerMouseUp;
+    private PaintEventHandler? _designerAdornerPaint;
     private ContextMenuStrip? _contextMenuStrip;
     private Control? _parent;
 
@@ -466,6 +468,30 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
         _designerMouseDown -= mouseDown;
         _designerMouseMove -= mouseMove;
         _designerMouseUp -= mouseUp;
+    }
+
+    internal void AddDesignerAdornerPaintHandler(PaintEventHandler paint)
+    {
+        _designerAdornerPaint += paint;
+        InvalidateDesignerAdornments();
+    }
+
+    internal void RemoveDesignerAdornerPaintHandler(PaintEventHandler paint)
+    {
+        _designerAdornerPaint -= paint;
+        InvalidateDesignerAdornments();
+    }
+
+    internal void InvalidateDesignerAdornments()
+    {
+        Interlocked.Increment(ref _portableAdornerVersion);
+        Invalidate();
+    }
+
+    internal void InvalidateDesignerAdornments(Rectangle bounds)
+    {
+        Interlocked.Increment(ref _portableAdornerVersion);
+        Invalidate(bounds);
     }
 
     public DragDropEffects DoDragDrop(object data, DragDropEffects allowedEffects)
@@ -1336,6 +1362,16 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
     void IPortableWinFormsPaintSource.PaintPortable(PaintEventArgs e)
     {
         RaisePaint(e);
+    }
+
+    bool IPortableWinFormsAdornerSource.SupportsPortableAdornments => _designerAdornerPaint is not null;
+
+    long IPortableWinFormsAdornerSource.PortableAdornerVersion => Interlocked.Read(ref _portableAdornerVersion);
+
+    void IPortableWinFormsAdornerSource.PaintPortableAdornments(PaintEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        _designerAdornerPaint?.Invoke(this, e);
     }
 
     protected override void Dispose(bool disposing)

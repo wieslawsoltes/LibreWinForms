@@ -36,6 +36,9 @@ namespace System.ComponentModel.Design
         private Point _candidateDisplayOffset;
         private Size _candidateInitialSize;
         private DesignerLayoutOptions _options = DesignerLayoutOptions.Default;
+        private SnapLineAdorner _verticalAdorner;
+        private SnapLineAdorner _horizontalAdorner;
+        private Control? _adornerParent;
         private bool _toolPlacementActive;
 
         internal PortableDesignerLayoutService(PortableDesignerHost host)
@@ -53,6 +56,8 @@ namespace System.ComponentModel.Design
 
             if (!_options.UseSnapLines)
                 return;
+
+            AttachAdorner(parent);
 
             if (TryTranslatePoint(candidate, parent, Point.Empty, out Point displayedOrigin))
             {
@@ -92,7 +97,12 @@ namespace System.ComponentModel.Design
             if (useSnapLines)
                 return SnapManipulatedBounds(bounds, operation, minimumWidth, minimumHeight);
             if (useGrid)
+            {
+                ClearAdorners();
                 return SnapManipulatedBoundsToGrid(bounds, operation, minimumWidth, minimumHeight);
+            }
+
+            ClearAdorners();
             return bounds;
         }
 
@@ -109,7 +119,10 @@ namespace System.ComponentModel.Design
             _toolPlacementActive = true;
             _options = ReadOptions();
             if (_options.UseSnapLines)
+            {
+                AttachAdorner(parent);
                 CacheTargetLines(parent, candidate: null);
+            }
         }
 
         internal Rectangle GetToolBounds(Control parent, Point start, Point end)
@@ -118,10 +131,17 @@ namespace System.ComponentModel.Design
             bool useSnapLines = _options.UseSnapLines && !IsAltPressed();
             bool useGrid = !useSnapLines && _options.SnapToGrid;
             if (useGrid)
+            {
+                ClearAdorners();
                 return CreateGridToolBounds(start, end);
+            }
 
             Rectangle bounds = CreateBounds(start, end);
-            return useSnapLines ? SnapToolBounds(bounds) : bounds;
+            if (useSnapLines)
+                return SnapToolBounds(bounds);
+
+            ClearAdorners();
+            return bounds;
         }
 
         internal Point GetToolLocation(Control parent, Point point)
@@ -130,17 +150,26 @@ namespace System.ComponentModel.Design
             bool useSnapLines = _options.UseSnapLines && !IsAltPressed();
             if (!useSnapLines && _options.SnapToGrid)
             {
+                ClearAdorners();
                 return new Point(
                     SnapCoordinate(point.X, _options.GridSize.Width),
                     SnapCoordinate(point.Y, _options.GridSize.Height));
             }
 
             if (!useSnapLines)
+            {
+                ClearAdorners();
                 return point;
+            }
 
             SnapAdjustment adjustmentX = FindToolAdjustment(SnapLineType.Left, point.X);
             SnapAdjustment adjustmentY = FindToolAdjustment(SnapLineType.Top, point.Y);
-            return new Point(point.X + adjustmentX.Value, point.Y + adjustmentY.Value);
+            Point adjusted = new(point.X + adjustmentX.Value, point.Y + adjustmentY.Value);
+            Rectangle displayedBounds = new(adjusted, new Size(1, 1));
+            UpdateAdorners(
+                CreateAdorner(adjustmentX, displayedBounds),
+                CreateAdorner(adjustmentY, displayedBounds));
+            return adjusted;
         }
 
         internal void EndToolPlacement()
@@ -170,6 +199,8 @@ namespace System.ComponentModel.Design
 
         internal void Reset()
         {
+            ClearAdorners();
+            DetachAdorner();
             Array.Clear(_candidateLines, 0, _candidateLineCount);
             Array.Clear(_targetLines, 0, _targetLineCount);
             _candidateLineCount = 0;
@@ -197,13 +228,28 @@ namespace System.ComponentModel.Design
             int minimumHeight)
         {
             if (_candidateLineCount == 0 || _targetLineCount == 0)
+            {
+                ClearAdorners();
                 return bounds;
+            }
 
             Rectangle displayedBounds = bounds;
             displayedBounds.Offset(_candidateDisplayOffset);
-            int adjustmentX = FindSnapLineAdjustment(displayedBounds, operation, horizontalAxis: true);
-            int adjustmentY = FindSnapLineAdjustment(displayedBounds, operation, horizontalAxis: false);
-            return ApplyAdjustments(bounds, operation, adjustmentX, adjustmentY, minimumWidth, minimumHeight);
+            SnapAdjustment adjustmentX = FindSnapLineAdjustment(displayedBounds, operation, horizontalAxis: true);
+            SnapAdjustment adjustmentY = FindSnapLineAdjustment(displayedBounds, operation, horizontalAxis: false);
+            Rectangle adjusted = ApplyAdjustments(
+                bounds,
+                operation,
+                adjustmentX.Value,
+                adjustmentY.Value,
+                minimumWidth,
+                minimumHeight);
+            displayedBounds = adjusted;
+            displayedBounds.Offset(_candidateDisplayOffset);
+            UpdateAdorners(
+                CreateAdorner(adjustmentX, displayedBounds),
+                CreateAdorner(adjustmentY, displayedBounds));
+            return adjusted;
         }
 
         private Rectangle SnapManipulatedBoundsToGrid(
@@ -258,19 +304,25 @@ namespace System.ComponentModel.Design
         private Rectangle SnapToolBounds(Rectangle bounds)
         {
             if (bounds.IsEmpty || _targetLineCount == 0)
+            {
+                ClearAdorners();
                 return bounds;
+            }
 
             SnapAdjustment leftAdjustment = FindToolAdjustment(SnapLineType.Left, bounds.Left);
             SnapAdjustment rightAdjustment = FindToolAdjustment(SnapLineType.Right, bounds.Right - 1);
             SnapAdjustment topAdjustment = FindToolAdjustment(SnapLineType.Top, bounds.Top);
             SnapAdjustment bottomAdjustment = FindToolAdjustment(SnapLineType.Bottom, bounds.Bottom - 1);
-            int adjustmentX = ChooseAxisAdjustment(leftAdjustment, rightAdjustment);
-            int adjustmentY = ChooseAxisAdjustment(topAdjustment, bottomAdjustment);
-            bounds.Offset(adjustmentX, adjustmentY);
+            SnapAdjustment adjustmentX = ChooseAxisAdjustment(leftAdjustment, rightAdjustment);
+            SnapAdjustment adjustmentY = ChooseAxisAdjustment(topAdjustment, bottomAdjustment);
+            bounds.Offset(adjustmentX.Value, adjustmentY.Value);
+            UpdateAdorners(
+                CreateAdorner(adjustmentX, bounds),
+                CreateAdorner(adjustmentY, bounds));
             return bounds;
         }
 
-        private int FindSnapLineAdjustment(
+        private SnapAdjustment FindSnapLineAdjustment(
             Rectangle displayedBounds,
             PortableDesignerPointerOperation operation,
             bool horizontalAxis)
@@ -279,6 +331,8 @@ namespace System.ComponentModel.Design
             int bestDistance = SnapLineTolerance + 1;
             int bestPriority = int.MinValue;
             int bestOrder = int.MaxValue;
+            SnapLineSnapshot bestTarget = default;
+            bool found = false;
 
             for (int candidateIndex = 0; candidateIndex < _candidateLineCount; candidateIndex++)
             {
@@ -314,11 +368,13 @@ namespace System.ComponentModel.Design
                         bestDistance = distance;
                         bestPriority = priority;
                         bestOrder = order;
+                        bestTarget = target;
+                        found = true;
                     }
                 }
             }
 
-            return bestAdjustment;
+            return new SnapAdjustment(found, bestAdjustment, bestTarget);
         }
 
         private SnapAdjustment FindToolAdjustment(SnapLineType lineType, int coordinate)
@@ -327,6 +383,7 @@ namespace System.ComponentModel.Design
             int bestDistance = SnapLineTolerance + 1;
             int bestPriority = int.MinValue;
             bool found = false;
+            SnapLineSnapshot bestTarget = default;
             for (int index = 0; index < _targetLineCount; index++)
             {
                 SnapLineSnapshot target = _targetLines[index];
@@ -342,11 +399,12 @@ namespace System.ComponentModel.Design
                     bestAdjustment = adjustment;
                     bestDistance = distance;
                     bestPriority = priority;
+                    bestTarget = target;
                     found = true;
                 }
             }
 
-            return new SnapAdjustment(found, bestAdjustment);
+            return new SnapAdjustment(found, bestAdjustment, bestTarget);
         }
 
         private int GetCandidateCoordinate(SnapLine line, Rectangle displayedBounds)
@@ -398,7 +456,10 @@ namespace System.ComponentModel.Design
                 int absoluteOffset = line.IsVertical
                     ? origin.X + line.Offset
                     : origin.Y + line.Offset;
-                AddTargetLine(line, absoluteOffset);
+                AddTargetLine(
+                    line,
+                    absoluteOffset,
+                    new Rectangle(origin, target.ClientSize));
             }
         }
 
@@ -426,13 +487,13 @@ namespace System.ComponentModel.Design
         private void AddCandidateLine(SnapLine line)
         {
             EnsureCapacity(ref _candidateLines, _candidateLineCount + 1);
-            _candidateLines[_candidateLineCount++] = new SnapLineSnapshot(line, line.Offset);
+            _candidateLines[_candidateLineCount++] = new SnapLineSnapshot(line, line.Offset, Rectangle.Empty);
         }
 
-        private void AddTargetLine(SnapLine line, int absoluteOffset)
+        private void AddTargetLine(SnapLine line, int absoluteOffset, Rectangle ownerBounds)
         {
             EnsureCapacity(ref _targetLines, _targetLineCount + 1);
-            _targetLines[_targetLineCount++] = new SnapLineSnapshot(line, absoluteOffset);
+            _targetLines[_targetLineCount++] = new SnapLineSnapshot(line, absoluteOffset, ownerBounds);
         }
 
         private static void EnsureCapacity(ref SnapLineSnapshot[] snapshots, int required)
@@ -442,6 +503,137 @@ namespace System.ComponentModel.Design
 
             int capacity = Math.Max(required, snapshots.Length * 2);
             Array.Resize(ref snapshots, capacity);
+        }
+
+        private void AttachAdorner(Control parent)
+        {
+            if (ReferenceEquals(_adornerParent, parent))
+                return;
+
+            DetachAdorner();
+            _adornerParent = parent;
+            parent.AddDesignerAdornerPaintHandler(PaintAdornments);
+        }
+
+        private void DetachAdorner()
+        {
+            Control? parent = _adornerParent;
+            if (parent is null)
+                return;
+
+            _adornerParent = null;
+            parent.RemoveDesignerAdornerPaintHandler(PaintAdornments);
+        }
+
+        private void PaintAdornments(object? sender, PaintEventArgs e)
+        {
+            DrawAdorner(e.Graphics, _verticalAdorner);
+            DrawAdorner(e.Graphics, _horizontalAdorner);
+        }
+
+        private static void DrawAdorner(Graphics graphics, SnapLineAdorner adorner)
+        {
+            if (!adorner.Visible)
+                return;
+
+            if (adorner.IsVertical)
+            {
+                graphics.DrawLine(
+                    Pens.Blue,
+                    adorner.Coordinate,
+                    adorner.Start,
+                    adorner.Coordinate,
+                    adorner.End);
+            }
+            else
+            {
+                graphics.DrawLine(
+                    Pens.Blue,
+                    adorner.Start,
+                    adorner.Coordinate,
+                    adorner.End,
+                    adorner.Coordinate);
+            }
+        }
+
+        private SnapLineAdorner CreateAdorner(SnapAdjustment adjustment, Rectangle candidateBounds)
+        {
+            if (!adjustment.Found || _adornerParent is not Control parent)
+                return default;
+
+            SnapLineSnapshot target = adjustment.Target;
+            Rectangle clip = parent.ClientRectangle;
+            if (clip.Width <= 0 || clip.Height <= 0)
+                return default;
+
+            if (target.Line.IsVertical)
+            {
+                if (target.Offset < clip.Left || target.Offset >= clip.Right)
+                    return default;
+
+                int start = Math.Max(clip.Top, Math.Min(candidateBounds.Top, target.OwnerBounds.Top));
+                int end = Math.Min(
+                    clip.Bottom - 1,
+                    Math.Max(candidateBounds.Bottom - 1, target.OwnerBounds.Bottom - 1));
+                return end < start
+                    ? default
+                    : new SnapLineAdorner(isVertical: true, target.Offset, start, end);
+            }
+
+            if (target.Offset < clip.Top || target.Offset >= clip.Bottom)
+                return default;
+
+            int horizontalStart = Math.Max(clip.Left, Math.Min(candidateBounds.Left, target.OwnerBounds.Left));
+            int horizontalEnd = Math.Min(
+                clip.Right - 1,
+                Math.Max(candidateBounds.Right - 1, target.OwnerBounds.Right - 1));
+            return horizontalEnd < horizontalStart
+                ? default
+                : new SnapLineAdorner(isVertical: false, target.Offset, horizontalStart, horizontalEnd);
+        }
+
+        private void UpdateAdorners(SnapLineAdorner vertical, SnapLineAdorner horizontal)
+        {
+            if (_verticalAdorner.Equals(vertical) && _horizontalAdorner.Equals(horizontal))
+                return;
+
+            Rectangle invalidationBounds = GetInvalidationBounds(_verticalAdorner);
+            UnionInvalidationBounds(ref invalidationBounds, GetInvalidationBounds(_horizontalAdorner));
+            UnionInvalidationBounds(ref invalidationBounds, GetInvalidationBounds(vertical));
+            UnionInvalidationBounds(ref invalidationBounds, GetInvalidationBounds(horizontal));
+            _verticalAdorner = vertical;
+            _horizontalAdorner = horizontal;
+
+            if (_adornerParent is Control parent)
+            {
+                if (invalidationBounds.IsEmpty)
+                    parent.InvalidateDesignerAdornments();
+                else
+                    parent.InvalidateDesignerAdornments(invalidationBounds);
+            }
+        }
+
+        private void ClearAdorners()
+        {
+            UpdateAdorners(default, default);
+        }
+
+        private static Rectangle GetInvalidationBounds(SnapLineAdorner adorner)
+        {
+            if (!adorner.Visible)
+                return Rectangle.Empty;
+
+            return adorner.IsVertical
+                ? new Rectangle(adorner.Coordinate - 1, adorner.Start, 3, adorner.End - adorner.Start + 1)
+                : new Rectangle(adorner.Start, adorner.Coordinate - 1, adorner.End - adorner.Start + 1, 3);
+        }
+
+        private static void UnionInvalidationBounds(ref Rectangle aggregate, Rectangle bounds)
+        {
+            if (bounds.IsEmpty)
+                return;
+
+            aggregate = aggregate.IsEmpty ? bounds : Rectangle.Union(aggregate, bounds);
         }
 
         private DesignerLayoutOptions ReadOptions()
@@ -580,13 +772,13 @@ namespace System.ComponentModel.Design
                 || string.Equals(line.Filter, SnapLine.PaddingBottom, StringComparison.Ordinal);
         }
 
-        private static int ChooseAxisAdjustment(SnapAdjustment first, SnapAdjustment second)
+        private static SnapAdjustment ChooseAxisAdjustment(SnapAdjustment first, SnapAdjustment second)
         {
             if (!first.Found)
-                return second.Value;
+                return second;
             if (!second.Found)
-                return first.Value;
-            return Math.Abs(first.Value) <= Math.Abs(second.Value) ? first.Value : second.Value;
+                return first;
+            return Math.Abs(first.Value) <= Math.Abs(second.Value) ? first : second;
         }
 
         private static Rectangle CreateBounds(Point start, Point end)
@@ -658,28 +850,75 @@ namespace System.ComponentModel.Design
 
         private readonly struct SnapLineSnapshot
         {
-            internal SnapLineSnapshot(SnapLine line, int offset)
+            internal SnapLineSnapshot(SnapLine line, int offset, Rectangle ownerBounds)
             {
                 Line = line;
                 Offset = offset;
+                OwnerBounds = ownerBounds;
             }
 
             internal SnapLine Line { get; }
 
             internal int Offset { get; }
+
+            internal Rectangle OwnerBounds { get; }
         }
 
         private readonly struct SnapAdjustment
         {
-            internal SnapAdjustment(bool found, int value)
+            internal SnapAdjustment(bool found, int value, SnapLineSnapshot target)
             {
                 Found = found;
                 Value = value;
+                Target = target;
             }
 
             internal bool Found { get; }
 
             internal int Value { get; }
+
+            internal SnapLineSnapshot Target { get; }
+        }
+
+        private readonly struct SnapLineAdorner : IEquatable<SnapLineAdorner>
+        {
+            internal SnapLineAdorner(bool isVertical, int coordinate, int start, int end)
+            {
+                Visible = true;
+                IsVertical = isVertical;
+                Coordinate = coordinate;
+                Start = start;
+                End = end;
+            }
+
+            internal bool Visible { get; }
+
+            internal bool IsVertical { get; }
+
+            internal int Coordinate { get; }
+
+            internal int Start { get; }
+
+            internal int End { get; }
+
+            public bool Equals(SnapLineAdorner other)
+            {
+                return Visible == other.Visible
+                    && IsVertical == other.IsVertical
+                    && Coordinate == other.Coordinate
+                    && Start == other.Start
+                    && End == other.End;
+            }
+
+            public override bool Equals(object? obj)
+            {
+                return obj is SnapLineAdorner other && Equals(other);
+            }
+
+            public override int GetHashCode()
+            {
+                return HashCode.Combine(Visible, IsVertical, Coordinate, Start, End);
+            }
         }
 
         private readonly struct DesignerLayoutOptions

@@ -157,6 +157,7 @@ public class WindowsFormsHost : FrameworkElement
     private Forms.DragDropEffects _externalDragEffect;
     private Window? _externalDropWindow;
     private long _portableCustomPaintDispatchCount;
+    private long _portableDesignerAdornerDispatchCount;
     private long _portableChildInvalidationDispatchCount;
     private long _portableCreateGraphicsDispatchCount;
     private long _portableOwnerDrawDispatchCount;
@@ -168,6 +169,7 @@ public class WindowsFormsHost : FrameworkElement
     private readonly ConditionalWeakTable<object, Forms.IDataObject> _dragDataCache = new();
     private readonly HashSet<Forms.Control> _invalidationTreeSubscriptions = new(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<Forms.Control, PortablePaintSurfacePool> _portablePaintSurfacePools = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<Forms.Control, PortablePaintSurfacePool> _portableDesignerAdornerSurfacePools = new(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<Forms.Control, PortablePaintSurfacePool> _createGraphicsSurfacePools = new(ReferenceEqualityComparer.Instance);
     private readonly List<PortablePaintSurfacePool> _pendingRetiredPaintSurfacePools = new();
     private readonly List<PortablePaintSurfacePool> _safeRetiredPaintSurfacePools = new();
@@ -290,6 +292,8 @@ public class WindowsFormsHost : FrameworkElement
     public PropertyMap PropertyMap { get; } = new();
 
     public long PortableCustomPaintDispatchCount => Interlocked.Read(ref _portableCustomPaintDispatchCount);
+
+    public long PortableDesignerAdornerDispatchCount => Interlocked.Read(ref _portableDesignerAdornerDispatchCount);
 
     public long PortableChildInvalidationDispatchCount => Interlocked.Read(ref _portableChildInvalidationDispatchCount);
 
@@ -3255,6 +3259,8 @@ public class WindowsFormsHost : FrameworkElement
             {
                 DrawBorder(drawingContext, userControl.BorderStyle, bounds);
             }
+
+            RenderPortableDesignerAdornments(drawingContext, control, bounds);
         }
         finally
         {
@@ -3333,6 +3339,66 @@ public class WindowsFormsHost : FrameworkElement
             new DrawingRectangle(0, 0, width, height));
         paintSource.PaintPortableBackground(paintEventArgs);
         paintSource.PaintPortable(paintEventArgs);
+    }
+
+    private void RenderPortableDesignerAdornments(
+        DrawingContext drawingContext,
+        Forms.Control control,
+        Rect bounds)
+    {
+        if (control is not Forms.IPortableWinFormsAdornerSource adornerSource
+            || !adornerSource.SupportsPortableAdornments)
+        {
+            return;
+        }
+
+        int width = Math.Max(0, ToWinFormsCoordinate(bounds.Width));
+        int height = Math.Max(0, ToWinFormsCoordinate(bounds.Height));
+        if (width == 0 || height == 0)
+        {
+            return;
+        }
+
+        if (TryGetNativeDrawingContext(
+                drawingContext,
+                out ProGPU.Scene.DrawingContext nativeContext,
+                out Matrix4x4 outerTransform))
+        {
+            Matrix4x4 clientTransform = Matrix4x4.CreateTranslation((float)bounds.X, (float)bounds.Y, 0f)
+                * outerTransform;
+            using DrawingGraphics graphics = DrawingGraphics.FromProGpuDrawingContext(nativeContext, clientTransform);
+            PaintPortableDesignerAdornments(adornerSource, graphics, width, height);
+        }
+        else
+        {
+            PortablePaintSurface surface = GetPortableDesignerAdornerSurfacePool(control).AcquireFixed(width, height);
+            if (surface.Source == null)
+            {
+                return;
+            }
+
+            using (DrawingGraphics graphics = DrawingGraphics.FromImage(surface.Bitmap))
+            {
+                graphics.Clear(DrawingColor.Transparent);
+                PaintPortableDesignerAdornments(adornerSource, graphics, width, height);
+            }
+
+            drawingContext.DrawImage(surface.Source, bounds);
+        }
+
+        Interlocked.Increment(ref _portableDesignerAdornerDispatchCount);
+    }
+
+    private static void PaintPortableDesignerAdornments(
+        Forms.IPortableWinFormsAdornerSource adornerSource,
+        DrawingGraphics graphics,
+        int width,
+        int height)
+    {
+        var paintEventArgs = new Forms.PaintEventArgs(
+            graphics,
+            new DrawingRectangle(0, 0, width, height));
+        adornerSource.PaintPortableAdornments(paintEventArgs);
     }
 
     private static bool TryGetNativeDrawingContext(
@@ -4805,6 +4871,17 @@ public class WindowsFormsHost : FrameworkElement
         return pool;
     }
 
+    private PortablePaintSurfacePool GetPortableDesignerAdornerSurfacePool(Forms.Control control)
+    {
+        if (!_portableDesignerAdornerSurfacePools.TryGetValue(control, out PortablePaintSurfacePool? pool))
+        {
+            pool = new PortablePaintSurfacePool();
+            _portableDesignerAdornerSurfacePools.Add(control, pool);
+        }
+
+        return pool;
+    }
+
     private bool TryCreateHostedControlGraphics(
         Forms.Control control,
         out DrawingGraphics graphics)
@@ -4862,6 +4939,11 @@ public class WindowsFormsHost : FrameworkElement
             _pendingRetiredPaintSurfacePools.Add(pool);
         }
 
+        if (_portableDesignerAdornerSurfacePools.Remove(control, out pool))
+        {
+            _pendingRetiredPaintSurfacePools.Add(pool);
+        }
+
         if (_createGraphicsSurfacePools.Remove(control, out pool))
         {
             _pendingRetiredPaintSurfacePools.Add(pool);
@@ -4892,6 +4974,11 @@ public class WindowsFormsHost : FrameworkElement
             pool.Dispose();
         }
 
+        foreach (PortablePaintSurfacePool pool in _portableDesignerAdornerSurfacePools.Values)
+        {
+            pool.Dispose();
+        }
+
         foreach (PortablePaintSurfacePool pool in _pendingRetiredPaintSurfacePools)
         {
             pool.Dispose();
@@ -4903,6 +4990,7 @@ public class WindowsFormsHost : FrameworkElement
         }
 
         _portablePaintSurfacePools.Clear();
+        _portableDesignerAdornerSurfacePools.Clear();
         _createGraphicsSurfacePools.Clear();
         _pendingRetiredPaintSurfacePools.Clear();
         _safeRetiredPaintSurfacePools.Clear();
