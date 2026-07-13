@@ -267,6 +267,33 @@ public class DesignSurfaceTests
         Assert.Same(container, container.GetService(container.GetType()));
     }
 
+    [WinFormsFact]
+    public void DesignSurface_GetPortableCleanupService_ReturnsExpected()
+    {
+        using SubDesignSurface surface = new();
+
+        IPortableDesignSurfaceServiceCleanup cleanup = Assert.IsAssignableFrom<IPortableDesignSurfaceServiceCleanup>(
+            surface.GetService(typeof(IPortableDesignSurfaceServiceCleanup)));
+
+        Assert.Same(cleanup, surface.ServiceContainer.GetService(typeof(IPortableDesignSurfaceServiceCleanup)));
+    }
+
+    [WinFormsFact]
+    public void DesignSurface_PortableCleanupService_RemoveDesignerHostServices_RemovesAliasesIdempotently()
+    {
+        using SubDesignSurface surface = new();
+        IPortableDesignSurfaceServiceCleanup cleanup = Assert.IsAssignableFrom<IPortableDesignSurfaceServiceCleanup>(
+            surface.GetService(typeof(IPortableDesignSurfaceServiceCleanup)));
+
+        cleanup.RemoveDesignerHostServices();
+        cleanup.RemoveDesignerHostServices();
+
+        foreach (object[] data in ServiceContainer_FixedService_TestData())
+        {
+            Assert.Null(surface.GetService((Type)data[0]));
+        }
+    }
+
     public static IEnumerable<object[]> ServiceContainer_FixedService_TestData()
     {
         yield return new object[] { typeof(IDesignerHost) };

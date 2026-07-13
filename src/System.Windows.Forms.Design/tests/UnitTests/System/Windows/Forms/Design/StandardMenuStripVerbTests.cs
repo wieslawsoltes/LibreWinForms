@@ -53,6 +53,7 @@ public class StandardMenuStripVerbTests : IDisposable
         _designerHostMock.Setup(h => h.CreateTransaction(It.IsAny<string>())).Returns(_mockTransaction.Object);
         _designerHostMock.Setup(h => h.GetService(typeof(IComponentChangeService))).Returns(_componentChangeServiceMock.Object);
         _designerHostMock.Setup(h => h.AddService(typeof(ToolStripKeyboardHandlingService), It.IsAny<object>()));
+        _designerHostMock.Setup(h => h.AddService(typeof(IPortableToolStripKeyboardHandlingService), It.IsAny<object>()));
         _designerHostMock.Setup(h => h.AddService(typeof(ISupportInSituService), It.IsAny<object>()));
         _designerHostMock.Setup(h => h.AddService(typeof(DesignerActionService), It.IsAny<object>()));
         _designerHostMock.Setup(h => h.GetDesigner(_menuStrip)).Returns(_parentControlDesigner);
