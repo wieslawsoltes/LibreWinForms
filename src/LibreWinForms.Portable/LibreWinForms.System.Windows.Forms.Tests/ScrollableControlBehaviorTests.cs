@@ -9,11 +9,32 @@ internal static class ScrollableControlBehaviorTests
     public static void Run()
     {
         ScrollMetricsClampAndPublishTypedState();
+        DisplayRectangleDeflatesPaddingAfterScrolling();
         ScrolledCoordinatesFollowTheDisplayedChildTree();
         ScaleUpdatesBoundsAndDescendants();
         ClassCanvasEditingCoordinatesStayAlignedWithScrollAndZoom();
         Console.WriteLine(
-            "LibreWinForms scroll/scale tests passed: metrics=1 coordinates=1 recursiveScale=1 classCanvasEditing=1.");
+            "LibreWinForms scroll/scale tests passed: metrics=1 padding=1 coordinates=1 recursiveScale=1 classCanvasEditing=1.");
+    }
+
+    private static void DisplayRectangleDeflatesPaddingAfterScrolling()
+    {
+        var panel = new Forms.Panel
+        {
+            AutoScroll = true,
+            Padding = new Forms.Padding(5, 6, 7, 8),
+            Size = new Size(100, 80)
+        };
+        panel.Controls.Add(new Forms.Control
+        {
+            Bounds = new Rectangle(80, 70, 120, 90)
+        });
+
+        panel.HorizontalScroll.Value = 30;
+        panel.VerticalScroll.Value = 25;
+
+        Assert(panel.DisplayRectangle == new Rectangle(-25, -19, 188, 146),
+            "ScrollableControl.DisplayRectangle did not deflate the scrolled extent by Padding.");
     }
 
     private static void ScrollMetricsClampAndPublishTypedState()

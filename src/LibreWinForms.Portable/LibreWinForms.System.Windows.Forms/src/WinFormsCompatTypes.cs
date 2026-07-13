@@ -1810,11 +1810,17 @@ public class ScrollableControl : Control
         {
             SynchronizeScrollProperties();
             Size extent = GetScrollExtent();
-            return new Rectangle(
+            Rectangle displayRectangle = new(
                 -_horizontalScroll.ValueCore,
                 -_verticalScroll.ValueCore,
                 Math.Max(ClientSize.Width, extent.Width),
                 Math.Max(ClientSize.Height, extent.Height));
+            Padding padding = Padding;
+            displayRectangle.X += padding.Left;
+            displayRectangle.Y += padding.Top;
+            displayRectangle.Width = Math.Max(0, displayRectangle.Width - padding.Left - padding.Right);
+            displayRectangle.Height = Math.Max(0, displayRectangle.Height - padding.Top - padding.Bottom);
+            return displayRectangle;
         }
     }
 
