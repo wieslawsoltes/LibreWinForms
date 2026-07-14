@@ -423,10 +423,46 @@ public class WindowsFormsHost : FrameworkElement
             }
         }
 
-        if (sourceHost == null
-            || !sourceHost.IsLoaded
-            || !sourceHost.IsVisible
-            || !sourceHost.Dispatcher.CheckAccess())
+        if (sourceHost == null)
+        {
+            return Forms.DragDropEffects.None;
+        }
+
+        Dispatcher sourceDispatcher = sourceHost.Dispatcher;
+        if (!sourceDispatcher.CheckAccess())
+        {
+            if (sourceDispatcher.HasShutdownStarted || sourceDispatcher.HasShutdownFinished)
+            {
+                return Forms.DragDropEffects.None;
+            }
+
+            Forms.DragDropEffects result = Forms.DragDropEffects.None;
+            try
+            {
+                sourceDispatcher.Invoke(
+                    () => result = DoPortableDragDropCore(
+                        sourceHost,
+                        data,
+                        allowedEffects),
+                    DispatcherPriority.Send);
+            }
+            catch (InvalidOperationException)
+            {
+                return Forms.DragDropEffects.None;
+            }
+
+            return result;
+        }
+
+        return DoPortableDragDropCore(sourceHost, data, allowedEffects);
+    }
+
+    private static Forms.DragDropEffects DoPortableDragDropCore(
+        WindowsFormsHost sourceHost,
+        Forms.IDataObject data,
+        Forms.DragDropEffects allowedEffects)
+    {
+        if (!sourceHost.IsLoaded || !sourceHost.IsVisible)
         {
             return Forms.DragDropEffects.None;
         }
@@ -436,24 +472,43 @@ public class WindowsFormsHost : FrameworkElement
         int sourceButtonMask = keyState & mouseButtonMask;
         if (sourceButtonMask == 0)
         {
+            // Portable input raises the exact WinForms mouse-down before a control starts
+            // DoDragDrop, while WPF's process-wide Mouse state can lag by a dispatcher
+            // turn. The source host's typed input state is authoritative for that gap.
+            sourceButtonMask = GetPortablePressedButtonMask(sourceHost._pressedButton);
+            keyState |= sourceButtonMask;
+        }
+
+        if (sourceButtonMask == 0)
+        {
             return Forms.DragDropEffects.None;
         }
 
         var session = new PortableDragSession(sourceHost, data, allowedEffects, sourceButtonMask);
-        if (!sourceHost.CaptureMouse())
-        {
-            return Forms.DragDropEffects.None;
-        }
-
         lock (s_dragSessionGate)
         {
             if (s_dragSession != null)
             {
-                sourceHost.ReleaseMouseCapture();
                 return Forms.DragDropEffects.None;
             }
 
+            // Publish the session before CaptureMouse. WPF may synchronously pump queued
+            // pointer input while changing capture; those events already belong to this
+            // drag and must not be lost before CaptureMouse returns.
             s_dragSession = session;
+        }
+
+        if (!sourceHost.CaptureMouse())
+        {
+            lock (s_dragSessionGate)
+            {
+                if (ReferenceEquals(s_dragSession, session))
+                {
+                    s_dragSession = null;
+                }
+            }
+
+            return Forms.DragDropEffects.None;
         }
 
         try
@@ -1341,6 +1396,27 @@ public class WindowsFormsHost : FrameworkElement
         }
 
         return keyState;
+    }
+
+    private static int GetPortablePressedButtonMask(Forms.MouseButtons pressedButton)
+    {
+        int result = 0;
+        if ((pressedButton & Forms.MouseButtons.Left) != 0)
+        {
+            result |= 1;
+        }
+
+        if ((pressedButton & Forms.MouseButtons.Right) != 0)
+        {
+            result |= 2;
+        }
+
+        if ((pressedButton & Forms.MouseButtons.Middle) != 0)
+        {
+            result |= 16;
+        }
+
+        return result;
     }
 
     private static System.Windows.DragDropKeyStates ToWpfDragDropKeyStates(int keyState)

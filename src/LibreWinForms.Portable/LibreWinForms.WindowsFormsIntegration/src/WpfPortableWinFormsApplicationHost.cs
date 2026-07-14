@@ -79,18 +79,12 @@ internal sealed class WpfPortableWinFormsApplicationHost :
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(data);
-        ThrowIfDispatcherUnavailable();
-
-        if (_dispatcher.CheckAccess())
-        {
-            return WindowsFormsHost.DoPortableDragDrop(source, data, allowedEffects);
-        }
-
-        Forms.DragDropEffects result = Forms.DragDropEffects.None;
-        _dispatcher.Invoke(
-            () => result = WindowsFormsHost.DoPortableDragDrop(source, data, allowedEffects),
-            DispatcherPriority.Send);
-        return result;
+        // A hosted control may belong to a WPF window on a dispatcher other than the
+        // application dispatcher captured by this process-wide host. Let the typed
+        // WindowsFormsHost ownership registry select that exact dispatcher. Marshalling
+        // through _dispatcher here can reorder already-queued pointer input ahead of the
+        // drag capture, and can deadlock when the source dispatcher is waiting for us.
+        return WindowsFormsHost.DoPortableDragDrop(source, data, allowedEffects);
     }
 
     bool Forms.IWinFormsCoordinateHost.TryPointToScreen(
