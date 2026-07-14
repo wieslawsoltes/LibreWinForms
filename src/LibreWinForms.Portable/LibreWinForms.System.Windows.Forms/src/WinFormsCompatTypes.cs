@@ -5492,6 +5492,7 @@ public class ToolStripMenuItem : ToolStripItem
 {
     private bool _checked;
     private CheckState _checkState;
+    private readonly ToolStripDropDown _dropDown = new();
 
     public ToolStripMenuItem()
     {
@@ -5532,9 +5533,9 @@ public class ToolStripMenuItem : ToolStripItem
 
     public bool CheckOnClick { get; set; }
 
-    public ToolStripDropDown DropDown { get; } = new();
+    public ToolStripDropDown DropDown => _dropDown;
 
-    public ToolStripItemCollection DropDownItems { get; } = new();
+    public ToolStripItemCollection DropDownItems => _dropDown.Items;
 
     public string ShortcutKeyDisplayString { get; set; } = string.Empty;
 
@@ -5560,9 +5561,11 @@ public class ToolStripButton : ToolStripItem
 
 public class ToolStripDropDownButton : ToolStripItem
 {
-    public ToolStripDropDown DropDown { get; } = new();
+    private readonly ToolStripDropDown _dropDown = new();
 
-    public ToolStripItemCollection DropDownItems { get; } = new();
+    public ToolStripDropDown DropDown => _dropDown;
+
+    public ToolStripItemCollection DropDownItems => _dropDown.Items;
 
     public void ShowDropDown()
     {

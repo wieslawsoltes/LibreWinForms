@@ -17,10 +17,11 @@ internal static class HexEditorContractBehaviorTests
         DropDownCloseReasonsAreTypedAndIdempotent();
         UserControlBorderStyleValidatesAndInvalidates();
         ToolStripComboBoxForwardsSelectionAndStyle();
+        ToolStripDropDownItemsShareTheDropDownCollection();
         ComboBoxItemRangesPreserveDesignerOrder();
         ToolStripOverflowStateValidates();
         Console.WriteLine(
-            "LibreWinForms HexEditor contracts passed: cursor=5 doubleBuffer=1 inputKey=2 menu=4 close=2 border=3 combo=3 range=3 overflow=3.");
+            "LibreWinForms HexEditor contracts passed: cursor=5 doubleBuffer=1 inputKey=2 menu=4 close=2 border=3 combo=3 dropdown=8 range=3 overflow=3.");
     }
 
     private static void CursorKindsAreStableTypedSingletons()
@@ -150,6 +151,26 @@ internal static class HexEditorContractBehaviorTests
         combo.SelectedItem = null;
         Assert(combo.SelectedIndex == -1 && combo.SelectedItem == null && changes == 2, "Null SelectedItem did not clear selection once.");
         Assert(combo.DropDownStyle == Forms.ComboBoxStyle.DropDownList, "ToolStripComboBox did not forward DropDownStyle.");
+    }
+
+    private static void ToolStripDropDownItemsShareTheDropDownCollection()
+    {
+        using var menuItem = new Forms.ToolStripMenuItem("File");
+        using var child = new Forms.ToolStripMenuItem("Open");
+        menuItem.DropDownItems.Add(child);
+
+        Assert(ReferenceEquals(menuItem.DropDownItems, menuItem.DropDown.Items), "Menu item exposed two different drop-down collections.");
+        Assert(menuItem.DropDown.Items.Count == 1 && ReferenceEquals(menuItem.DropDown.Items[0], child), "Menu item drop-down did not contain its public child item.");
+        menuItem.ShowDropDown();
+        Assert(menuItem.DropDown.Visible, "Menu item ShowDropDown did not show the shared drop-down.");
+        menuItem.DropDown.Close();
+        Assert(!menuItem.DropDown.Visible, "Menu item drop-down did not close.");
+
+        using var button = new Forms.ToolStripDropDownButton();
+        using var buttonChild = new Forms.ToolStripButton();
+        button.DropDownItems.Add(buttonChild);
+        Assert(ReferenceEquals(button.DropDownItems, button.DropDown.Items), "Drop-down button exposed two different drop-down collections.");
+        Assert(button.DropDown.Items.Count == 1 && ReferenceEquals(button.DropDown.Items[0], buttonChild), "Drop-down button did not retain its child item.");
     }
 
     private static void ToolStripOverflowStateValidates()
