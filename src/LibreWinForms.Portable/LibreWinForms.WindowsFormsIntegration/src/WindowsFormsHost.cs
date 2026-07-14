@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.ComponentModel.Design;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -58,6 +59,8 @@ public class WindowsFormsHost : FrameworkElement
 
     private sealed class PortableDragSession
     {
+        private System.Windows.IDataObject? _wpfData;
+
         public PortableDragSession(
             WindowsFormsHost sourceHost,
             Forms.IDataObject data,
@@ -78,17 +81,27 @@ public class WindowsFormsHost : FrameworkElement
 
         public Forms.DragDropEffects CurrentEffect { get; set; }
 
+        public DependencyObject? CurrentWpfTarget { get; set; }
+
+        public Forms.DragDropEffects CurrentWpfEffect { get; set; }
+
+        public Point CurrentWpfTargetPoint { get; set; }
+
         public Forms.IDataObject Data { get; }
 
         public DispatcherFrame Frame { get; } = new();
 
         public bool IsCompleted { get; set; }
 
+        public Point LastScreenPoint { get; set; }
+
         public Forms.DragDropEffects Result { get; set; }
 
         public int SourceButtonMask { get; }
 
         public WindowsFormsHost SourceHost { get; }
+
+        public System.Windows.IDataObject WpfData => _wpfData ??= CreateWpfDragData(Data);
     }
 
     private sealed class PortableDropWindowState
@@ -101,6 +114,73 @@ public class WindowsFormsHost : FrameworkElement
         public int HostCount { get; set; }
 
         public bool OriginalAllowDrop { get; }
+    }
+
+    private sealed class PortableWpfDataObject : System.Windows.IDataObject
+    {
+        private readonly Forms.IDataObject _source;
+        private Dictionary<string, object?>? _data;
+
+        public PortableWpfDataObject(Forms.IDataObject data)
+        {
+            _source = data;
+        }
+
+        public object? GetData(string format) => GetData(format, autoConvert: true);
+
+        public object? GetData(string format, bool autoConvert) =>
+            _data != null && _data.TryGetValue(format, out object? value)
+                ? value
+                : _source.GetData(format, autoConvert);
+
+        public object? GetData(Type format) =>
+            GetData(format.FullName ?? format.Name, autoConvert: true);
+
+        public bool GetDataPresent(string format) => GetDataPresent(format, autoConvert: true);
+
+        public bool GetDataPresent(string format, bool autoConvert) =>
+            (_data?.ContainsKey(format) ?? false) || _source.GetDataPresent(format, autoConvert);
+
+        public bool GetDataPresent(Type format) =>
+            GetDataPresent(format.FullName ?? format.Name, autoConvert: true);
+
+        public string[] GetFormats() => GetFormats(autoConvert: true);
+
+        public string[] GetFormats(bool autoConvert)
+        {
+            string[] sourceFormats = _source.GetFormats(autoConvert);
+            if (_data == null || _data.Count == 0)
+            {
+                return sourceFormats;
+            }
+
+            return sourceFormats
+                .Concat(_data.Keys)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        public void SetData(object? data)
+        {
+            ArgumentNullException.ThrowIfNull(data);
+            SetData(data.GetType(), data);
+        }
+
+        public void SetData(string format, object? data) =>
+            SetData(format, data, autoConvert: true);
+
+        public void SetData(string format, object? data, bool autoConvert)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(format);
+            ArgumentNullException.ThrowIfNull(data);
+            (_data ??= new Dictionary<string, object?>(StringComparer.Ordinal))[format] = data;
+        }
+
+        public void SetData(Type format, object? data)
+        {
+            ArgumentNullException.ThrowIfNull(format);
+            SetData(format.FullName ?? format.Name, data, autoConvert: true);
+        }
     }
 
     private const double DesignHandleSize = 7;
@@ -354,12 +434,17 @@ public class WindowsFormsHost : FrameworkElement
         int keyState = GetCurrentDragKeyState();
         const int mouseButtonMask = 1 | 2 | 16;
         int sourceButtonMask = keyState & mouseButtonMask;
-        if (sourceButtonMask == 0 || !sourceHost.CaptureMouse())
+        if (sourceButtonMask == 0)
         {
             return Forms.DragDropEffects.None;
         }
 
         var session = new PortableDragSession(sourceHost, data, allowedEffects, sourceButtonMask);
+        if (!sourceHost.CaptureMouse())
+        {
+            return Forms.DragDropEffects.None;
+        }
+
         lock (s_dragSessionGate)
         {
             if (s_dragSession != null)
@@ -373,8 +458,7 @@ public class WindowsFormsHost : FrameworkElement
 
         try
         {
-            Point initialHostPoint = Mouse.GetPosition(sourceHost);
-            if (!TryGetScreenPoint(sourceHost, initialHostPoint, out Point initialScreenPoint))
+            if (!TryGetCurrentDragScreenPoint(sourceHost, out Point initialScreenPoint))
             {
                 CancelPortableDragSession(session);
             }
@@ -392,6 +476,8 @@ public class WindowsFormsHost : FrameworkElement
         }
         finally
         {
+            ClearPortableDragTargets(session);
+            EndPortableDragSession(session);
             lock (s_dragSessionGate)
             {
                 if (ReferenceEquals(s_dragSession, session))
@@ -553,14 +639,28 @@ public class WindowsFormsHost : FrameworkElement
             return false;
         }
 
-        Point hostPoint = e.GetPosition(eventHost);
-        if (!TryGetScreenPoint(eventHost, hostPoint, out Point screenPoint))
+        if (!session.SourceHost.IsMouseCaptured)
         {
             CancelPortableDragSession(session);
             return true;
         }
 
-        UpdatePortableDragTarget(session, screenPoint, GetCurrentDragKeyState(), raiseOver: true);
+        if (!TryGetDragScreenPoint(eventHost, e, out Point screenPoint))
+        {
+            CancelPortableDragSession(session);
+            return true;
+        }
+
+        try
+        {
+            UpdatePortableDragTarget(session, screenPoint, GetCurrentDragKeyState(), raiseOver: true);
+        }
+        catch
+        {
+            AbortPortableDragSession(session);
+            throw;
+        }
+
         return true;
     }
 
@@ -586,8 +686,7 @@ public class WindowsFormsHost : FrameworkElement
             return true;
         }
 
-        Point hostPoint = e.GetPosition(eventHost);
-        if (!TryGetScreenPoint(eventHost, hostPoint, out Point screenPoint))
+        if (!TryGetDragScreenPoint(eventHost, e, out Point screenPoint))
         {
             CancelPortableDragSession(session);
             return true;
@@ -625,39 +724,75 @@ public class WindowsFormsHost : FrameworkElement
         int keyState,
         bool raiseOver)
     {
+        session.LastScreenPoint = screenPoint;
         TryFindPortableDropTarget(
             screenPoint,
             out WindowsFormsHost? targetHost,
             out Forms.Control? target);
 
+        if (target != null)
+        {
+            LeaveCurrentWpfTarget(session, screenPoint, keyState);
+            UpdatePortableFormsDragTarget(
+                session,
+                targetHost,
+                target,
+                screenPoint,
+                keyState,
+                raiseOver);
+            return;
+        }
+
+        LeaveCurrentFormsTarget(session);
+        _ = TryFindPortableWpfDropTarget(
+            session.SourceHost,
+            screenPoint,
+            out DependencyObject? wpfTarget,
+            out Point wpfTargetPoint);
+        UpdatePortableWpfDragTarget(
+            session,
+            wpfTarget,
+            wpfTargetPoint,
+            screenPoint,
+            keyState,
+            raiseOver);
+    }
+
+    private static void UpdatePortableFormsDragTarget(
+        PortableDragSession session,
+        WindowsFormsHost? targetHost,
+        Forms.Control target,
+        Point screenPoint,
+        int keyState,
+        bool raiseOver)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+
         if (!ReferenceEquals(session.CurrentTarget, target))
         {
-            session.CurrentTarget?.RaiseDragLeave(EventArgs.Empty);
+            LeaveCurrentFormsTarget(session);
             session.CurrentTarget = target;
             session.CurrentTargetHost = targetHost;
             session.CurrentEffect = Forms.DragDropEffects.None;
 
-            if (target != null)
-            {
-                Forms.DragDropEffects initialEffect = SelectDefaultDragEffect(
-                    session.AllowedEffects,
-                    keyState);
-                var enterArgs = CreateFormsDragEventArgs(
-                    session.Data,
-                    keyState,
-                    screenPoint,
-                    session.AllowedEffects,
-                    initialEffect);
-                target.RaiseDragEnter(enterArgs);
-                session.CurrentEffect = NormalizeDragEffect(
-                    enterArgs.Effect,
-                    session.AllowedEffects);
-            }
+            Forms.DragDropEffects initialEffect = SelectDefaultDragEffect(
+                session.AllowedEffects,
+                keyState);
+            var enterArgs = CreateFormsDragEventArgs(
+                session.Data,
+                keyState,
+                screenPoint,
+                session.AllowedEffects,
+                initialEffect);
+            target.RaiseDragEnter(enterArgs);
+            session.CurrentEffect = NormalizeDragEffect(
+                enterArgs.Effect,
+                session.AllowedEffects);
 
             return;
         }
 
-        if (!raiseOver || target == null)
+        if (!raiseOver)
         {
             return;
         }
@@ -675,41 +810,203 @@ public class WindowsFormsHost : FrameworkElement
         session.CurrentEffect = NormalizeDragEffect(overArgs.Effect, session.AllowedEffects);
     }
 
+    private static void UpdatePortableWpfDragTarget(
+        PortableDragSession session,
+        DependencyObject? target,
+        Point targetPoint,
+        Point screenPoint,
+        int keyState,
+        bool raiseOver)
+    {
+        if (!ReferenceEquals(session.CurrentWpfTarget, target))
+        {
+            LeaveCurrentWpfTarget(session, screenPoint, keyState);
+            session.CurrentWpfTarget = target;
+            session.CurrentWpfEffect = Forms.DragDropEffects.None;
+            session.CurrentWpfTargetPoint = targetPoint;
+
+            if (target != null)
+            {
+                Forms.DragDropEffects initialEffect = SelectDefaultDragEffect(
+                    session.AllowedEffects,
+                    keyState);
+                session.CurrentWpfEffect = RaisePortableWpfDragEvent(
+                    session,
+                    target,
+                    System.Windows.DragDrop.DragEnterEvent,
+                    targetPoint,
+                    keyState,
+                    initialEffect);
+            }
+
+            return;
+        }
+
+        if (!raiseOver || target == null)
+        {
+            return;
+        }
+
+        session.CurrentWpfTargetPoint = targetPoint;
+        Forms.DragDropEffects overEffect = session.CurrentWpfEffect != Forms.DragDropEffects.None
+            ? session.CurrentWpfEffect
+            : SelectDefaultDragEffect(session.AllowedEffects, keyState);
+        session.CurrentWpfEffect = RaisePortableWpfDragEvent(
+            session,
+            target,
+            System.Windows.DragDrop.DragOverEvent,
+            targetPoint,
+            keyState,
+            overEffect);
+    }
+
     private static void CompletePortableDragSession(
         PortableDragSession session,
         Point screenPoint,
         int keyState)
     {
-        UpdatePortableDragTarget(session, screenPoint, keyState, raiseOver: false);
-        Forms.Control? target = session.CurrentTarget;
-        if (target != null)
+        try
         {
-            Forms.DragDropEffects dropEffect = session.CurrentEffect != Forms.DragDropEffects.None
-                ? session.CurrentEffect
-                : SelectDefaultDragEffect(session.AllowedEffects, keyState);
-            var dropArgs = CreateFormsDragEventArgs(
-                session.Data,
-                keyState,
-                screenPoint,
-                session.AllowedEffects,
-                dropEffect);
-            target.RaiseDragDrop(dropArgs);
-            session.Result = NormalizeDragEffect(dropArgs.Effect, session.AllowedEffects);
-            session.CurrentTarget = null;
-            session.CurrentTargetHost = null;
-        }
+            UpdatePortableDragTarget(session, screenPoint, keyState, raiseOver: false);
+            Forms.Control? target = session.CurrentTarget;
+            if (target != null)
+            {
+                Forms.DragDropEffects dropEffect = session.CurrentEffect != Forms.DragDropEffects.None
+                    ? session.CurrentEffect
+                    : SelectDefaultDragEffect(session.AllowedEffects, keyState);
+                var dropArgs = CreateFormsDragEventArgs(
+                    session.Data,
+                    keyState,
+                    screenPoint,
+                    session.AllowedEffects,
+                    dropEffect);
+                target.RaiseDragDrop(dropArgs);
+                session.Result = NormalizeDragEffect(dropArgs.Effect, session.AllowedEffects);
+            }
+            else if (session.CurrentWpfTarget is DependencyObject wpfTarget)
+            {
+                if (!TryGetPortableWpfTargetPoint(
+                        wpfTarget,
+                        screenPoint,
+                        out Point targetPoint))
+                {
+                    LeaveCurrentWpfTarget(session, screenPoint, keyState);
+                    session.Result = Forms.DragDropEffects.None;
+                    return;
+                }
 
-        EndPortableDragSession(session);
+                Forms.DragDropEffects dropEffect = session.CurrentWpfEffect != Forms.DragDropEffects.None
+                    ? session.CurrentWpfEffect
+                    : SelectDefaultDragEffect(session.AllowedEffects, keyState);
+                session.CurrentWpfTargetPoint = targetPoint;
+                session.Result = RaisePortableWpfDragEvent(
+                    session,
+                    wpfTarget,
+                    System.Windows.DragDrop.DropEvent,
+                    targetPoint,
+                    keyState,
+                    dropEffect);
+            }
+        }
+        finally
+        {
+            ClearPortableDragTargets(session);
+            EndPortableDragSession(session);
+        }
     }
 
     private static void CancelPortableDragSession(PortableDragSession session)
     {
-        session.CurrentTarget?.RaiseDragLeave(EventArgs.Empty);
+        try
+        {
+            LeaveCurrentFormsTarget(session);
+            LeaveCurrentWpfTarget(
+                session,
+                session.LastScreenPoint,
+                GetCurrentDragKeyState());
+        }
+        finally
+        {
+            session.Result = Forms.DragDropEffects.None;
+            ClearPortableDragTargets(session);
+            EndPortableDragSession(session);
+        }
+    }
+
+    private static void AbortPortableDragSession(PortableDragSession session)
+    {
+        session.Result = Forms.DragDropEffects.None;
+        ClearPortableDragTargets(session);
+        EndPortableDragSession(session);
+    }
+
+    private static void ClearPortableDragTargets(PortableDragSession session)
+    {
         session.CurrentTarget = null;
         session.CurrentTargetHost = null;
         session.CurrentEffect = Forms.DragDropEffects.None;
-        session.Result = Forms.DragDropEffects.None;
-        EndPortableDragSession(session);
+        session.CurrentWpfTarget = null;
+        session.CurrentWpfEffect = Forms.DragDropEffects.None;
+        session.CurrentWpfTargetPoint = default;
+    }
+
+    private static void LeaveCurrentFormsTarget(PortableDragSession session)
+    {
+        Forms.Control? target = session.CurrentTarget;
+        session.CurrentTarget = null;
+        session.CurrentTargetHost = null;
+        session.CurrentEffect = Forms.DragDropEffects.None;
+        target?.RaiseDragLeave(EventArgs.Empty);
+    }
+
+    private static void LeaveCurrentWpfTarget(
+        PortableDragSession session,
+        Point screenPoint,
+        int keyState)
+    {
+        DependencyObject? target = session.CurrentWpfTarget;
+        Point targetPoint = session.CurrentWpfTargetPoint;
+        Forms.DragDropEffects targetEffect = session.CurrentWpfEffect;
+        session.CurrentWpfTarget = null;
+        session.CurrentWpfEffect = Forms.DragDropEffects.None;
+        session.CurrentWpfTargetPoint = default;
+
+        if (target != null)
+        {
+            if (TryGetPortableWpfTargetPoint(target, screenPoint, out Point convertedPoint))
+            {
+                targetPoint = convertedPoint;
+            }
+
+            _ = RaisePortableWpfDragEvent(
+                session,
+                target,
+                System.Windows.DragDrop.DragLeaveEvent,
+                targetPoint,
+                keyState,
+                targetEffect);
+        }
+    }
+
+    private static Forms.DragDropEffects RaisePortableWpfDragEvent(
+        PortableDragSession session,
+        DependencyObject target,
+        RoutedEvent routedEvent,
+        Point targetPoint,
+        int keyState,
+        Forms.DragDropEffects acceptedEffect)
+    {
+        System.Windows.DragDropEffects result = System.Windows.DragDrop.ProcessPortableDragDrop(
+            target,
+            routedEvent,
+            session.WpfData,
+            ToWpfDragDropKeyStates(keyState),
+            ToWpfDragDropEffects(session.AllowedEffects),
+            ToWpfDragDropEffects(acceptedEffect),
+            targetPoint);
+        return NormalizeDragEffect(
+            ToFormsDragDropEffects(result),
+            session.AllowedEffects);
     }
 
     private static void EndPortableDragSession(PortableDragSession session)
@@ -769,14 +1066,230 @@ public class WindowsFormsHost : FrameworkElement
         return false;
     }
 
+    private static bool TryFindPortableWpfDropTarget(
+        WindowsFormsHost sourceHost,
+        Point screenPoint,
+        out DependencyObject? target,
+        out Point targetPoint)
+    {
+        Window? sourceWindow = Window.GetWindow(sourceHost);
+        if (sourceWindow != null
+            && TryFindPortableWpfDropTarget(
+                sourceWindow,
+                screenPoint,
+                out target,
+                out targetPoint))
+        {
+            return true;
+        }
+
+        System.Windows.Application? application = System.Windows.Application.Current;
+        if (application != null)
+        {
+            foreach (Window window in application.Windows)
+            {
+                if (ReferenceEquals(window, sourceWindow))
+                {
+                    continue;
+                }
+
+                if (TryFindPortableWpfDropTarget(
+                    window,
+                    screenPoint,
+                    out target,
+                    out targetPoint))
+                {
+                    return true;
+                }
+            }
+        }
+
+        target = null;
+        targetPoint = default;
+        return false;
+    }
+
+    private static bool TryFindPortableWpfDropTarget(
+        Window window,
+        Point screenPoint,
+        out DependencyObject? target,
+        out Point targetPoint)
+    {
+        if (!window.IsLoaded
+            || !window.IsVisible
+            || !window.Dispatcher.CheckAccess())
+        {
+            target = null;
+            targetPoint = default;
+            return false;
+        }
+
+        Point windowPoint;
+        try
+        {
+            windowPoint = window.PointFromScreen(screenPoint);
+        }
+        catch (InvalidOperationException)
+        {
+            target = null;
+            targetPoint = default;
+            return false;
+        }
+
+        if (windowPoint.X < 0
+            || windowPoint.Y < 0
+            || windowPoint.X >= window.ActualWidth
+            || windowPoint.Y >= window.ActualHeight)
+        {
+            target = null;
+            targetPoint = default;
+            return false;
+        }
+
+        DependencyObject? candidate = window.InputHitTest(windowPoint) as DependencyObject;
+        while (candidate != null)
+        {
+            if (IsPortableWpfDropTarget(candidate)
+                && TryGetPortableWpfTargetPoint(candidate, screenPoint, out targetPoint))
+            {
+                target = candidate;
+                return true;
+            }
+
+            candidate = GetPortableWpfParent(candidate);
+        }
+
+        target = null;
+        targetPoint = default;
+        return false;
+    }
+
+    private static bool IsPortableWpfDropTarget(DependencyObject target)
+    {
+        if (target is WindowsFormsHost)
+        {
+            return false;
+        }
+
+        if (target is Window window)
+        {
+            lock (s_dropWindowStateGate)
+            {
+                if (s_dropWindowStates.TryGetValue(window, out PortableDropWindowState? state)
+                    && !state.OriginalAllowDrop)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return target switch
+        {
+            UIElement uiElement => uiElement.AllowDrop && uiElement.IsEnabled,
+            ContentElement contentElement => contentElement.AllowDrop && contentElement.IsEnabled,
+            UIElement3D uiElement3D => uiElement3D.AllowDrop && uiElement3D.IsEnabled,
+            _ => false
+        };
+    }
+
+    private static DependencyObject? GetPortableWpfParent(DependencyObject target)
+    {
+        if (target is ContentElement contentElement)
+        {
+            DependencyObject? contentParent = ContentOperations.GetParent(contentElement);
+            if (contentParent != null)
+            {
+                return contentParent;
+            }
+
+            if (contentElement is FrameworkContentElement frameworkContentElement
+                && frameworkContentElement.Parent != null)
+            {
+                return frameworkContentElement.Parent;
+            }
+        }
+
+        if (target is Visual || target is System.Windows.Media.Media3D.Visual3D)
+        {
+            DependencyObject? visualParent = VisualTreeHelper.GetParent(target);
+            if (visualParent != null)
+            {
+                return visualParent;
+            }
+        }
+
+        if (target is FrameworkElement frameworkElement && frameworkElement.Parent != null)
+        {
+            return frameworkElement.Parent;
+        }
+
+        return LogicalTreeHelper.GetParent(target);
+    }
+
+    private static bool TryGetPortableWpfTargetPoint(
+        DependencyObject target,
+        Point screenPoint,
+        out Point targetPoint)
+    {
+        if (target is UIElement uiElement)
+        {
+            try
+            {
+                targetPoint = uiElement.PointFromScreen(screenPoint);
+                return true;
+            }
+            catch (InvalidOperationException)
+            {
+                targetPoint = default;
+                return false;
+            }
+        }
+
+        if (target is IInputElement inputElement)
+        {
+            targetPoint = Mouse.GetPosition(inputElement);
+            return true;
+        }
+
+        targetPoint = default;
+        return false;
+    }
+
+    private static bool TryGetDragScreenPoint(
+        WindowsFormsHost eventHost,
+        System.Windows.Input.MouseEventArgs e,
+        out Point screenPoint)
+    {
+        Window? window = Window.GetWindow(eventHost);
+        if (window != null)
+        {
+            return TryGetScreenPoint(window, e.GetPosition(window), out screenPoint);
+        }
+
+        return TryGetScreenPoint(eventHost, e.GetPosition(eventHost), out screenPoint);
+    }
+
+    private static bool TryGetCurrentDragScreenPoint(
+        WindowsFormsHost sourceHost,
+        out Point screenPoint)
+    {
+        Window? window = Window.GetWindow(sourceHost);
+        if (window != null)
+        {
+            return TryGetScreenPoint(window, Mouse.GetPosition(window), out screenPoint);
+        }
+
+        return TryGetScreenPoint(sourceHost, Mouse.GetPosition(sourceHost), out screenPoint);
+    }
+
     private static bool TryGetScreenPoint(
-        WindowsFormsHost host,
-        Point hostPoint,
+        Visual visual,
+        Point visualPoint,
         out Point screenPoint)
     {
         try
         {
-            screenPoint = host.PointToScreen(hostPoint);
+            screenPoint = visual.PointToScreen(visualPoint);
             return true;
         }
         catch (InvalidOperationException)
@@ -828,6 +1341,42 @@ public class WindowsFormsHost : FrameworkElement
         }
 
         return keyState;
+    }
+
+    private static System.Windows.DragDropKeyStates ToWpfDragDropKeyStates(int keyState)
+    {
+        System.Windows.DragDropKeyStates result = System.Windows.DragDropKeyStates.None;
+        if ((keyState & 1) != 0)
+        {
+            result |= System.Windows.DragDropKeyStates.LeftMouseButton;
+        }
+
+        if ((keyState & 2) != 0)
+        {
+            result |= System.Windows.DragDropKeyStates.RightMouseButton;
+        }
+
+        if ((keyState & 4) != 0)
+        {
+            result |= System.Windows.DragDropKeyStates.ShiftKey;
+        }
+
+        if ((keyState & 8) != 0)
+        {
+            result |= System.Windows.DragDropKeyStates.ControlKey;
+        }
+
+        if ((keyState & 16) != 0)
+        {
+            result |= System.Windows.DragDropKeyStates.MiddleMouseButton;
+        }
+
+        if ((keyState & 32) != 0)
+        {
+            result |= System.Windows.DragDropKeyStates.AltKey;
+        }
+
+        return result;
     }
 
     private static Forms.DragDropEffects SelectDefaultDragEffect(
@@ -1026,6 +1575,24 @@ public class WindowsFormsHost : FrameworkElement
         return _dragDataCache.GetValue(
             data,
             static key => CreateFormsDragData((System.Windows.IDataObject)key));
+    }
+
+    private static System.Windows.IDataObject CreateWpfDragData(Forms.IDataObject data)
+    {
+        if (data is System.Windows.IDataObject wpfData)
+        {
+            return wpfData;
+        }
+
+        string[] formats = data.GetFormats(autoConvert: false);
+        if (formats.Length == 1
+            && data.GetDataPresent(formats[0], autoConvert: false)
+            && data.GetData(formats[0], autoConvert: false) is System.Windows.IDataObject wrappedWpfData)
+        {
+            return wrappedWpfData;
+        }
+
+        return new PortableWpfDataObject(data);
     }
 
     private static Forms.DataObject CreateFormsDragData(System.Windows.IDataObject data)
