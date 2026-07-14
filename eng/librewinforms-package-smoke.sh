@@ -10,7 +10,7 @@ fi
 export DOTNET_ROLL_FORWARD="${DOTNET_ROLL_FORWARD:-Major}"
 export DOTNET_ROLL_FORWARD_TO_PRERELEASE="${DOTNET_ROLL_FORWARD_TO_PRERELEASE:-1}"
 
-package_version="${LIBREWINFORMS_DEV_PACKAGE_VERSION:-0.1.0-preview.11}"
+package_version="${LIBREWINFORMS_DEV_PACKAGE_VERSION:-0.1.0-preview.14}"
 bridge_version="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION:-${package_version}}"
 package_output="${LIBREWINFORMS_PACKAGE_OUTPUT:-${repo_root}/artifacts/packages/Release/NonShipping}"
 bridge_output="${LIBREWINFORMS_BRIDGE_PACKAGE_OUTPUT:-${repo_root}/../../artifacts/packages/Release/NonShipping}"
