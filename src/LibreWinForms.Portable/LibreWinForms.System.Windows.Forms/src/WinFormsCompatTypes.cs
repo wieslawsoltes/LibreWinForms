@@ -1376,19 +1376,39 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing && _contextMenuStrip != null)
+        if (IsDisposed)
         {
-            _contextMenuStrip.Disposed -= OnContextMenuStripDisposed;
-            _contextMenuStrip = null;
+            return;
         }
 
         IsDisposed = true;
+        if (disposing)
+        {
+            if (_contextMenuStrip != null)
+            {
+                _contextMenuStrip.Disposed -= OnContextMenuStripDisposed;
+                _contextMenuStrip = null;
+            }
+
+            while (Controls.Count > 0)
+            {
+                Control child = Controls[^1];
+                Controls.RemoveAt(Controls.Count - 1);
+                child.Dispose();
+            }
+
+            Parent?.Controls.Remove(this);
+        }
+
         if (_handle != IntPtr.Zero)
         {
             lock (s_handleSync)
             {
                 s_controlsByHandle.Remove(_handle);
             }
+
+            _handle = IntPtr.Zero;
+            _isHandleCreated = false;
         }
 
         base.Dispose(disposing);

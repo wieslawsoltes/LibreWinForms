@@ -17,8 +17,41 @@ internal static class ControlCollectionBehaviorTests
         ParentingCyclesFailClosed();
         ControlSizesClampNegativeDimensions();
         RecursiveInvalidationHonorsTheChildrenFlag();
+        DisposingControlReleasesCreatedDescendantHandles();
         SplitContainerSupportsDesignerInitialization();
         Console.WriteLine("LibreWinForms control collection event tests passed.");
+    }
+
+    private static void DisposingControlReleasesCreatedDescendantHandles()
+    {
+        var owner = new Forms.Control();
+        var child = new Forms.Control();
+        var grandchild = new Forms.Control();
+        owner.Controls.Add(child);
+        child.Controls.Add(grandchild);
+        owner.CreateControl();
+        IntPtr childHandle = child.Handle;
+        IntPtr grandchildHandle = grandchild.Handle;
+
+        owner.Dispose();
+
+        Assert(owner.IsDisposed && child.IsDisposed && grandchild.IsDisposed,
+            "Disposing a control did not dispose its complete child tree.");
+        Assert(owner.Controls.Count == 0 && child.Controls.Count == 0,
+            "Disposing a control retained descendants in child collections.");
+        Assert(child.Parent is null && grandchild.Parent is null,
+            "Disposing a control retained descendant parent links.");
+        Assert(Forms.Control.FromChildHandle(childHandle) is null
+            && Forms.Control.FromChildHandle(grandchildHandle) is null,
+            "Disposed descendants remained rooted by the process-wide handle lookup.");
+
+        var parent = new Forms.Control();
+        var separatelyDisposedChild = new Forms.Control();
+        parent.Controls.Add(separatelyDisposedChild);
+        separatelyDisposedChild.Dispose();
+        Assert(parent.Controls.Count == 0 && separatelyDisposedChild.Parent is null,
+            "Disposing a child did not detach it from its parent collection.");
+        parent.Dispose();
     }
 
     private static void RecursiveInvalidationHonorsTheChildrenFlag()
