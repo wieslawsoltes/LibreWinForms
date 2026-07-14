@@ -244,7 +244,7 @@ public class WindowsFormsHost : FrameworkElement
     private ISelectionService? _designSelectionService;
     private bool _designSelectionServiceLookupComplete;
     private WpfContextMenu? _activeContextMenu;
-    private Forms.ContextMenuStrip? _activeContextMenuStrip;
+    private Forms.ToolStripDropDown? _activeToolStripDropDown;
     private readonly ConditionalWeakTable<DrawingImage, CachedImageSource> _imageSourceCache = new();
     private readonly ConditionalWeakTable<object, Forms.IDataObject> _dragDataCache = new();
     private readonly HashSet<Forms.Control> _invalidationTreeSubscriptions = new(ReferenceEqualityComparer.Instance);
@@ -2401,7 +2401,7 @@ public class WindowsFormsHost : FrameworkElement
             if (ReferenceEquals(_activeContextMenu, contextMenu))
             {
                 _activeContextMenu = null;
-                _activeContextMenuStrip = null;
+                _activeToolStripDropDown = null;
             }
 
             contextMenuStrip.Closed -= stripClosed;
@@ -2421,12 +2421,12 @@ public class WindowsFormsHost : FrameworkElement
             if (ReferenceEquals(_activeContextMenu, contextMenu))
             {
                 _activeContextMenu = null;
-                _activeContextMenuStrip = null;
+                _activeToolStripDropDown = null;
             }
         };
 
         _activeContextMenu = contextMenu;
-        _activeContextMenuStrip = contextMenuStrip;
+        _activeToolStripDropDown = contextMenuStrip;
         contextMenu.IsOpen = true;
         return true;
     }
@@ -2540,12 +2540,12 @@ public class WindowsFormsHost : FrameworkElement
             if (ReferenceEquals(_activeContextMenu, contextMenu))
             {
                 _activeContextMenu = null;
-                _activeContextMenuStrip = null;
+                _activeToolStripDropDown = null;
             }
         };
 
         _activeContextMenu = contextMenu;
-        _activeContextMenuStrip = null;
+        _activeToolStripDropDown = null;
         comboBox.DroppedDown = true;
         contextMenu.IsOpen = true;
         return true;
@@ -2604,12 +2604,12 @@ public class WindowsFormsHost : FrameworkElement
             if (ReferenceEquals(_activeContextMenu, contextMenu))
             {
                 _activeContextMenu = null;
-                _activeContextMenuStrip = null;
+                _activeToolStripDropDown = null;
             }
         };
 
         _activeContextMenu = contextMenu;
-        _activeContextMenuStrip = null;
+        _activeToolStripDropDown = null;
         embeddedComboBox.DroppedDown = true;
         contextMenu.IsOpen = true;
         return true;
@@ -2631,6 +2631,90 @@ public class WindowsFormsHost : FrameworkElement
         return selectedItem;
     }
 
+    private bool TryShowToolStripDropDown(
+        Forms.ToolStrip toolStrip,
+        Forms.ToolStripDropDown dropDown,
+        Forms.ToolStripItemCollection items,
+        Rect itemBounds,
+        Action showDropDown)
+    {
+        if (_child == null
+            || items.Count == 0
+            || !TryGetHostPoint(
+                _child,
+                toolStrip,
+                new System.Drawing.Point(
+                    ToWinFormsCoordinate(itemBounds.X),
+                    ToWinFormsCoordinate(itemBounds.Bottom)),
+                out Point hostPoint))
+        {
+            return false;
+        }
+
+        var contextMenu = new WpfContextMenu
+        {
+            PlacementTarget = this,
+            Placement = PlacementMode.RelativePoint,
+            HorizontalOffset = hostPoint.X,
+            VerticalOffset = hostPoint.Y,
+            MinWidth = Math.Max(0, itemBounds.Width)
+        };
+
+        CloseActiveContextMenu(Forms.ToolStripDropDownCloseReason.AppClicked);
+        foreach (Forms.ToolStripItem item in items)
+        {
+            if (CreateContextMenuItem(dropDown, item) is object menuItem)
+            {
+                contextMenu.Items.Add(menuItem);
+            }
+        }
+
+        bool closingFromWpf = false;
+        bool closingFromStrip = false;
+        Forms.ToolStripDropDownClosedEventHandler stripClosed = null!;
+        stripClosed = delegate
+        {
+            if (!closingFromWpf && contextMenu.IsOpen)
+            {
+                closingFromStrip = true;
+                contextMenu.IsOpen = false;
+                closingFromStrip = false;
+            }
+
+            if (ReferenceEquals(_activeContextMenu, contextMenu))
+            {
+                _activeContextMenu = null;
+                _activeToolStripDropDown = null;
+            }
+
+            dropDown.Closed -= stripClosed;
+        };
+        dropDown.Closed += stripClosed;
+
+        contextMenu.Closed += delegate
+        {
+            dropDown.Closed -= stripClosed;
+            if (!closingFromStrip)
+            {
+                closingFromWpf = true;
+                dropDown.Close(Forms.ToolStripDropDownCloseReason.AppClicked);
+                closingFromWpf = false;
+            }
+
+            if (ReferenceEquals(_activeContextMenu, contextMenu))
+            {
+                _activeContextMenu = null;
+                _activeToolStripDropDown = null;
+            }
+        };
+
+        _activeContextMenu = contextMenu;
+        _activeToolStripDropDown = dropDown;
+        showDropDown();
+        contextMenu.IsOpen = true;
+        return true;
+    }
+
     private bool TryActivateToolStripItem(
         Forms.ToolStrip toolStrip,
         Point localPoint,
@@ -2647,6 +2731,26 @@ public class WindowsFormsHost : FrameworkElement
         if (releasedItem is Forms.ToolStripComboBox comboBox)
         {
             return TryShowToolStripComboBoxDropDown(toolStrip, comboBox, itemBounds);
+        }
+
+        if (releasedItem is Forms.ToolStripMenuItem { DropDownItems.Count: > 0 } menuItem)
+        {
+            return TryShowToolStripDropDown(
+                toolStrip,
+                menuItem.DropDown,
+                menuItem.DropDownItems,
+                itemBounds,
+                menuItem.ShowDropDown);
+        }
+
+        if (releasedItem is Forms.ToolStripDropDownButton { DropDownItems.Count: > 0 } dropDownButton)
+        {
+            return TryShowToolStripDropDown(
+                toolStrip,
+                dropDownButton.DropDown,
+                dropDownButton.DropDownItems,
+                itemBounds,
+                dropDownButton.ShowDropDown);
         }
 
         if (releasedItem is Forms.ToolStripControlHost { Control: Forms.NumericUpDown numericUpDown })
@@ -2720,7 +2824,7 @@ public class WindowsFormsHost : FrameworkElement
 
     private void CloseActiveContextMenu(Forms.ToolStripDropDownCloseReason closeReason)
     {
-        Forms.ContextMenuStrip? activeStrip = _activeContextMenuStrip;
+        Forms.ToolStripDropDown? activeStrip = _activeToolStripDropDown;
         if (activeStrip?.Visible == true)
         {
             activeStrip.Close(closeReason);
@@ -2731,7 +2835,7 @@ public class WindowsFormsHost : FrameworkElement
         }
 
         _activeContextMenu = null;
-        _activeContextMenuStrip = null;
+        _activeToolStripDropDown = null;
     }
 
     private Forms.Control? GetFocusedControl()
@@ -2822,7 +2926,7 @@ public class WindowsFormsHost : FrameworkElement
         return null;
     }
 
-    private static object? CreateContextMenuItem(Forms.ContextMenuStrip owner, Forms.ToolStripItem item)
+    private static object? CreateContextMenuItem(Forms.ToolStripDropDown owner, Forms.ToolStripItem item)
     {
         if (!item.Visible || !item.Available)
         {
@@ -2851,6 +2955,18 @@ public class WindowsFormsHost : FrameworkElement
                 {
                     menuItem.Items.Add(childItem);
                 }
+            }
+
+            if (menuItem.Items.Count > 0)
+            {
+                menuItem.SubmenuOpened += delegate
+                {
+                    toolStripMenuItem.ShowDropDown();
+                };
+                menuItem.SubmenuClosed += delegate
+                {
+                    toolStripMenuItem.DropDown.Close(Forms.ToolStripDropDownCloseReason.AppClicked);
+                };
             }
         }
 
