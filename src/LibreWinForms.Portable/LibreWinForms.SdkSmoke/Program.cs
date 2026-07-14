@@ -101,8 +101,185 @@ internal static class Program
             return RunCrossFrameworkDragSmoke();
         }
 
+        if (args.Contains("--run-native-popup", StringComparer.Ordinal))
+        {
+            return RunNativePopupSmoke();
+        }
+
         Console.WriteLine("LibreWinForms SDK smoke build loaded.");
         return 0;
+    }
+
+    private static int RunNativePopupSmoke()
+    {
+        System.Windows.Forms.Integration.WindowsFormsHost.EnableWindowsFormsInterop();
+
+        bool loaded = false;
+        bool inputAccepted = false;
+        bool dropDownVisible = false;
+        bool nativeSurfaceReady = false;
+        bool timedOut = false;
+        int clickCount = 0;
+        int attempts = 0;
+        System.Windows.Media.ProGPU.ProGpuWpfDiagnostics.PortablePopupSnapshot popupSnapshot = default;
+
+        using var menuStrip = new Forms.MenuStrip
+        {
+            Width = 320,
+            Height = 28
+        };
+        using var fileItem = new Forms.ToolStripMenuItem("File");
+        using var openItem = new Forms.ToolStripMenuItem("Open");
+        using var recentItem = new Forms.ToolStripMenuItem("Recent");
+        using var projectItem = new Forms.ToolStripMenuItem("Project");
+        openItem.Click += (_, _) => clickCount++;
+        recentItem.DropDownItems.Add(projectItem);
+        fileItem.DropDownItems.Add(openItem);
+        fileItem.DropDownItems.Add(recentItem);
+        menuStrip.Items.Add(fileItem);
+
+        var formsHost = new System.Windows.Forms.Integration.WindowsFormsHost
+        {
+            Width = 320,
+            Height = 80,
+            Child = menuStrip
+        };
+        var application = new WpfApplication();
+        var windowTemplate = new System.Windows.Controls.ControlTemplate(typeof(WpfWindow));
+        var contentPresenter = new System.Windows.FrameworkElementFactory(
+            typeof(System.Windows.Controls.ContentPresenter));
+        contentPresenter.SetValue(
+            System.Windows.Controls.ContentPresenter.ContentSourceProperty,
+            "Content");
+        windowTemplate.VisualTree = contentPresenter;
+        var window = new WpfWindow
+        {
+            Title = "LibreWinForms native popup smoke",
+            Width = 420,
+            Height = 180,
+            Template = windowTemplate,
+            Content = formsHost
+        };
+
+        using var watchdog = new System.Threading.Timer(
+            _ => window.Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    timedOut = true;
+                    window.Close();
+                })),
+            null,
+            TimeSpan.FromSeconds(30),
+            Timeout.InfiniteTimeSpan);
+
+        window.Loaded += (_, _) => loaded = true;
+        window.ContentRendered += (_, _) =>
+        {
+            if (!PortableWpfServiceRegistry.TryGetWindowActivationService(
+                    PortableWpfServiceKey.PresentationFramework,
+                    out IPortableWindowActivationServiceRegistrar activationService))
+            {
+                window.Close();
+                return;
+            }
+
+            window.ApplyTemplate();
+            window.UpdateLayout();
+            System.Windows.Point menuPoint = window.PointFromScreen(
+                formsHost.PointToScreen(new System.Windows.Point(18, 14)));
+            bool sentInput = false;
+            DispatcherTimer popupTimer = null!;
+            popupTimer = new DispatcherTimer(
+                TimeSpan.FromMilliseconds(50),
+                DispatcherPriority.Background,
+                (_, _) =>
+                {
+                    attempts++;
+                    if (!sentInput)
+                    {
+                        if (!ReferenceEquals(window.InputHitTest(menuPoint), formsHost))
+                        {
+                            if (attempts >= 200)
+                            {
+                                timedOut = true;
+                                window.Close();
+                            }
+
+                            return;
+                        }
+
+                        inputAccepted = activationService.TryProcessInputEvent(
+                                window,
+                                new PortableWindowInputEvent(kind: 3, x: menuPoint.X, y: menuPoint.Y))
+                            && activationService.TryProcessInputEvent(
+                                window,
+                                new PortableWindowInputEvent(kind: 4, x: menuPoint.X, y: menuPoint.Y, button: 1))
+                            && activationService.TryProcessInputEvent(
+                                window,
+                                new PortableWindowInputEvent(kind: 5, x: menuPoint.X, y: menuPoint.Y, button: 1));
+                        sentInput = true;
+                        return;
+                    }
+
+                    if (System.Windows.Media.ProGPU.ProGpuWpfDiagnostics.TryGetPortablePopupSnapshot(
+                            window,
+                            out popupSnapshot))
+                    {
+                        dropDownVisible |= fileItem.DropDown.Visible;
+                        bool expectsPortableNativeSurface = !OperatingSystem.IsWindows()
+                            && !string.Equals(
+                                Environment.GetEnvironmentVariable("PROGPU_WPF_DISABLE_NATIVE_POPUPS"),
+                                "1",
+                                StringComparison.Ordinal);
+                        nativeSurfaceReady = !expectsPortableNativeSurface
+                            || (popupSnapshot.NativeWindowCount >= 1
+                                && popupSnapshot.PresentedNativeWindowCount >= 1
+                                && popupSnapshot.NativeWindowGpuHitTestCount >= 1
+                                && popupSnapshot.NativeWindowGpuHitTestOwnerCount >= 1);
+                        if (dropDownVisible && nativeSurfaceReady)
+                        {
+                            openItem.PerformClick();
+                            fileItem.DropDown.Close(Forms.ToolStripDropDownCloseReason.ItemClicked);
+                            popupTimer.Stop();
+                            window.Dispatcher.BeginInvoke(
+                                DispatcherPriority.ApplicationIdle,
+                                new Action(window.Close));
+                            return;
+                        }
+                    }
+
+                    if (attempts >= 200)
+                    {
+                        timedOut = true;
+                        popupTimer.Stop();
+                        window.Close();
+                    }
+                },
+                window.Dispatcher);
+            popupTimer.Start();
+        };
+
+        application.Run(window);
+        formsHost.Child = null;
+
+        bool success = loaded
+            && inputAccepted
+            && dropDownVisible
+            && nativeSurfaceReady
+            && clickCount == 1
+            && !timedOut;
+        Console.WriteLine(
+            "LibreWinForms native popup smoke result=" + (success ? "Success" : "Failure")
+            + " loaded=" + loaded
+            + " input=" + inputAccepted
+            + " visible=" + dropDownVisible
+            + " native=" + popupSnapshot.NativeWindowCount
+            + " presented=" + popupSnapshot.PresentedNativeWindowCount
+            + " gpuCaches=" + popupSnapshot.NativeWindowGpuHitTestCount
+            + " gpuOwners=" + popupSnapshot.NativeWindowGpuHitTestOwnerCount
+            + " clicks=" + clickCount
+            + " timedOut=" + timedOut);
+        return success ? 0 : 1;
     }
 
     private static int RunCrossFrameworkDragSmoke()
