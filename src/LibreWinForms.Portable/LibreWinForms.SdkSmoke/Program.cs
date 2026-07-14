@@ -96,7 +96,472 @@ internal static class Program
             return RunHexEditorHostSmoke();
         }
 
+        if (args.Contains("--run-cross-framework-drag", StringComparer.Ordinal))
+        {
+            return RunCrossFrameworkDragSmoke();
+        }
+
         Console.WriteLine("LibreWinForms SDK smoke build loaded.");
+        return 0;
+    }
+
+    private static int RunCrossFrameworkDragSmoke()
+    {
+        System.Windows.Forms.Integration.WindowsFormsHost.EnableWindowsFormsInterop();
+
+        bool loaded = false;
+        bool started = false;
+        bool timedOut = false;
+        bool inputAccepted = true;
+        bool wpfPayloadIdentity = true;
+        bool copiedFormsPayloadIdentity = true;
+        bool formsDataStayedLazy = true;
+        bool formsDataStayedLive = true;
+        bool targetCoordinates = true;
+        bool successCaptureReleased = false;
+        bool cancelCaptureReleased = false;
+        bool exceptionCaptureReleased = false;
+        bool expectedExceptionHandled = false;
+        object? initialHit = null;
+        object? initialWpfTargetHit = null;
+        string visualDiagnostics = string.Empty;
+        System.Windows.Point observedSourcePoint = default;
+        int hitTestAttempts = 0;
+        int activeSession = 0;
+        int completedSessions = 0;
+        Forms.DragDropEffects successResult = Forms.DragDropEffects.None;
+        Forms.DragDropEffects cancelResult = Forms.DragDropEffects.Copy;
+        Forms.DragDropEffects exceptionResult = Forms.DragDropEffects.Copy;
+        var formsSequence = new List<string>();
+        var successSequence = new List<string>();
+        var cancelSequence = new List<string>();
+        var exceptionSequence = new List<string>();
+        var routedEnterSources = new List<object?>();
+        var wpfPayload = new CrossFrameworkDragDataObject();
+        var wpfPayloadMarker = new object();
+        wpfPayload.SetData("LibreWinForms.CrossFramework", wpfPayloadMarker);
+        var formsPayload = new CrossFrameworkFormsDataObject();
+        var formsPayloadMarker = new object();
+        var lateFormsPayloadMarker = new object();
+        var expectedDragException = new InvalidOperationException(
+            "LibreWinForms cross-framework drag exception teardown smoke.");
+        formsPayload.SetData("LibreWinForms.CrossFramework.Formats", formsPayloadMarker);
+        formsPayload.SetData("LibreWinForms.CrossFramework.Null", null);
+
+        var source = new Forms.Control
+        {
+            Name = "crossFrameworkSource",
+            AllowDrop = true,
+            Size = new System.Drawing.Size(160, 140)
+        };
+        var hostedTarget = new Forms.Control
+        {
+            Name = "hostedFormsTarget",
+            AllowDrop = true,
+            Size = new System.Drawing.Size(160, 140)
+        };
+        source.DragEnter += (_, e) =>
+        {
+            formsSequence.Add($"{activeSession}.source.enter");
+            e.Effect = Forms.DragDropEffects.Copy;
+        };
+        source.DragLeave += (_, _) => formsSequence.Add($"{activeSession}.source.leave");
+        hostedTarget.DragEnter += (_, e) =>
+        {
+            formsSequence.Add($"{activeSession}.target.enter");
+            e.Effect = Forms.DragDropEffects.Copy;
+        };
+        hostedTarget.DragOver += (_, e) =>
+        {
+            formsSequence.Add($"{activeSession}.target.over");
+            e.Effect = Forms.DragDropEffects.Copy;
+        };
+        hostedTarget.DragLeave += (_, _) => formsSequence.Add($"{activeSession}.target.leave");
+
+        var sourceHost = new System.Windows.Forms.Integration.WindowsFormsHost { Child = source };
+        var hostedTargetHost = new System.Windows.Forms.Integration.WindowsFormsHost { Child = hostedTarget };
+        var wpfTarget = new System.Windows.Controls.Border
+        {
+            AllowDrop = true,
+            Background = System.Windows.Media.Brushes.CornflowerBlue,
+            Margin = new System.Windows.Thickness(8)
+        };
+        var root = new System.Windows.Controls.Grid
+        {
+            AllowDrop = true,
+            Background = System.Windows.Media.Brushes.Transparent
+        };
+        root.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition());
+        root.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition());
+        root.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition());
+        System.Windows.Controls.Grid.SetColumn(sourceHost, 0);
+        System.Windows.Controls.Grid.SetColumn(hostedTargetHost, 1);
+        System.Windows.Controls.Grid.SetColumn(wpfTarget, 2);
+        root.Children.Add(sourceHost);
+        root.Children.Add(hostedTargetHost);
+        root.Children.Add(wpfTarget);
+
+        var application = new WpfApplication();
+        var windowTemplate = new System.Windows.Controls.ControlTemplate(typeof(WpfWindow));
+        var contentPresenter = new System.Windows.FrameworkElementFactory(
+            typeof(System.Windows.Controls.ContentPresenter));
+        contentPresenter.SetValue(
+            System.Windows.Controls.ContentPresenter.ContentSourceProperty,
+            "Content");
+        windowTemplate.VisualTree = contentPresenter;
+        var window = new WpfWindow
+        {
+            Title = "LibreWinForms cross-framework drag smoke",
+            Width = 600,
+            Height = 240,
+            Template = windowTemplate,
+            Content = root
+        };
+        System.Windows.Point expectedWpfTargetPoint = new(34, 30);
+
+        window.Dispatcher.UnhandledException += (_, e) =>
+        {
+            if (!ReferenceEquals(e.Exception, expectedDragException))
+            {
+                return;
+            }
+
+            expectedExceptionHandled = true;
+            e.Handled = true;
+        };
+
+        root.AddHandler(
+            System.Windows.DragDrop.DragEnterEvent,
+            new System.Windows.DragEventHandler((_, e) => routedEnterSources.Add(e.OriginalSource)),
+            handledEventsToo: true);
+        wpfTarget.DragEnter += (_, e) =>
+        {
+            List<string> sequence = activeSession switch
+            {
+                1 => successSequence,
+                2 => cancelSequence,
+                _ => exceptionSequence
+            };
+            sequence.Add("enter");
+            if (activeSession == 1)
+            {
+                wpfPayloadIdentity &= ReferenceEquals(e.Data, wpfPayload)
+                    && ReferenceEquals(
+                        e.Data.GetData("LibreWinForms.CrossFramework", autoConvert: false),
+                        wpfPayloadMarker);
+            }
+            else
+            {
+                copiedFormsPayloadIdentity &= ReferenceEquals(
+                    e.Data.GetData("LibreWinForms.CrossFramework.Formats", autoConvert: false),
+                    formsPayloadMarker);
+                formsDataStayedLive &= ReferenceEquals(
+                        e.Data.GetData("LibreWinForms.CrossFramework.Late", autoConvert: false),
+                        lateFormsPayloadMarker)
+                    && e.Data.GetDataPresent("LibreWinForms.CrossFramework.Null", autoConvert: false)
+                    && e.Data.GetData("LibreWinForms.CrossFramework.Null", autoConvert: false) == null
+                    && e.Data.GetFormats(autoConvert: true).Contains(
+                        "LibreWinForms.CrossFramework.Late",
+                        StringComparer.Ordinal);
+            }
+
+            System.Windows.Point point = e.GetPosition(wpfTarget);
+            targetCoordinates &= Math.Abs(point.X - expectedWpfTargetPoint.X) < 0.01
+                && Math.Abs(point.Y - expectedWpfTargetPoint.Y) < 0.01;
+            e.Effects = System.Windows.DragDropEffects.Copy;
+            e.Handled = true;
+        };
+        wpfTarget.DragOver += (_, e) =>
+        {
+            List<string> sequence = activeSession switch
+            {
+                1 => successSequence,
+                2 => cancelSequence,
+                _ => exceptionSequence
+            };
+            sequence.Add("over");
+            if (activeSession == 3)
+            {
+                throw expectedDragException;
+            }
+
+            e.Effects = System.Windows.DragDropEffects.Copy;
+            e.Handled = true;
+        };
+        wpfTarget.DragLeave += (_, e) =>
+        {
+            (activeSession == 3 ? exceptionSequence : cancelSequence).Add("leave");
+            e.Handled = true;
+        };
+        wpfTarget.Drop += (_, e) =>
+        {
+            successSequence.Add("drop");
+            wpfPayloadIdentity &= ReferenceEquals(e.Data, wpfPayload);
+            e.Effects = System.Windows.DragDropEffects.Copy;
+            e.Handled = true;
+        };
+
+        using var watchdog = new System.Threading.Timer(
+            _ => window.Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    timedOut = true;
+                    window.Close();
+                })),
+            null,
+            TimeSpan.FromSeconds(30),
+            Timeout.InfiniteTimeSpan);
+
+        window.Loaded += (_, _) => loaded = true;
+        window.ContentRendered += (_, _) =>
+        {
+            if (started)
+            {
+                return;
+            }
+
+            started = true;
+            window.Dispatcher.BeginInvoke(
+                DispatcherPriority.ApplicationIdle,
+                new Action(() =>
+                {
+                    if (!PortableWpfServiceRegistry.TryGetWindowActivationService(
+                            PortableWpfServiceKey.PresentationFramework,
+                            out IPortableWindowActivationServiceRegistrar activationService))
+                    {
+                        inputAccepted = false;
+                        window.Close();
+                        return;
+                    }
+
+                    window.ApplyTemplate();
+                    window.UpdateLayout();
+
+                    System.Windows.DependencyObject? sourceParent = System.Windows.Media.VisualTreeHelper.GetParent(sourceHost);
+                    System.Windows.DependencyObject? rootParent = System.Windows.Media.VisualTreeHelper.GetParent(root);
+                    System.Windows.PresentationSource? sourcePresentation = System.Windows.PresentationSource.FromVisual(sourceHost);
+                    System.Windows.PresentationSource? targetPresentation = System.Windows.PresentationSource.FromVisual(wpfTarget);
+                    System.Windows.PresentationSource? windowPresentation = System.Windows.PresentationSource.FromVisual(window);
+                    visualDiagnostics = $" sourceParent={sourceParent?.GetType().FullName ?? "<null>"}"
+                        + $" rootParent={rootParent?.GetType().FullName ?? "<null>"}"
+                        + $" sourceOffset={System.Windows.Media.VisualTreeHelper.GetOffset(sourceHost)}"
+                        + $" targetOffset={System.Windows.Media.VisualTreeHelper.GetOffset(wpfTarget)}"
+                        + $" rootOffset={System.Windows.Media.VisualTreeHelper.GetOffset(root)}"
+                        + $" sourceLoaded={sourceHost.IsLoaded}/{wpfTarget.IsLoaded}/{root.IsLoaded}"
+                        + $" sameSource={ReferenceEquals(sourcePresentation, windowPresentation)}/{ReferenceEquals(targetPresentation, windowPresentation)}";
+                    try
+                    {
+                        System.Windows.Point sourceScreen = sourceHost.PointToScreen(
+                            new System.Windows.Point(30, 30));
+                        System.Windows.Point sourceWindowPoint = window.PointFromScreen(sourceScreen);
+                        visualDiagnostics += $" sourceScreen={sourceScreen} sourceWindow={sourceWindowPoint}"
+                            + $" rootSize={root.ActualWidth}x{root.ActualHeight}";
+                    }
+                    catch (Exception exception)
+                    {
+                        visualDiagnostics += $" visualException={exception.GetType().FullName}:{exception.Message}";
+                    }
+
+                    System.Windows.Point sourcePoint = new(30, 30);
+                    observedSourcePoint = sourcePoint;
+                    System.Windows.Point hostedTargetPoint = new(230, 30);
+                    System.Windows.Point hostedTargetOverPoint = new(231, 31);
+                    System.Windows.Point wpfTargetPoint = new(
+                        400 + wpfTarget.Margin.Left + expectedWpfTargetPoint.X,
+                        wpfTarget.Margin.Top + expectedWpfTargetPoint.Y);
+                    System.Windows.Point wpfTargetOverPoint = new(
+                        wpfTargetPoint.X + 1,
+                        wpfTargetPoint.Y + 1);
+
+                    bool ProcessInput(int kind, System.Windows.Point point, int button = 0)
+                    {
+                        var input = new PortableWindowInputEvent(
+                            kind,
+                            x: point.X,
+                            y: point.Y,
+                            button: button);
+                        bool accepted = activationService.TryProcessInputEvent(window, input);
+                        inputAccepted &= accepted;
+                        return accepted;
+                    }
+
+                    void QueueInput(int kind, System.Windows.Point point, int button = 0)
+                    {
+                        window.Dispatcher.BeginInvoke(
+                            DispatcherPriority.Input,
+                            new Action(() => _ = ProcessInput(kind, point, button)));
+                    }
+
+                    source.MouseDown += (_, e) =>
+                    {
+                        if (e.Button != Forms.MouseButtons.Left)
+                        {
+                            return;
+                        }
+
+                        window.Dispatcher.BeginInvoke(
+                            DispatcherPriority.Background,
+                            new Action(() =>
+                            {
+                                completedSessions++;
+                                activeSession = completedSessions;
+                                if (activeSession == 1)
+                                {
+                                    QueueInput(kind: 3, hostedTargetPoint, button: 1);
+                                    QueueInput(kind: 3, hostedTargetOverPoint, button: 1);
+                                    QueueInput(kind: 3, wpfTargetPoint, button: 1);
+                                    QueueInput(kind: 3, wpfTargetOverPoint, button: 1);
+                                    QueueInput(kind: 5, wpfTargetOverPoint, button: 1);
+                                    successResult = source.DoDragDrop(
+                                        wpfPayload,
+                                        Forms.DragDropEffects.Copy | Forms.DragDropEffects.Move);
+                                    successCaptureReleased = !sourceHost.IsMouseCaptured;
+                                    activeSession = 0;
+                                    QueueInput(kind: 4, sourcePoint, button: 1);
+                                    return;
+                                }
+
+                                if (activeSession == 2)
+                                {
+                                    window.Dispatcher.BeginInvoke(
+                                        DispatcherPriority.Input,
+                                        new Action(() =>
+                                        {
+                                            formsDataStayedLazy &= formsPayload.GetFormatsCallCount == 0;
+                                            formsPayload.SetData(
+                                                "LibreWinForms.CrossFramework.Late",
+                                                lateFormsPayloadMarker);
+                                        }));
+                                    QueueInput(kind: 3, wpfTargetPoint, button: 1);
+                                    QueueInput(kind: 3, wpfTargetOverPoint, button: 1);
+                                    window.Dispatcher.BeginInvoke(
+                                        DispatcherPriority.Input,
+                                        new Action(sourceHost.ReleaseMouseCapture));
+                                    cancelResult = source.DoDragDrop(formsPayload, Forms.DragDropEffects.Copy);
+                                    cancelCaptureReleased = !sourceHost.IsMouseCaptured;
+                                    activeSession = 0;
+                                    QueueInput(kind: 5, sourcePoint, button: 1);
+                                    QueueInput(kind: 4, sourcePoint, button: 1);
+                                    return;
+                                }
+
+                                QueueInput(kind: 3, wpfTargetPoint, button: 1);
+                                QueueInput(kind: 3, wpfTargetOverPoint, button: 1);
+                                exceptionResult = source.DoDragDrop(
+                                    formsPayload,
+                                    Forms.DragDropEffects.Copy);
+                                exceptionCaptureReleased = !sourceHost.IsMouseCaptured;
+                                activeSession = 0;
+                                QueueInput(kind: 5, sourcePoint, button: 1);
+                                window.Dispatcher.BeginInvoke(
+                                    DispatcherPriority.ApplicationIdle,
+                                    new Action(window.Close));
+                            }));
+                    };
+
+                    DispatcherTimer? hitTestTimer = null;
+                    hitTestTimer = new DispatcherTimer(
+                        TimeSpan.FromMilliseconds(50),
+                        DispatcherPriority.Background,
+                        (_, _) =>
+                        {
+                            hitTestAttempts++;
+                            initialHit = window.InputHitTest(sourcePoint);
+                            initialWpfTargetHit = window.InputHitTest(wpfTargetPoint);
+                            if (ReferenceEquals(initialHit, sourceHost)
+                                && ReferenceEquals(initialWpfTargetHit, wpfTarget))
+                            {
+                                hitTestTimer!.Stop();
+                                QueueInput(kind: 4, sourcePoint, button: 1);
+                            }
+                            else if (hitTestAttempts >= 200)
+                            {
+                                hitTestTimer!.Stop();
+                                _ = System.Windows.Media.ProGPU.ProGpuWpfDiagnostics.TryHitTestOwners(
+                                    window,
+                                    sourcePoint.X,
+                                    sourcePoint.Y,
+                                    out object?[] sourceOwners);
+                                _ = System.Windows.Media.ProGPU.ProGpuWpfDiagnostics.TryHitTestOwners(
+                                    window,
+                                    wpfTargetPoint.X,
+                                    wpfTargetPoint.Y,
+                                    out object?[] targetOwners);
+                                visualDiagnostics += $" sourceOwners={string.Join(',', sourceOwners.Select(owner => owner?.GetType().FullName ?? "<null>"))}"
+                                    + $" targetOwners={string.Join(',', targetOwners.Select(owner => owner?.GetType().FullName ?? "<null>"))}";
+                                inputAccepted = false;
+                                window.Close();
+                            }
+                        },
+                        window.Dispatcher);
+                    hitTestTimer.Start();
+                }));
+        };
+
+        application.Run(window);
+        sourceHost.Child = null;
+        hostedTargetHost.Child = null;
+
+        bool formsPriority = string.Join(",", formsSequence) ==
+            "1.source.enter,1.source.leave,1.target.enter,1.target.over,1.target.leave,"
+            + "2.source.enter,2.source.leave,3.source.enter,3.source.leave";
+        bool routedOnlyToWpfTarget = routedEnterSources.Count == 3
+            && routedEnterSources.All(sourceElement => ReferenceEquals(sourceElement, wpfTarget));
+        bool success = loaded
+            && !timedOut
+            && inputAccepted
+            && completedSessions == 3
+            && successResult == Forms.DragDropEffects.Copy
+            && cancelResult == Forms.DragDropEffects.None
+            && exceptionResult == Forms.DragDropEffects.None
+            && string.Join(",", successSequence) == "enter,over,drop"
+            && string.Join(",", cancelSequence) == "enter,over,leave"
+            && string.Join(",", exceptionSequence) == "enter,over"
+            && expectedExceptionHandled
+            && formsPriority
+            && routedOnlyToWpfTarget
+            && wpfPayloadIdentity
+            && copiedFormsPayloadIdentity
+            && formsDataStayedLazy
+            && formsDataStayedLive
+            && targetCoordinates
+            && successCaptureReleased
+            && cancelCaptureReleased
+            && exceptionCaptureReleased
+            && !sourceHost.IsMouseCaptured;
+        if (!success)
+        {
+            Console.Error.WriteLine(
+                "LibreWinForms cross-framework drag smoke failed"
+                + $" loaded={loaded} timedOut={timedOut} input={inputAccepted} sessions={completedSessions}"
+                + $" successResult={successResult} cancelResult={cancelResult}"
+                + $" exceptionResult={exceptionResult} exceptionHandled={expectedExceptionHandled}"
+                + $" successSequence={string.Join(',', successSequence)}"
+                + $" cancelSequence={string.Join(',', cancelSequence)}"
+                + $" exceptionSequence={string.Join(',', exceptionSequence)}"
+                + $" formsSequence={string.Join(',', formsSequence)}"
+                + $" routedSources={routedEnterSources.Count} payload={wpfPayloadIdentity}"
+                + $" copiedFormats={copiedFormsPayloadIdentity} lazyData={formsDataStayedLazy}"
+                + $" liveData={formsDataStayedLive} coordinates={targetCoordinates}"
+                + $" successCapture={successCaptureReleased} cancelCapture={cancelCaptureReleased}"
+                + $" exceptionCapture={exceptionCaptureReleased}"
+                + $" finalCapture={sourceHost.IsMouseCaptured}");
+            Console.Error.WriteLine(
+                $"LibreWinForms cross-framework drag smoke input sourcePoint={observedSourcePoint}"
+                + $" sourceHost={sourceHost.ActualWidth}x{sourceHost.ActualHeight}"
+                + $" window={window.ActualWidth}x{window.ActualHeight}"
+                + $" hit={initialHit?.GetType().FullName ?? "<null>"}"
+                + $" wpfHit={initialWpfTargetHit?.GetType().FullName ?? "<null>"}"
+                + $" hitAttempts={hitTestAttempts}{visualDiagnostics}");
+            return 12;
+        }
+
+        Console.WriteLine(
+            "LibreWinForms cross-framework drag smoke result=Success "
+            + "formsPriority=True payloadIdentity=True copiedFormats=True lazyLiveData=True "
+            + "wpfEvents=Enter,Over,Drop effect=Copy coordinates=True "
+            + "cancelEvents=Enter,Over,Leave captureReleased=True "
+            + "exceptionTeardown=True");
         return 0;
     }
 
@@ -4097,6 +4562,88 @@ internal static class Program
             using var brush = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(255, 245, 248, 252));
             e.Graphics.FillRectangle(brush, e.ClipRectangle);
             base.OnPaint(e);
+        }
+    }
+
+    private sealed class CrossFrameworkFormsDataObject : Forms.IDataObject
+    {
+        private readonly Dictionary<string, object?> _data = new(StringComparer.Ordinal);
+
+        public int GetFormatsCallCount { get; private set; }
+
+        public object? GetData(string format) => GetData(format, autoConvert: true);
+
+        public object? GetData(string format, bool autoConvert) =>
+            _data.TryGetValue(format, out object? value) ? value : null;
+
+        public object? GetData(Type format) =>
+            GetData(format.FullName ?? format.Name, autoConvert: true);
+
+        public bool GetDataPresent(string format) => GetDataPresent(format, autoConvert: true);
+
+        public bool GetDataPresent(string format, bool autoConvert) => _data.ContainsKey(format);
+
+        public bool GetDataPresent(Type format) =>
+            GetDataPresent(format.FullName ?? format.Name, autoConvert: true);
+
+        public string[] GetFormats() => GetFormats(autoConvert: true);
+
+        public string[] GetFormats(bool autoConvert)
+        {
+            GetFormatsCallCount++;
+            return _data.Keys.ToArray();
+        }
+
+        public void SetData(string format, object? data)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(format);
+            _data[format] = data;
+        }
+    }
+
+    private sealed class CrossFrameworkDragDataObject : System.Windows.IDataObject
+    {
+        private readonly Dictionary<string, object?> _data = new(StringComparer.Ordinal);
+
+        public object? GetData(string format) => GetData(format, autoConvert: true);
+
+        public object? GetData(string format, bool autoConvert) =>
+            _data.TryGetValue(format, out object? value) ? value : null;
+
+        public object? GetData(Type format) =>
+            GetData(format.FullName ?? format.Name, autoConvert: true);
+
+        public bool GetDataPresent(string format) => GetDataPresent(format, autoConvert: true);
+
+        public bool GetDataPresent(string format, bool autoConvert) => _data.ContainsKey(format);
+
+        public bool GetDataPresent(Type format) =>
+            GetDataPresent(format.FullName ?? format.Name, autoConvert: true);
+
+        public string[] GetFormats() => GetFormats(autoConvert: true);
+
+        public string[] GetFormats(bool autoConvert) => _data.Keys.ToArray();
+
+        public void SetData(object? data)
+        {
+            ArgumentNullException.ThrowIfNull(data);
+            SetData(data.GetType(), data);
+        }
+
+        public void SetData(string format, object? data) =>
+            SetData(format, data, autoConvert: true);
+
+        public void SetData(string format, object? data, bool autoConvert)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(format);
+            ArgumentNullException.ThrowIfNull(data);
+            _data[format] = data;
+        }
+
+        public void SetData(Type format, object? data)
+        {
+            ArgumentNullException.ThrowIfNull(format);
+            SetData(format.FullName ?? format.Name, data, autoConvert: true);
         }
     }
 
