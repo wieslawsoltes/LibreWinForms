@@ -3784,40 +3784,98 @@ namespace System.ComponentModel.Design
         }
     }
 
-    public class MenuCommandService : IMenuCommandService
+    public class MenuCommandService : IMenuCommandService, IDisposable
     {
         private readonly Dictionary<CommandID, MenuCommand> _commands = new();
-        private readonly IServiceProvider? _serviceProvider;
-        private readonly DesignerVerbCollection _verbs = new();
+        private readonly List<DesignerVerb> _globalVerbs = new();
+        private IServiceProvider? _serviceProvider;
+        private ISelectionService? _selectionService;
+        private DesignerVerbCollection? _currentVerbs;
+        private Type? _verbSourceType;
+        private bool _disposed;
 
-        public MenuCommandService(IServiceProvider serviceProvider)
+        public MenuCommandService(IServiceProvider? serviceProvider)
         {
             _serviceProvider = serviceProvider;
+            TypeDescriptor.Refreshed += OnTypeRefreshed;
         }
 
-        public virtual DesignerVerbCollection Verbs => _verbs;
+        public virtual DesignerVerbCollection Verbs
+        {
+            get
+            {
+                EnsureVerbs();
+                return _currentVerbs!;
+            }
+        }
 
         public virtual void AddCommand(MenuCommand command)
         {
             ArgumentNullException.ThrowIfNull(command);
-            _commands[command.CommandID] = command;
-            if (command is DesignerVerb verb && !_verbs.Contains(verb))
-            {
-                _verbs.Add(verb);
-            }
+            _commands[command.CommandID!] = command;
         }
 
         public virtual void AddVerb(DesignerVerb verb)
         {
             ArgumentNullException.ThrowIfNull(verb);
-            _verbs.Add(verb);
-            AddCommand(verb);
+            _globalVerbs.Add(verb);
+            InvalidateVerbs();
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposing || _disposed)
+                return;
+
+            _disposed = true;
+            if (_selectionService is not null)
+            {
+                _selectionService.SelectionChanging -= OnSelectionChanging;
+                _selectionService = null;
+            }
+
+            TypeDescriptor.Refreshed -= OnTypeRefreshed;
+            _serviceProvider = null;
+            _currentVerbs = null;
+            _verbSourceType = null;
         }
 
         public virtual MenuCommand? FindCommand(CommandID commandID)
         {
-            _commands.TryGetValue(commandID, out MenuCommand? command);
-            return command;
+            ArgumentNullException.ThrowIfNull(commandID);
+            if (_commands.TryGetValue(commandID, out MenuCommand? command))
+                return command;
+
+            EnsureVerbs();
+            int virtualVerbId = StandardCommands.VerbFirst.ID;
+            foreach (DesignerVerb verb in _currentVerbs!)
+            {
+                CommandID? verbId = verb.CommandID;
+                if (verbId is null)
+                    continue;
+
+                if (verbId.Equals(commandID))
+                    return verb;
+
+                if (!verbId.Equals(StandardCommands.VerbFirst))
+                    continue;
+
+                if (commandID.Guid.Equals(StandardCommands.VerbFirst.Guid)
+                    && commandID.ID == virtualVerbId)
+                {
+                    return verb;
+                }
+
+                virtualVerbId++;
+            }
+
+            return null;
         }
 
         public virtual bool GlobalInvoke(CommandID commandID)
@@ -3839,7 +3897,8 @@ namespace System.ComponentModel.Design
                 return;
             }
 
-            _commands.Remove(command.CommandID);
+            if (command.CommandID is CommandID commandId)
+                _commands.Remove(commandId);
         }
 
         public virtual void RemoveVerb(DesignerVerb verb)
@@ -3849,8 +3908,8 @@ namespace System.ComponentModel.Design
                 return;
             }
 
-            _verbs.Remove(verb);
-            RemoveCommand(verb);
+            if (_globalVerbs.Remove(verb))
+                InvalidateVerbs();
         }
 
         public virtual void ShowContextMenu(CommandID menuID, int x, int y)
@@ -3860,6 +3919,91 @@ namespace System.ComponentModel.Design
         protected object? GetService(Type serviceType)
         {
             return _serviceProvider?.GetService(serviceType);
+        }
+
+        private void EnsureVerbs()
+        {
+            if (_currentVerbs is not null)
+                return;
+
+            if (_selectionService is null
+                && GetService(typeof(ISelectionService)) is ISelectionService selectionService)
+            {
+                _selectionService = selectionService;
+                _selectionService.SelectionChanging += OnSelectionChanging;
+            }
+
+            bool includeGlobalVerbs = false;
+            DesignerVerbCollection? localVerbs = null;
+            _verbSourceType = null;
+
+            if (_selectionService?.SelectionCount == 1
+                && GetService(typeof(IDesignerHost)) is IDesignerHost designerHost
+                && _selectionService.PrimarySelection is IComponent selectedComponent
+                && !TypeDescriptor.GetAttributes(selectedComponent).Contains(InheritanceAttribute.InheritedReadOnly))
+            {
+                includeGlobalVerbs = ReferenceEquals(selectedComponent, designerHost.RootComponent);
+                IDesigner? designer = designerHost.GetDesigner(selectedComponent);
+                if (designer is not null)
+                {
+                    localVerbs = designer.Verbs;
+                    _verbSourceType = selectedComponent.GetType();
+                }
+            }
+
+            int verbCount = (includeGlobalVerbs ? _globalVerbs.Count : 0) + (localVerbs?.Count ?? 0);
+            var orderedVerbs = new List<DesignerVerb>(verbCount);
+            var winningIndices = new Dictionary<string, int>(verbCount, StringComparer.OrdinalIgnoreCase);
+
+            if (includeGlobalVerbs)
+            {
+                foreach (DesignerVerb globalVerb in _globalVerbs)
+                {
+                    orderedVerbs.Add(globalVerb);
+                    winningIndices[globalVerb.Text] = orderedVerbs.Count - 1;
+                }
+            }
+
+            if (localVerbs is not null)
+            {
+                foreach (DesignerVerb localVerb in localVerbs)
+                {
+                    orderedVerbs.Add(localVerb);
+                    winningIndices[localVerb.Text] = orderedVerbs.Count - 1;
+                }
+            }
+
+            var mergedVerbs = new DesignerVerb[winningIndices.Count];
+            int resultIndex = 0;
+            for (int orderedIndex = 0; orderedIndex < orderedVerbs.Count; orderedIndex++)
+            {
+                DesignerVerb verb = orderedVerbs[orderedIndex];
+                if (winningIndices[verb.Text] == orderedIndex)
+                    mergedVerbs[resultIndex++] = verb;
+            }
+
+            _currentVerbs = new DesignerVerbCollection(mergedVerbs);
+        }
+
+        private void InvalidateVerbs()
+        {
+            _currentVerbs = null;
+        }
+
+        private void OnSelectionChanging(object? sender, EventArgs e)
+        {
+            _currentVerbs = null;
+            _verbSourceType = null;
+        }
+
+        private void OnTypeRefreshed(RefreshEventArgs e)
+        {
+            if (_verbSourceType is not null
+                && e.TypeChanged is Type refreshedType
+                && _verbSourceType.IsAssignableFrom(refreshedType))
+            {
+                _currentVerbs = null;
+            }
         }
     }
 
