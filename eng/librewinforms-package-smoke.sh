@@ -92,6 +92,7 @@ modes=(
   --run-keyboard
   --run-classdiagram
   --run-hexeditor-host
+  --run-cross-framework-drag
 )
 if [[ -n "${LIBREWINFORMS_SMOKE_MODES:-}" ]]; then
   read -r -a modes <<<"${LIBREWINFORMS_SMOKE_MODES}"
