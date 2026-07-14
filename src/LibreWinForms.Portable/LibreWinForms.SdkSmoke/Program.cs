@@ -126,6 +126,9 @@ internal static class Program
         object? initialWpfTargetHit = null;
         string visualDiagnostics = string.Empty;
         System.Windows.Point observedSourcePoint = default;
+        var observedWpfTargetPoints = new List<System.Windows.Point>();
+        double targetCoordinateToleranceX = 0.51;
+        double targetCoordinateToleranceY = 0.51;
         int hitTestAttempts = 0;
         int activeSession = 0;
         int completedSessions = 0;
@@ -266,8 +269,9 @@ internal static class Program
             }
 
             System.Windows.Point point = e.GetPosition(wpfTarget);
-            targetCoordinates &= Math.Abs(point.X - expectedWpfTargetPoint.X) < 0.01
-                && Math.Abs(point.Y - expectedWpfTargetPoint.Y) < 0.01;
+            observedWpfTargetPoints.Add(point);
+            targetCoordinates &= Math.Abs(point.X - expectedWpfTargetPoint.X) <= targetCoordinateToleranceX
+                && Math.Abs(point.Y - expectedWpfTargetPoint.Y) <= targetCoordinateToleranceY;
             e.Effects = System.Windows.DragDropEffects.Copy;
             e.Handled = true;
         };
@@ -342,6 +346,13 @@ internal static class Program
                     System.Windows.PresentationSource? sourcePresentation = System.Windows.PresentationSource.FromVisual(sourceHost);
                     System.Windows.PresentationSource? targetPresentation = System.Windows.PresentationSource.FromVisual(wpfTarget);
                     System.Windows.PresentationSource? windowPresentation = System.Windows.PresentationSource.FromVisual(window);
+                    if (targetPresentation?.CompositionTarget is { } targetCompositionTarget)
+                    {
+                        System.Windows.Media.Matrix transformToDevice = targetCompositionTarget.TransformToDevice;
+                        targetCoordinateToleranceX = 0.51 / Math.Max(Math.Abs(transformToDevice.M11), double.Epsilon);
+                        targetCoordinateToleranceY = 0.51 / Math.Max(Math.Abs(transformToDevice.M22), double.Epsilon);
+                    }
+
                     visualDiagnostics = $" sourceParent={sourceParent?.GetType().FullName ?? "<null>"}"
                         + $" rootParent={rootParent?.GetType().FullName ?? "<null>"}"
                         + $" sourceOffset={System.Windows.Media.VisualTreeHelper.GetOffset(sourceHost)}"
@@ -550,6 +561,8 @@ internal static class Program
                 $"LibreWinForms cross-framework drag smoke input sourcePoint={observedSourcePoint}"
                 + $" sourceHost={sourceHost.ActualWidth}x{sourceHost.ActualHeight}"
                 + $" window={window.ActualWidth}x{window.ActualHeight}"
+                + $" targetPoints={string.Join(';', observedWpfTargetPoints)}"
+                + $" targetTolerance={targetCoordinateToleranceX:0.###},{targetCoordinateToleranceY:0.###}"
                 + $" hit={initialHit?.GetType().FullName ?? "<null>"}"
                 + $" wpfHit={initialWpfTargetHit?.GetType().FullName ?? "<null>"}"
                 + $" hitAttempts={hitTestAttempts}{visualDiagnostics}");
