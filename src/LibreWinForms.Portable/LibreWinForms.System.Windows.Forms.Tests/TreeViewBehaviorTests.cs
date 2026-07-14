@@ -29,6 +29,12 @@ internal static class TreeViewBehaviorTests
                 return 0;
             }
 
+            if (args.Length == 1 && string.Equals(args[0], "forms-designer-menu-commands", StringComparison.Ordinal))
+            {
+                FormsDesignerMenuCommandBehaviorTests.Run();
+                return 0;
+            }
+
             LayoutHitTestingExpansionAndScrollingStayInSync();
             ImageGeometryUsesImageListMetrics();
             KeyboardNavigationUsesVisibleTreeOrder();
@@ -50,6 +56,7 @@ internal static class TreeViewBehaviorTests
             FormsDesignerOptionsBehaviorTests.Run();
             FormsDesignerEventBindingBehaviorTests.Run();
             FormsDesignerTypedServiceBehaviorTests.Run();
+            FormsDesignerMenuCommandBehaviorTests.Run();
             FormsDesignerSnapLineBehaviorTests.Run();
             FormsDesignerLayoutBehaviorTests.Run();
             ReportingDesignerBehaviorTests.Run();
