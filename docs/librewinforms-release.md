@@ -9,7 +9,7 @@ LibreWinForms preview releases publish the portable WinForms package set:
 Run the local package lane:
 
 ```bash
-LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.14 ./eng/librewinforms-pack.sh
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.15 ./eng/librewinforms-pack.sh
 ```
 
 LibreWinForms depends on matching LibreWPF/ProGPU bridge packages for `LibreWPF.Transport`, `LibreWPF.Interop`, and `ProGPU.System.Drawing.Common`. CI and release workflows build those bridge packages from `wieslawsoltes/wpf@progpu-rendering-port` and pass the resulting local feed through `LIBREWINFORMS_RESTORE_SOURCES`.
@@ -17,8 +17,8 @@ LibreWinForms depends on matching LibreWPF/ProGPU bridge packages for `LibreWPF.
 For local validation against unpublished bridge packages:
 
 ```bash
-LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.14 \
-LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.14 \
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.15 \
+LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.15 \
 LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShipping%3Bhttps://api.nuget.org/v3/index.json \
 ./eng/librewinforms-pack.sh
 ```
@@ -26,7 +26,7 @@ LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShippin
 Additional MSBuild properties can be passed after the script name, for example when validating the standalone clone against a local LibreWPF artifact root:
 
 ```bash
-LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.14 \
+LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.15 \
 LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShipping%3Bhttps://api.nuget.org/v3/index.json \
 ./eng/librewinforms-pack.sh -p:LibreWpfManagedAssemblyRoot=/path/to/wpf/artifacts/bin/
 ```
