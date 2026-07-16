@@ -43,7 +43,7 @@ Before:
 After:
 
 ```xml
-<Project Sdk="LibreWinForms.Sdk/0.1.0-preview.18">
+<Project Sdk="LibreWinForms.Sdk/0.1.0-preview.19">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -57,7 +57,7 @@ Older projects that still use `Microsoft.NET.Sdk.WindowsDesktop` should make the
 4. Keep existing app dependencies in place. For example, a mixed WPF/WinForms app only changes the SDK line in the WinForms project:
 
 ```xml
-<Project Sdk="LibreWinForms.Sdk/0.1.0-preview.18">
+<Project Sdk="LibreWinForms.Sdk/0.1.0-preview.19">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -104,7 +104,7 @@ LibreWinForms consumes these bridge packages from the matching LibreWPF/ProGPU p
 ## Build And Release
 
 ```bash
-LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.18 ./eng/librewinforms-pack.sh
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.19 ./eng/librewinforms-pack.sh
 ```
 
 The package lane builds `LibreWinForms.System.Windows.Forms`, `LibreWinForms.WindowsFormsIntegration`, and `LibreWinForms.Sdk`, verifies README/release docs, writes the preview package manifest, and creates a release bundle with package hashes and a local-feed `NuGet.config`. It also cleans current-version package artifacts before packing and fails if a stale or unexpected current-version `.nupkg` would be published.
@@ -114,8 +114,8 @@ The pack script restores through an isolated cache under `artifacts/nuget/librew
 When validating against unpublished LibreWPF/ProGPU bridge packages, build or restore those packages into a local feed and pass both the bridge package version and restore source:
 
 ```bash
-LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.18 \
-LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.18 \
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.19 \
+LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.19 \
 LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShipping%3Bhttps://api.nuget.org/v3/index.json \
 ./eng/librewinforms-pack.sh
 ```
