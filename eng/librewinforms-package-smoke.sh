@@ -79,6 +79,7 @@ fi
 
 sdk_template_dir="${work_root}/sdk-template"
 mkdir -p "${sdk_template_dir}"
+cp "${project_dir}/NuGet.config" "${sdk_template_dir}/NuGet.config"
 
 cat >"${sdk_template_dir}/LibreWinForms.SdkTemplate.csproj" <<EOF
 <Project Sdk="LibreWinForms.Sdk/${package_version}">
@@ -133,7 +134,7 @@ partial class Form1
 EOF
 
 sdk_template_project="${sdk_template_dir}/LibreWinForms.SdkTemplate.csproj"
-"${dotnet}" restore "${sdk_template_project}" --configfile "${project_dir}/NuGet.config" --force --no-cache
+"${dotnet}" restore "${sdk_template_project}" --configfile "${sdk_template_dir}/NuGet.config" --force --no-cache
 "${dotnet}" build "${sdk_template_project}" --configuration Release --no-restore
 
 sdk_template_dll="${sdk_template_dir}/bin/Release/net10.0/LibreWinForms.SdkTemplate.dll"
