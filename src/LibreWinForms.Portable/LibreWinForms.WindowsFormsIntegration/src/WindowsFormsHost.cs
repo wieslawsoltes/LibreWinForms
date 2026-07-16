@@ -233,6 +233,7 @@ public class WindowsFormsHost : FrameworkElement
     private Forms.Control? _pressedControl;
     private Forms.ToolStripItem? _pressedToolStripItem;
     private Forms.MouseButtons _pressedButton;
+    private int _pressedClickCount;
     private Forms.Control? _externalDragTarget;
     private Forms.DragDropEffects _externalDragEffect;
     private Window? _externalDropWindow;
@@ -309,6 +310,7 @@ public class WindowsFormsHost : FrameworkElement
             _pressedControl = null;
             _pressedToolStripItem = null;
             _pressedButton = Forms.MouseButtons.None;
+            _pressedClickCount = 0;
             Cursor = System.Windows.Input.Cursors.Arrow;
             if (IsMouseCaptured)
             {
@@ -1844,6 +1846,7 @@ public class WindowsFormsHost : FrameworkElement
         _pressedControl = null;
         _pressedToolStripItem = null;
         _pressedButton = Forms.MouseButtons.None;
+        _pressedClickCount = 0;
         if (hadPressedControl)
         {
             InvalidateVisual();
@@ -1887,6 +1890,7 @@ public class WindowsFormsHost : FrameworkElement
         {
             _pressedControl = target;
             _pressedButton = pressedButton;
+            _pressedClickCount = e.ClickCount;
             InvalidateVisual();
         }
 
@@ -1945,6 +1949,7 @@ public class WindowsFormsHost : FrameworkElement
             _pressedControl = null;
             _pressedToolStripItem = null;
             _pressedButton = Forms.MouseButtons.None;
+            _pressedClickCount = 0;
             if (hadPressedControl)
             {
                 InvalidateVisual();
@@ -1974,6 +1979,7 @@ public class WindowsFormsHost : FrameworkElement
             _pressedControl = null;
             _pressedToolStripItem = null;
             _pressedButton = Forms.MouseButtons.None;
+            _pressedClickCount = 0;
             Cursor = System.Windows.Input.Cursors.Arrow;
             if (hadPressedControl)
             {
@@ -1990,13 +1996,17 @@ public class WindowsFormsHost : FrameworkElement
         Forms.MouseButtons releasedButton = MapMouseButton(e.ChangedButton);
         bool matchingPress = ReferenceEquals(_pressedControl, target)
             && _pressedButton == releasedButton;
+        int clickCount = matchingPress
+            ? Math.Max(e.ClickCount, _pressedClickCount)
+            : e.ClickCount;
         Forms.ToolStripItem? pressedToolStripItem = _pressedToolStripItem;
         _pressedControl = null;
         _pressedToolStripItem = null;
         _pressedButton = Forms.MouseButtons.None;
+        _pressedClickCount = 0;
         InvalidateVisual();
 
-        var mouseEventArgs = new Forms.MouseEventArgs(releasedButton, e.ClickCount, ToWinFormsCoordinate(localPoint.X), ToWinFormsCoordinate(localPoint.Y), 0);
+        var mouseEventArgs = new Forms.MouseEventArgs(releasedButton, clickCount, ToWinFormsCoordinate(localPoint.X), ToWinFormsCoordinate(localPoint.Y), 0);
         bool designMode = target.Site?.DesignMode == true;
         if (designMode)
         {
@@ -2036,7 +2046,7 @@ public class WindowsFormsHost : FrameworkElement
             return;
         }
 
-        if (matchingPress && e.ClickCount >= 2)
+        if (matchingPress && clickCount >= 2)
         {
             target.RaiseMouseDoubleClick(mouseEventArgs);
             ApplyDefaultActivation(target, localPoint);

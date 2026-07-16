@@ -94,6 +94,7 @@ modes=(
   --run-hexeditor-host
   --run-cross-framework-drag
   --run-native-popup
+  --run-host-double-click
 )
 if [[ -n "${LIBREWINFORMS_SMOKE_MODES:-}" ]]; then
   read -r -a modes <<<"${LIBREWINFORMS_SMOKE_MODES}"

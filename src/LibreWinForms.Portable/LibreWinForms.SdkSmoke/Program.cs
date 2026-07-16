@@ -106,8 +106,151 @@ internal static class Program
             return RunNativePopupSmoke();
         }
 
+        if (args.Contains("--run-host-double-click", StringComparer.Ordinal))
+        {
+            return RunHostDoubleClickSmoke();
+        }
+
         Console.WriteLine("LibreWinForms SDK smoke build loaded.");
         return 0;
+    }
+
+    private static int RunHostDoubleClickSmoke()
+    {
+        System.Windows.Forms.Integration.WindowsFormsHost.EnableWindowsFormsInterop();
+
+        bool loaded = false;
+        bool inputAccepted = false;
+        bool timedOut = false;
+        int attempts = 0;
+        var mouseDownClicks = new List<int>();
+        var mouseUpClicks = new List<int>();
+        var doubleClickClicks = new List<int>();
+
+        using var treeView = new DoubleClickProbeTreeView
+        {
+            Width = 280,
+            Height = 96
+        };
+        treeView.Nodes.Add(new Forms.TreeNode("Window1.xaml"));
+        treeView.MouseDown += (_, e) => mouseDownClicks.Add(e.Clicks);
+        treeView.MouseUp += (_, e) => mouseUpClicks.Add(e.Clicks);
+        treeView.MouseDoubleClick += (_, e) => doubleClickClicks.Add(e.Clicks);
+
+        var formsHost = new System.Windows.Forms.Integration.WindowsFormsHost
+        {
+            Width = 280,
+            Height = 96,
+            Child = treeView
+        };
+        var application = new WpfApplication();
+        var windowTemplate = new System.Windows.Controls.ControlTemplate(typeof(WpfWindow));
+        var contentPresenter = new System.Windows.FrameworkElementFactory(
+            typeof(System.Windows.Controls.ContentPresenter));
+        contentPresenter.SetValue(
+            System.Windows.Controls.ContentPresenter.ContentSourceProperty,
+            "Content");
+        windowTemplate.VisualTree = contentPresenter;
+        var window = new WpfWindow
+        {
+            Title = "LibreWinForms double-click smoke",
+            Width = 360,
+            Height = 180,
+            Template = windowTemplate,
+            Content = formsHost
+        };
+
+        using var watchdog = new System.Threading.Timer(
+            _ => window.Dispatcher.BeginInvoke(
+                new Action(() =>
+                {
+                    timedOut = true;
+                    window.Close();
+                })),
+            null,
+            TimeSpan.FromSeconds(30),
+            Timeout.InfiniteTimeSpan);
+
+        window.Loaded += (_, _) => loaded = true;
+        window.ContentRendered += (_, _) =>
+        {
+            if (!PortableWpfServiceRegistry.TryGetWindowActivationService(
+                    PortableWpfServiceKey.PresentationFramework,
+                    out IPortableWindowActivationServiceRegistrar activationService))
+            {
+                window.Close();
+                return;
+            }
+
+            window.ApplyTemplate();
+            window.UpdateLayout();
+            System.Windows.Point treePoint = window.PointFromScreen(
+                formsHost.PointToScreen(new System.Windows.Point(48, 14)));
+            DispatcherTimer inputTimer = null!;
+            inputTimer = new DispatcherTimer(
+                TimeSpan.FromMilliseconds(25),
+                DispatcherPriority.Background,
+                (_, _) =>
+                {
+                    attempts++;
+                    if (!ReferenceEquals(window.InputHitTest(treePoint), formsHost))
+                    {
+                        if (attempts >= 200)
+                        {
+                            timedOut = true;
+                            inputTimer.Stop();
+                            window.Close();
+                        }
+
+                        return;
+                    }
+
+                    inputAccepted = activationService.TryProcessInputEvent(
+                            window,
+                            new PortableWindowInputEvent(kind: 3, x: treePoint.X, y: treePoint.Y))
+                        && activationService.TryProcessInputEvent(
+                            window,
+                            new PortableWindowInputEvent(kind: 4, x: treePoint.X, y: treePoint.Y, button: 1))
+                        && activationService.TryProcessInputEvent(
+                            window,
+                            new PortableWindowInputEvent(kind: 5, x: treePoint.X, y: treePoint.Y, button: 1))
+                        && activationService.TryProcessInputEvent(
+                            window,
+                            new PortableWindowInputEvent(kind: 4, x: treePoint.X, y: treePoint.Y, button: 1))
+                        && activationService.TryProcessInputEvent(
+                            window,
+                            new PortableWindowInputEvent(kind: 5, x: treePoint.X, y: treePoint.Y, button: 1));
+                    inputTimer.Stop();
+                    window.Dispatcher.BeginInvoke(
+                        DispatcherPriority.ApplicationIdle,
+                        new Action(window.Close));
+                },
+                window.Dispatcher);
+            inputTimer.Start();
+        };
+
+        application.Run(window);
+        formsHost.Child = null;
+
+        bool success = loaded
+            && inputAccepted
+            && mouseDownClicks.SequenceEqual(new[] { 1, 2 })
+            && mouseUpClicks.SequenceEqual(new[] { 1, 2 })
+            && doubleClickClicks.SequenceEqual(new[] { 2 })
+            && treeView.OverrideDoubleClickCount == 1
+            && treeView.OverrideDoubleClickClicks == 2
+            && !timedOut;
+        Console.WriteLine(
+            "LibreWinForms host double-click smoke result=" + (success ? "Success" : "Failure")
+            + " loaded=" + loaded
+            + " input=" + inputAccepted
+            + " downs=" + string.Join(',', mouseDownClicks)
+            + " ups=" + string.Join(',', mouseUpClicks)
+            + " doubles=" + string.Join(',', doubleClickClicks)
+            + " overrideCount=" + treeView.OverrideDoubleClickCount
+            + " overrideClicks=" + treeView.OverrideDoubleClickClicks
+            + " timedOut=" + timedOut);
+        return success ? 0 : 1;
     }
 
     private static int RunNativePopupSmoke()
@@ -4834,6 +4977,20 @@ internal static class Program
         {
             ArgumentNullException.ThrowIfNull(format);
             SetData(format.FullName ?? format.Name, data, autoConvert: true);
+        }
+    }
+
+    private sealed class DoubleClickProbeTreeView : Forms.TreeView
+    {
+        public int OverrideDoubleClickClicks { get; private set; }
+
+        public int OverrideDoubleClickCount { get; private set; }
+
+        protected override void OnMouseDoubleClick(Forms.MouseEventArgs e)
+        {
+            OverrideDoubleClickCount++;
+            OverrideDoubleClickClicks = e.Clicks;
+            base.OnMouseDoubleClick(e);
         }
     }
 
