@@ -77,6 +77,71 @@ if [[ ! -f "${smoke_dll}" ]]; then
   exit 1
 fi
 
+sdk_template_dir="${work_root}/sdk-template"
+mkdir -p "${sdk_template_dir}"
+
+cat >"${sdk_template_dir}/LibreWinForms.SdkTemplate.csproj" <<EOF
+<Project Sdk="LibreWinForms.Sdk/${package_version}">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>LibreWinForms.SdkTemplate</RootNamespace>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+</Project>
+EOF
+
+cat >"${sdk_template_dir}/Program.cs" <<'EOF'
+namespace LibreWinForms.SdkTemplate;
+
+static class Program
+{
+    [STAThread]
+    static void Main()
+    {
+        ApplicationConfiguration.Initialize();
+        Application.Run(new Form1());
+    }
+}
+EOF
+
+cat >"${sdk_template_dir}/Form1.cs" <<'EOF'
+namespace LibreWinForms.SdkTemplate;
+
+public partial class Form1 : Form
+{
+    public Form1()
+    {
+        InitializeComponent();
+    }
+}
+EOF
+
+cat >"${sdk_template_dir}/Form1.Designer.cs" <<'EOF'
+namespace LibreWinForms.SdkTemplate;
+
+partial class Form1
+{
+    private void InitializeComponent()
+    {
+        ClientSize = new Size(320, 180);
+        Text = "LibreWinForms SDK template";
+    }
+}
+EOF
+
+sdk_template_project="${sdk_template_dir}/LibreWinForms.SdkTemplate.csproj"
+"${dotnet}" restore "${sdk_template_project}" --configfile "${project_dir}/NuGet.config" --force --no-cache
+"${dotnet}" build "${sdk_template_project}" --configuration Release --no-restore
+
+sdk_template_dll="${sdk_template_dir}/bin/Release/net10.0/LibreWinForms.SdkTemplate.dll"
+if [[ ! -f "${sdk_template_dll}" ]]; then
+  echo "LibreWinForms SDK template smoke executable was not produced: ${sdk_template_dll}" >&2
+  exit 1
+fi
+
 modes=(
   --run-form
   --run-thread-loop

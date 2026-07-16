@@ -1,4 +1,14 @@
 <Project>
+  <PropertyGroup>
+    <LibreWinFormsUseSystemWindowsForms Condition="'$(LibreWinFormsUseSystemWindowsForms)' == '' And '$(UseWindowsForms)' == 'true'">true</LibreWinFormsUseSystemWindowsForms>
+    <LibreWinFormsUseSystemWindowsForms Condition="'$(LibreWinFormsUseSystemWindowsForms)' == ''">false</LibreWinFormsUseSystemWindowsForms>
+    <LibreWinFormsUseWindowsFormsIntegration Condition="'$(LibreWinFormsUseWindowsFormsIntegration)' == '' And '$(UseWindowsForms)' == 'true'">true</LibreWinFormsUseWindowsFormsIntegration>
+    <LibreWinFormsUseWindowsFormsIntegration Condition="'$(LibreWinFormsUseWindowsFormsIntegration)' == ''">false</LibreWinFormsUseWindowsFormsIntegration>
+    <LibreWinFormsGenerateApplicationBootstrap Condition="'$(LibreWinFormsGenerateApplicationBootstrap)' == '' And '$(LibreWinFormsUseWindowsFormsIntegration)' == 'true'">true</LibreWinFormsGenerateApplicationBootstrap>
+    <LibreWinFormsGenerateApplicationBootstrap Condition="'$(LibreWinFormsGenerateApplicationBootstrap)' == ''">false</LibreWinFormsGenerateApplicationBootstrap>
+    <UseWindowsForms Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true'">false</UseWindowsForms>
+  </PropertyGroup>
+
   <Import Sdk="Microsoft.NET.Sdk" Project="Sdk.targets" />
   <Import Project="$(MSBuildThisFileDirectory)..\targets\LibreWinForms.Sdk.targets" />
 </Project>

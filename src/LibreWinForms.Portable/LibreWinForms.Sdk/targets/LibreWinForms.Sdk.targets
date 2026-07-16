@@ -28,6 +28,11 @@
     <Reference Include="WindowsFormsIntegration" HintPath="$(LibreWinFormsReferenceRoot)WindowsFormsIntegration.dll" Private="true" Condition="'$(LibreWinFormsUseWindowsFormsIntegration)' == 'true' And Exists('$(LibreWinFormsReferenceRoot)WindowsFormsIntegration.dll')" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseSystemWindowsForms)' == 'true'">
+    <Using Include="System.Drawing" />
+    <Using Include="System.Windows.Forms" />
+  </ItemGroup>
+
   <Target Name="_LibreWinFormsSdkReportConfiguration"
           BeforeTargets="PrepareForBuild"
           Condition="'$(LibreWinFormsEnableSdkDiagnostics)' == 'true'">
@@ -62,6 +67,33 @@
 
     <ItemGroup>
       <Compile Include="$(_LibreWinFormsApplicationBootstrapFile)" AutoGen="true" DesignTime="true" Visible="false" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="_LibreWinFormsGenerateApplicationConfiguration"
+          BeforeTargets="CoreCompile"
+          Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseSystemWindowsForms)' == 'true' And '$(LibreWinFormsGenerateApplicationConfiguration)' != 'false'">
+    <PropertyGroup>
+      <_LibreWinFormsApplicationConfigurationFile>$(IntermediateOutputPath)LibreWinForms.ApplicationConfiguration.g.cs</_LibreWinFormsApplicationConfigurationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <_LibreWinFormsApplicationConfigurationLine Include="internal static partial class ApplicationConfiguration" />
+      <_LibreWinFormsApplicationConfigurationLine Include="{" />
+      <_LibreWinFormsApplicationConfigurationLine Include="    internal static void Initialize()" />
+      <_LibreWinFormsApplicationConfigurationLine Include="    {" />
+      <_LibreWinFormsApplicationConfigurationLine Include="        global::System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false)%3B" />
+      <_LibreWinFormsApplicationConfigurationLine Include="    }" />
+      <_LibreWinFormsApplicationConfigurationLine Include="}" />
+    </ItemGroup>
+
+    <WriteLinesToFile
+      File="$(_LibreWinFormsApplicationConfigurationFile)"
+      Lines="@(_LibreWinFormsApplicationConfigurationLine)"
+      Overwrite="true" />
+
+    <ItemGroup>
+      <Compile Include="$(_LibreWinFormsApplicationConfigurationFile)" AutoGen="true" DesignTime="true" Visible="false" />
     </ItemGroup>
   </Target>
 </Project>

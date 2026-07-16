@@ -2,12 +2,6 @@
   <PropertyGroup>
     <_LibreWinFormsSdkImported>true</_LibreWinFormsSdkImported>
     <LibreWinFormsUsePortableFrameworkReferences Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == ''">true</LibreWinFormsUsePortableFrameworkReferences>
-    <LibreWinFormsUseSystemWindowsForms Condition="'$(LibreWinFormsUseSystemWindowsForms)' == '' And '$(UseWindowsForms)' == 'true'">true</LibreWinFormsUseSystemWindowsForms>
-    <LibreWinFormsUseSystemWindowsForms Condition="'$(LibreWinFormsUseSystemWindowsForms)' == ''">false</LibreWinFormsUseSystemWindowsForms>
-    <LibreWinFormsUseWindowsFormsIntegration Condition="'$(LibreWinFormsUseWindowsFormsIntegration)' == '' And '$(UseWindowsForms)' == 'true'">true</LibreWinFormsUseWindowsFormsIntegration>
-    <LibreWinFormsUseWindowsFormsIntegration Condition="'$(LibreWinFormsUseWindowsFormsIntegration)' == ''">false</LibreWinFormsUseWindowsFormsIntegration>
-    <LibreWinFormsGenerateApplicationBootstrap Condition="'$(LibreWinFormsGenerateApplicationBootstrap)' == '' And '$(LibreWinFormsUseWindowsFormsIntegration)' == 'true'">true</LibreWinFormsGenerateApplicationBootstrap>
-    <LibreWinFormsGenerateApplicationBootstrap Condition="'$(LibreWinFormsGenerateApplicationBootstrap)' == ''">false</LibreWinFormsGenerateApplicationBootstrap>
     <UseWindowsForms Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true'">false</UseWindowsForms>
     <EnableWindowsTargeting Condition="'$(EnableWindowsTargeting)' == ''">true</EnableWindowsTargeting>
     <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == ''">0.1.0-preview.19</LibreWinFormsVersion>
