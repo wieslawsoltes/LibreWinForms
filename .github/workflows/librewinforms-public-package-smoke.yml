@@ -1,0 +1,114 @@
+name: LibreWinForms Public Package Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Published LibreWinForms package version to validate.
+        required: true
+        default: 0.1.0-preview.21
+
+permissions:
+  contents: read
+
+jobs:
+  unchanged-template:
+    name: Unchanged template (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-15
+
+    steps:
+      - name: Checkout smoke configuration
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore and build unchanged WinForms template
+        shell: bash
+        env:
+          LIBREWINFORMS_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          project_dir="${RUNNER_TEMP}/librewinforms-public-template"
+          mkdir -p "${project_dir}"
+
+          cat >"${project_dir}/NuGet.config" <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <configuration>
+            <packageSources>
+              <clear />
+              <add key="NuGet" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
+            </packageSources>
+          </configuration>
+          EOF
+
+          cat >"${project_dir}/PublicTemplate.csproj" <<EOF
+          <Project Sdk="LibreWinForms.Sdk/${LIBREWINFORMS_VERSION}">
+            <PropertyGroup>
+              <OutputType>WinExe</OutputType>
+              <TargetFramework>net10.0</TargetFramework>
+              <UseWindowsForms>true</UseWindowsForms>
+              <ImplicitUsings>enable</ImplicitUsings>
+              <Nullable>enable</Nullable>
+            </PropertyGroup>
+          </Project>
+          EOF
+
+          cat >"${project_dir}/Program.cs" <<'EOF'
+          namespace PublicTemplate;
+
+          static class Program
+          {
+              [STAThread]
+              static void Main()
+              {
+                  ApplicationConfiguration.Initialize();
+                  Application.Run(new Form1());
+              }
+          }
+          EOF
+
+          cat >"${project_dir}/Form1.cs" <<'EOF'
+          namespace PublicTemplate;
+
+          public partial class Form1 : Form
+          {
+              public Form1()
+              {
+                  InitializeComponent();
+              }
+          }
+          EOF
+
+          cat >"${project_dir}/Form1.Designer.cs" <<'EOF'
+          namespace PublicTemplate;
+
+          partial class Form1
+          {
+              private void InitializeComponent()
+              {
+                  Text = "LibreWinForms public template";
+                  ClientSize = new Size(480, 320);
+              }
+          }
+          EOF
+
+          export NUGET_PACKAGES="${RUNNER_TEMP}/librewinforms-public-nuget"
+          dotnet restore "${project_dir}/PublicTemplate.csproj" \
+            --configfile "${project_dir}/NuGet.config" \
+            --force \
+            --no-cache
+          dotnet build "${project_dir}/PublicTemplate.csproj" \
+            --configuration Release \
+            --no-restore
+
+          test -f "${project_dir}/bin/Release/net10.0/PublicTemplate.dll"

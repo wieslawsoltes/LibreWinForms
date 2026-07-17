@@ -46,6 +46,8 @@ Release packing sets `LIBREWINFORMS_REQUIRE_CLEAN=1`, supplies the ProGPU strong
 
 Both CI and release run the standalone control/dispatcher/drag-drop/tree behavior executable and then restore a fresh package-only `LibreWPF.Sdk` consumer. The package smoke executes form, owned-dialog, designer, typed message-box, checkable-control, ListView, custom-paint, and retained owner-draw modes before artifacts can be published. Consuming the immutable LibreWPF release bundle keeps its Windows RID-specific PresentationCore payload intact; rebuilding the bridge on a macOS runner would not produce that Windows text runtime.
 
+After NuGet indexing, dispatch `LibreWinForms Public Package Smoke` for the published version. It restores only from NuGet.org and builds the unchanged WinForms template shape (`LibreWinForms.Sdk`, `net10.0`, `UseWindowsForms`, `ApplicationConfiguration.Initialize`) on Ubuntu and macOS.
+
 The GitHub release workflow runs the same bridge bootstrap and package lane, then publishes to NuGet.org when `NUGET_API_KEY` is configured and the workflow is invoked with publishing enabled or a `librewinforms-v*` tag is pushed. Tag-triggered releases create a GitHub prerelease through `gh release create --generate-notes`, attaching the NuGet packages, manifest, bundle, checksum, README, and local-feed `NuGet.config`.
 
 Publish ProGPU and LibreWPF bridge packages for the same version before publishing LibreWinForms so downstream restores can resolve the dependency closure from NuGet.org. The active release branch is `librewinforms-progpu-port`; use `librewinforms-v<version>` tags for public preview releases from that branch.

@@ -124,6 +124,7 @@ GitHub workflows:
 
 - `LibreWinForms Build` stages the matching immutable LibreWPF release feed, runs the preview package lane, and uploads package artifacts.
 - `LibreWinForms Docs` verifies README and release docs against the preview package list.
+- `LibreWinForms Public Package Smoke` restores only from NuGet.org and builds the unchanged `net10.0` WinForms template on Ubuntu and macOS after publication.
 - `LibreWinForms Release` resolves an immutable LibreWPF bridge tag or commit, records exact LibreWinForms/LibreWPF/ProGPU provenance, runs behavior and package-mode SDK smokes, builds preview packages/bundle artifacts, can publish to NuGet.org with `NUGET_API_KEY`, and creates a GitHub release for `librewinforms-v*` tags.
 
 Release order matters: publish ProGPU and LibreWPF for the same version first, then publish LibreWinForms so downstream restores can resolve the full package dependency closure from NuGet.org.

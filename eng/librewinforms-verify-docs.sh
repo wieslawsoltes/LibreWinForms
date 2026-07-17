@@ -64,6 +64,12 @@ require_text .github/workflows/librewinforms-ci.yml '-p:RestoreSources="${restor
 require_text .github/workflows/librewinforms-ci.yml "Run package-mode SDK smoke"
 require_text .github/workflows/librewinforms-docs.yml "LibreWinForms Docs"
 require_text .github/workflows/librewinforms-docs.yml "docs/**"
+require_text .github/workflows/librewinforms-public-package-smoke.yml "LibreWinForms Public Package Smoke"
+require_text .github/workflows/librewinforms-public-package-smoke.yml '<Project Sdk="LibreWinForms.Sdk/${LIBREWINFORMS_VERSION}">'
+require_text .github/workflows/librewinforms-public-package-smoke.yml "<TargetFramework>net10.0</TargetFramework>"
+require_text .github/workflows/librewinforms-public-package-smoke.yml "ApplicationConfiguration.Initialize()"
+require_text .github/workflows/librewinforms-public-package-smoke.yml "ubuntu-24.04"
+require_text .github/workflows/librewinforms-public-package-smoke.yml "macos-15"
 require_text .github/workflows/librewinforms-release.yml "LibreWinForms Release"
 require_text .github/workflows/librewinforms-release.yml "LIBREWINFORMS_BRIDGE_PACKAGE_VERSION"
 require_text .github/workflows/librewinforms-release.yml "LIBREWINFORMS_BRIDGE_REF"
