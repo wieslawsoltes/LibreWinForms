@@ -93,7 +93,7 @@ The preview package set is defined in `eng/librewinforms-package-list.sh` and va
 
 ### Bridge Packages
 
-LibreWinForms consumes these bridge packages from the matching LibreWPF/ProGPU preview. CI and release workflows build a local bridge feed from `wieslawsoltes/wpf@progpu-rendering-port` before packing LibreWinForms, so the WinForms package lane can validate before the bridge packages are available on NuGet.org.
+LibreWinForms consumes these bridge packages from the matching LibreWPF/ProGPU preview. CI and release workflows check out the immutable `librewpf-v<version>` tag and stage its published, provenance-verified package bundle before packing LibreWinForms. This preserves the Windows RID-specific text runtime built by the LibreWPF release lane.
 
 | Package | NuGet | Purpose |
 | --- | --- | --- |
@@ -122,7 +122,7 @@ LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShippin
 
 GitHub workflows:
 
-- `LibreWinForms Build` builds the matching LibreWPF/ProGPU bridge feed, runs the preview package lane, and uploads package artifacts.
+- `LibreWinForms Build` stages the matching immutable LibreWPF release feed, runs the preview package lane, and uploads package artifacts.
 - `LibreWinForms Docs` verifies README and release docs against the preview package list.
 - `LibreWinForms Release` resolves an immutable LibreWPF bridge tag or commit, records exact LibreWinForms/LibreWPF/ProGPU provenance, runs behavior and package-mode SDK smokes, builds preview packages/bundle artifacts, can publish to NuGet.org with `NUGET_API_KEY`, and creates a GitHub release for `librewinforms-v*` tags.
 

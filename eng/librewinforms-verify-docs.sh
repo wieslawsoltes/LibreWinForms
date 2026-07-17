@@ -37,6 +37,8 @@ require_text eng/librewinforms-package-list.sh "LibreWinForms.System.Windows.For
 require_text eng/librewinforms-package-list.sh "LibreWinForms.WindowsFormsIntegration"
 require_text eng/librewinforms-package-list.sh "LibreWinForms.Sdk"
 require_text NuGet.config "https://api.nuget.org/v3/index.json"
+require_text eng/librewinforms-fetch-librewpf-packages.sh "librewpf-v"
+require_text eng/librewinforms-fetch-librewpf-packages.sh 'commit=\"${bridge_commit}\"'
 require_text src/LibreWinForms.Portable/Directory.Build.props "<PackageProjectUrl>https://github.com/wieslawsoltes/winforms</PackageProjectUrl>"
 require_text src/LibreWinForms.Portable/Directory.Build.props "<RepositoryUrl>https://github.com/wieslawsoltes/winforms</RepositoryUrl>"
 require_text src/LibreWinForms.Portable/Directory.Build.props "<PackageTags>librewinforms;progpu;silk.net;winforms;cross-platform</PackageTags>"
@@ -53,7 +55,8 @@ require_text src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms/Libre
 require_text src/LibreWinForms.Portable/LibreWinForms.WindowsFormsIntegration/LibreWinForms.WindowsFormsIntegration.csproj "<PackageReadmeFile>README.md</PackageReadmeFile>"
 require_text src/LibreWinForms.Portable/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj "<PackageReadmeFile>README.md</PackageReadmeFile>"
 require_text .github/workflows/librewinforms-ci.yml "LibreWinForms Build"
-require_text .github/workflows/librewinforms-ci.yml "Build LibreWPF bridge packages"
+require_text .github/workflows/librewinforms-ci.yml "Stage immutable LibreWPF bridge packages"
+require_text .github/workflows/librewinforms-ci.yml "librewpf-v0.1.0-preview.21"
 require_text .github/workflows/librewinforms-ci.yml "LibreWinFormsReferenceMode=Package"
 require_text .github/workflows/librewinforms-ci.yml 'restore_sources="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping;https://api.nuget.org/v3/index.json"'
 require_text .github/workflows/librewinforms-ci.yml '-p:LibreWinFormsBridgePackageVersion="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION}"'
@@ -64,6 +67,7 @@ require_text .github/workflows/librewinforms-docs.yml "docs/**"
 require_text .github/workflows/librewinforms-release.yml "LibreWinForms Release"
 require_text .github/workflows/librewinforms-release.yml "LIBREWINFORMS_BRIDGE_PACKAGE_VERSION"
 require_text .github/workflows/librewinforms-release.yml "LIBREWINFORMS_BRIDGE_REF"
+require_text .github/workflows/librewinforms-release.yml "Stage immutable LibreWPF bridge packages"
 require_text .github/workflows/librewinforms-release.yml "LibreWinFormsReferenceMode=Package"
 require_text .github/workflows/librewinforms-release.yml 'restore_sources="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping;https://api.nuget.org/v3/index.json"'
 require_text .github/workflows/librewinforms-release.yml '-p:LibreWinFormsBridgePackageVersion="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION}"'

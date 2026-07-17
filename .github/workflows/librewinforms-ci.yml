@@ -21,7 +21,7 @@ jobs:
     env:
       LIBREWINFORMS_DEV_PACKAGE_VERSION: 0.1.0-preview.21
       LIBREWINFORMS_BRIDGE_PACKAGE_VERSION: 0.1.0-preview.21
-      LIBREWINFORMS_BRIDGE_REF: progpu-rendering-port
+      LIBREWINFORMS_BRIDGE_REF: librewpf-v0.1.0-preview.21
 
     steps:
       - name: Checkout
@@ -40,12 +40,13 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Build LibreWPF bridge packages
+      - name: Stage immutable LibreWPF bridge packages
         shell: bash
         run: |
           set -euo pipefail
-          cd wpf-bridge
-          PROGPU_WPF_DEV_PACKAGE_VERSION="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION}" ./eng/progpu-wpf-sdk-ci.sh
+          LIBREWINFORMS_BRIDGE_CHECKOUT="${GITHUB_WORKSPACE}/wpf-bridge" \
+          LIBREWINFORMS_BRIDGE_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping" \
+          ./eng/librewinforms-fetch-librewpf-packages.sh
 
       - name: Run LibreWinForms behavior tests
         shell: bash
