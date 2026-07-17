@@ -6,7 +6,7 @@
     <EnableDefaultCompileItems Condition="'$(EnableDefaultCompileItems)' == ''">false</EnableDefaultCompileItems>
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
 
-    <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == ''">0.1.0-preview.19</LibreWinFormsVersion>
+    <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == ''">0.1.0-preview.20</LibreWinFormsVersion>
     <LibreWinFormsBridgePackageVersion Condition="'$(LibreWinFormsBridgePackageVersion)' == ''">$(LibreWinFormsVersion)</LibreWinFormsBridgePackageVersion>
     <Version Condition="'$(Version)' == ''">$(LibreWinFormsVersion)</Version>
     <PackageVersion Condition="'$(PackageVersion)' == ''">$(Version)</PackageVersion>
@@ -19,7 +19,7 @@
     <RepositoryUrl>https://github.com/wieslawsoltes/winforms</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>librewinforms;progpu;silk.net;winforms;cross-platform</PackageTags>
-    <PackageReleaseNotes>Aligns with LibreWPF and ProGPU 0.1.0-preview.19; builds unchanged .NET WinForms template projects through LibreWinForms.Sdk without requiring a Windows TFM; generates the standard ApplicationConfiguration entry point and WinForms global imports; preserves hosted double-click counts for Project Explorer and designer interactions; gives MenuStrip, ToolStrip, and context dropdowns correctly positioned and interactive native popup surfaces; and retains typed designer, keyboard, layout, bounded-memory, and glyph-scrolling behavior.</PackageReleaseNotes>
+    <PackageReleaseNotes>Aligns with LibreWPF and ProGPU 0.1.0-preview.20; builds unchanged .NET WinForms template projects through LibreWinForms.Sdk without requiring a Windows TFM; generates the standard ApplicationConfiguration entry point and WinForms global imports; preserves hosted double-click counts for Project Explorer and designer interactions; gives MenuStrip, ToolStrip, and context dropdowns correctly positioned and interactive native popup surfaces; and retains typed designer, keyboard, layout, bounded-memory, and glyph-scrolling behavior.</PackageReleaseNotes>
     <IsPackable>true</IsPackable>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
