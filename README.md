@@ -43,7 +43,7 @@ Before:
 After:
 
 ```xml
-<Project Sdk="LibreWinForms.Sdk/0.1.0-preview.21">
+<Project Sdk="LibreWinForms.Sdk/0.1.0-preview.28">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -57,7 +57,7 @@ Older projects that still use `Microsoft.NET.Sdk.WindowsDesktop` should make the
 4. Keep existing app dependencies in place. For example, a mixed WPF/WinForms app only changes the SDK line in the WinForms project:
 
 ```xml
-<Project Sdk="LibreWinForms.Sdk/0.1.0-preview.21">
+<Project Sdk="LibreWinForms.Sdk/0.1.0-preview.28">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -93,7 +93,7 @@ The preview package set is defined in `eng/librewinforms-package-list.sh` and va
 
 ### Bridge Packages
 
-LibreWinForms consumes these bridge packages from the matching LibreWPF/ProGPU preview. CI and release workflows check out the immutable `librewpf-v<version>` tag and stage its published, provenance-verified package bundle before packing LibreWinForms. This preserves the Windows RID-specific text runtime built by the LibreWPF release lane.
+LibreWinForms consumes LibreWPF packages from the matching LibreWPF preview and ProGPU-owned packages from the immutable ProGPU version pinned by that LibreWPF release. CI and release workflows check out the immutable `librewpf-v<version>` tag and stage its published, provenance-verified package bundle before packing LibreWinForms. This preserves the Windows RID-specific text runtime built by the LibreWPF release lane without requiring LibreWPF and ProGPU package version numbers to match.
 
 | Package | NuGet | Purpose |
 | --- | --- | --- |
@@ -104,18 +104,19 @@ LibreWinForms consumes these bridge packages from the matching LibreWPF/ProGPU p
 ## Build And Release
 
 ```bash
-LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.21 ./eng/librewinforms-pack.sh
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.28 ./eng/librewinforms-pack.sh
 ```
 
 The package lane builds `LibreWinForms.System.Windows.Forms`, `LibreWinForms.WindowsFormsIntegration`, and `LibreWinForms.Sdk`, verifies README/release docs, writes the preview package manifest, and creates a release bundle with package hashes and a local-feed `NuGet.config`. It also cleans current-version package artifacts before packing and fails if a stale or unexpected current-version `.nupkg` would be published.
 
 The pack script restores through an isolated cache under `artifacts/nuget/librewinforms-pack` by default and clears current-version LibreWPF/ProGPU bridge packages from that cache before restore. This keeps package-mode validation tied to the bridge feed built for the same run instead of a stale same-version package from a user/global NuGet cache.
 
-When validating against unpublished LibreWPF/ProGPU bridge packages, build or restore those packages into a local feed and pass both the bridge package version and restore source:
+When validating against unpublished LibreWPF/ProGPU bridge packages, build or restore those packages into a local feed and pass the LibreWPF bridge version, immutable ProGPU version, and restore source:
 
 ```bash
-LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.21 \
-LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.21 \
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.28 \
+LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.28 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.27 \
 LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShipping%3Bhttps://api.nuget.org/v3/index.json \
 ./eng/librewinforms-pack.sh
 ```
@@ -127,7 +128,7 @@ GitHub workflows:
 - `LibreWinForms Public Package Smoke` restores only from NuGet.org and builds the unchanged `net10.0` WinForms template on Ubuntu and macOS after publication.
 - `LibreWinForms Release` resolves an immutable LibreWPF bridge tag or commit, records exact LibreWinForms/LibreWPF/ProGPU provenance, runs behavior and package-mode SDK smokes, builds preview packages/bundle artifacts, can publish to NuGet.org with `NUGET_API_KEY`, and creates a GitHub release for `librewinforms-v*` tags.
 
-Release order matters: publish ProGPU and LibreWPF for the same version first, then publish LibreWinForms so downstream restores can resolve the full package dependency closure from NuGet.org.
+Release order matters: publish the immutable ProGPU version first, publish the LibreWPF version that pins it, then publish LibreWinForms so downstream restores can resolve the full package dependency closure from NuGet.org.
 
 See [docs/librewinforms-release.md](docs/librewinforms-release.md) and the ongoing port plan in [docs/librewinforms/progpu-port-plan.md](docs/librewinforms/progpu-port-plan.md).
 

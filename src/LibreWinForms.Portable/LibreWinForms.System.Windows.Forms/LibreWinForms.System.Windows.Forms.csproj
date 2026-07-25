@@ -22,10 +22,10 @@
   <ItemGroup>
     <PackageReference Include="System.CodeDom" Version="10.0.0" />
     <PackageReference Include="LibreWPF.Interop"
-                      Version="$(LibreWinFormsBridgePackageVersion)"
+                      Version="$(LibreWinFormsProGpuPackageVersion)"
                       Condition="'$(LibreWinFormsReferenceMode)' != 'Project'" />
     <PackageReference Include="ProGPU.System.Drawing.Common"
-                      Version="$(LibreWinFormsBridgePackageVersion)"
+                      Version="$(LibreWinFormsProGpuPackageVersion)"
                       Condition="'$(LibreWinFormsReferenceMode)' != 'Project'" />
     <ProjectReference Include="..\..\..\..\ProGPU\src\ProGPU.Wpf.Interop\ProGPU.Wpf.Interop.csproj"
                       Condition="'$(LibreWinFormsReferenceMode)' == 'Project'" />

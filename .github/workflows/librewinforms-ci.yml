@@ -19,9 +19,10 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 120
     env:
-      LIBREWINFORMS_DEV_PACKAGE_VERSION: 0.1.0-preview.21
-      LIBREWINFORMS_BRIDGE_PACKAGE_VERSION: 0.1.0-preview.21
-      LIBREWINFORMS_BRIDGE_REF: librewpf-v0.1.0-preview.21
+      LIBREWINFORMS_DEV_PACKAGE_VERSION: 0.1.0-preview.28
+      LIBREWINFORMS_BRIDGE_PACKAGE_VERSION: 0.1.0-preview.28
+      LIBREWINFORMS_PROGPU_PACKAGE_VERSION: 0.1.0-preview.27
+      LIBREWINFORMS_BRIDGE_REF: librewpf-v0.1.0-preview.28
 
     steps:
       - name: Checkout
@@ -58,6 +59,7 @@ jobs:
             --configuration Release \
             -p:LibreWinFormsReferenceMode=Package \
             -p:LibreWinFormsBridgePackageVersion="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION}" \
+            -p:LibreWinFormsProGpuPackageVersion="${LIBREWINFORMS_PROGPU_PACKAGE_VERSION}" \
             -p:RestoreSources="${restore_sources}"
 
       - name: Pack LibreWinForms

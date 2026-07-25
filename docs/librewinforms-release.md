@@ -9,16 +9,17 @@ LibreWinForms preview releases publish the portable WinForms package set:
 Run the local package lane:
 
 ```bash
-LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.21 ./eng/librewinforms-pack.sh
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.28 ./eng/librewinforms-pack.sh
 ```
 
-LibreWinForms depends on matching LibreWPF/ProGPU bridge packages for `LibreWPF.Transport`, `LibreWPF.Interop`, and `ProGPU.System.Drawing.Common`. CI and release workflows check out the immutable `librewpf-v<version>` tag, download its three published LibreWPF packages, verify their package identity/version/repository commit against that checkout, and pass the staged local feed through `LIBREWINFORMS_RESTORE_SOURCES`.
+LibreWinForms depends on `LibreWPF.Transport` and `LibreWPF.ProGPU` from its matching LibreWPF release, plus `LibreWPF.Interop` and `ProGPU.System.Drawing.Common` from the immutable ProGPU version pinned by that release. CI and release workflows check out the immutable `librewpf-v<version>` tag, download its three published LibreWPF packages, verify their package identity/version/repository commit against that checkout, and pass the staged local feed through `LIBREWINFORMS_RESTORE_SOURCES`.
 
 For local validation against unpublished bridge packages:
 
 ```bash
-LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.21 \
-LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.21 \
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.28 \
+LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.28 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.27 \
 LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShipping%3Bhttps://api.nuget.org/v3/index.json \
 ./eng/librewinforms-pack.sh
 ```
@@ -26,7 +27,8 @@ LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShippin
 Additional MSBuild properties can be passed after the script name, for example when validating the standalone clone against a local LibreWPF artifact root:
 
 ```bash
-LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.21 \
+LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.28 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.27 \
 LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShipping%3Bhttps://api.nuget.org/v3/index.json \
 ./eng/librewinforms-pack.sh -p:LibreWpfManagedAssemblyRoot=/path/to/wpf/artifacts/bin/
 ```
@@ -50,4 +52,4 @@ After NuGet indexing, dispatch `LibreWinForms Public Package Smoke` for the publ
 
 The GitHub release workflow runs the same bridge bootstrap and package lane, then publishes to NuGet.org when `NUGET_API_KEY` is configured and the workflow is invoked with publishing enabled or a `librewinforms-v*` tag is pushed. Tag-triggered releases create a GitHub prerelease through `gh release create --generate-notes`, attaching the NuGet packages, manifest, bundle, checksum, README, and local-feed `NuGet.config`.
 
-Publish ProGPU and LibreWPF bridge packages for the same version before publishing LibreWinForms so downstream restores can resolve the dependency closure from NuGet.org. The active release branch is `librewinforms-progpu-port`; use `librewinforms-v<version>` tags for public preview releases from that branch.
+Publish the immutable ProGPU package version and then the LibreWPF bridge packages that pin it before publishing LibreWinForms so downstream restores can resolve the dependency closure from NuGet.org. The active release branch is `librewinforms-progpu-port`; use `librewinforms-v<version>` tags for public preview releases from that branch.

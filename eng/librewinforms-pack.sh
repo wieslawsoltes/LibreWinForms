@@ -11,8 +11,9 @@ export DOTNET_ROLL_FORWARD="${DOTNET_ROLL_FORWARD:-Major}"
 export DOTNET_ROLL_FORWARD_TO_PRERELEASE="${DOTNET_ROLL_FORWARD_TO_PRERELEASE:-1}"
 
 package_output="${LIBREWINFORMS_PACKAGE_OUTPUT:-${repo_root}/artifacts/packages/Release/NonShipping}"
-dev_package_version="${LIBREWINFORMS_DEV_PACKAGE_VERSION:-0.1.0-preview.21}"
+dev_package_version="${LIBREWINFORMS_DEV_PACKAGE_VERSION:-0.1.0-preview.28}"
 bridge_package_version="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION:-${dev_package_version}}"
+progpu_package_version="${LIBREWINFORMS_PROGPU_PACKAGE_VERSION:-0.1.0-preview.27}"
 configuration="${LIBREWINFORMS_CONFIGURATION:-Release}"
 restore_sources="${LIBREWINFORMS_RESTORE_SOURCES:-}"
 nuget_packages="${LIBREWINFORMS_NUGET_PACKAGES:-${NUGET_PACKAGES:-${repo_root}/artifacts/nuget/librewinforms-pack}}"
@@ -34,9 +35,12 @@ if [[ -n "${strong_name_key_file}" && ! -f "${strong_name_key_file}" ]]; then
 fi
 
 bridge_package_ids=(
-  LibreWPF.Interop
   LibreWPF.ProGPU
   LibreWPF.Transport
+)
+
+progpu_package_ids=(
+  LibreWPF.Interop
   ProGPU.Backend
   ProGPU.Compute
   ProGPU.DirectX
@@ -58,6 +62,11 @@ clean_restore_cache() {
 
   for package_id in "${bridge_package_ids[@]}"; do
     package_cache_path="${NUGET_PACKAGES}/$(package_cache_id "${package_id}")/${bridge_package_version}"
+    rm -rf "${package_cache_path}"
+  done
+
+  for package_id in "${progpu_package_ids[@]}"; do
+    package_cache_path="${NUGET_PACKAGES}/$(package_cache_id "${package_id}")/${progpu_package_version}"
     rm -rf "${package_cache_path}"
   done
 
@@ -130,6 +139,7 @@ pack_project() {
     -p:PackageVersion="${dev_package_version}"
     -p:LibreWinFormsVersion="${dev_package_version}"
     -p:LibreWinFormsBridgePackageVersion="${bridge_package_version}"
+    -p:LibreWinFormsProGpuPackageVersion="${progpu_package_version}"
     -p:ContinuousIntegrationBuild=true
   )
 
