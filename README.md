@@ -1,5 +1,7 @@
 # LibreWinForms ProGPU Port
 
+[![Telegram Community](https://img.shields.io/badge/Telegram-Community-26A5E4?logo=telegram&logoColor=white)](https://t.me/+HblJUymBc544ODY0)
+
 This branch ports WinForms-shaped APIs onto the ProGPU/Silk.NET platform while reusing as much managed WinForms code as possible. The public package brand is LibreWinForms, with the custom SDK package `LibreWinForms.Sdk`, so existing WinForms projects can start by switching the project SDK and keeping normal WinForms source unchanged.
 
 Current focus areas:
