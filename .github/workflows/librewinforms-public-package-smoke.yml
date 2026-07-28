@@ -6,7 +6,7 @@ on:
       version:
         description: Published LibreWinForms package version to validate.
         required: true
-        default: 0.1.0-preview.29
+        default: 0.1.0-preview.30
 
 permissions:
   contents: read
