@@ -19,10 +19,10 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 120
     env:
-      LIBREWINFORMS_DEV_PACKAGE_VERSION: 0.1.0-preview.32
-      LIBREWINFORMS_BRIDGE_PACKAGE_VERSION: 0.1.0-preview.32
-      LIBREWINFORMS_PROGPU_PACKAGE_VERSION: 0.1.0-preview.28
-      LIBREWINFORMS_BRIDGE_REF: librewpf-v0.1.0-preview.32
+      LIBREWINFORMS_DEV_PACKAGE_VERSION: 0.1.0-preview.33
+      LIBREWINFORMS_BRIDGE_PACKAGE_VERSION: 0.1.0-preview.33
+      LIBREWINFORMS_PROGPU_PACKAGE_VERSION: 0.1.0-preview.29
+      LIBREWINFORMS_BRIDGE_REF: librewpf-v0.1.0-preview.33
 
     steps:
       - name: Checkout
