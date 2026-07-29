@@ -2,7 +2,11 @@ using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.ComponentModel.Design.Serialization;
+using System.Globalization;
+using System.Drawing;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Windows.Forms;
 
 namespace System.ComponentModel.Design;
@@ -14,6 +18,13 @@ namespace System.ComponentModel.Design;
 /// </summary>
 internal sealed class PortableDesignerSerializationService : IDesignerSerializationService
 {
+    private static readonly byte[] s_storeMagic = "LWFCDS\0\x01"u8.ToArray();
+    private const int MaxComponentCount = 10_000;
+    private const int MaxMemberCount = 100_000;
+    private const int MaxArrayLength = 1_000_000;
+    private const int MaxStringByteLength = 16 * 1024 * 1024;
+    private const int MaxConvertedByteLength = 64 * 1024 * 1024;
+
     private static readonly HashSet<string> s_excludedProperties = new(StringComparer.Ordinal)
     {
         nameof(Component.Site),
@@ -106,6 +117,104 @@ internal sealed class PortableDesignerSerializationService : IDesignerSerializat
         }
     }
 
+    internal static void Save(object serializationData, Stream stream)
+    {
+        ArgumentNullException.ThrowIfNull(serializationData);
+        ArgumentNullException.ThrowIfNull(stream);
+        if (!stream.CanWrite)
+            throw new ArgumentException("The serialization stream must be writable.", nameof(stream));
+        if (serializationData is not PortableDesignerSerializationPayload payload)
+        {
+            throw new InvalidOperationException(
+                "The serialization payload was created by another designer serialization service.");
+        }
+
+        using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
+        writer.Write(s_storeMagic);
+        writer.Write(payload.Components.Length);
+        foreach (PortableComponentSnapshot component in payload.Components)
+        {
+            writer.Write(component.Id);
+            WriteString(writer, GetTypeIdentity(component.ComponentType));
+            WriteNullableString(writer, component.PreferredName);
+            writer.Write(component.ParentId.HasValue);
+            if (component.ParentId is int parentId)
+                writer.Write(parentId);
+            writer.Write(component.ChildIndex);
+
+            writer.Write(component.Properties.Length);
+            foreach (PortablePropertyValue property in component.Properties)
+            {
+                WriteString(writer, property.Name);
+                WriteValue(writer, property.Value);
+            }
+
+            writer.Write(component.Events.Length);
+            foreach (PortableEventValue eventValue in component.Events)
+            {
+                WriteString(writer, eventValue.EventName);
+                WriteString(writer, eventValue.MethodName);
+            }
+        }
+    }
+
+    internal static object Load(Stream stream, IServiceProvider? serviceProvider)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        if (!stream.CanRead)
+            throw new ArgumentException("The serialization stream must be readable.", nameof(stream));
+
+        using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
+        byte[] magic = reader.ReadBytes(s_storeMagic.Length);
+        if (!magic.AsSpan().SequenceEqual(s_storeMagic))
+            throw new InvalidDataException("The stream is not a LibreWinForms component serialization store.");
+
+        int componentCount = ReadCount(reader, MaxComponentCount, "component");
+        var components = new PortableComponentSnapshot[componentCount];
+        ITypeResolutionService? typeResolutionService =
+            serviceProvider?.GetService(typeof(ITypeResolutionService)) as ITypeResolutionService;
+        for (int componentIndex = 0; componentIndex < componentCount; componentIndex++)
+        {
+            int id = reader.ReadInt32();
+            string componentTypeName = ReadString(reader);
+            Type componentType = PortableWinFormsTypeResolver.Resolve(typeResolutionService, componentTypeName)
+                ?? throw new InvalidDataException(
+                    $"The component type '{componentTypeName}' could not be resolved.");
+            string? preferredName = ReadNullableString(reader);
+            int? parentId = reader.ReadBoolean() ? reader.ReadInt32() : null;
+            int childIndex = reader.ReadInt32();
+
+            int propertyCount = ReadCount(reader, MaxMemberCount, "property");
+            var properties = new PortablePropertyValue[propertyCount];
+            for (int propertyIndex = 0; propertyIndex < propertyCount; propertyIndex++)
+            {
+                properties[propertyIndex] = new PortablePropertyValue(
+                    ReadString(reader),
+                    ReadValue(reader));
+            }
+
+            int eventCount = ReadCount(reader, MaxMemberCount, "event");
+            var events = new PortableEventValue[eventCount];
+            for (int eventIndex = 0; eventIndex < eventCount; eventIndex++)
+            {
+                events[eventIndex] = new PortableEventValue(
+                    ReadString(reader),
+                    ReadString(reader));
+            }
+
+            components[componentIndex] = new PortableComponentSnapshot(
+                id,
+                componentType,
+                preferredName,
+                parentId,
+                childIndex,
+                properties,
+                events);
+        }
+
+        return new PortableDesignerSerializationPayload(components);
+    }
+
     private IComponent CreateComponent(PortableComponentSnapshot snapshot)
     {
         string? preferredName = snapshot.PreferredName;
@@ -157,7 +266,7 @@ internal sealed class PortableDesignerSerializationService : IDesignerSerializat
 
             try
             {
-                property.SetValue(component, RestoreValue(value.Value, componentsById));
+                property.SetValue(component, RestoreValue(value.Value, property.PropertyType, componentsById));
             }
             catch (PortableDesignerSerializationException)
             {
@@ -217,6 +326,7 @@ internal sealed class PortableDesignerSerializationService : IDesignerSerializat
 
     private static object? RestoreValue(
         object? value,
+        Type expectedType,
         Dictionary<int, IComponent> componentsById)
     {
         if (value is PortableComponentReference reference)
@@ -230,13 +340,307 @@ internal sealed class PortableDesignerSerializationService : IDesignerSerializat
 
         if (value is PortableArrayValue arrayValue)
         {
-            Array array = Array.CreateInstance(arrayValue.ElementType, arrayValue.Values.Length);
+            Type elementType = expectedType.IsArray
+                ? expectedType.GetElementType() ?? arrayValue.ElementType
+                : arrayValue.ElementType;
+            Array array = Array.CreateInstance(elementType, arrayValue.Values.Length);
             for (int i = 0; i < arrayValue.Values.Length; i++)
-                array.SetValue(RestoreValue(arrayValue.Values[i], componentsById), i);
+                array.SetValue(RestoreValue(arrayValue.Values[i], elementType, componentsById), i);
             return array;
         }
 
+        if (value is PortableFontValue fontValue)
+        {
+            return new Font(
+                fontValue.FamilyName,
+                fontValue.Size,
+                fontValue.Style,
+                fontValue.Unit,
+                fontValue.GdiCharSet,
+                fontValue.GdiVerticalFont);
+        }
+
+        if (value is PortableCursorValue cursorValue)
+        {
+            return cursorValue.Kind switch
+            {
+                PortableCursorKind.Default => Cursors.Default,
+                PortableCursorKind.Wait => Cursors.WaitCursor,
+                PortableCursorKind.IBeam => Cursors.IBeam,
+                PortableCursorKind.SizeAll => Cursors.SizeAll,
+                PortableCursorKind.SizeWE => Cursors.SizeWE,
+                PortableCursorKind.SizeNS => Cursors.SizeNS,
+                _ => throw new InvalidDataException(
+                    "Custom cursor pixels cannot be restored from this portable designer store.")
+            };
+        }
+
+        if (value is PortablePaddingValue paddingValue)
+        {
+            return new Padding(
+                paddingValue.Left,
+                paddingValue.Top,
+                paddingValue.Right,
+                paddingValue.Bottom);
+        }
+
+        if (value is PortableConvertedValue convertedValue)
+            return ConvertStoredValue(convertedValue, expectedType);
+
         return value;
+    }
+
+    private static object? ConvertStoredValue(PortableConvertedValue value, Type expectedType)
+    {
+        Type conversionType = Nullable.GetUnderlyingType(expectedType) ?? expectedType;
+        if (conversionType == typeof(object))
+        {
+            conversionType = PortableWinFormsTypeResolver.Resolve(null, value.TypeName)
+                ?? throw new InvalidDataException(
+                    $"The serialized property value type '{value.TypeName}' could not be resolved.");
+        }
+
+        TypeConverter converter = TypeDescriptor.GetConverter(conversionType);
+        try
+        {
+            return value.Kind switch
+            {
+                PortableConvertedValueKind.InvariantString
+                    when converter.CanConvertFrom(typeof(string))
+                    => converter.ConvertFromInvariantString(value.Text ?? string.Empty),
+                PortableConvertedValueKind.Bytes
+                    when converter.CanConvertFrom(typeof(byte[]))
+                    => converter.ConvertFrom(
+                        context: null,
+                        CultureInfo.InvariantCulture,
+                        value.Bytes ?? Array.Empty<byte>()),
+                _ => throw new InvalidDataException(
+                    $"Type '{conversionType.FullName}' cannot restore the serialized {value.Kind} value.")
+            };
+        }
+        catch (InvalidDataException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            throw new InvalidDataException(
+                $"Type '{conversionType.FullName}' could not restore its serialized designer value.",
+                exception);
+        }
+    }
+
+    private static void WriteValue(BinaryWriter writer, object? value)
+    {
+        if (value is null)
+        {
+            writer.Write((byte)PortableValueKind.Null);
+            return;
+        }
+
+        if (value is PortableComponentReference reference)
+        {
+            writer.Write((byte)PortableValueKind.ComponentReference);
+            writer.Write(reference.ComponentId);
+            return;
+        }
+
+        if (value is PortableArrayValue array)
+        {
+            writer.Write((byte)PortableValueKind.Array);
+            WriteString(writer, GetTypeIdentity(array.ElementType));
+            writer.Write(array.Values.Length);
+            foreach (object? item in array.Values)
+                WriteValue(writer, item);
+            return;
+        }
+
+        if (value is Font font)
+        {
+            writer.Write((byte)PortableValueKind.Font);
+            WriteString(writer, font.FontFamily.Name);
+            writer.Write(font.Size);
+            writer.Write((int)font.Style);
+            writer.Write((int)font.Unit);
+            writer.Write(font.GdiCharSet);
+            writer.Write(font.GdiVerticalFont);
+            return;
+        }
+
+        if (value is Cursor cursor)
+        {
+            if (cursor.PortableKind == PortableCursorKind.Custom)
+            {
+                throw new InvalidDataException(
+                    "Custom cursor pixels cannot be persisted by this portable designer store.");
+            }
+
+            writer.Write((byte)PortableValueKind.Cursor);
+            writer.Write((int)cursor.PortableKind);
+            return;
+        }
+
+        if (value is Padding padding)
+        {
+            writer.Write((byte)PortableValueKind.Padding);
+            writer.Write(padding.Left);
+            writer.Write(padding.Top);
+            writer.Write(padding.Right);
+            writer.Write(padding.Bottom);
+            return;
+        }
+
+        Type valueType = value.GetType();
+        TypeConverter converter = TypeDescriptor.GetConverter(value);
+        if (converter.CanConvertTo(typeof(string))
+            && converter.CanConvertFrom(typeof(string)))
+        {
+            writer.Write((byte)PortableValueKind.InvariantString);
+            WriteString(writer, GetTypeIdentity(valueType));
+            WriteNullableString(writer, converter.ConvertToInvariantString(value));
+            return;
+        }
+
+        if (converter.CanConvertTo(typeof(byte[]))
+            && converter.CanConvertFrom(typeof(byte[]))
+            && converter.ConvertTo(
+                context: null,
+                CultureInfo.InvariantCulture,
+                value,
+                typeof(byte[])) is byte[] bytes)
+        {
+            if (bytes.Length > MaxConvertedByteLength)
+                throw new InvalidDataException("The converted designer property value is too large.");
+
+            writer.Write((byte)PortableValueKind.Bytes);
+            WriteString(writer, GetTypeIdentity(valueType));
+            writer.Write(bytes.Length);
+            writer.Write(bytes);
+            return;
+        }
+
+        throw new InvalidDataException(
+            $"Type '{valueType.FullName}' cannot be persisted by the portable designer serialization store.");
+    }
+
+    private static object? ReadValue(BinaryReader reader)
+    {
+        PortableValueKind kind = (PortableValueKind)reader.ReadByte();
+        return kind switch
+        {
+            PortableValueKind.Null => null,
+            PortableValueKind.ComponentReference => new PortableComponentReference(reader.ReadInt32()),
+            PortableValueKind.Array => ReadArrayValue(reader),
+            PortableValueKind.Font => new PortableFontValue(
+                ReadString(reader),
+                reader.ReadSingle(),
+                (FontStyle)reader.ReadInt32(),
+                (GraphicsUnit)reader.ReadInt32(),
+                reader.ReadByte(),
+                reader.ReadBoolean()),
+            PortableValueKind.Cursor => new PortableCursorValue(
+                ReadCursorKind(reader)),
+            PortableValueKind.Padding => new PortablePaddingValue(
+                reader.ReadInt32(),
+                reader.ReadInt32(),
+                reader.ReadInt32(),
+                reader.ReadInt32()),
+            PortableValueKind.InvariantString => new PortableConvertedValue(
+                ReadString(reader),
+                PortableConvertedValueKind.InvariantString,
+                ReadNullableString(reader),
+                Bytes: null),
+            PortableValueKind.Bytes => new PortableConvertedValue(
+                ReadString(reader),
+                PortableConvertedValueKind.Bytes,
+                Text: null,
+                ReadBytes(reader, MaxConvertedByteLength)),
+            _ => throw new InvalidDataException($"Unknown portable designer value kind {(byte)kind}.")
+        };
+    }
+
+    private static PortableArrayValue ReadArrayValue(BinaryReader reader)
+    {
+        string elementTypeName = ReadString(reader);
+        Type elementType = PortableWinFormsTypeResolver.Resolve(null, elementTypeName)
+            ?? throw new InvalidDataException(
+                $"The array element type '{elementTypeName}' could not be resolved.");
+        int count = ReadCount(reader, MaxArrayLength, "array item");
+        var values = new object?[count];
+        for (int i = 0; i < values.Length; i++)
+            values[i] = ReadValue(reader);
+        return new PortableArrayValue(elementType, values);
+    }
+
+    private static PortableCursorKind ReadCursorKind(BinaryReader reader)
+    {
+        PortableCursorKind kind = (PortableCursorKind)reader.ReadInt32();
+        return kind is PortableCursorKind.Default
+            or PortableCursorKind.Wait
+            or PortableCursorKind.IBeam
+            or PortableCursorKind.SizeAll
+            or PortableCursorKind.SizeWE
+            or PortableCursorKind.SizeNS
+                ? kind
+                : throw new InvalidDataException($"Unknown portable cursor kind {(int)kind}.");
+    }
+
+    private static string GetTypeIdentity(Type type)
+    {
+        return type.AssemblyQualifiedName
+            ?? type.FullName
+            ?? throw new InvalidDataException("A designer serialization type has no stable identity.");
+    }
+
+    private static void WriteString(BinaryWriter writer, string value)
+    {
+        byte[] bytes = Encoding.UTF8.GetBytes(value);
+        if (bytes.Length > MaxStringByteLength)
+            throw new InvalidDataException("The designer serialization string is too large.");
+        writer.Write(bytes.Length);
+        writer.Write(bytes);
+    }
+
+    private static string ReadString(BinaryReader reader)
+    {
+        int length = ReadCount(reader, MaxStringByteLength, "string byte");
+        byte[] bytes = reader.ReadBytes(length);
+        if (bytes.Length != length)
+            throw new EndOfStreamException();
+        return Encoding.UTF8.GetString(bytes);
+    }
+
+    private static void WriteNullableString(BinaryWriter writer, string? value)
+    {
+        writer.Write(value is not null);
+        if (value is not null)
+            WriteString(writer, value);
+    }
+
+    private static string? ReadNullableString(BinaryReader reader)
+    {
+        return reader.ReadBoolean() ? ReadString(reader) : null;
+    }
+
+    private static byte[] ReadBytes(BinaryReader reader, int maximumLength)
+    {
+        int length = ReadCount(reader, maximumLength, "converted byte");
+        byte[] bytes = reader.ReadBytes(length);
+        if (bytes.Length != length)
+            throw new EndOfStreamException();
+        return bytes;
+    }
+
+    private static int ReadCount(BinaryReader reader, int maximum, string description)
+    {
+        int count = reader.ReadInt32();
+        if ((uint)count > (uint)maximum)
+        {
+            throw new InvalidDataException(
+                $"The portable designer {description} count {count} is outside the supported range.");
+        }
+
+        return count;
     }
 
     private static bool HasSelectedAncestor(Control control, HashSet<IComponent> selectedComponents)
@@ -366,6 +770,9 @@ internal sealed class PortableDesignerSerializationService : IDesignerSerializat
 
                 try
                 {
+                    if (!property.ShouldSerializeValue(component))
+                        continue;
+
                     values.Add(new PortablePropertyValue(
                         property.Name,
                         CaptureValue(component, property, property.GetValue(component))));
@@ -573,6 +980,46 @@ internal sealed class PortableDesignerSerializationService : IDesignerSerializat
     private readonly record struct PortableComponentReference(int ComponentId);
 
     private sealed record PortableArrayValue(Type ElementType, object?[] Values);
+
+    private sealed record PortableConvertedValue(
+        string TypeName,
+        PortableConvertedValueKind Kind,
+        string? Text,
+        byte[]? Bytes);
+
+    private sealed record PortableFontValue(
+        string FamilyName,
+        float Size,
+        FontStyle Style,
+        GraphicsUnit Unit,
+        byte GdiCharSet,
+        bool GdiVerticalFont);
+
+    private readonly record struct PortableCursorValue(PortableCursorKind Kind);
+
+    private readonly record struct PortablePaddingValue(
+        int Left,
+        int Top,
+        int Right,
+        int Bottom);
+
+    private enum PortableValueKind : byte
+    {
+        Null,
+        ComponentReference,
+        Array,
+        Font,
+        Cursor,
+        Padding,
+        InvariantString,
+        Bytes
+    }
+
+    private enum PortableConvertedValueKind : byte
+    {
+        InvariantString,
+        Bytes
+    }
 
     private sealed class PortableDesignerSerializationException : InvalidOperationException
     {

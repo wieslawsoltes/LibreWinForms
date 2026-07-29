@@ -5,6 +5,7 @@ using System.ComponentModel.Design;
 using System.ComponentModel.Design.Serialization;
 using System.Drawing;
 using System.Drawing.Design;
+using System.IO;
 using System.Linq;
 using Forms = System.Windows.Forms;
 using FormsDesign = System.Windows.Forms.Design;
@@ -22,6 +23,7 @@ internal static class ReportingDesignerBehaviorTests
         DesignSurfaceManagerReleasesDisposedSurfaces();
         DesignerFiltersFlowThroughTypeDescriptorAndPropertyGrid();
         CodeDomSerializationServiceRoundTripsPortableComponents();
+        CodeDomSerializationStoreRoundTripsThroughStream();
         WaitCursorAndDesignerPaintPrimitivesAreFunctional();
         CollectionAndAlignmentEditorsCommitValues();
         Console.WriteLine("LibreWinForms Reporting designer contracts passed: rules=9 hooks=7 loader=39 lifecycle=5 filters=10 serialization=6 paint=6 editors=9.");
@@ -354,6 +356,50 @@ internal static class ReportingDesignerBehaviorTests
             "CodeDom component serialization lost portable component properties.");
         Assert(ReferenceEquals(restored.Site?.Container, host.Container),
             "CodeDom component serialization restored outside the designer host.");
+    }
+
+    private static void CodeDomSerializationStoreRoundTripsThroughStream()
+    {
+        using var surface = new DesignSurface();
+        IDesignerHost host = (IDesignerHost)(surface.GetService(typeof(IDesignerHost))
+            ?? throw new InvalidOperationException("Design surface did not publish an IDesignerHost."));
+        var source = (Forms.Panel)host.CreateComponent(typeof(Forms.Panel), "PersistedPanel");
+        source.Location = new Point(23, 29);
+        source.Size = new Size(140, 75);
+        source.BackColor = Color.CornflowerBlue;
+        var child = (Forms.Button)host.CreateComponent(typeof(Forms.Button), "PersistedButton");
+        child.Location = new Point(7, 11);
+        child.Size = new Size(80, 24);
+        child.Text = "Open";
+        source.Controls.Add(child);
+
+        var service = new CodeDomComponentSerializationService(surface);
+        using var stream = new MemoryStream();
+        using (SerializationStore store = service.CreateStore())
+        {
+            service.Serialize(store, source);
+            store.Save(stream);
+        }
+
+        Assert(stream.Length > 16, "CodeDom serialization store did not write a portable payload.");
+        stream.Position = 0;
+        using SerializationStore loadedStore = service.LoadStore(stream);
+        ICollection values = service.Deserialize(loadedStore);
+
+        Forms.Panel restored = values.Cast<object>().OfType<Forms.Panel>().Single();
+        Assert(restored.Location == source.Location
+            && restored.Size == source.Size
+            && restored.BackColor == source.BackColor,
+            "Stream-backed CodeDom serialization lost panel properties.");
+        Assert(restored.Controls.Count == 1
+            && restored.Controls[0] is Forms.Button restoredButton
+            && restoredButton.Location == child.Location
+            && restoredButton.Size == child.Size
+            && restoredButton.Text == child.Text,
+            "Stream-backed CodeDom serialization lost the typed child graph.");
+        Assert(ReferenceEquals(restored.Site?.Container, host.Container)
+            && ReferenceEquals(restored.Controls[0].Site?.Container, host.Container),
+            "Stream-backed CodeDom serialization restored components outside the designer host.");
     }
 
     private static void WaitCursorAndDesignerPaintPrimitivesAreFunctional()

@@ -18,7 +18,12 @@ public sealed class CodeDomComponentSerializationService : ComponentSerializatio
 
     public override SerializationStore CreateStore() => new PortableSerializationStore(_serviceProvider);
 
-    public override SerializationStore LoadStore(Stream stream) => throw new PlatformNotSupportedException();
+    public override SerializationStore LoadStore(Stream stream)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        object payload = PortableDesignerSerializationService.Load(stream, _serviceProvider);
+        return new PortableSerializationStore(_serviceProvider, payload);
+    }
 
     public override void Serialize(SerializationStore store, object value) => GetStore(store).Add(value);
 
@@ -73,6 +78,13 @@ public sealed class CodeDomComponentSerializationService : ComponentSerializatio
             _serviceProvider = serviceProvider;
         }
 
+        public PortableSerializationStore(IServiceProvider? serviceProvider, object payload)
+        {
+            _serviceProvider = serviceProvider;
+            _payload = payload ?? throw new ArgumentNullException(nameof(payload));
+            _closed = true;
+        }
+
         public override ICollection Errors => Array.Empty<object>();
 
         public void Add(object value)
@@ -93,7 +105,14 @@ public sealed class CodeDomComponentSerializationService : ComponentSerializatio
             _payload = GetSerializationService().Serialize(_values);
         }
 
-        public override void Save(Stream stream) => throw new PlatformNotSupportedException();
+        public override void Save(Stream stream)
+        {
+            ArgumentNullException.ThrowIfNull(stream);
+            Close();
+            PortableDesignerSerializationService.Save(
+                _payload ?? throw new InvalidOperationException("The serialization store has no payload."),
+                stream);
+        }
 
         public ICollection Deserialize()
         {
