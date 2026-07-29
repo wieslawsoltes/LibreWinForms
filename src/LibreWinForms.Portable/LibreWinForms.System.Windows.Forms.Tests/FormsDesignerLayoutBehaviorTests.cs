@@ -1188,6 +1188,9 @@ internal static class FormsDesignerLayoutBehaviorTests
             "Hosted WinForms render resource ownership diagnostics were removed.");
         Assert(smokeSource.Contains("--run-render-allocation", StringComparison.Ordinal)
             && smokeSource.Contains("bytesPerFrame <= 2_000", StringComparison.Ordinal)
+            && smokeSource.Contains("defaultValue: 2_000", StringComparison.Ordinal)
+            && smokeSource.Contains("RenderHostForSmoke(host, frameVisual);", StringComparison.Ordinal)
+            && smokeSource.Contains("System.Windows.Media.DrawingVisual visual", StringComparison.Ordinal)
             && smokeSource.Contains("mutationRebuilt={mutationRebuilt}", StringComparison.Ordinal)
             && smokeSource.Contains("released={released}", StringComparison.Ordinal),
             "Package-mode WinForms validation stopped enforcing steady-state allocation and release.");

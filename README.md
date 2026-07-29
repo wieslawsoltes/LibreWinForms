@@ -138,14 +138,16 @@ See [docs/librewinforms-release.md](docs/librewinforms-release.md) and the ongoi
 
 The package-mode SDK smoke includes deterministic Release workloads for hosted
 WinForms rendering, layout, paint-surface retirement, and render-resource
-ownership. The render workload records 100 labels for 50 frames after warming
-brush, text, clip, and retained-drawing caches. On an Apple arm64 development
-host with .NET 10, retaining unchanged host drawing content reduced allocation
-from 35,547 to 694 bytes per recorded frame and reduced the five-run 50-frame
-time from roughly 7.7–8.1 ms to 0.7–0.8 ms. The gate allows at most 2,000
-bytes/frame, requires an actual rebuild after text/color invalidation, and
-requires all retained drawing and render-resource caches to release when the
-hosted tree is detached.
+ownership. The render workload records 100 labels for 2,000 frames after warming
+brush, text, clip, and retained-drawing caches. It reopens one persistent WPF
+`DrawingVisual` for 2,000 frames, matching the real visual lifecycle instead of
+manufacturing a new visual and inheritance context for every frame. On an Apple
+arm64 development host with .NET 10, retaining unchanged host drawing content
+reduced allocation from more than 35,000 to 368 bytes per recorded frame. The
+2,000-frame workload completes in roughly 2.2 ms. The gate allows at most 2,000
+bytes/frame, requires exactly one unchanged retained-drawing build, requires an
+actual rebuild after text/color invalidation, and requires all retained drawing
+and render-resource caches to release when the hosted tree is detached.
 
 These figures measure managed allocation traffic and CPU recording time, not
 managed retention, process RSS, GPU residency, or device execution. Paint

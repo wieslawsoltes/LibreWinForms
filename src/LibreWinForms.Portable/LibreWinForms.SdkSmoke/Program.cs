@@ -1634,7 +1634,7 @@ internal static class Program
         const int controlCount = 100;
         int frameCount = ReadPositiveEnvironmentInteger(
             "LIBREWINFORMS_RENDER_BENCHMARK_FRAMES",
-            defaultValue: 50);
+            defaultValue: 2_000);
         var root = new Forms.Panel
         {
             Size = new System.Drawing.Size(640, controlCount * 20)
@@ -1659,9 +1659,10 @@ internal static class Program
         var host = new SmokeWindowsFormsHost { Child = root };
         host.Measure(new System.Windows.Size(root.Width, root.Height));
         host.Arrange(new System.Windows.Rect(0, 0, root.Width, root.Height));
+        var frameVisual = new System.Windows.Media.DrawingVisual();
         for (int index = 0; index < 5; index++)
         {
-            RenderHostForSmoke(host);
+            RenderHostForSmoke(host, frameVisual);
         }
 
         GC.Collect();
@@ -1677,6 +1678,7 @@ internal static class Program
         {
             RenderHostForSmokeMeasured(
                 host,
+                frameVisual,
                 ref visualAllocatedBytes,
                 ref openAllocatedBytes,
                 ref renderAllocatedBytes,
@@ -1698,7 +1700,7 @@ internal static class Program
         long invalidationsBeforeMutation = host.PortableChildInvalidationDispatchCount;
         firstLabel!.Text = "Changed portable label";
         firstLabel.BackColor = System.Drawing.Color.LightGoldenrodYellow;
-        RenderHostForSmoke(host);
+        RenderHostForSmoke(host, frameVisual);
         bool mutationRebuilt = host.PortableChildInvalidationDispatchCount
                 >= invalidationsBeforeMutation + 2
             && host.PortableRetainedDrawingBuildCount == retainedBuildCount + 1;
@@ -1919,25 +1921,33 @@ internal static class Program
 
     private static void RenderHostForSmokeMeasured(
         SmokeWindowsFormsHost host,
+        System.Windows.Media.DrawingVisual visual,
         ref long visualAllocatedBytes,
         ref long openAllocatedBytes,
         ref long renderAllocatedBytes,
         ref long closeAllocatedBytes)
     {
         long before = GC.GetAllocatedBytesForCurrentThread();
-        var visual = new System.Windows.Media.DrawingVisual();
         long afterVisual = GC.GetAllocatedBytesForCurrentThread();
         System.Windows.Media.DrawingContext drawingContext = visual.RenderOpen();
         long afterOpen = GC.GetAllocatedBytesForCurrentThread();
         host.RenderForSmoke(drawingContext);
         long afterRender = GC.GetAllocatedBytesForCurrentThread();
-        drawingContext.Dispose();
+        ((IDisposable)drawingContext).Dispose();
         long afterClose = GC.GetAllocatedBytesForCurrentThread();
 
         visualAllocatedBytes += afterVisual - before;
         openAllocatedBytes += afterOpen - afterVisual;
         renderAllocatedBytes += afterRender - afterOpen;
         closeAllocatedBytes += afterClose - afterRender;
+    }
+
+    private static void RenderHostForSmoke(
+        SmokeWindowsFormsHost host,
+        System.Windows.Media.DrawingVisual visual)
+    {
+        using System.Windows.Media.DrawingContext drawingContext = visual.RenderOpen();
+        host.RenderForSmoke(drawingContext);
     }
 
     private static int RunCreateGraphicsSmoke()
