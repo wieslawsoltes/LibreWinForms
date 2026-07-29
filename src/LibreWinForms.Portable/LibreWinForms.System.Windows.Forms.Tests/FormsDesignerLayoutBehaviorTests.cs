@@ -1178,11 +1178,16 @@ internal static class FormsDesignerLayoutBehaviorTests
 
     private static void HostedLayoutAllocationsStayMeasured()
     {
+        string hostSource = File.ReadAllText(FindSourceFile("WindowsFormsHost.cs"));
         string smokeSource = File.ReadAllText(FindSourceFile("Program.cs", "LibreWinForms.SdkSmoke"));
 
+        Assert(hostSource.Contains("Forms.Control.ControlCollection children = control.Controls;", StringComparison.Ordinal)
+            && hostSource.Contains("for (int index = 0; index < children.Count; index++)", StringComparison.Ordinal)
+            && !hostSource.Contains("var fillControls = new List<Forms.Control>();", StringComparison.Ordinal),
+            "Hosted layout traversal reintroduced per-container collection or enumerator allocations.");
         Assert(smokeSource.Contains("--run-layout-allocation", StringComparison.Ordinal)
             && smokeSource.Contains("RunLayoutAllocationBenchmark()", StringComparison.Ordinal)
-            && smokeSource.Contains("bytesPerLayout > 100_000", StringComparison.Ordinal)
+            && smokeSource.Contains("allocatedBytes != 0", StringComparison.Ordinal)
             && smokeSource.Contains("ArrangeForSmoke", StringComparison.Ordinal),
             "Package-mode WinForms validation stopped measuring hosted layout allocations.");
     }

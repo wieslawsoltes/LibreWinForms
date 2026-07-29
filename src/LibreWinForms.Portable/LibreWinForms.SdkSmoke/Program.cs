@@ -1800,7 +1800,7 @@ internal static class Program
             + $" elapsedMs={elapsed.TotalMilliseconds:F3}"
             + $" allocatedBytes={allocatedBytes}"
             + $" bytesPerLayout={bytesPerLayout:F1}");
-        if (bytesPerLayout > 100_000)
+        if (allocatedBytes != 0)
         {
             Console.Error.WriteLine(
                 "LibreWinForms layout allocation benchmark failed"

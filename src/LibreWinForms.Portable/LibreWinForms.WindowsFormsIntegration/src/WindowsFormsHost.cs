@@ -2916,8 +2916,10 @@ public class WindowsFormsHost : FrameworkElement
             return root;
         }
 
-        foreach (Forms.Control child in root.Controls)
+        Forms.Control.ControlCollection children = root.Controls;
+        for (int index = 0; index < children.Count; index++)
         {
+            Forms.Control child = children[index];
             Forms.Control? focusedControl = FindFocusedControl(child);
             if (focusedControl != null)
             {
@@ -2935,8 +2937,10 @@ public class WindowsFormsHost : FrameworkElement
             return true;
         }
 
-        foreach (Forms.Control child in root.Controls)
+        Forms.Control.ControlCollection children = root.Controls;
+        for (int index = 0; index < children.Count; index++)
         {
+            Forms.Control child = children[index];
             if (IsControlInTree(child, target))
             {
                 return true;
@@ -3315,8 +3319,10 @@ public class WindowsFormsHost : FrameworkElement
             return selectionService;
         }
 
-        foreach (Forms.Control child in control.Controls)
+        Forms.Control.ControlCollection children = control.Controls;
+        for (int index = 0; index < children.Count; index++)
         {
+            Forms.Control child = children[index];
             ISelectionService? childSelectionService = FindDesignSelectionService(child);
             if (childSelectionService is not null)
             {
@@ -3751,9 +3757,10 @@ public class WindowsFormsHost : FrameworkElement
         control.Invalidated += OnChildInvalidated;
         control.ControlAdded += OnHostedControlAdded;
         control.ControlRemoved += OnHostedControlRemoved;
-        foreach (Forms.Control child in control.Controls)
+        Forms.Control.ControlCollection children = control.Controls;
+        for (int index = 0; index < children.Count; index++)
         {
-            SubscribeInvalidationTree(child);
+            SubscribeInvalidationTree(children[index]);
         }
     }
 
@@ -3771,9 +3778,10 @@ public class WindowsFormsHost : FrameworkElement
             }
         }
 
-        foreach (Forms.Control child in control.Controls)
+        Forms.Control.ControlCollection children = control.Controls;
+        for (int index = 0; index < children.Count; index++)
         {
-            NotifyPortableHostLifecycle(child, attached);
+            NotifyPortableHostLifecycle(children[index], attached);
         }
     }
 
@@ -3787,9 +3795,10 @@ public class WindowsFormsHost : FrameworkElement
         control.Invalidated -= OnChildInvalidated;
         control.ControlAdded -= OnHostedControlAdded;
         control.ControlRemoved -= OnHostedControlRemoved;
-        foreach (Forms.Control child in control.Controls)
+        Forms.Control.ControlCollection children = control.Controls;
+        for (int index = 0; index < children.Count; index++)
         {
-            UnsubscribeInvalidationTree(child);
+            UnsubscribeInvalidationTree(children[index]);
         }
 
         RetirePortablePaintSurfacePool(control);
@@ -3833,9 +3842,10 @@ public class WindowsFormsHost : FrameworkElement
 
         int top = 0;
         int bottom = height;
-        var fillControls = new List<Forms.Control>();
-        foreach (Forms.Control child in control.Controls)
+        Forms.Control.ControlCollection children = control.Controls;
+        for (int index = 0; index < children.Count; index++)
         {
+            Forms.Control child = children[index];
             if (!child.Visible)
             {
                 continue;
@@ -3862,7 +3872,6 @@ public class WindowsFormsHost : FrameworkElement
                     LayoutControlTree(child, new Rect(Math.Max(0, width - rightWidth), top, rightWidth, Math.Max(0, bottom - top)));
                     break;
                 case Forms.DockStyle.Fill:
-                    fillControls.Add(child);
                     break;
                 default:
                     LayoutControlTree(child, new Rect(child.Left, child.Top, child.Width, child.Height));
@@ -3870,9 +3879,13 @@ public class WindowsFormsHost : FrameworkElement
             }
         }
 
-        foreach (Forms.Control child in fillControls)
+        for (int index = 0; index < children.Count; index++)
         {
-            LayoutControlTree(child, new Rect(0, top, width, Math.Max(0, bottom - top)));
+            Forms.Control child = children[index];
+            if (child.Visible && child.Dock == Forms.DockStyle.Fill)
+            {
+                LayoutControlTree(child, new Rect(0, top, width, Math.Max(0, bottom - top)));
+            }
         }
     }
 
@@ -3919,9 +3932,10 @@ public class WindowsFormsHost : FrameworkElement
         int contentWidth = Math.Max(0, width - 4);
         int contentHeight = Math.Max(0, height - contentTop - 2);
 
-        foreach (Forms.TabPage page in tabControl.TabPages)
+        Forms.TabControl.TabPageCollection pages = tabControl.TabPages;
+        for (int index = 0; index < pages.Count; index++)
         {
-            LayoutControlTree(page, new Rect(2, contentTop, contentWidth, contentHeight));
+            LayoutControlTree(pages[index], new Rect(2, contentTop, contentWidth, contentHeight));
         }
     }
 
@@ -4036,8 +4050,10 @@ public class WindowsFormsHost : FrameworkElement
             if (renderChildren)
             {
                 Point childOffset = GetChildDisplayOffset(control);
-                foreach (Forms.Control child in control.Controls)
+                Forms.Control.ControlCollection children = control.Controls;
+                for (int index = 0; index < children.Count; index++)
                 {
+                    Forms.Control child = children[index];
                     Rect childBounds = new(
                         bounds.X + childOffset.X + child.Left,
                         bounds.Y + childOffset.Y + child.Top,
