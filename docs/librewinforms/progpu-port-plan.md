@@ -85,7 +85,7 @@ Next validation level:
 
 - Broaden SharpDevelop resource-editor/resource-file save/load coverage beyond the current `LIBREWPF_SHARPDEVELOP_RESX_SMOKE=1` pass.
 - Keep the workflow bridge bootstrap green on GitHub after ProGPU and LibreWPF preview packages publish, then remove reliance on local SharpDevelop feeds for the release lane.
-- Broaden CodeDOM replay and serializer/code-generation round trips for real SharpDevelop source-navigation smoke, toolbox placement details, and more controls.
+- Broaden CodeDOM replay and serializer/code-generation round trips for real SharpDevelop source-navigation smoke, toolbox placement details, extender providers, and more controls. Portable `SerializationStore` streams and nested ToolStrip content-component collections now round-trip without BinaryFormatter.
 - Replace the copied compatibility control implementations with upstream managed WinForms source groups while preserving the existing source-owned package outputs.
 - Make the normal LibreWPF SDK pack workflow restore from the required WPF private feeds so the package-mode validation feed can be rebuilt without ad hoc artifact refreshes.
 
@@ -333,3 +333,20 @@ Typed source audit                         -> layout/command paths contain no Sy
 ```
 
 Remaining designer-fidelity work includes nearest-line keyboard snapping and guide feedback, richer resize-anchor/group policies, BehaviorService glyph extensibility, and optional native-style dashed/fade presentation.
+
+## 2026-07-29 persistent designer-store checkpoint
+
+`CodeDomComponentSerializationService` now implements portable `SerializationStore.Save(Stream)` and `LoadStore(Stream)` instead of throwing `PlatformNotSupportedException`. The versioned binary format is bounded before allocating components, members, arrays, strings, or converted byte payloads. It preserves typed component references, one-dimensional arrays, events, fonts, built-in cursors, padding, invariant `TypeConverter` values, and byte-convertible values. Component types resolve through the designer's `ITypeResolutionService`; property values restore against the destination `PropertyDescriptor` type. Streams remain owned by the caller, and unsupported custom cursor pixels fail closed.
+
+Read-only content collections marked with `DesignerSerializationVisibility.Content` now persist through the same graph. `ToolStrip.Items` and nested `ToolStripMenuItem`/`ToolStripDropDownButton.DropDownItems` publish that standard metadata, so menu components are created through the designer host, remain sited in its container, and restore their nested ordering and property state.
+
+Validation:
+
+```text
+LibreWinForms portable behavior executable -> pass
+Stream graph                              -> Panel + child Button layout/color/text round trip
+Content graph                             -> MenuStrip > File > Open typed component round trip
+Typed source audit                        -> no BinaryFormatter, System.Reflection, BindingFlags, or object-shape probes
+```
+
+Remaining serialization work includes extender-provider state, broader non-`IList` content collections, localized resource coupling, and application-level save/reload coverage for complex SharpDevelop forms.
