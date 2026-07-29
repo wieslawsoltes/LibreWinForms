@@ -391,8 +391,27 @@ internal static class Program
                                 return;
                             }
 
-                            double popupX = usesNativePopup ? 18.0 : menuPoint.X;
-                            double popupY = usesNativePopup ? 12.0 : menuPoint.Y + 27.0;
+                            double popupX = 18.0;
+                            double popupY = 12.0;
+                            if (!usesNativePopup)
+                            {
+                                bool foundOwnerItem = TryFindOwnerPopupMenuItemPoint(
+                                    activationService,
+                                    window,
+                                    menuPoint,
+                                    "Open",
+                                    out System.Windows.Point ownerItemPoint,
+                                    out bool scanInputAccepted);
+                                inputAccepted &= scanInputAccepted;
+                                if (!foundOwnerItem)
+                                {
+                                    return;
+                                }
+
+                                popupX = ownerItemPoint.X;
+                                popupY = ownerItemPoint.Y;
+                            }
+
                             inputAccepted &= TryRaisePopupInput(
                                 activationService,
                                 window,
@@ -489,6 +508,69 @@ internal static class Program
                 x: x,
                 y: y,
                 button: (System.Windows.Media.ProGPU.Platform.WpfMouseButton)button));
+    }
+
+    private static bool TryFindOwnerPopupMenuItemPoint(
+        IPortableWindowActivationServiceRegistrar activationService,
+        WpfWindow window,
+        System.Windows.Point anchorPoint,
+        string expectedHeader,
+        out System.Windows.Point itemPoint,
+        out bool inputAccepted)
+    {
+        inputAccepted = true;
+        double left = Math.Max(0, anchorPoint.X - 24);
+        double top = Math.Max(0, anchorPoint.Y + 12);
+        double right = Math.Min(window.ActualWidth, anchorPoint.X + 200);
+        double bottom = Math.Min(window.ActualHeight, anchorPoint.Y + 140);
+        for (double y = top; y <= bottom; y += 4)
+        {
+            for (double x = left; x <= right; x += 8)
+            {
+                bool moved = activationService.TryProcessInputEvent(
+                    window,
+                    new PortableWindowInputEvent(kind: 3, x: x, y: y));
+                inputAccepted &= moved;
+                if (moved && IsMenuItemOrDescendant(System.Windows.Input.Mouse.DirectlyOver, expectedHeader))
+                {
+                    itemPoint = new System.Windows.Point(x, y);
+                    return true;
+                }
+            }
+        }
+
+        itemPoint = default;
+        return false;
+    }
+
+    private static bool IsMenuItemOrDescendant(
+        System.Windows.IInputElement? inputElement,
+        string expectedHeader)
+    {
+        System.Windows.DependencyObject? current = inputElement as System.Windows.DependencyObject;
+        while (current != null)
+        {
+            if (current is System.Windows.Controls.MenuItem menuItem
+                && string.Equals(menuItem.Header?.ToString(), expectedHeader, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            current = current switch
+            {
+                System.Windows.FrameworkElement frameworkElement when frameworkElement.Parent != null
+                    => frameworkElement.Parent,
+                System.Windows.FrameworkContentElement frameworkContentElement when frameworkContentElement.Parent != null
+                    => frameworkContentElement.Parent,
+                System.Windows.Media.Visual visual
+                    => System.Windows.Media.VisualTreeHelper.GetParent(visual),
+                System.Windows.Media.Media3D.Visual3D visual3D
+                    => System.Windows.Media.VisualTreeHelper.GetParent(visual3D),
+                _ => null
+            };
+        }
+
+        return false;
     }
 
     private static int RunCrossFrameworkDragSmoke()
