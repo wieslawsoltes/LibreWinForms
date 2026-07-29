@@ -1674,15 +1674,19 @@ internal static class Program
         double bytesPerFrame = (double)allocatedBytes / frameCount;
         int colorBrushCount = host.PortableColorBrushCacheCount;
         int formattedTextCount = host.PortableFormattedTextCacheCount;
-        bool bounded = bytesPerFrame <= 250_000
+        int textDrawingCount = host.PortableTextDrawingCacheCount;
+        bool bounded = bytesPerFrame <= 50_000
             && colorBrushCount is > 0 and <= 256
-            && formattedTextCount is > 0 and <= 2048;
+            && formattedTextCount is > 0 and <= 2048
+            && textDrawingCount is > 0 and <= 2048;
         host.Child = null;
         bool released = host.PortableColorBrushCacheCount == 0
-            && host.PortableFormattedTextCacheCount == 0;
+            && host.PortableFormattedTextCacheCount == 0
+            && host.PortableTextDrawingCacheCount == 0;
         bool churnBounded = VerifyRenderResourceCacheBounds(
             out int churnColorBrushCount,
-            out int churnFormattedTextCount);
+            out int churnFormattedTextCount,
+            out int churnTextDrawingCount);
         Console.WriteLine(
             "LibreWinForms render allocation benchmark"
             + $" controls={controlCount}"
@@ -1692,9 +1696,11 @@ internal static class Program
             + $" bytesPerFrame={bytesPerFrame:F1}"
             + $" colorBrushes={colorBrushCount}"
             + $" formattedText={formattedTextCount}"
+            + $" textDrawings={textDrawingCount}"
             + $" released={released}"
             + $" churnColorBrushes={churnColorBrushCount}"
-            + $" churnFormattedText={churnFormattedTextCount}");
+            + $" churnFormattedText={churnFormattedTextCount}"
+            + $" churnTextDrawings={churnTextDrawingCount}");
         if (!bounded || !released || !churnBounded)
         {
             Console.Error.WriteLine(
@@ -1710,7 +1716,8 @@ internal static class Program
 
     private static bool VerifyRenderResourceCacheBounds(
         out int colorBrushCount,
-        out int formattedTextCount)
+        out int formattedTextCount,
+        out int textDrawingCount)
     {
         const int churnCount = 2200;
         var label = new Forms.Label
@@ -1734,12 +1741,15 @@ internal static class Program
 
         colorBrushCount = host.PortableColorBrushCacheCount;
         formattedTextCount = host.PortableFormattedTextCacheCount;
+        textDrawingCount = host.PortableTextDrawingCacheCount;
         bool bounded = colorBrushCount is > 0 and <= 256
-            && formattedTextCount is > 0 and <= 2048;
+            && formattedTextCount is > 0 and <= 2048
+            && textDrawingCount is > 0 and <= 2048;
         host.Child = null;
         return bounded
             && host.PortableColorBrushCacheCount == 0
-            && host.PortableFormattedTextCacheCount == 0;
+            && host.PortableFormattedTextCacheCount == 0
+            && host.PortableTextDrawingCacheCount == 0;
     }
 
     private static int RunLayoutAllocationBenchmark()

@@ -1148,14 +1148,18 @@ internal static class FormsDesignerLayoutBehaviorTests
             && hostSource.Contains("PortableFormattedTextCacheLimit = 2048", StringComparison.Ordinal),
             "Hosted WinForms render resource caches stopped enforcing their reviewed ownership bounds.");
         Assert(hostSource.Contains("_portableColorBrushCache.TryGetValue", StringComparison.Ordinal)
-            && hostSource.Contains("_portableFormattedTextCache.TryGetValue", StringComparison.Ordinal),
-            "Hosted WinForms rendering stopped reusing stable color brushes or formatted text.");
+            && hostSource.Contains("_portableFormattedTextCache.TryGetValue", StringComparison.Ordinal)
+            && hostSource.Contains("_portableTextDrawingCache.TryGetValue", StringComparison.Ordinal),
+            "Hosted WinForms rendering stopped reusing stable color brushes, formatted text, or retained text drawings.");
         Assert(hostSource.Contains("_portableColorBrushCache.Count >= PortableColorBrushCacheLimit", StringComparison.Ordinal)
-            && hostSource.Contains("_portableFormattedTextCache.Count >= PortableFormattedTextCacheLimit", StringComparison.Ordinal),
+            && hostSource.Contains("_portableFormattedTextCache.Count >= PortableFormattedTextCacheLimit", StringComparison.Ordinal)
+            && hostSource.Contains("_portableTextDrawingCache.Count >= PortableFormattedTextCacheLimit", StringComparison.Ordinal),
             "Hosted WinForms render resource caches stopped enforcing their entry limits.");
         Assert(hostSource.Contains("_portableColorBrushCacheOrder.Dequeue()", StringComparison.Ordinal)
             && hostSource.Contains("_portableFormattedTextCacheOrder.Dequeue()", StringComparison.Ordinal)
-            && hostSource.Contains("_portableFormattedTextCache.Remove(oldestKey)", StringComparison.Ordinal),
+            && hostSource.Contains("_portableFormattedTextCache.Remove(oldestKey)", StringComparison.Ordinal)
+            && hostSource.Contains("_portableTextDrawingCacheOrder.Dequeue()", StringComparison.Ordinal)
+            && hostSource.Contains("_portableTextDrawingCache.Remove(oldestKey)", StringComparison.Ordinal),
             "Hosted WinForms render resource caches stopped evicting oldest entries without whole-cache churn.");
         Assert(hostSource.Contains("brush.Freeze();", StringComparison.Ordinal)
             && hostSource.Contains("geometry.Freeze();", StringComparison.Ordinal),
@@ -1165,13 +1169,15 @@ internal static class FormsDesignerLayoutBehaviorTests
             "Stable hosted-control clip geometry stopped using weak, bounds-aware reuse.");
         Assert(hostSource.Contains("ClearPortableRenderResourceCaches();", StringComparison.Ordinal)
             && hostSource.Contains("_controlClipCache.Clear();", StringComparison.Ordinal)
-            && hostSource.Contains("_portableFormattedTextCache.Clear();", StringComparison.Ordinal),
+            && hostSource.Contains("_portableFormattedTextCache.Clear();", StringComparison.Ordinal)
+            && hostSource.Contains("_portableTextDrawingCache.Clear();", StringComparison.Ordinal),
             "Replacing the hosted WinForms tree stopped releasing retained render resources.");
         Assert(hostSource.Contains("public int PortableColorBrushCacheCount", StringComparison.Ordinal)
-            && hostSource.Contains("public int PortableFormattedTextCacheCount", StringComparison.Ordinal),
+            && hostSource.Contains("public int PortableFormattedTextCacheCount", StringComparison.Ordinal)
+            && hostSource.Contains("public int PortableTextDrawingCacheCount", StringComparison.Ordinal),
             "Hosted WinForms render resource ownership diagnostics were removed.");
         Assert(smokeSource.Contains("--run-render-allocation", StringComparison.Ordinal)
-            && smokeSource.Contains("bytesPerFrame <= 250_000", StringComparison.Ordinal)
+            && smokeSource.Contains("bytesPerFrame <= 50_000", StringComparison.Ordinal)
             && smokeSource.Contains("released={released}", StringComparison.Ordinal),
             "Package-mode WinForms validation stopped enforcing steady-state allocation and release.");
     }

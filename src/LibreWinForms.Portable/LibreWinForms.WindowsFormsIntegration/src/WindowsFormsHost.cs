@@ -256,6 +256,8 @@ public class WindowsFormsHost : FrameworkElement
     private readonly Queue<int> _portableColorBrushCacheOrder = new();
     private readonly Dictionary<PortableFormattedTextKey, FormattedText> _portableFormattedTextCache = new();
     private readonly Queue<PortableFormattedTextKey> _portableFormattedTextCacheOrder = new();
+    private readonly Dictionary<PortableTextDrawingKey, DrawingGroup> _portableTextDrawingCache = new();
+    private readonly Queue<PortableTextDrawingKey> _portableTextDrawingCacheOrder = new();
     private Typeface? _portableTypeface;
     private FontFamily? _portableTypefaceFontFamily;
     private FontStyle _portableTypefaceFontStyle;
@@ -409,6 +411,8 @@ public class WindowsFormsHost : FrameworkElement
     public int PortableColorBrushCacheCount => _portableColorBrushCache.Count;
 
     public int PortableFormattedTextCacheCount => _portableFormattedTextCache.Count;
+
+    public int PortableTextDrawingCacheCount => _portableTextDrawingCache.Count;
 
     [Bindable(true)]
     [Category("Behavior")]
@@ -6134,7 +6138,37 @@ public class WindowsFormsHost : FrameworkElement
         }
 
         FormattedText formatted = CreateFormattedText(text, brush, fontSize);
-        drawingContext.DrawText(formatted, origin);
+        drawingContext.DrawDrawing(CreateTextDrawing(formatted, origin));
+    }
+
+    private DrawingGroup CreateTextDrawing(FormattedText formattedText, Point origin)
+    {
+        var key = new PortableTextDrawingKey(formattedText, origin);
+        if (_portableTextDrawingCache.TryGetValue(key, out DrawingGroup? drawing))
+        {
+            return drawing;
+        }
+
+        if (_portableTextDrawingCache.Count >= PortableFormattedTextCacheLimit)
+        {
+            PortableTextDrawingKey oldestKey = _portableTextDrawingCacheOrder.Dequeue();
+            _portableTextDrawingCache.Remove(oldestKey);
+        }
+
+        drawing = new DrawingGroup();
+        using (DrawingContext context = drawing.Open())
+        {
+            context.DrawText(formattedText, origin);
+        }
+
+        if (drawing.CanFreeze)
+        {
+            drawing.Freeze();
+        }
+
+        _portableTextDrawingCache.Add(key, drawing);
+        _portableTextDrawingCacheOrder.Enqueue(key);
+        return drawing;
     }
 
     private void DrawTextInBounds(DrawingContext drawingContext, string text, Rect bounds, Brush brush, double fontSize)
@@ -6220,6 +6254,8 @@ public class WindowsFormsHost : FrameworkElement
     {
         _portableFormattedTextCache.Clear();
         _portableFormattedTextCacheOrder.Clear();
+        _portableTextDrawingCache.Clear();
+        _portableTextDrawingCacheOrder.Clear();
     }
 
     private void ClearPortableRenderResourceCaches()
@@ -6239,6 +6275,10 @@ public class WindowsFormsHost : FrameworkElement
         double FontSize,
         double PixelsPerDip,
         CultureInfo Culture);
+
+    private readonly record struct PortableTextDrawingKey(
+        FormattedText FormattedText,
+        Point Origin);
 
     private sealed class CachedControlClip
     {
