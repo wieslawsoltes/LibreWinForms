@@ -6,7 +6,7 @@
     <EnableDefaultCompileItems Condition="'$(EnableDefaultCompileItems)' == ''">false</EnableDefaultCompileItems>
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
 
-    <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == ''">0.1.0-preview.30</LibreWinFormsVersion>
+    <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == ''">0.1.0-preview.31</LibreWinFormsVersion>
     <LibreWinFormsBridgePackageVersion Condition="'$(LibreWinFormsBridgePackageVersion)' == ''">$(LibreWinFormsVersion)</LibreWinFormsBridgePackageVersion>
     <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == ''">0.1.0-preview.28</LibreWinFormsProGpuPackageVersion>
     <Version Condition="'$(Version)' == ''">$(LibreWinFormsVersion)</Version>
@@ -20,7 +20,7 @@
     <RepositoryUrl>https://github.com/wieslawsoltes/winforms</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>librewinforms;progpu;silk.net;winforms;cross-platform</PackageTags>
-    <PackageReleaseNotes>Aligns LibreWinForms 0.1.0-preview.30 with immutable LibreWPF 0.1.0-preview.30 and ProGPU 0.1.0-preview.28; builds unchanged .NET WinForms template projects through LibreWinForms.Sdk without requiring a Windows TFM; preserves hosted double-click counts for Project Explorer and designer interactions; keeps MenuStrip, ToolStrip, context menus, and dropdowns correctly positioned and interactive; inherits typed X11/XWayland positioning, movement, popup, and dispatcher-pump fixes; and retains the bounded-memory, text, image, and scene-performance improvements from the previous preview.</PackageReleaseNotes>
+    <PackageReleaseNotes>Aligns LibreWinForms 0.1.0-preview.31 with immutable LibreWPF 0.1.0-preview.31 and ProGPU 0.1.0-preview.28; inherits the restored native Windows OLE clipboard path and package-only Clipboard.SetText/GetText/ContainsText/Clear acceptance coverage; builds unchanged .NET WinForms template projects through LibreWinForms.Sdk without requiring a Windows TFM; preserves hosted double-click counts for Project Explorer and designer interactions; keeps MenuStrip, ToolStrip, context menus, and dropdowns correctly positioned and interactive; retains typed X11/XWayland positioning, movement, popup, and dispatcher-pump fixes; and preserves the bounded-memory, text, image, and scene-performance improvements from the previous preview.</PackageReleaseNotes>
     <IsPackable>true</IsPackable>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
