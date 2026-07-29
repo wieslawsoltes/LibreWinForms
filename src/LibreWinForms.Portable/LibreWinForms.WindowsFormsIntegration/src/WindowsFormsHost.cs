@@ -36,6 +36,9 @@ namespace System.Windows.Forms.Integration;
 [ContentProperty("Child")]
 public class WindowsFormsHost : FrameworkElement
 {
+    private const int PortableColorBrushCacheLimit = 256;
+    private const int PortableFormattedTextCacheLimit = 2048;
+
     private enum DesignHandle
     {
         None,
@@ -248,6 +251,15 @@ public class WindowsFormsHost : FrameworkElement
     private Forms.ToolStripDropDown? _activeToolStripDropDown;
     private readonly ConditionalWeakTable<DrawingImage, CachedImageSource> _imageSourceCache = new();
     private readonly ConditionalWeakTable<object, Forms.IDataObject> _dragDataCache = new();
+    private readonly ConditionalWeakTable<Forms.Control, CachedControlClip> _controlClipCache = new();
+    private readonly Dictionary<int, SolidColorBrush> _portableColorBrushCache = new();
+    private readonly Queue<int> _portableColorBrushCacheOrder = new();
+    private readonly Dictionary<PortableFormattedTextKey, FormattedText> _portableFormattedTextCache = new();
+    private readonly Queue<PortableFormattedTextKey> _portableFormattedTextCacheOrder = new();
+    private Typeface? _portableTypeface;
+    private FontFamily? _portableTypefaceFontFamily;
+    private FontStyle _portableTypefaceFontStyle;
+    private FontWeight _portableTypefaceFontWeight;
     private readonly HashSet<Forms.Control> _invalidationTreeSubscriptions = new(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<Forms.Control, PortablePaintSurfacePool> _portablePaintSurfacePools = new(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<Forms.Control, PortablePaintSurfacePool> _portableDesignerAdornerSurfacePools = new(ReferenceEqualityComparer.Instance);
@@ -305,6 +317,7 @@ public class WindowsFormsHost : FrameworkElement
             _designSelectionServiceLookupComplete = false;
 
             _child = value;
+            ClearPortableRenderResourceCaches();
             _focusedControl = null;
             _capturedControl = null;
             _pressedControl = null;
@@ -392,6 +405,10 @@ public class WindowsFormsHost : FrameworkElement
     public int PortableInvalidationSubscriptionCount => _invalidationTreeSubscriptions.Count;
 
     public long PortableOwnerDrawDispatchCount => Interlocked.Read(ref _portableOwnerDrawDispatchCount);
+
+    public int PortableColorBrushCacheCount => _portableColorBrushCache.Count;
+
+    public int PortableFormattedTextCacheCount => _portableFormattedTextCache.Count;
 
     [Bindable(true)]
     [Category("Behavior")]
@@ -3935,7 +3952,7 @@ public class WindowsFormsHost : FrameworkElement
             return;
         }
 
-        drawingContext.PushClip(new RectangleGeometry(bounds));
+        drawingContext.PushClip(GetControlClip(control, bounds));
         try
         {
             Brush background = CreateBrush(control.BackColor, Background ?? SystemColors.ControlBrush);
@@ -6049,7 +6066,48 @@ public class WindowsFormsHost : FrameworkElement
             return fallback;
         }
 
-        return new SolidColorBrush(Color.FromArgb(color.A, color.R, color.G, color.B));
+        int argb = color.ToArgb();
+        if (_portableColorBrushCache.TryGetValue(argb, out SolidColorBrush? brush))
+        {
+            return brush;
+        }
+
+        if (_portableColorBrushCache.Count >= PortableColorBrushCacheLimit)
+        {
+            int oldestArgb = _portableColorBrushCacheOrder.Dequeue();
+            _portableColorBrushCache.Remove(oldestArgb);
+        }
+
+        brush = new SolidColorBrush(Color.FromArgb(color.A, color.R, color.G, color.B));
+        if (brush.CanFreeze)
+        {
+            brush.Freeze();
+        }
+
+        _portableColorBrushCache.Add(argb, brush);
+        _portableColorBrushCacheOrder.Enqueue(argb);
+        return brush;
+    }
+
+    private Geometry GetControlClip(Forms.Control control, Rect bounds)
+    {
+        CachedControlClip cache = _controlClipCache.GetValue(
+            control,
+            static _ => new CachedControlClip());
+        if (cache.Geometry is not null && cache.Bounds == bounds)
+        {
+            return cache.Geometry;
+        }
+
+        var geometry = new RectangleGeometry(bounds);
+        if (geometry.CanFreeze)
+        {
+            geometry.Freeze();
+        }
+
+        cache.Bounds = bounds;
+        cache.Geometry = geometry;
+        return geometry;
     }
 
     private void DrawText(DrawingContext drawingContext, string text, Point origin, Brush brush, double fontSize)
@@ -6089,14 +6147,88 @@ public class WindowsFormsHost : FrameworkElement
     private FormattedText CreateFormattedText(string text, Brush brush, double fontSize)
     {
         double pixelsPerDip = VisualTreeHelper.GetDpi(this).PixelsPerDip;
-        return new FormattedText(
+        Typeface typeface = GetPortableTypeface();
+        var key = new PortableFormattedTextKey(
             text,
-            CultureInfo.CurrentUICulture,
+            brush,
+            typeface,
+            fontSize,
+            pixelsPerDip,
+            CultureInfo.CurrentUICulture);
+        if (_portableFormattedTextCache.TryGetValue(key, out FormattedText? formattedText))
+        {
+            return formattedText;
+        }
+
+        if (_portableFormattedTextCache.Count >= PortableFormattedTextCacheLimit)
+        {
+            PortableFormattedTextKey oldestKey = _portableFormattedTextCacheOrder.Dequeue();
+            _portableFormattedTextCache.Remove(oldestKey);
+        }
+
+        formattedText = new FormattedText(
+            text,
+            key.Culture,
             FlowDirection.LeftToRight,
-            new Typeface(FontFamily, FontStyle, FontWeight, FontStretches.Normal),
+            typeface,
             fontSize,
             brush,
             pixelsPerDip);
+        _portableFormattedTextCache.Add(key, formattedText);
+        _portableFormattedTextCacheOrder.Enqueue(key);
+        return formattedText;
+    }
+
+    private Typeface GetPortableTypeface()
+    {
+        FontFamily fontFamily = FontFamily;
+        FontStyle fontStyle = FontStyle;
+        FontWeight fontWeight = FontWeight;
+        if (_portableTypeface is not null
+            && Equals(_portableTypefaceFontFamily, fontFamily)
+            && _portableTypefaceFontStyle == fontStyle
+            && _portableTypefaceFontWeight == fontWeight)
+        {
+            return _portableTypeface;
+        }
+
+        ClearPortableFormattedTextCache();
+        _portableTypefaceFontFamily = fontFamily;
+        _portableTypefaceFontStyle = fontStyle;
+        _portableTypefaceFontWeight = fontWeight;
+        _portableTypeface = new Typeface(fontFamily, fontStyle, fontWeight, FontStretches.Normal);
+        return _portableTypeface;
+    }
+
+    private void ClearPortableFormattedTextCache()
+    {
+        _portableFormattedTextCache.Clear();
+        _portableFormattedTextCacheOrder.Clear();
+    }
+
+    private void ClearPortableRenderResourceCaches()
+    {
+        _portableColorBrushCache.Clear();
+        _portableColorBrushCacheOrder.Clear();
+        ClearPortableFormattedTextCache();
+        _controlClipCache.Clear();
+        _portableTypeface = null;
+        _portableTypefaceFontFamily = null;
+    }
+
+    private readonly record struct PortableFormattedTextKey(
+        string Text,
+        Brush Brush,
+        Typeface Typeface,
+        double FontSize,
+        double PixelsPerDip,
+        CultureInfo Culture);
+
+    private sealed class CachedControlClip
+    {
+        public Rect Bounds { get; set; }
+
+        public Geometry? Geometry { get; set; }
     }
 }
 
