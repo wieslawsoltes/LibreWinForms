@@ -260,7 +260,9 @@ internal static class Program
         bool loaded = false;
         bool inputAccepted = false;
         bool dropDownVisible = false;
-        bool nativeSurfaceReady = false;
+        bool popupSurfaceReady = false;
+        bool usesNativePopup = false;
+        bool clickInputSent = false;
         bool timedOut = false;
         int clickCount = 0;
         int attempts = 0;
@@ -369,20 +371,49 @@ internal static class Program
                             out popupSnapshot))
                     {
                         dropDownVisible |= fileItem.DropDown.Visible;
-                        bool expectsPortableNativeSurface = !OperatingSystem.IsWindows()
-                            && !string.Equals(
-                                Environment.GetEnvironmentVariable("PROGPU_WPF_DISABLE_NATIVE_POPUPS"),
-                                "1",
-                                StringComparison.Ordinal);
-                        nativeSurfaceReady = !expectsPortableNativeSurface
-                            || (popupSnapshot.NativeWindowCount >= 1
+                        usesNativePopup = popupSnapshot.NativeWindowCount >= 1;
+                        bool currentPopupSurfaceReady = usesNativePopup
+                            ? popupSnapshot.NativeWindowCount >= 1
                                 && popupSnapshot.PresentedNativeWindowCount >= 1
                                 && popupSnapshot.NativeWindowGpuHitTestCount >= 1
-                                && popupSnapshot.NativeWindowGpuHitTestOwnerCount >= 1);
-                        if (dropDownVisible && nativeSurfaceReady)
+                                && popupSnapshot.NativeWindowGpuHitTestOwnerCount >= 1
+                            : popupSnapshot.OpenCount >= 1
+                                && popupSnapshot.VisibleCount >= 1
+                                && popupSnapshot.NativeWindowCount == 0;
+                        popupSurfaceReady |= currentPopupSurfaceReady;
+                        if (dropDownVisible && currentPopupSurfaceReady && !clickInputSent)
                         {
-                            openItem.PerformClick();
-                            fileItem.DropDown.Close(Forms.ToolStripDropDownCloseReason.ItemClicked);
+                            double popupX = usesNativePopup ? 18.0 : menuPoint.X;
+                            double popupY = usesNativePopup ? 12.0 : menuPoint.Y + 27.0;
+                            inputAccepted &= TryRaisePopupInput(
+                                activationService,
+                                window,
+                                kind: 3,
+                                popupX,
+                                popupY,
+                                usesNativePopup);
+                            inputAccepted &= TryRaisePopupInput(
+                                activationService,
+                                window,
+                                kind: 4,
+                                popupX,
+                                popupY,
+                                usesNativePopup,
+                                button: 1);
+                            inputAccepted &= TryRaisePopupInput(
+                                activationService,
+                                window,
+                                kind: 5,
+                                popupX,
+                                popupY,
+                                usesNativePopup,
+                                button: 1);
+                            clickInputSent = true;
+                            return;
+                        }
+
+                        if (clickInputSent && clickCount == 1)
+                        {
                             popupTimer.Stop();
                             window.Dispatcher.BeginInvoke(
                                 DispatcherPriority.ApplicationIdle,
@@ -408,7 +439,8 @@ internal static class Program
         bool success = loaded
             && inputAccepted
             && dropDownVisible
-            && nativeSurfaceReady
+            && popupSurfaceReady
+            && clickInputSent
             && clickCount == 1
             && !timedOut;
         Console.WriteLine(
@@ -416,6 +448,7 @@ internal static class Program
             + " loaded=" + loaded
             + " input=" + inputAccepted
             + " visible=" + dropDownVisible
+            + " mode=" + (usesNativePopup ? "native" : "owner")
             + " native=" + popupSnapshot.NativeWindowCount
             + " presented=" + popupSnapshot.PresentedNativeWindowCount
             + " gpuCaches=" + popupSnapshot.NativeWindowGpuHitTestCount
@@ -423,6 +456,31 @@ internal static class Program
             + " clicks=" + clickCount
             + " timedOut=" + timedOut);
         return success ? 0 : 1;
+    }
+
+    private static bool TryRaisePopupInput(
+        IPortableWindowActivationServiceRegistrar activationService,
+        WpfWindow window,
+        int kind,
+        double x,
+        double y,
+        bool usesNativePopup,
+        int button = 0)
+    {
+        if (!usesNativePopup)
+        {
+            return activationService.TryProcessInputEvent(
+                window,
+                new PortableWindowInputEvent(kind, x: x, y: y, button: button));
+        }
+
+        return System.Windows.Media.ProGPU.ProGpuWpfDiagnostics.TryRaiseTopmostNativePopupInput(
+            window,
+            new System.Windows.Media.ProGPU.Platform.WpfInputEventArgs(
+                (System.Windows.Media.ProGPU.Platform.WpfInputEventKind)kind,
+                x: x,
+                y: y,
+                button: (System.Windows.Media.ProGPU.Platform.WpfMouseButton)button));
     }
 
     private static int RunCrossFrameworkDragSmoke()
