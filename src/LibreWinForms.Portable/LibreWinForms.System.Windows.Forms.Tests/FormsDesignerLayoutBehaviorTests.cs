@@ -39,8 +39,9 @@ internal static class FormsDesignerLayoutBehaviorTests
         KeyboardSizeFiltersSelectionAndMoveFailureRollsBack();
         LayoutServiceSourceStaysReflectionFree();
         PaintSurfaceRetirementStaysFrameBounded();
+        RenderResourcesStayBoundedAndReusable();
         Console.WriteLine(
-            "LibreWinForms Forms Designer layout tests passed: grid=12 toolbox=2 snap=9 adorners=18 alt=4 coordinates=1 transactions=16 group=30 keyboard=89 sourceGuard=39 surfaceRetirement=12.");
+            "LibreWinForms Forms Designer layout tests passed: grid=12 toolbox=2 snap=9 adorners=18 alt=4 coordinates=1 transactions=16 group=30 keyboard=89 sourceGuard=39 surfaceRetirement=12 renderResources=14.");
     }
 
     private static void SharpDevelopOptionsDriveGridMoveAndMidpointRounding()
@@ -1137,7 +1138,46 @@ internal static class FormsDesignerLayoutBehaviorTests
             "Paint surface diagnostics stopped reporting logical retained pixel bytes.");
     }
 
-    private static string FindSourceFile(string fileName)
+    private static void RenderResourcesStayBoundedAndReusable()
+    {
+        string hostSource = File.ReadAllText(FindSourceFile("WindowsFormsHost.cs"));
+        string smokeSource = File.ReadAllText(FindSourceFile("Program.cs", "LibreWinForms.SdkSmoke"));
+
+        Assert(hostSource.Contains("PortableColorBrushCacheLimit = 256", StringComparison.Ordinal)
+            && hostSource.Contains("PortableFormattedTextCacheLimit = 2048", StringComparison.Ordinal),
+            "Hosted WinForms render resource caches stopped enforcing their reviewed ownership bounds.");
+        Assert(hostSource.Contains("_portableColorBrushCache.TryGetValue", StringComparison.Ordinal)
+            && hostSource.Contains("_portableFormattedTextCache.TryGetValue", StringComparison.Ordinal),
+            "Hosted WinForms rendering stopped reusing stable color brushes or formatted text.");
+        Assert(hostSource.Contains("_portableColorBrushCache.Count >= PortableColorBrushCacheLimit", StringComparison.Ordinal)
+            && hostSource.Contains("_portableFormattedTextCache.Count >= PortableFormattedTextCacheLimit", StringComparison.Ordinal),
+            "Hosted WinForms render resource caches stopped enforcing their entry limits.");
+        Assert(hostSource.Contains("_portableColorBrushCacheOrder.Dequeue()", StringComparison.Ordinal)
+            && hostSource.Contains("_portableFormattedTextCacheOrder.Dequeue()", StringComparison.Ordinal)
+            && hostSource.Contains("_portableFormattedTextCache.Remove(oldestKey)", StringComparison.Ordinal),
+            "Hosted WinForms render resource caches stopped evicting oldest entries without whole-cache churn.");
+        Assert(hostSource.Contains("brush.Freeze();", StringComparison.Ordinal)
+            && hostSource.Contains("geometry.Freeze();", StringComparison.Ordinal),
+            "Reusable hosted WinForms brushes or clip geometries stopped becoming immutable.");
+        Assert(hostSource.Contains("_controlClipCache.GetValue(", StringComparison.Ordinal)
+            && hostSource.Contains("cache.Bounds == bounds", StringComparison.Ordinal),
+            "Stable hosted-control clip geometry stopped using weak, bounds-aware reuse.");
+        Assert(hostSource.Contains("ClearPortableRenderResourceCaches();", StringComparison.Ordinal)
+            && hostSource.Contains("_controlClipCache.Clear();", StringComparison.Ordinal)
+            && hostSource.Contains("_portableFormattedTextCache.Clear();", StringComparison.Ordinal),
+            "Replacing the hosted WinForms tree stopped releasing retained render resources.");
+        Assert(hostSource.Contains("public int PortableColorBrushCacheCount", StringComparison.Ordinal)
+            && hostSource.Contains("public int PortableFormattedTextCacheCount", StringComparison.Ordinal),
+            "Hosted WinForms render resource ownership diagnostics were removed.");
+        Assert(smokeSource.Contains("--run-render-allocation", StringComparison.Ordinal)
+            && smokeSource.Contains("bytesPerFrame <= 250_000", StringComparison.Ordinal)
+            && smokeSource.Contains("released={released}", StringComparison.Ordinal),
+            "Package-mode WinForms validation stopped enforcing steady-state allocation and release.");
+    }
+
+    private static string FindSourceFile(
+        string fileName,
+        string projectName = "LibreWinForms.System.Windows.Forms")
     {
         DirectoryInfo? directory = new(AppContext.BaseDirectory);
         while (directory is not null)
@@ -1146,8 +1186,17 @@ internal static class FormsDesignerLayoutBehaviorTests
                 directory.FullName,
                 "src",
                 "LibreWinForms.Portable",
-                "LibreWinForms.System.Windows.Forms",
+                projectName,
                 "src",
+                fileName);
+            if (File.Exists(candidate))
+                return candidate;
+
+            candidate = Path.Combine(
+                directory.FullName,
+                "src",
+                "LibreWinForms.Portable",
+                projectName,
                 fileName);
             if (File.Exists(candidate))
                 return candidate;

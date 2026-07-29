@@ -76,6 +76,11 @@ internal static class Program
             return RunPaintSurfaceRetirementSmoke();
         }
 
+        if (args.Contains("--run-render-allocation", StringComparer.Ordinal))
+        {
+            return RunRenderAllocationBenchmark();
+        }
+
         if (args.Contains("--run-create-graphics", StringComparer.Ordinal))
         {
             return RunCreateGraphicsSmoke();
@@ -1617,6 +1622,119 @@ internal static class Program
             + $" ownerDrawFinal={ownerDrawFinalSurfaces}"
             + $" ownerDrawFinalPixelBytes={ownerDrawFinalPixelBytes}");
         return 0;
+    }
+
+    private static int RunRenderAllocationBenchmark()
+    {
+        const int controlCount = 100;
+        const int frameCount = 50;
+        var root = new Forms.Panel
+        {
+            Size = new System.Drawing.Size(640, controlCount * 20)
+        };
+        for (int index = 0; index < controlCount; index++)
+        {
+            root.Controls.Add(new Forms.Label
+            {
+                BackColor = index % 2 == 0
+                    ? System.Drawing.Color.AliceBlue
+                    : System.Drawing.Color.Lavender,
+                Dock = Forms.DockStyle.Top,
+                ForeColor = System.Drawing.Color.DarkSlateGray,
+                Height = 20,
+                Text = $"Portable label {index % 10}"
+            });
+        }
+
+        var host = new SmokeWindowsFormsHost { Child = root };
+        host.Measure(new System.Windows.Size(root.Width, root.Height));
+        host.Arrange(new System.Windows.Rect(0, 0, root.Width, root.Height));
+        for (int index = 0; index < 5; index++)
+        {
+            RenderHostForSmoke(host);
+        }
+
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        long allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        for (int index = 0; index < frameCount; index++)
+        {
+            RenderHostForSmoke(host);
+        }
+
+        TimeSpan elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(started);
+        long allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+        double bytesPerFrame = (double)allocatedBytes / frameCount;
+        int colorBrushCount = host.PortableColorBrushCacheCount;
+        int formattedTextCount = host.PortableFormattedTextCacheCount;
+        bool bounded = bytesPerFrame <= 250_000
+            && colorBrushCount is > 0 and <= 256
+            && formattedTextCount is > 0 and <= 2048;
+        host.Child = null;
+        bool released = host.PortableColorBrushCacheCount == 0
+            && host.PortableFormattedTextCacheCount == 0;
+        bool churnBounded = VerifyRenderResourceCacheBounds(
+            out int churnColorBrushCount,
+            out int churnFormattedTextCount);
+        Console.WriteLine(
+            "LibreWinForms render allocation benchmark"
+            + $" controls={controlCount}"
+            + $" frames={frameCount}"
+            + $" elapsedMs={elapsed.TotalMilliseconds:F3}"
+            + $" allocatedBytes={allocatedBytes}"
+            + $" bytesPerFrame={bytesPerFrame:F1}"
+            + $" colorBrushes={colorBrushCount}"
+            + $" formattedText={formattedTextCount}"
+            + $" released={released}"
+            + $" churnColorBrushes={churnColorBrushCount}"
+            + $" churnFormattedText={churnFormattedTextCount}");
+        if (!bounded || !released || !churnBounded)
+        {
+            Console.Error.WriteLine(
+                "LibreWinForms render allocation benchmark failed"
+                + $" bounded={bounded}"
+                + $" released={released}"
+                + $" churnBounded={churnBounded}");
+            return 19;
+        }
+
+        return 0;
+    }
+
+    private static bool VerifyRenderResourceCacheBounds(
+        out int colorBrushCount,
+        out int formattedTextCount)
+    {
+        const int churnCount = 2200;
+        var label = new Forms.Label
+        {
+            ForeColor = System.Drawing.Color.DarkSlateGray,
+            Size = new System.Drawing.Size(320, 24)
+        };
+        var host = new SmokeWindowsFormsHost { Child = label };
+        host.Measure(new System.Windows.Size(label.Width, label.Height));
+        host.Arrange(new System.Windows.Rect(0, 0, label.Width, label.Height));
+        for (int index = 0; index < churnCount; index++)
+        {
+            label.BackColor = System.Drawing.Color.FromArgb(
+                255,
+                index & 0xff,
+                (index >> 3) & 0xff,
+                (index * 17) & 0xff);
+            label.Text = $"Transient label {index}";
+            RenderHostForSmoke(host);
+        }
+
+        colorBrushCount = host.PortableColorBrushCacheCount;
+        formattedTextCount = host.PortableFormattedTextCacheCount;
+        bool bounded = colorBrushCount is > 0 and <= 256
+            && formattedTextCount is > 0 and <= 2048;
+        host.Child = null;
+        return bounded
+            && host.PortableColorBrushCacheCount == 0
+            && host.PortableFormattedTextCacheCount == 0;
     }
 
     private static bool VerifyOwnerDrawHighWaterRetirement(

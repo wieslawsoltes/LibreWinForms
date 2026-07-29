@@ -153,6 +153,8 @@ modes=(
   --run-checkables
   --run-listview
   --run-custom-paint
+  --run-paint-surface-retirement
+  --run-render-allocation
   --run-create-graphics
   --run-text-renderer
   --run-keyboard
