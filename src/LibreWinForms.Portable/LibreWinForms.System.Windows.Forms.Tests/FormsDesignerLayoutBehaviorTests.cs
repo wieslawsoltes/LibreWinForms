@@ -38,8 +38,9 @@ internal static class FormsDesignerLayoutBehaviorTests
         KeyboardSizeUsesGridAndPixelStepsAtomically();
         KeyboardSizeFiltersSelectionAndMoveFailureRollsBack();
         LayoutServiceSourceStaysReflectionFree();
+        PaintSurfaceRetirementStaysFrameBounded();
         Console.WriteLine(
-            "LibreWinForms Forms Designer layout tests passed: grid=12 toolbox=2 snap=9 adorners=18 alt=4 coordinates=1 transactions=16 group=30 keyboard=89 sourceGuard=39.");
+            "LibreWinForms Forms Designer layout tests passed: grid=12 toolbox=2 snap=9 adorners=18 alt=4 coordinates=1 transactions=16 group=30 keyboard=89 sourceGuard=39 surfaceRetirement=12.");
     }
 
     private static void SharpDevelopOptionsDriveGridMoveAndMidpointRounding()
@@ -1103,6 +1104,37 @@ internal static class FormsDesignerLayoutBehaviorTests
         Assert(hostSource.Contains("RenderPortableDesignerAdornments(drawingContext, control, bounds);", StringComparison.Ordinal)
             && hostSource.Contains("_portableDesignerAdornerSurfacePools", StringComparison.Ordinal),
             "WindowsFormsHost stopped rendering adorners after children on an isolated overlay surface.");
+    }
+
+    private static void PaintSurfaceRetirementStaysFrameBounded()
+    {
+        string hostSource = File.ReadAllText(FindSourceFile("WindowsFormsHost.cs"));
+
+        Assert(hostSource.Contains("private readonly List<PortablePaintSurface> _pendingRetiredSurfaces = new();", StringComparison.Ordinal),
+            "Paint surface replacement stopped tracking the current frame's retired surfaces.");
+        Assert(hostSource.Contains("private readonly List<PortablePaintSurface> _safeRetiredSurfaces = new();", StringComparison.Ordinal),
+            "Paint surface replacement stopped retaining one safe in-flight generation.");
+        Assert(hostSource.Contains("pool.AdvanceRetiredSurfaces();", StringComparison.Ordinal),
+            "Active paint surface pools stopped advancing retirement once per render.");
+        Assert(hostSource.Contains("_pendingRetiredSurfaces.Add(current);", StringComparison.Ordinal),
+            "Resized paint surfaces stopped entering the bounded retirement queue.");
+        Assert(hostSource.Contains("_safeRetiredSurfaces.AddRange(_pendingRetiredSurfaces);", StringComparison.Ordinal),
+            "Paint surface retirement stopped rotating pending surfaces through the safe generation.");
+        Assert(hostSource.Contains("foreach (PortablePaintSurface surface in _safeRetiredSurfaces)", StringComparison.Ordinal),
+            "Paint surface retirement stopped disposing the completed safe generation.");
+        Assert(hostSource.Contains("CompletePortablePaintSurfaceSequence(listBox);", StringComparison.Ordinal)
+            && hostSource.Contains("CompletePortablePaintSurfaceSequence(treeView);", StringComparison.Ordinal),
+            "Owner-draw controls stopped completing their frame-local paint surface sequences.");
+        Assert(hostSource.Contains("_surfaces.RemoveRange(_nextSurfaceIndex, surplusSurfaceCount);", StringComparison.Ordinal),
+            "Owner-draw surface pools stopped retiring surplus high-water row surfaces.");
+        Assert(!hostSource.Contains("_retiredSurfaces", StringComparison.Ordinal),
+            "Paint surface pools reintroduced lifetime-long retired surface retention.");
+        Assert(hostSource.Contains("public int PortablePaintSurfaceCount", StringComparison.Ordinal),
+            "Paint surface diagnostics stopped reporting total retained surface count.");
+        Assert(hostSource.Contains("public int PortableRetiredPaintSurfaceCount", StringComparison.Ordinal),
+            "Paint surface diagnostics stopped reporting retired surface count.");
+        Assert(hostSource.Contains("public long PortablePaintSurfacePixelBytes", StringComparison.Ordinal),
+            "Paint surface diagnostics stopped reporting logical retained pixel bytes.");
     }
 
     private static string FindSourceFile(string fileName)

@@ -383,6 +383,12 @@ public class WindowsFormsHost : FrameworkElement
 
     public int PortableCreateGraphicsSurfaceCount => _createGraphicsSurfacePools.Count;
 
+    public int PortablePaintSurfaceCount => GetPortablePaintSurfaceMetrics().SurfaceCount;
+
+    public int PortableRetiredPaintSurfaceCount => GetPortablePaintSurfaceMetrics().RetiredSurfaceCount;
+
+    public long PortablePaintSurfacePixelBytes => GetPortablePaintSurfaceMetrics().PixelBytes;
+
     public int PortableInvalidationSubscriptionCount => _invalidationTreeSubscriptions.Count;
 
     public long PortableOwnerDrawDispatchCount => Interlocked.Read(ref _portableOwnerDrawDispatchCount);
@@ -4559,47 +4565,54 @@ public class WindowsFormsHost : FrameworkElement
     {
         DrawBorder(drawingContext, listBox.BorderStyle, bounds);
         ResetPortablePaintSurfacePool(listBox);
-        const double lineHeight = 18;
-        double y = bounds.Y + 2;
-        for (int i = 0; i < listBox.Items.Count && y < bounds.Bottom; i++)
+        try
         {
-            Rect rowBounds = new(bounds.X + 1, y, Math.Max(0, bounds.Width - 2), lineHeight);
-            bool selected = i == listBox.SelectedIndex;
-            if (selected)
+            const double lineHeight = 18;
+            double y = bounds.Y + 2;
+            for (int i = 0; i < listBox.Items.Count && y < bounds.Bottom; i++)
             {
-                drawingContext.DrawRectangle(SystemColors.HighlightBrush, null, rowBounds);
-            }
-
-            Forms.CheckedListBox? checkedListBox = checkedItems
-                ? listBox as Forms.CheckedListBox
-                : null;
-            double textX = rowBounds.X + 4 + (checkedListBox != null ? 18 : 0);
-
-            Rect itemTextBounds = new(textX, rowBounds.Y + 1, Math.Max(0, rowBounds.Right - textX - 2), lineHeight - 2);
-            bool ownerDrawn = listBox.DrawMode != Forms.DrawMode.Normal
-                && TryRenderListItemOwnerDraw(drawingContext, listBox, i, bounds, rowBounds);
-            if (!ownerDrawn)
-            {
-                string text = listBox.Items[i]?.ToString() ?? string.Empty;
-                DrawTextInBounds(
-                    drawingContext,
-                    text,
-                    itemTextBounds,
-                    selected ? SystemColors.HighlightTextBrush : foreground,
-                    12);
-            }
-
-            if (checkedListBox != null)
-            {
-                Rect checkBounds = new(rowBounds.X + 4, rowBounds.Y + 3, 12, 12);
-                drawingContext.DrawRectangle(SystemColors.WindowBrush, new Pen(SystemColors.ControlDarkBrush, 1), checkBounds);
-                if (checkedListBox.GetItemChecked(i))
+                Rect rowBounds = new(bounds.X + 1, y, Math.Max(0, bounds.Width - 2), lineHeight);
+                bool selected = i == listBox.SelectedIndex;
+                if (selected)
                 {
-                    DrawText(drawingContext, "x", new Point(checkBounds.X + 2, checkBounds.Y - 1), SystemColors.ControlTextBrush, 11);
+                    drawingContext.DrawRectangle(SystemColors.HighlightBrush, null, rowBounds);
                 }
-            }
 
-            y += lineHeight;
+                Forms.CheckedListBox? checkedListBox = checkedItems
+                    ? listBox as Forms.CheckedListBox
+                    : null;
+                double textX = rowBounds.X + 4 + (checkedListBox != null ? 18 : 0);
+
+                Rect itemTextBounds = new(textX, rowBounds.Y + 1, Math.Max(0, rowBounds.Right - textX - 2), lineHeight - 2);
+                bool ownerDrawn = listBox.DrawMode != Forms.DrawMode.Normal
+                    && TryRenderListItemOwnerDraw(drawingContext, listBox, i, bounds, rowBounds);
+                if (!ownerDrawn)
+                {
+                    string text = listBox.Items[i]?.ToString() ?? string.Empty;
+                    DrawTextInBounds(
+                        drawingContext,
+                        text,
+                        itemTextBounds,
+                        selected ? SystemColors.HighlightTextBrush : foreground,
+                        12);
+                }
+
+                if (checkedListBox != null)
+                {
+                    Rect checkBounds = new(rowBounds.X + 4, rowBounds.Y + 3, 12, 12);
+                    drawingContext.DrawRectangle(SystemColors.WindowBrush, new Pen(SystemColors.ControlDarkBrush, 1), checkBounds);
+                    if (checkedListBox.GetItemChecked(i))
+                    {
+                        DrawText(drawingContext, "x", new Point(checkBounds.X + 2, checkBounds.Y - 1), SystemColors.ControlTextBrush, 11);
+                    }
+                }
+
+                y += lineHeight;
+            }
+        }
+        finally
+        {
+            CompletePortablePaintSurfaceSequence(listBox);
         }
     }
 
@@ -5268,23 +5281,29 @@ public class WindowsFormsHost : FrameworkElement
     {
         DrawBorder(drawingContext, treeView.BorderStyle, bounds);
         ResetPortablePaintSurfacePool(treeView);
-
-        Forms.TreeNodeLayoutEnumerator layouts = treeView.GetVisibleNodeLayouts().GetEnumerator();
-        while (layouts.MoveNext())
+        try
         {
-            Forms.TreeNodeLayout layout = layouts.Current;
-            Rect rowBounds = TranslateTreeNodeBounds(bounds, layout.RowBounds);
-            if (rowBounds.Bottom <= bounds.Top + 1)
+            Forms.TreeNodeLayoutEnumerator layouts = treeView.GetVisibleNodeLayouts().GetEnumerator();
+            while (layouts.MoveNext())
             {
-                continue;
-            }
+                Forms.TreeNodeLayout layout = layouts.Current;
+                Rect rowBounds = TranslateTreeNodeBounds(bounds, layout.RowBounds);
+                if (rowBounds.Bottom <= bounds.Top + 1)
+                {
+                    continue;
+                }
 
-            if (rowBounds.Top >= bounds.Bottom - 1)
-            {
-                break;
-            }
+                if (rowBounds.Top >= bounds.Bottom - 1)
+                {
+                    break;
+                }
 
-            RenderTreeNode(drawingContext, treeView, layout, bounds, rowBounds, foreground);
+                RenderTreeNode(drawingContext, treeView, layout, bounds, rowBounds, foreground);
+            }
+        }
+        finally
+        {
+            CompletePortablePaintSurfaceSequence(treeView);
         }
     }
 
@@ -5701,6 +5720,14 @@ public class WindowsFormsHost : FrameworkElement
         }
     }
 
+    private void CompletePortablePaintSurfaceSequence(Forms.Control control)
+    {
+        if (_portablePaintSurfacePools.TryGetValue(control, out PortablePaintSurfacePool? pool))
+        {
+            pool.CompleteSequence();
+        }
+    }
+
     private void RetirePortablePaintSurfacePool(Forms.Control control)
     {
         if (_portablePaintSurfacePools.Remove(control, out PortablePaintSurfacePool? pool))
@@ -5721,6 +5748,21 @@ public class WindowsFormsHost : FrameworkElement
 
     private void AdvanceRetiredPortablePaintSurfaces()
     {
+        foreach (PortablePaintSurfacePool pool in _portablePaintSurfacePools.Values)
+        {
+            pool.AdvanceRetiredSurfaces();
+        }
+
+        foreach (PortablePaintSurfacePool pool in _portableDesignerAdornerSurfacePools.Values)
+        {
+            pool.AdvanceRetiredSurfaces();
+        }
+
+        foreach (PortablePaintSurfacePool pool in _createGraphicsSurfacePools.Values)
+        {
+            pool.AdvanceRetiredSurfaces();
+        }
+
         foreach (PortablePaintSurfacePool pool in _safeRetiredPaintSurfacePools)
         {
             pool.Dispose();
@@ -5729,6 +5771,30 @@ public class WindowsFormsHost : FrameworkElement
         _safeRetiredPaintSurfacePools.Clear();
         _safeRetiredPaintSurfacePools.AddRange(_pendingRetiredPaintSurfacePools);
         _pendingRetiredPaintSurfacePools.Clear();
+    }
+
+    private (int SurfaceCount, int RetiredSurfaceCount, long PixelBytes) GetPortablePaintSurfaceMetrics()
+    {
+        var metrics = (SurfaceCount: 0, RetiredSurfaceCount: 0, PixelBytes: 0L);
+        AddPortablePaintSurfaceMetrics(_portablePaintSurfacePools.Values, ref metrics);
+        AddPortablePaintSurfaceMetrics(_portableDesignerAdornerSurfacePools.Values, ref metrics);
+        AddPortablePaintSurfaceMetrics(_createGraphicsSurfacePools.Values, ref metrics);
+        AddPortablePaintSurfaceMetrics(_pendingRetiredPaintSurfacePools, ref metrics);
+        AddPortablePaintSurfaceMetrics(_safeRetiredPaintSurfacePools, ref metrics);
+        return metrics;
+    }
+
+    private static void AddPortablePaintSurfaceMetrics(
+        IEnumerable<PortablePaintSurfacePool> pools,
+        ref (int SurfaceCount, int RetiredSurfaceCount, long PixelBytes) metrics)
+    {
+        foreach (PortablePaintSurfacePool pool in pools)
+        {
+            (int surfaceCount, int retiredSurfaceCount, long pixelBytes) = pool.GetMetrics();
+            metrics.SurfaceCount += surfaceCount;
+            metrics.RetiredSurfaceCount += retiredSurfaceCount;
+            metrics.PixelBytes += pixelBytes;
+        }
     }
 
     private void DisposePortablePaintSurfaces()
@@ -5768,7 +5834,8 @@ public class WindowsFormsHost : FrameworkElement
     private sealed class PortablePaintSurfacePool : IDisposable
     {
         private readonly List<PortablePaintSurface> _surfaces = new();
-        private readonly List<PortablePaintSurface> _retiredSurfaces = new();
+        private readonly List<PortablePaintSurface> _pendingRetiredSurfaces = new();
+        private readonly List<PortablePaintSurface> _safeRetiredSurfaces = new();
         private int _nextSurfaceIndex;
         private bool _isDisposed;
 
@@ -5794,10 +5861,51 @@ public class WindowsFormsHost : FrameworkElement
             return false;
         }
 
+        public (int SurfaceCount, int RetiredSurfaceCount, long PixelBytes) GetMetrics()
+        {
+            long pixelBytes = GetPixelBytes(_surfaces)
+                + GetPixelBytes(_pendingRetiredSurfaces)
+                + GetPixelBytes(_safeRetiredSurfaces);
+            return (
+                _surfaces.Count,
+                _pendingRetiredSurfaces.Count + _safeRetiredSurfaces.Count,
+                pixelBytes);
+        }
+
         public void ResetSequence()
         {
             ObjectDisposedException.ThrowIf(_isDisposed, this);
             _nextSurfaceIndex = 0;
+        }
+
+        public void CompleteSequence()
+        {
+            ObjectDisposedException.ThrowIf(_isDisposed, this);
+            int surplusSurfaceCount = _surfaces.Count - _nextSurfaceIndex;
+            if (surplusSurfaceCount > 0)
+            {
+                for (int index = _nextSurfaceIndex; index < _surfaces.Count; index++)
+                {
+                    _pendingRetiredSurfaces.Add(_surfaces[index]);
+                }
+
+                _surfaces.RemoveRange(_nextSurfaceIndex, surplusSurfaceCount);
+            }
+
+            _nextSurfaceIndex = 0;
+        }
+
+        public void AdvanceRetiredSurfaces()
+        {
+            ObjectDisposedException.ThrowIf(_isDisposed, this);
+            foreach (PortablePaintSurface surface in _safeRetiredSurfaces)
+            {
+                surface.Dispose();
+            }
+
+            _safeRetiredSurfaces.Clear();
+            _safeRetiredSurfaces.AddRange(_pendingRetiredSurfaces);
+            _pendingRetiredSurfaces.Clear();
         }
 
         public void Dispose()
@@ -5813,13 +5921,30 @@ public class WindowsFormsHost : FrameworkElement
                 surface.Dispose();
             }
 
-            foreach (PortablePaintSurface surface in _retiredSurfaces)
+            foreach (PortablePaintSurface surface in _pendingRetiredSurfaces)
+            {
+                surface.Dispose();
+            }
+
+            foreach (PortablePaintSurface surface in _safeRetiredSurfaces)
             {
                 surface.Dispose();
             }
 
             _surfaces.Clear();
-            _retiredSurfaces.Clear();
+            _pendingRetiredSurfaces.Clear();
+            _safeRetiredSurfaces.Clear();
+        }
+
+        private static long GetPixelBytes(List<PortablePaintSurface> surfaces)
+        {
+            long pixelBytes = 0;
+            foreach (PortablePaintSurface surface in surfaces)
+            {
+                pixelBytes += surface.PixelBytes;
+            }
+
+            return pixelBytes;
         }
 
         private PortablePaintSurface Acquire(int index, int width, int height)
@@ -5833,7 +5958,7 @@ public class WindowsFormsHost : FrameworkElement
                     return current;
                 }
 
-                _retiredSurfaces.Add(current);
+                _pendingRetiredSurfaces.Add(current);
                 PortablePaintSurface replacement = new(width, height);
                 _surfaces[index] = replacement;
                 return replacement;
@@ -5865,6 +5990,8 @@ public class WindowsFormsHost : FrameworkElement
         public DrawingBitmap Bitmap { get; }
 
         public int Height { get; }
+
+        public long PixelBytes => (long)Width * Height * 4;
 
         public ImageSource? Source { get; }
 

@@ -71,6 +71,11 @@ internal static class Program
             return RunCustomPaintSmoke();
         }
 
+        if (args.Contains("--run-paint-surface-retirement", StringComparer.Ordinal))
+        {
+            return RunPaintSurfaceRetirementSmoke();
+        }
+
         if (args.Contains("--run-create-graphics", StringComparer.Ordinal))
         {
             return RunCreateGraphicsSmoke();
@@ -1540,6 +1545,135 @@ internal static class Program
             + "reparentInvalidation=True retainedFallbackPaint=True "
             + "retainedFallbackOwnerDraw=True border3D=True");
         return 0;
+    }
+
+    private static int RunPaintSurfaceRetirementSmoke()
+    {
+        const int resizeCount = 128;
+        var control = new CustomPaintSmokeControl();
+        var host = new SmokeWindowsFormsHost { Child = control };
+        int maximumSurfaceCount = 0;
+        int maximumRetiredSurfaceCount = 0;
+        long maximumPixelBytes = 0;
+        int finalWidth = 0;
+        int finalHeight = 0;
+
+        for (int index = 0; index < resizeCount; index++)
+        {
+            finalWidth = 256 + index;
+            finalHeight = 192 + index;
+            host.Measure(new System.Windows.Size(finalWidth, finalHeight));
+            host.Arrange(new System.Windows.Rect(0, 0, finalWidth, finalHeight));
+            RenderHostForSmoke(host);
+
+            maximumSurfaceCount = Math.Max(maximumSurfaceCount, host.PortablePaintSurfaceCount);
+            maximumRetiredSurfaceCount = Math.Max(maximumRetiredSurfaceCount, host.PortableRetiredPaintSurfaceCount);
+            maximumPixelBytes = Math.Max(maximumPixelBytes, host.PortablePaintSurfacePixelBytes);
+        }
+
+        RenderHostForSmoke(host);
+        RenderHostForSmoke(host);
+
+        long expectedFinalPixelBytes = (long)finalWidth * finalHeight * 4;
+        long boundedResizePixelBytes = expectedFinalPixelBytes * 3;
+        bool ownerDrawHighWaterRetired = VerifyOwnerDrawHighWaterRetirement(
+            out int ownerDrawHighWaterSurfaces,
+            out int ownerDrawFinalSurfaces,
+            out int ownerDrawFinalRetiredSurfaces,
+            out long ownerDrawFinalPixelBytes);
+        bool success = maximumSurfaceCount <= 3
+            && maximumRetiredSurfaceCount <= 2
+            && maximumPixelBytes <= boundedResizePixelBytes
+            && host.PortablePaintSurfaceCount == 1
+            && host.PortableRetiredPaintSurfaceCount == 0
+            && host.PortablePaintSurfacePixelBytes == expectedFinalPixelBytes
+            && ownerDrawHighWaterRetired;
+        host.Child = null;
+        if (!success)
+        {
+            Console.Error.WriteLine(
+                "LibreWinForms paint-surface retirement smoke failed"
+                + $" maxSurfaces={maximumSurfaceCount}"
+                + $" maxRetired={maximumRetiredSurfaceCount}"
+                + $" maxPixelBytes={maximumPixelBytes}/{boundedResizePixelBytes}"
+                + $" finalSurfaces={host.PortablePaintSurfaceCount}"
+                + $" finalRetired={host.PortableRetiredPaintSurfaceCount}"
+                + $" finalPixelBytes={host.PortablePaintSurfacePixelBytes}/{expectedFinalPixelBytes}"
+                + $" ownerDrawHighWater={ownerDrawHighWaterSurfaces}"
+                + $" ownerDrawFinal={ownerDrawFinalSurfaces}"
+                + $" ownerDrawFinalRetired={ownerDrawFinalRetiredSurfaces}"
+                + $" ownerDrawFinalPixelBytes={ownerDrawFinalPixelBytes}");
+            return 18;
+        }
+
+        Console.WriteLine(
+            "LibreWinForms paint-surface retirement smoke result=Success"
+            + $" resizes={resizeCount}"
+            + $" maxSurfaces={maximumSurfaceCount}"
+            + $" maxRetired={maximumRetiredSurfaceCount}"
+            + $" maxPixelBytes={maximumPixelBytes}"
+            + $" finalPixelBytes={expectedFinalPixelBytes}"
+            + $" ownerDrawHighWater={ownerDrawHighWaterSurfaces}"
+            + $" ownerDrawFinal={ownerDrawFinalSurfaces}"
+            + $" ownerDrawFinalPixelBytes={ownerDrawFinalPixelBytes}");
+        return 0;
+    }
+
+    private static bool VerifyOwnerDrawHighWaterRetirement(
+        out int highWaterSurfaceCount,
+        out int finalSurfaceCount,
+        out int finalRetiredSurfaceCount,
+        out long finalPixelBytes)
+    {
+        const int width = 320;
+        const int expandedHeight = 720;
+        const int compactHeight = 72;
+        var treeView = new Forms.TreeView
+        {
+            DrawMode = Forms.TreeViewDrawMode.OwnerDrawText,
+            Size = new System.Drawing.Size(width, expandedHeight)
+        };
+        for (int index = 0; index < 64; index++)
+        {
+            treeView.Nodes.Add(new Forms.TreeNode($"Node {index}"));
+        }
+
+        treeView.DrawNode += static (_, eventArgs) =>
+        {
+            using var brush = new System.Drawing.SolidBrush(System.Drawing.Color.DarkSlateBlue);
+            eventArgs.Graphics.FillRectangle(brush, eventArgs.Bounds);
+            eventArgs.DrawDefault = true;
+        };
+
+        var host = new SmokeWindowsFormsHost { Child = treeView };
+        host.Measure(new System.Windows.Size(width, expandedHeight));
+        host.Arrange(new System.Windows.Rect(0, 0, width, expandedHeight));
+        RenderHostForSmoke(host);
+        highWaterSurfaceCount = host.PortablePaintSurfaceCount;
+
+        treeView.Size = new System.Drawing.Size(width, compactHeight);
+        host.Measure(new System.Windows.Size(width, compactHeight));
+        host.Arrange(new System.Windows.Rect(0, 0, width, compactHeight));
+        RenderHostForSmoke(host);
+        RenderHostForSmoke(host);
+        RenderHostForSmoke(host);
+
+        finalSurfaceCount = host.PortablePaintSurfaceCount;
+        finalRetiredSurfaceCount = host.PortableRetiredPaintSurfaceCount;
+        finalPixelBytes = host.PortablePaintSurfacePixelBytes;
+        host.Child = null;
+        return highWaterSurfaceCount >= 16
+            && finalSurfaceCount <= 5
+            && finalSurfaceCount < highWaterSurfaceCount
+            && finalRetiredSurfaceCount == 0
+            && finalPixelBytes <= (long)width * 24 * 5 * 4;
+    }
+
+    private static void RenderHostForSmoke(SmokeWindowsFormsHost host)
+    {
+        var visual = new System.Windows.Media.DrawingVisual();
+        using System.Windows.Media.DrawingContext drawingContext = visual.RenderOpen();
+        host.RenderForSmoke(drawingContext);
     }
 
     private static int RunCreateGraphicsSmoke()

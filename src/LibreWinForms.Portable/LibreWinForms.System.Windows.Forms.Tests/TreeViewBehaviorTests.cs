@@ -35,6 +35,12 @@ internal static class TreeViewBehaviorTests
                 return 0;
             }
 
+            if (args.Length == 1 && string.Equals(args[0], "forms-designer-layout", StringComparison.Ordinal))
+            {
+                FormsDesignerLayoutBehaviorTests.Run();
+                return 0;
+            }
+
             LayoutHitTestingExpansionAndScrollingStayInSync();
             ImageGeometryUsesImageListMetrics();
             KeyboardNavigationUsesVisibleTreeOrder();
