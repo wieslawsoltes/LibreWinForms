@@ -265,6 +265,7 @@ internal static class Program
         bool clickInputSent = false;
         bool timedOut = false;
         int clickCount = 0;
+        int readyPopupTicks = 0;
         int attempts = 0;
         System.Windows.Media.ProGPU.ProGpuWpfDiagnostics.PortablePopupSnapshot popupSnapshot = default;
 
@@ -370,7 +371,8 @@ internal static class Program
                             window,
                             out popupSnapshot))
                     {
-                        dropDownVisible |= fileItem.DropDown.Visible;
+                        bool currentDropDownVisible = fileItem.DropDown.Visible;
+                        dropDownVisible |= currentDropDownVisible;
                         usesNativePopup = popupSnapshot.NativeWindowCount >= 1;
                         bool currentPopupSurfaceReady = usesNativePopup
                             ? popupSnapshot.NativeWindowCount >= 1
@@ -381,8 +383,14 @@ internal static class Program
                                 && popupSnapshot.VisibleCount >= 1
                                 && popupSnapshot.NativeWindowCount == 0;
                         popupSurfaceReady |= currentPopupSurfaceReady;
-                        if (dropDownVisible && currentPopupSurfaceReady && !clickInputSent)
+                        if (currentDropDownVisible && currentPopupSurfaceReady && clickCount == 0)
                         {
+                            readyPopupTicks++;
+                            if (readyPopupTicks < 3 || (readyPopupTicks % 3) != 0)
+                            {
+                                return;
+                            }
+
                             double popupX = usesNativePopup ? 18.0 : menuPoint.X;
                             double popupY = usesNativePopup ? 12.0 : menuPoint.Y + 27.0;
                             inputAccepted &= TryRaisePopupInput(
