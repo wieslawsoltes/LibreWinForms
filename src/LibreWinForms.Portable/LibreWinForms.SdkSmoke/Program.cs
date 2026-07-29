@@ -1712,7 +1712,10 @@ internal static class Program
         bool churnBounded = VerifyRenderResourceCacheBounds(
             out int churnColorBrushCount,
             out int churnFormattedTextCount,
-            out int churnTextDrawingCount);
+            out int churnTextDrawingCount,
+            out long churnRetainedManagedBytes,
+            out long churnRemainingManagedBytes,
+            out double churnElapsedMilliseconds);
         Console.WriteLine(
             "LibreWinForms render allocation benchmark"
             + $" controls={controlCount}"
@@ -1732,7 +1735,10 @@ internal static class Program
             + $" released={released}"
             + $" churnColorBrushes={churnColorBrushCount}"
             + $" churnFormattedText={churnFormattedTextCount}"
-            + $" churnTextDrawings={churnTextDrawingCount}");
+            + $" churnTextDrawings={churnTextDrawingCount}"
+            + $" churnRetainedManagedBytes={churnRetainedManagedBytes}"
+            + $" churnRemainingManagedBytes={churnRemainingManagedBytes}"
+            + $" churnElapsedMs={churnElapsedMilliseconds:F3}");
         if (!bounded || !mutationRebuilt || !released || !churnBounded)
         {
             Console.Error.WriteLine(
@@ -1758,9 +1764,13 @@ internal static class Program
     private static bool VerifyRenderResourceCacheBounds(
         out int colorBrushCount,
         out int formattedTextCount,
-        out int textDrawingCount)
+        out int textDrawingCount,
+        out long retainedManagedBytes,
+        out long remainingManagedBytes,
+        out double elapsedMilliseconds)
     {
         const int churnCount = 2200;
+        long managedHeapBefore = GC.GetTotalMemory(forceFullCollection: true);
         var label = new Forms.Label
         {
             ForeColor = System.Drawing.Color.DarkSlateGray,
@@ -1769,6 +1779,7 @@ internal static class Program
         var host = new SmokeWindowsFormsHost { Child = label };
         host.Measure(new System.Windows.Size(label.Width, label.Height));
         host.Arrange(new System.Windows.Rect(0, 0, label.Width, label.Height));
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
         for (int index = 0; index < churnCount; index++)
         {
             label.BackColor = System.Drawing.Color.FromArgb(
@@ -1780,17 +1791,24 @@ internal static class Program
             RenderHostForSmoke(host);
         }
 
+        elapsedMilliseconds = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         colorBrushCount = host.PortableColorBrushCacheCount;
         formattedTextCount = host.PortableFormattedTextCacheCount;
         textDrawingCount = host.PortableTextDrawingCacheCount;
+        long managedHeapPopulated = GC.GetTotalMemory(forceFullCollection: true);
+        retainedManagedBytes = Math.Max(0, managedHeapPopulated - managedHeapBefore);
         bool bounded = colorBrushCount is > 0 and <= 256
             && formattedTextCount is > 0 and <= 2048
             && textDrawingCount is > 0 and <= 2048;
         host.Child = null;
-        return bounded
-            && host.PortableColorBrushCacheCount == 0
+        long managedHeapReleased = GC.GetTotalMemory(forceFullCollection: true);
+        remainingManagedBytes = Math.Max(0, managedHeapReleased - managedHeapBefore);
+        bool released = host.PortableColorBrushCacheCount == 0
             && host.PortableFormattedTextCacheCount == 0
             && host.PortableTextDrawingCacheCount == 0;
+        GC.KeepAlive(label);
+        GC.KeepAlive(host);
+        return bounded && released;
     }
 
     private static int RunLayoutAllocationBenchmark()

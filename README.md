@@ -149,8 +149,16 @@ bytes/frame, requires exactly one unchanged retained-drawing build, requires an
 actual rebuild after text/color invalidation, and requires all retained drawing
 and render-resource caches to release when the hosted tree is detached.
 
-These figures measure managed allocation traffic and CPU recording time, not
-managed retention, process RSS, GPU residency, or device execution. Paint
+The same gate churns 2,200 unique text/color combinations and now reports
+managed retention before and after detaching the hosted tree. On the same host,
+the deliberately saturated 256-brush/2,048-text/2,048-drawing caches retain
+about 13.9 MB at their high-water mark and leave about 0.68 MB after detach; the
+2,200 invalidating renders take roughly 116 ms. The count limits preserve text
+reuse for scrolling while the detach assertion prevents the bounded cache from
+becoming a lifetime leak.
+
+These figures measure managed allocation traffic, managed heap retention, and
+CPU recording time, not process RSS, GPU residency, or device execution. Paint
 surface pixel ownership, retained resource counts, and zero-allocation layout
 passes are checked independently so an allocation improvement cannot hide an
 unbounded cache or graphics-resource leak.

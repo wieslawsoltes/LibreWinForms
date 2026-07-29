@@ -1191,6 +1191,9 @@ internal static class FormsDesignerLayoutBehaviorTests
             && smokeSource.Contains("defaultValue: 2_000", StringComparison.Ordinal)
             && smokeSource.Contains("RenderHostForSmoke(host, frameVisual);", StringComparison.Ordinal)
             && smokeSource.Contains("System.Windows.Media.DrawingVisual visual", StringComparison.Ordinal)
+            && smokeSource.Contains("churnRetainedManagedBytes=", StringComparison.Ordinal)
+            && smokeSource.Contains("churnRemainingManagedBytes=", StringComparison.Ordinal)
+            && smokeSource.Contains("GC.GetTotalMemory(forceFullCollection: true)", StringComparison.Ordinal)
             && smokeSource.Contains("mutationRebuilt={mutationRebuilt}", StringComparison.Ordinal)
             && smokeSource.Contains("released={released}", StringComparison.Ordinal),
             "Package-mode WinForms validation stopped enforcing steady-state allocation and release.");
