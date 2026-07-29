@@ -24,6 +24,7 @@ internal static class ReportingDesignerBehaviorTests
         DesignerFiltersFlowThroughTypeDescriptorAndPropertyGrid();
         CodeDomSerializationServiceRoundTripsPortableComponents();
         CodeDomSerializationStoreRoundTripsThroughStream();
+        CodeDomSerializationStoreRestoresContentComponents();
         WaitCursorAndDesignerPaintPrimitivesAreFunctional();
         CollectionAndAlignmentEditorsCommitValues();
         Console.WriteLine("LibreWinForms Reporting designer contracts passed: rules=9 hooks=7 loader=39 lifecycle=5 filters=10 serialization=6 paint=6 editors=9.");
@@ -400,6 +401,50 @@ internal static class ReportingDesignerBehaviorTests
         Assert(ReferenceEquals(restored.Site?.Container, host.Container)
             && ReferenceEquals(restored.Controls[0].Site?.Container, host.Container),
             "Stream-backed CodeDom serialization restored components outside the designer host.");
+    }
+
+    private static void CodeDomSerializationStoreRestoresContentComponents()
+    {
+        using var surface = new DesignSurface();
+        IDesignerHost host = (IDesignerHost)(surface.GetService(typeof(IDesignerHost))
+            ?? throw new InvalidOperationException("Design surface did not publish an IDesignerHost."));
+        var menu = (Forms.MenuStrip)host.CreateComponent(typeof(Forms.MenuStrip), "mainMenu");
+        var fileItem = (Forms.ToolStripMenuItem)host.CreateComponent(
+            typeof(Forms.ToolStripMenuItem),
+            "fileMenuItem");
+        fileItem.Text = "&File";
+        var openItem = (Forms.ToolStripMenuItem)host.CreateComponent(
+            typeof(Forms.ToolStripMenuItem),
+            "openMenuItem");
+        openItem.Text = "&Open";
+        fileItem.DropDownItems.Add(openItem);
+        menu.Items.Add(fileItem);
+
+        var service = new CodeDomComponentSerializationService(surface);
+        using var stream = new MemoryStream();
+        using (SerializationStore store = service.CreateStore())
+        {
+            service.Serialize(store, menu);
+            store.Save(stream);
+        }
+
+        stream.Position = 0;
+        using SerializationStore loadedStore = service.LoadStore(stream);
+        Forms.MenuStrip restored = service.Deserialize(loadedStore)
+            .Cast<object>()
+            .OfType<Forms.MenuStrip>()
+            .Single();
+
+        Assert(restored.Items.Count == 1
+            && restored.Items[0] is Forms.ToolStripMenuItem restoredFile
+            && restoredFile.Text == fileItem.Text
+            && restoredFile.DropDownItems.Count == 1
+            && restoredFile.DropDownItems[0] is Forms.ToolStripMenuItem restoredOpen
+            && restoredOpen.Text == openItem.Text,
+            "Stream-backed CodeDom serialization lost nested ToolStrip content components.");
+        Assert(restored.Items[0].Site?.Container == host.Container
+            && ((Forms.ToolStripMenuItem)restored.Items[0]).DropDownItems[0].Site?.Container == host.Container,
+            "Stream-backed CodeDom serialization restored ToolStrip items outside the designer host.");
     }
 
     private static void WaitCursorAndDesignerPaintPrimitivesAreFunctional()

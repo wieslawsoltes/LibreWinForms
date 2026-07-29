@@ -258,7 +258,7 @@ internal sealed class PortableDesignerSerializationService : IDesignerSerializat
         foreach (PortablePropertyValue value in values)
         {
             PropertyDescriptor? property = properties[value.Name];
-            if (property is null || property.IsReadOnly || s_excludedProperties.Contains(property.Name))
+            if (property is null || s_excludedProperties.Contains(property.Name))
             {
                 throw new PortableDesignerSerializationException(
                     $"Portable designer serialization cannot restore property '{GetComponentName(component)}.{value.Name}'.");
@@ -266,6 +266,17 @@ internal sealed class PortableDesignerSerializationService : IDesignerSerializat
 
             try
             {
+                if (value.Value is PortableCollectionValue collectionValue)
+                {
+                    RestoreCollection(component, property, collectionValue, componentsById);
+                    continue;
+                }
+                if (property.IsReadOnly)
+                {
+                    throw new PortableDesignerSerializationException(
+                        $"Portable designer serialization cannot restore read-only property '{GetComponentName(component)}.{value.Name}'.");
+                }
+
                 property.SetValue(component, RestoreValue(value.Value, property.PropertyType, componentsById));
             }
             catch (PortableDesignerSerializationException)
@@ -277,6 +288,25 @@ internal sealed class PortableDesignerSerializationService : IDesignerSerializat
                 throw CreatePropertyException("restore", component, property, exception);
             }
         }
+    }
+
+    private static void RestoreCollection(
+        IComponent component,
+        PropertyDescriptor property,
+        PortableCollectionValue value,
+        Dictionary<int, IComponent> componentsById)
+    {
+        if (property.GetValue(component) is not IList collection
+            || collection.IsReadOnly
+            || collection.IsFixedSize)
+        {
+            throw new PortableDesignerSerializationException(
+                $"Portable designer serialization cannot restore content collection '{GetComponentName(component)}.{property.Name}'.");
+        }
+
+        collection.Clear();
+        foreach (object? item in value.Values)
+            collection.Add(RestoreValue(item, typeof(object), componentsById));
     }
 
     private void ApplyEvents(IComponent component, PortableEventValue[] values)
@@ -347,6 +377,12 @@ internal sealed class PortableDesignerSerializationService : IDesignerSerializat
             for (int i = 0; i < arrayValue.Values.Length; i++)
                 array.SetValue(RestoreValue(arrayValue.Values[i], elementType, componentsById), i);
             return array;
+        }
+
+        if (value is PortableCollectionValue)
+        {
+            throw new InvalidDataException(
+                "A portable content collection can only be restored through its owning property.");
         }
 
         if (value is PortableFontValue fontValue)
@@ -455,6 +491,15 @@ internal sealed class PortableDesignerSerializationService : IDesignerSerializat
             return;
         }
 
+        if (value is PortableCollectionValue collection)
+        {
+            writer.Write((byte)PortableValueKind.Collection);
+            writer.Write(collection.Values.Length);
+            foreach (object? item in collection.Values)
+                WriteValue(writer, item);
+            return;
+        }
+
         if (value is Font font)
         {
             writer.Write((byte)PortableValueKind.Font);
@@ -531,6 +576,7 @@ internal sealed class PortableDesignerSerializationService : IDesignerSerializat
             PortableValueKind.Null => null,
             PortableValueKind.ComponentReference => new PortableComponentReference(reader.ReadInt32()),
             PortableValueKind.Array => ReadArrayValue(reader),
+            PortableValueKind.Collection => ReadCollectionValue(reader),
             PortableValueKind.Font => new PortableFontValue(
                 ReadString(reader),
                 reader.ReadSingle(),
@@ -570,6 +616,15 @@ internal sealed class PortableDesignerSerializationService : IDesignerSerializat
         for (int i = 0; i < values.Length; i++)
             values[i] = ReadValue(reader);
         return new PortableArrayValue(elementType, values);
+    }
+
+    private static PortableCollectionValue ReadCollectionValue(BinaryReader reader)
+    {
+        int count = ReadCount(reader, MaxArrayLength, "collection item");
+        var values = new object?[count];
+        for (int i = 0; i < values.Length; i++)
+            values[i] = ReadValue(reader);
+        return new PortableCollectionValue(values);
     }
 
     private static PortableCursorKind ReadCursorKind(BinaryReader reader)
@@ -750,8 +805,18 @@ internal sealed class PortableDesignerSerializationService : IDesignerSerializat
                 {
                     try
                     {
-                        if (property.ShouldSerializeValue(component))
+                        if (!property.ShouldSerializeValue(component))
+                            continue;
+
+                        if (property.GetValue(component) is not IList collection)
                             throw CreateUnsupportedContentException(component, property);
+
+                        var items = new object?[collection.Count];
+                        for (int i = 0; i < collection.Count; i++)
+                            items[i] = CaptureArrayItem(component, property, collection[i]);
+                        values.Add(new PortablePropertyValue(
+                            property.Name,
+                            new PortableCollectionValue(items)));
                     }
                     catch (PortableDesignerSerializationException)
                     {
@@ -981,6 +1046,8 @@ internal sealed class PortableDesignerSerializationService : IDesignerSerializat
 
     private sealed record PortableArrayValue(Type ElementType, object?[] Values);
 
+    private sealed record PortableCollectionValue(object?[] Values);
+
     private sealed record PortableConvertedValue(
         string TypeName,
         PortableConvertedValueKind Kind,
@@ -1008,6 +1075,7 @@ internal sealed class PortableDesignerSerializationService : IDesignerSerializat
         Null,
         ComponentReference,
         Array,
+        Collection,
         Font,
         Cursor,
         Padding,

@@ -5302,6 +5302,7 @@ public class WebBrowser : Control
 
 public class ToolStrip : Control
 {
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Content)]
     public ToolStripItemCollection Items { get; } = new();
 
     public bool CanOverflow { get; set; } = true;
@@ -5535,6 +5536,7 @@ public class ToolStripMenuItem : ToolStripItem
 
     public ToolStripDropDown DropDown => _dropDown;
 
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Content)]
     public ToolStripItemCollection DropDownItems => _dropDown.Items;
 
     public string ShortcutKeyDisplayString { get; set; } = string.Empty;
@@ -5565,6 +5567,7 @@ public class ToolStripDropDownButton : ToolStripItem
 
     public ToolStripDropDown DropDown => _dropDown;
 
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Content)]
     public ToolStripItemCollection DropDownItems => _dropDown.Items;
 
     public void ShowDropDown()
