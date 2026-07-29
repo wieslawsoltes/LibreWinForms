@@ -17,6 +17,7 @@ internal static class ControlCollectionBehaviorTests
         ParentingCyclesFailClosed();
         ControlSizesClampNegativeDimensions();
         RecursiveInvalidationHonorsTheChildrenFlag();
+        VisualPropertyChangesInvalidateExactlyOnce();
         DisposingControlReleasesCreatedDescendantHandles();
         SplitContainerSupportsDesignerInitialization();
         Console.WriteLine("LibreWinForms control collection event tests passed.");
@@ -76,6 +77,30 @@ internal static class ControlCollectionBehaviorTests
         root.Invalidate(invalidateChildren: true);
         Assert(rootInvalidated == 2 && childInvalidated == 1 && grandchildInvalidated == 1,
             "Invalidate(true) did not recursively invalidate each descendant exactly once.");
+    }
+
+    private static void VisualPropertyChangesInvalidateExactlyOnce()
+    {
+        using var control = new Forms.Control();
+        int invalidated = 0;
+        int textChanged = 0;
+        control.Invalidated += (_, _) => invalidated++;
+        control.TextChanged += (_, _) => textChanged++;
+
+        control.Text = "Updated";
+        control.BackColor = System.Drawing.Color.AliceBlue;
+        control.ForeColor = System.Drawing.Color.DarkSlateGray;
+
+        Assert(invalidated == 3,
+            $"Visual property changes invalidated {invalidated} times instead of once per changed property.");
+        Assert(textChanged == 1,
+            "Changing Control.Text did not publish exactly one TextChanged event.");
+
+        control.Text = "Updated";
+        control.BackColor = System.Drawing.Color.AliceBlue;
+        control.ForeColor = System.Drawing.Color.DarkSlateGray;
+        Assert(invalidated == 3 && textChanged == 1,
+            "Assigning unchanged visual properties published redundant invalidation or TextChanged events.");
     }
 
     private static void AddedRemovedReplacementAndClearPublishTypedEvents()

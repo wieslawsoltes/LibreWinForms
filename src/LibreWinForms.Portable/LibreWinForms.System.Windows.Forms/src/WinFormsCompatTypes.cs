@@ -112,6 +112,8 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
     private IntPtr _handle;
     private Point _location;
     private Size _size;
+    private Color _backColor = SystemColors.Control;
+    private Color _foreColor = SystemColors.ControlText;
     private bool _visible = true;
     private bool _enabled = true;
     private bool _focused;
@@ -168,7 +170,20 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
 
     public AnchorStyles Anchor { get; set; } = AnchorStyles.Top | AnchorStyles.Left;
 
-    public Color BackColor { get; set; } = SystemColors.Control;
+    public Color BackColor
+    {
+        get => _backColor;
+        set
+        {
+            if (_backColor == value)
+            {
+                return;
+            }
+
+            _backColor = value;
+            Invalidate();
+        }
+    }
 
     public Image? BackgroundImage { get; set; }
 
@@ -245,7 +260,20 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
 
     public Cursor Cursor { get; set; } = Cursors.Default;
 
-    public Color ForeColor { get; set; } = SystemColors.ControlText;
+    public Color ForeColor
+    {
+        get => _foreColor;
+        set
+        {
+            if (_foreColor == value)
+            {
+                return;
+            }
+
+            _foreColor = value;
+            Invalidate();
+        }
+    }
 
     public IntPtr Handle
     {
@@ -374,6 +402,7 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
 
             _text = value;
             OnTextChanged(EventArgs.Empty);
+            Invalidate();
         }
     }
 
@@ -2790,7 +2819,6 @@ public class ButtonBase : Control
     protected override void OnTextChanged(EventArgs e)
     {
         base.OnTextChanged(e);
-        Invalidate();
     }
 
     protected static void ValidateContentAlignment(ContentAlignment value)
