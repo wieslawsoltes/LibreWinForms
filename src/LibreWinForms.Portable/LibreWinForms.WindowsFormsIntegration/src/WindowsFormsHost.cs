@@ -258,6 +258,12 @@ public class WindowsFormsHost : FrameworkElement
     private readonly Queue<PortableFormattedTextKey> _portableFormattedTextCacheOrder = new();
     private readonly Dictionary<PortableTextDrawingKey, DrawingGroup> _portableTextDrawingCache = new();
     private readonly Queue<PortableTextDrawingKey> _portableTextDrawingCacheOrder = new();
+    private DrawingGroup? _portableRetainedDrawing;
+    private Rect _portableRetainedDrawingBounds;
+    private bool _portableRetainedDrawingDirty = true;
+    private long _portableRenderVersion;
+    private long _portableRetainedDrawingVersion = -1;
+    private long _portableRetainedDrawingBuildCount;
     private Typeface? _portableTypeface;
     private FontFamily? _portableTypefaceFontFamily;
     private FontStyle _portableTypefaceFontStyle;
@@ -344,7 +350,7 @@ public class WindowsFormsHost : FrameworkElement
 
             ChildChanged?.Invoke(this, new ChildChangedEventArgs(previous));
             InvalidateMeasure();
-            InvalidateVisual();
+            InvalidatePortableRender();
         }
     }
 
@@ -413,6 +419,10 @@ public class WindowsFormsHost : FrameworkElement
     public int PortableFormattedTextCacheCount => _portableFormattedTextCache.Count;
 
     public int PortableTextDrawingCacheCount => _portableTextDrawingCache.Count;
+
+    public bool PortableHasRetainedDrawing => _portableRetainedDrawing is not null;
+
+    public long PortableRetainedDrawingBuildCount => Interlocked.Read(ref _portableRetainedDrawingBuildCount);
 
     [Bindable(true)]
     [Category("Behavior")]
@@ -1862,8 +1872,44 @@ public class WindowsFormsHost : FrameworkElement
             return;
         }
 
-        RenderControl(drawingContext, _child, new Rect(0, 0, ActualWidth, ActualHeight));
-        RenderDesignAdorners(drawingContext, _child);
+        var bounds = new Rect(0, 0, ActualWidth, ActualHeight);
+        long requestedRenderVersion = Interlocked.Read(ref _portableRenderVersion);
+        if (_portableRetainedDrawing is null
+            || _portableRetainedDrawingDirty
+            || _portableRetainedDrawingVersion != requestedRenderVersion
+            || _portableRetainedDrawingBounds != bounds)
+        {
+            var retainedDrawing = new DrawingGroup();
+            using (DrawingContext retainedContext = retainedDrawing.Open())
+            {
+                RenderControl(retainedContext, _child, bounds);
+                RenderDesignAdorners(retainedContext, _child);
+            }
+
+            _portableRetainedDrawing = retainedDrawing;
+            _portableRetainedDrawingBounds = bounds;
+            _portableRetainedDrawingVersion = requestedRenderVersion;
+            _portableRetainedDrawingDirty =
+                Interlocked.Read(ref _portableRenderVersion) != requestedRenderVersion;
+            Interlocked.Increment(ref _portableRetainedDrawingBuildCount);
+        }
+
+        drawingContext.DrawDrawing(_portableRetainedDrawing);
+    }
+
+    protected override void OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+    {
+        base.OnPropertyChanged(e);
+        if (e.Property == BackgroundProperty
+            || e.Property == FontFamilyProperty
+            || e.Property == FontSizeProperty
+            || e.Property == FontStyleProperty
+            || e.Property == FontWeightProperty
+            || e.Property == ForegroundProperty
+            || e.Property == PaddingProperty)
+        {
+            InvalidatePortableRender();
+        }
     }
 
     protected override void OnMouseDown(MouseButtonEventArgs e)
@@ -1876,7 +1922,7 @@ public class WindowsFormsHost : FrameworkElement
         _pressedClickCount = 0;
         if (hadPressedControl)
         {
-            InvalidateVisual();
+            InvalidatePortableRender();
         }
 
         if (_child == null)
@@ -1918,7 +1964,7 @@ public class WindowsFormsHost : FrameworkElement
             _pressedControl = target;
             _pressedButton = pressedButton;
             _pressedClickCount = e.ClickCount;
-            InvalidateVisual();
+            InvalidatePortableRender();
         }
 
         var mouseEventArgs = new Forms.MouseEventArgs(MapMouseButton(e.ChangedButton), e.ClickCount, ToWinFormsCoordinate(localPoint.X), ToWinFormsCoordinate(localPoint.Y), 0);
@@ -1979,7 +2025,7 @@ public class WindowsFormsHost : FrameworkElement
             _pressedClickCount = 0;
             if (hadPressedControl)
             {
-                InvalidateVisual();
+                InvalidatePortableRender();
             }
 
             return;
@@ -2010,7 +2056,7 @@ public class WindowsFormsHost : FrameworkElement
             Cursor = System.Windows.Input.Cursors.Arrow;
             if (hadPressedControl)
             {
-                InvalidateVisual();
+                InvalidatePortableRender();
             }
 
             return;
@@ -2031,7 +2077,7 @@ public class WindowsFormsHost : FrameworkElement
         _pressedToolStripItem = null;
         _pressedButton = Forms.MouseButtons.None;
         _pressedClickCount = 0;
-        InvalidateVisual();
+        InvalidatePortableRender();
 
         var mouseEventArgs = new Forms.MouseEventArgs(releasedButton, clickCount, ToWinFormsCoordinate(localPoint.X), ToWinFormsCoordinate(localPoint.Y), 0);
         bool designMode = target.Site?.DesignMode == true;
@@ -2565,7 +2611,7 @@ public class WindowsFormsHost : FrameworkElement
             menuItem.Click += delegate
             {
                 comboBox.SelectedIndex = itemIndex;
-                InvalidateVisual();
+                InvalidatePortableRender();
                 contextMenu.IsOpen = false;
             };
             contextMenu.Items.Add(menuItem);
@@ -2629,7 +2675,7 @@ public class WindowsFormsHost : FrameworkElement
             menuItem.Click += delegate
             {
                 comboBox.SelectedIndex = itemIndex;
-                InvalidateVisual();
+                InvalidatePortableRender();
                 contextMenu.IsOpen = false;
             };
             contextMenu.Items.Add(menuItem);
@@ -2662,7 +2708,7 @@ public class WindowsFormsHost : FrameworkElement
 
         if (selectedItem != null)
         {
-            InvalidateVisual();
+            InvalidatePortableRender();
         }
 
         return selectedItem;
@@ -2801,7 +2847,7 @@ public class WindowsFormsHost : FrameworkElement
                     numericUpDown.Value + delta,
                     numericUpDown.Minimum,
                     numericUpDown.Maximum);
-                InvalidateVisual();
+                InvalidatePortableRender();
             }
             else
             {
@@ -3163,6 +3209,7 @@ public class WindowsFormsHost : FrameworkElement
         HandlePortableDragHostUnavailable();
         DetachDesignSelectionService();
         DisposePortablePaintSurfaces();
+        ClearPortableRenderResourceCaches();
     }
 
     private void HandlePortableDragHostUnavailable()
@@ -3312,7 +3359,7 @@ public class WindowsFormsHost : FrameworkElement
 
     private void OnDesignSelectionChanged(object? sender, EventArgs e)
     {
-        InvalidateVisual();
+        InvalidatePortableRender();
     }
 
     private static ISelectionService? FindDesignSelectionService(Forms.Control control)
@@ -3726,7 +3773,7 @@ public class WindowsFormsHost : FrameworkElement
     {
         Interlocked.Increment(ref _portableChildInvalidationDispatchCount);
         InvalidateMeasure();
-        InvalidateVisual();
+        InvalidatePortableRender();
     }
 
     private void OnHostedControlAdded(object? sender, Forms.ControlEventArgs e)
@@ -3737,7 +3784,7 @@ public class WindowsFormsHost : FrameworkElement
             NotifyPortableHostLifecycle(e.Control, attached: true);
         }
         InvalidateMeasure();
-        InvalidateVisual();
+        InvalidatePortableRender();
     }
 
     private void OnHostedControlRemoved(object? sender, Forms.ControlEventArgs e)
@@ -3748,7 +3795,7 @@ public class WindowsFormsHost : FrameworkElement
         }
         UnsubscribeInvalidationTree(e.Control);
         InvalidateMeasure();
-        InvalidateVisual();
+        InvalidatePortableRender();
     }
 
     private void SubscribeInvalidationTree(Forms.Control control)
@@ -6260,12 +6307,24 @@ public class WindowsFormsHost : FrameworkElement
 
     private void ClearPortableRenderResourceCaches()
     {
+        _portableRetainedDrawing = null;
+        _portableRetainedDrawingBounds = Rect.Empty;
+        _portableRetainedDrawingDirty = true;
+        _portableRetainedDrawingVersion = -1;
+        Interlocked.Increment(ref _portableRenderVersion);
         _portableColorBrushCache.Clear();
         _portableColorBrushCacheOrder.Clear();
         ClearPortableFormattedTextCache();
         _controlClipCache.Clear();
         _portableTypeface = null;
         _portableTypefaceFontFamily = null;
+    }
+
+    private void InvalidatePortableRender()
+    {
+        _portableRetainedDrawingDirty = true;
+        Interlocked.Increment(ref _portableRenderVersion);
+        InvalidateVisual();
     }
 
     private readonly record struct PortableFormattedTextKey(

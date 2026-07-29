@@ -134,6 +134,25 @@ Release order matters: publish the immutable ProGPU version first, publish the L
 
 See [docs/librewinforms-release.md](docs/librewinforms-release.md) and the ongoing port plan in [docs/librewinforms/progpu-port-plan.md](docs/librewinforms/progpu-port-plan.md).
 
+## Performance Gates
+
+The package-mode SDK smoke includes deterministic Release workloads for hosted
+WinForms rendering, layout, paint-surface retirement, and render-resource
+ownership. The render workload records 100 labels for 50 frames after warming
+brush, text, clip, and retained-drawing caches. On an Apple arm64 development
+host with .NET 10, retaining unchanged host drawing content reduced allocation
+from 35,547 to 694 bytes per recorded frame and reduced the five-run 50-frame
+time from roughly 7.7–8.1 ms to 0.7–0.8 ms. The gate allows at most 2,000
+bytes/frame, requires an actual rebuild after text/color invalidation, and
+requires all retained drawing and render-resource caches to release when the
+hosted tree is detached.
+
+These figures measure managed allocation traffic and CPU recording time, not
+managed retention, process RSS, GPU residency, or device execution. Paint
+surface pixel ownership, retained resource counts, and zero-allocation layout
+passes are checked independently so an allocation improvement cannot hide an
+unbounded cache or graphics-resource leak.
+
 ## Original Upstream README
 
 # Windows Forms

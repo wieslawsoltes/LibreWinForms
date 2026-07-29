@@ -1632,14 +1632,17 @@ internal static class Program
     private static int RunRenderAllocationBenchmark()
     {
         const int controlCount = 100;
-        const int frameCount = 50;
+        int frameCount = ReadPositiveEnvironmentInteger(
+            "LIBREWINFORMS_RENDER_BENCHMARK_FRAMES",
+            defaultValue: 50);
         var root = new Forms.Panel
         {
             Size = new System.Drawing.Size(640, controlCount * 20)
         };
+        Forms.Label? firstLabel = null;
         for (int index = 0; index < controlCount; index++)
         {
-            root.Controls.Add(new Forms.Label
+            var label = new Forms.Label
             {
                 BackColor = index % 2 == 0
                     ? System.Drawing.Color.AliceBlue
@@ -1648,7 +1651,9 @@ internal static class Program
                 ForeColor = System.Drawing.Color.DarkSlateGray,
                 Height = 20,
                 Text = $"Portable label {index % 10}"
-            });
+            };
+            firstLabel ??= label;
+            root.Controls.Add(label);
         }
 
         var host = new SmokeWindowsFormsHost { Child = root };
@@ -1663,10 +1668,19 @@ internal static class Program
         GC.WaitForPendingFinalizers();
         GC.Collect();
         long allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        long visualAllocatedBytes = 0;
+        long openAllocatedBytes = 0;
+        long renderAllocatedBytes = 0;
+        long closeAllocatedBytes = 0;
         long started = System.Diagnostics.Stopwatch.GetTimestamp();
         for (int index = 0; index < frameCount; index++)
         {
-            RenderHostForSmoke(host);
+            RenderHostForSmokeMeasured(
+                host,
+                ref visualAllocatedBytes,
+                ref openAllocatedBytes,
+                ref renderAllocatedBytes,
+                ref closeAllocatedBytes);
         }
 
         TimeSpan elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(started);
@@ -1675,14 +1689,24 @@ internal static class Program
         int colorBrushCount = host.PortableColorBrushCacheCount;
         int formattedTextCount = host.PortableFormattedTextCacheCount;
         int textDrawingCount = host.PortableTextDrawingCacheCount;
-        bool bounded = bytesPerFrame <= 50_000
+        long retainedBuildCount = host.PortableRetainedDrawingBuildCount;
+        bool bounded = bytesPerFrame <= 2_000
             && colorBrushCount is > 0 and <= 256
             && formattedTextCount is > 0 and <= 2048
-            && textDrawingCount is > 0 and <= 2048;
+            && textDrawingCount is > 0 and <= 2048
+            && retainedBuildCount == 1;
+        long invalidationsBeforeMutation = host.PortableChildInvalidationDispatchCount;
+        firstLabel!.Text = "Changed portable label";
+        firstLabel.BackColor = System.Drawing.Color.LightGoldenrodYellow;
+        RenderHostForSmoke(host);
+        bool mutationRebuilt = host.PortableChildInvalidationDispatchCount
+                >= invalidationsBeforeMutation + 2
+            && host.PortableRetainedDrawingBuildCount == retainedBuildCount + 1;
         host.Child = null;
         bool released = host.PortableColorBrushCacheCount == 0
             && host.PortableFormattedTextCacheCount == 0
-            && host.PortableTextDrawingCacheCount == 0;
+            && host.PortableTextDrawingCacheCount == 0
+            && !host.PortableHasRetainedDrawing;
         bool churnBounded = VerifyRenderResourceCacheBounds(
             out int churnColorBrushCount,
             out int churnFormattedTextCount,
@@ -1694,24 +1718,39 @@ internal static class Program
             + $" elapsedMs={elapsed.TotalMilliseconds:F3}"
             + $" allocatedBytes={allocatedBytes}"
             + $" bytesPerFrame={bytesPerFrame:F1}"
+            + $" visualBytes={visualAllocatedBytes}"
+            + $" openBytes={openAllocatedBytes}"
+            + $" renderBytes={renderAllocatedBytes}"
+            + $" closeBytes={closeAllocatedBytes}"
             + $" colorBrushes={colorBrushCount}"
             + $" formattedText={formattedTextCount}"
             + $" textDrawings={textDrawingCount}"
+            + $" retainedBuilds={retainedBuildCount}"
+            + $" mutationRebuilt={mutationRebuilt}"
             + $" released={released}"
             + $" churnColorBrushes={churnColorBrushCount}"
             + $" churnFormattedText={churnFormattedTextCount}"
             + $" churnTextDrawings={churnTextDrawingCount}");
-        if (!bounded || !released || !churnBounded)
+        if (!bounded || !mutationRebuilt || !released || !churnBounded)
         {
             Console.Error.WriteLine(
                 "LibreWinForms render allocation benchmark failed"
                 + $" bounded={bounded}"
+                + $" mutationRebuilt={mutationRebuilt}"
                 + $" released={released}"
                 + $" churnBounded={churnBounded}");
             return 19;
         }
 
         return 0;
+    }
+
+    private static int ReadPositiveEnvironmentInteger(string name, int defaultValue)
+    {
+        string? value = Environment.GetEnvironmentVariable(name);
+        return int.TryParse(value, out int parsed) && parsed > 0
+            ? parsed
+            : defaultValue;
     }
 
     private static bool VerifyRenderResourceCacheBounds(
@@ -1876,6 +1915,29 @@ internal static class Program
         var visual = new System.Windows.Media.DrawingVisual();
         using System.Windows.Media.DrawingContext drawingContext = visual.RenderOpen();
         host.RenderForSmoke(drawingContext);
+    }
+
+    private static void RenderHostForSmokeMeasured(
+        SmokeWindowsFormsHost host,
+        ref long visualAllocatedBytes,
+        ref long openAllocatedBytes,
+        ref long renderAllocatedBytes,
+        ref long closeAllocatedBytes)
+    {
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        var visual = new System.Windows.Media.DrawingVisual();
+        long afterVisual = GC.GetAllocatedBytesForCurrentThread();
+        System.Windows.Media.DrawingContext drawingContext = visual.RenderOpen();
+        long afterOpen = GC.GetAllocatedBytesForCurrentThread();
+        host.RenderForSmoke(drawingContext);
+        long afterRender = GC.GetAllocatedBytesForCurrentThread();
+        drawingContext.Dispose();
+        long afterClose = GC.GetAllocatedBytesForCurrentThread();
+
+        visualAllocatedBytes += afterVisual - before;
+        openAllocatedBytes += afterOpen - afterVisual;
+        renderAllocatedBytes += afterRender - afterOpen;
+        closeAllocatedBytes += afterClose - afterRender;
     }
 
     private static int RunCreateGraphicsSmoke()

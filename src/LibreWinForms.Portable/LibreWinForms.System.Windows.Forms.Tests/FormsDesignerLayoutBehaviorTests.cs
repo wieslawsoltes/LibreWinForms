@@ -1167,6 +1167,14 @@ internal static class FormsDesignerLayoutBehaviorTests
         Assert(hostSource.Contains("_controlClipCache.GetValue(", StringComparison.Ordinal)
             && hostSource.Contains("cache.Bounds == bounds", StringComparison.Ordinal),
             "Stable hosted-control clip geometry stopped using weak, bounds-aware reuse.");
+        Assert(hostSource.Contains("_portableRetainedDrawingDirty", StringComparison.Ordinal)
+            && hostSource.Contains("_portableRetainedDrawingVersion != requestedRenderVersion", StringComparison.Ordinal)
+            && hostSource.Contains("Interlocked.Read(ref _portableRenderVersion) != requestedRenderVersion", StringComparison.Ordinal)
+            && hostSource.Contains("Interlocked.Increment(ref _portableRenderVersion);", StringComparison.Ordinal)
+            && hostSource.Contains("drawingContext.DrawDrawing(_portableRetainedDrawing);", StringComparison.Ordinal)
+            && hostSource.Contains("InvalidatePortableRender();", StringComparison.Ordinal)
+            && hostSource.Contains("_portableRetainedDrawing = null;", StringComparison.Ordinal),
+            "Stable hosted WinForms frames stopped reusing one invalidation-aware retained drawing.");
         Assert(hostSource.Contains("ClearPortableRenderResourceCaches();", StringComparison.Ordinal)
             && hostSource.Contains("_controlClipCache.Clear();", StringComparison.Ordinal)
             && hostSource.Contains("_portableFormattedTextCache.Clear();", StringComparison.Ordinal)
@@ -1174,10 +1182,13 @@ internal static class FormsDesignerLayoutBehaviorTests
             "Replacing the hosted WinForms tree stopped releasing retained render resources.");
         Assert(hostSource.Contains("public int PortableColorBrushCacheCount", StringComparison.Ordinal)
             && hostSource.Contains("public int PortableFormattedTextCacheCount", StringComparison.Ordinal)
-            && hostSource.Contains("public int PortableTextDrawingCacheCount", StringComparison.Ordinal),
+            && hostSource.Contains("public int PortableTextDrawingCacheCount", StringComparison.Ordinal)
+            && hostSource.Contains("public bool PortableHasRetainedDrawing", StringComparison.Ordinal)
+            && hostSource.Contains("public long PortableRetainedDrawingBuildCount", StringComparison.Ordinal),
             "Hosted WinForms render resource ownership diagnostics were removed.");
         Assert(smokeSource.Contains("--run-render-allocation", StringComparison.Ordinal)
-            && smokeSource.Contains("bytesPerFrame <= 50_000", StringComparison.Ordinal)
+            && smokeSource.Contains("bytesPerFrame <= 2_000", StringComparison.Ordinal)
+            && smokeSource.Contains("mutationRebuilt={mutationRebuilt}", StringComparison.Ordinal)
             && smokeSource.Contains("released={released}", StringComparison.Ordinal),
             "Package-mode WinForms validation stopped enforcing steady-state allocation and release.");
     }
