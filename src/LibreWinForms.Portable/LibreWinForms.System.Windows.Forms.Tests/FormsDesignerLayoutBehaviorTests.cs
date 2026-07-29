@@ -40,8 +40,9 @@ internal static class FormsDesignerLayoutBehaviorTests
         LayoutServiceSourceStaysReflectionFree();
         PaintSurfaceRetirementStaysFrameBounded();
         RenderResourcesStayBoundedAndReusable();
+        HostedLayoutAllocationsStayMeasured();
         Console.WriteLine(
-            "LibreWinForms Forms Designer layout tests passed: grid=12 toolbox=2 snap=9 adorners=18 alt=4 coordinates=1 transactions=16 group=30 keyboard=89 sourceGuard=39 surfaceRetirement=12 renderResources=14.");
+            "LibreWinForms Forms Designer layout tests passed: grid=12 toolbox=2 snap=9 adorners=18 alt=4 coordinates=1 transactions=16 group=30 keyboard=89 sourceGuard=39 surfaceRetirement=12 renderResources=14 layoutAllocation=4.");
     }
 
     private static void SharpDevelopOptionsDriveGridMoveAndMidpointRounding()
@@ -1173,6 +1174,17 @@ internal static class FormsDesignerLayoutBehaviorTests
             && smokeSource.Contains("bytesPerFrame <= 250_000", StringComparison.Ordinal)
             && smokeSource.Contains("released={released}", StringComparison.Ordinal),
             "Package-mode WinForms validation stopped enforcing steady-state allocation and release.");
+    }
+
+    private static void HostedLayoutAllocationsStayMeasured()
+    {
+        string smokeSource = File.ReadAllText(FindSourceFile("Program.cs", "LibreWinForms.SdkSmoke"));
+
+        Assert(smokeSource.Contains("--run-layout-allocation", StringComparison.Ordinal)
+            && smokeSource.Contains("RunLayoutAllocationBenchmark()", StringComparison.Ordinal)
+            && smokeSource.Contains("bytesPerLayout > 100_000", StringComparison.Ordinal)
+            && smokeSource.Contains("ArrangeForSmoke", StringComparison.Ordinal),
+            "Package-mode WinForms validation stopped measuring hosted layout allocations.");
     }
 
     private static string FindSourceFile(

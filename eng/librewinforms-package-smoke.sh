@@ -155,6 +155,7 @@ modes=(
   --run-custom-paint
   --run-paint-surface-retirement
   --run-render-allocation
+  --run-layout-allocation
   --run-create-graphics
   --run-text-renderer
   --run-keyboard

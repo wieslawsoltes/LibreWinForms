@@ -81,6 +81,11 @@ internal static class Program
             return RunRenderAllocationBenchmark();
         }
 
+        if (args.Contains("--run-layout-allocation", StringComparer.Ordinal))
+        {
+            return RunLayoutAllocationBenchmark();
+        }
+
         if (args.Contains("--run-create-graphics", StringComparer.Ordinal))
         {
             return RunCreateGraphicsSmoke();
@@ -1735,6 +1740,75 @@ internal static class Program
         return bounded
             && host.PortableColorBrushCacheCount == 0
             && host.PortableFormattedTextCacheCount == 0;
+    }
+
+    private static int RunLayoutAllocationBenchmark()
+    {
+        const int containerCount = 100;
+        const int layoutPassCount = 200;
+        const int width = 640;
+        const int height = containerCount * 40;
+        var root = new Forms.Panel
+        {
+            Size = new System.Drawing.Size(width, height)
+        };
+        for (int index = 0; index < containerCount; index++)
+        {
+            var container = new Forms.Panel
+            {
+                Dock = Forms.DockStyle.Top,
+                Height = 40
+            };
+            container.Controls.Add(new Forms.Label
+            {
+                Dock = Forms.DockStyle.Top,
+                Height = 18,
+                Text = $"Header {index}"
+            });
+            container.Controls.Add(new Forms.Label
+            {
+                Dock = Forms.DockStyle.Fill,
+                Text = $"Content {index}"
+            });
+            root.Controls.Add(container);
+        }
+
+        var host = new SmokeWindowsFormsHost { Child = root };
+        for (int index = 0; index < 10; index++)
+        {
+            host.ArrangeForSmoke(new System.Windows.Size(width + (index & 1), height));
+        }
+
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        long allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+        long started = System.Diagnostics.Stopwatch.GetTimestamp();
+        for (int index = 0; index < layoutPassCount; index++)
+        {
+            host.ArrangeForSmoke(new System.Windows.Size(width + (index & 1), height));
+        }
+
+        TimeSpan elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(started);
+        long allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+        double bytesPerLayout = (double)allocatedBytes / layoutPassCount;
+        host.Child = null;
+        Console.WriteLine(
+            "LibreWinForms layout allocation benchmark"
+            + $" containers={containerCount}"
+            + $" passes={layoutPassCount}"
+            + $" elapsedMs={elapsed.TotalMilliseconds:F3}"
+            + $" allocatedBytes={allocatedBytes}"
+            + $" bytesPerLayout={bytesPerLayout:F1}");
+        if (bytesPerLayout > 100_000)
+        {
+            Console.Error.WriteLine(
+                "LibreWinForms layout allocation benchmark failed"
+                + $" bytesPerLayout={bytesPerLayout:F1}");
+            return 20;
+        }
+
+        return 0;
     }
 
     private static bool VerifyOwnerDrawHighWaterRetirement(
@@ -5396,6 +5470,11 @@ internal static class Program
 
     private sealed class SmokeWindowsFormsHost : System.Windows.Forms.Integration.WindowsFormsHost
     {
+        public System.Windows.Size ArrangeForSmoke(System.Windows.Size finalSize)
+        {
+            return ArrangeOverride(finalSize);
+        }
+
         public void RenderForSmoke(System.Windows.Media.DrawingContext drawingContext)
         {
             OnRender(drawingContext);
