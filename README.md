@@ -151,11 +151,13 @@ and render-resource caches to release when the hosted tree is detached.
 
 The same gate churns 2,200 unique text/color combinations and now reports
 managed retention before and after detaching the hosted tree. On the same host,
-the deliberately saturated 256-brush/2,048-text/2,048-drawing caches retain
-about 13.9 MB at their high-water mark and leave about 0.68 MB after detach; the
-2,200 invalidating renders take roughly 116 ms. The count limits preserve text
-reuse for scrolling while the detach assertion prevents the bounded cache from
-becoming a lifetime leak.
+the deliberately saturated 256-brush/512-text/512-drawing caches retain about
+2.60 MB at their high-water mark and leave about 0.26 MB after detach; the
+2,200 invalidating renders take roughly 115 ms. Compared with the former
+2,048-entry text caches, this cuts high-water managed retention by about 81%
+while keeping steady retained replay and mutation rebuild behavior unchanged.
+The count limits preserve text reuse for scrolling while the detach assertion
+prevents the bounded cache from becoming a lifetime leak.
 
 These figures measure managed allocation traffic, managed heap retention, and
 CPU recording time, not process RSS, GPU residency, or device execution. Paint
