@@ -1145,7 +1145,7 @@ internal static class FormsDesignerLayoutBehaviorTests
         string smokeSource = File.ReadAllText(FindSourceFile("Program.cs", "LibreWinForms.SdkSmoke"));
 
         Assert(hostSource.Contains("PortableColorBrushCacheLimit = 256", StringComparison.Ordinal)
-            && hostSource.Contains("PortableFormattedTextCacheLimit = 2048", StringComparison.Ordinal),
+            && hostSource.Contains("PortableFormattedTextCacheLimit = 512", StringComparison.Ordinal),
             "Hosted WinForms render resource caches stopped enforcing their reviewed ownership bounds.");
         Assert(hostSource.Contains("_portableColorBrushCache.TryGetValue", StringComparison.Ordinal)
             && hostSource.Contains("_portableFormattedTextCache.TryGetValue", StringComparison.Ordinal)
