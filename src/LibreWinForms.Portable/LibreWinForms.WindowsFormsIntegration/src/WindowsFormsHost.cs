@@ -37,7 +37,7 @@ namespace System.Windows.Forms.Integration;
 public class WindowsFormsHost : FrameworkElement
 {
     private const int PortableColorBrushCacheLimit = 256;
-    private const int PortableFormattedTextCacheLimit = 2048;
+    private const int PortableFormattedTextCacheLimit = 512;
 
     private enum DesignHandle
     {

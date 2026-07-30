@@ -1694,8 +1694,8 @@ internal static class Program
         long retainedBuildCount = host.PortableRetainedDrawingBuildCount;
         bool bounded = bytesPerFrame <= 2_000
             && colorBrushCount is > 0 and <= 256
-            && formattedTextCount is > 0 and <= 2048
-            && textDrawingCount is > 0 and <= 2048
+            && formattedTextCount is > 0 and <= 512
+            && textDrawingCount is > 0 and <= 512
             && retainedBuildCount == 1;
         long invalidationsBeforeMutation = host.PortableChildInvalidationDispatchCount;
         firstLabel!.Text = "Changed portable label";
@@ -1798,8 +1798,8 @@ internal static class Program
         long managedHeapPopulated = GC.GetTotalMemory(forceFullCollection: true);
         retainedManagedBytes = Math.Max(0, managedHeapPopulated - managedHeapBefore);
         bool bounded = colorBrushCount is > 0 and <= 256
-            && formattedTextCount is > 0 and <= 2048
-            && textDrawingCount is > 0 and <= 2048;
+            && formattedTextCount is > 0 and <= 512
+            && textDrawingCount is > 0 and <= 512;
         host.Child = null;
         long managedHeapReleased = GC.GetTotalMemory(forceFullCollection: true);
         remainingManagedBytes = Math.Max(0, managedHeapReleased - managedHeapBefore);
