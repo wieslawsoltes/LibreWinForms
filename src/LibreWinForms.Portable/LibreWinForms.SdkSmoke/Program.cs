@@ -4745,6 +4745,7 @@ internal static class Program
         presentationHost.Measure(new System.Windows.Size(root.Width, root.Height));
         presentationHost.Arrange(new System.Windows.Rect(0, 0, root.Width, root.Height));
         long dispatchesBeforeExplicitRender = presentationHost.PortableDesignerAdornerDispatchCount;
+        long buildsBeforeExplicitRender = presentationHost.PortableRetainedDrawingBuildCount;
         var visual = new System.Windows.Media.DrawingVisual();
         using (System.Windows.Media.DrawingContext drawingContext = visual.RenderOpen())
         {
@@ -4753,9 +4754,12 @@ internal static class Program
 
         bool activeSource = adornerSource.SupportsPortableAdornments;
         long activeDispatchCount = presentationHost.PortableDesignerAdornerDispatchCount;
+        long activeBuildCount = presentationHost.PortableRetainedDrawingBuildCount;
         bool active = activeSource
             && commandCount == 2
-            && activeDispatchCount == dispatchesBeforeExplicitRender + 1;
+            && dispatchesBeforeExplicitRender > 0
+            && activeDispatchCount == dispatchesBeforeExplicitRender
+            && activeBuildCount == buildsBeforeExplicitRender;
         candidate.RaiseMouseUp(new Forms.MouseEventArgs(Forms.MouseButtons.Left, 1, 73, 12, 0));
         using (System.Windows.Media.DrawingContext drawingContext = visual.RenderOpen())
         {
@@ -4764,15 +4768,19 @@ internal static class Program
 
         bool clearedSource = !adornerSource.SupportsPortableAdornments;
         long clearedDispatchCount = presentationHost.PortableDesignerAdornerDispatchCount;
-        bool cleared = clearedSource && clearedDispatchCount == activeDispatchCount;
+        long clearedBuildCount = presentationHost.PortableRetainedDrawingBuildCount;
+        bool cleared = clearedSource
+            && clearedDispatchCount == activeDispatchCount
+            && clearedBuildCount == activeBuildCount + 1;
         presentationHost.Child = null;
         if (!active || !cleared)
         {
             Console.WriteLine(
                 $"Designer snap-line adorner smoke: commands={commandCount}"
                 + $" activeSource={activeSource} priorDispatches={dispatchesBeforeExplicitRender}"
-                + $" activeDispatches={activeDispatchCount}"
-                + $" clearedSource={clearedSource} clearedDispatches={clearedDispatchCount}");
+                + $" activeDispatches={activeDispatchCount} priorBuilds={buildsBeforeExplicitRender}"
+                + $" activeBuilds={activeBuildCount} clearedSource={clearedSource}"
+                + $" clearedDispatches={clearedDispatchCount} clearedBuilds={clearedBuildCount}");
         }
 
         return active && cleared;
