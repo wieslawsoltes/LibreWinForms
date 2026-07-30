@@ -1,0 +1,200 @@
+name: Qualified LibreWinForms preview.34 release
+
+on:
+  push:
+    branches:
+      - automation/librewinforms-preview34-release
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: librewinforms-preview34-qualified-release
+  cancel-in-progress: true
+
+jobs:
+  qualify-and-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    env:
+      CANDIDATE_SHA: 1b41ec4cdf529af41d2a91bbb923f7bd44a808b4
+      RELEASE_TAG: librewinforms-v0.1.0-preview.34
+      LIBREWPF_TAG: librewpf-v0.1.0-preview.34
+    steps:
+      - name: Checkout automation branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Await exact candidate Build
+        id: qualification
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 360); do
+            runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/librewinforms-ci.yml/runs?head_sha=${CANDIDATE_SHA}&event=push&per_page=20")"
+            conclusion="$(jq -r --arg sha "${CANDIDATE_SHA}" '[.workflow_runs[] | select(.head_sha == $sha)] | sort_by(.created_at) | last | .conclusion // empty' <<<"${runs}")"
+            status="$(jq -r --arg sha "${CANDIDATE_SHA}" '[.workflow_runs[] | select(.head_sha == $sha)] | sort_by(.created_at) | last | .status // empty' <<<"${runs}")"
+            run_id="$(jq -r --arg sha "${CANDIDATE_SHA}" '[.workflow_runs[] | select(.head_sha == $sha)] | sort_by(.created_at) | last | .id // empty' <<<"${runs}")"
+            if [[ "${status}" == "completed" ]]; then
+              echo "status=${status}" >> "${GITHUB_OUTPUT}"
+              echo "conclusion=${conclusion}" >> "${GITHUB_OUTPUT}"
+              echo "run_id=${run_id}" >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
+            echo "Waiting for LibreWinForms Build ${run_id:-not-created} (${status:-not-created}), attempt ${attempt}/360."
+            sleep 30
+          done
+          echo "status=timed_out" >> "${GITHUB_OUTPUT}"
+          echo "conclusion=timed_out" >> "${GITHUB_OUTPUT}"
+          echo "run_id=" >> "${GITHUB_OUTPUT}"
+
+      - name: Record qualification evidence
+        env:
+          BUILD_STATUS: ${{ steps.qualification.outputs.status }}
+          BUILD_CONCLUSION: ${{ steps.qualification.outputs.conclusion }}
+          BUILD_RUN_ID: ${{ steps.qualification.outputs.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '{"candidate":"%s","run_id":"%s","status":"%s","conclusion":"%s"}\n' \
+            "${CANDIDATE_SHA}" "${BUILD_RUN_ID}" "${BUILD_STATUS}" "${BUILD_CONCLUSION}" \
+            > .release-qualification.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .release-qualification.json
+          git commit -m "Record LibreWinForms preview.34 qualification [skip ci]"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Require successful qualification
+        env:
+          BUILD_CONCLUSION: ${{ steps.qualification.outputs.conclusion }}
+          BUILD_RUN_ID: ${{ steps.qualification.outputs.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${BUILD_CONCLUSION}" != "success" ]]; then
+            echo "LibreWinForms Build ${BUILD_RUN_ID:-missing} completed with ${BUILD_CONCLUSION:-missing}." >&2
+            exit 1
+          fi
+
+      - name: Create immutable annotated tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          existing="$(git ls-remote origin "refs/tags/${RELEASE_TAG}^{}" | awk 'NR == 1 { print $1}')"
+          if [[ -n "${existing}" ]]; then
+            if [[ "${existing}" != "${CANDIDATE_SHA}" ]]; then
+              echo "Tag ${RELEASE_TAG} already points to ${existing}." >&2
+              exit 1
+            fi
+            echo "Tag ${RELEASE_TAG} already identifies the qualified candidate."
+            exit 0
+          fi
+          git fetch origin "${CANDIDATE_SHA}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${RELEASE_TAG}" "${CANDIDATE_SHA}" \
+            -m "LibreWinForms 0.1.0-preview.34" \
+            -m "Qualified against LibreWPF 0.1.0-preview.34 and ProGPU 0.1.0-preview.30."
+          git push origin "refs/tags/${RELEASE_TAG}"
+
+      - name: Dispatch immutable release publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/librewinforms-release.yml/runs?head_sha=${CANDIDATE_SHA}&event=workflow_dispatch&per_page=20")"
+          existing="$(jq -r --arg sha "${CANDIDATE_SHA}" '[.workflow_runs[] | select(.head_sha == $sha and .status != "cancelled")] | sort_by(.created_at) | last | .id // empty' <<<"${runs}")"
+          if [[ -n "${existing}" ]]; then
+            echo "Release workflow ${existing} already covers ${CANDIDATE_SHA}."
+            exit 0
+          fi
+          gh workflow run librewinforms-release.yml \
+            --ref "${RELEASE_TAG}" \
+            -f version=0.1.0-preview.34 \
+            -f bridge_version=0.1.0-preview.34 \
+            -f progpu_version=0.1.0-preview.30 \
+            -f bridge_ref="${LIBREWPF_TAG}" \
+            -f publish=true
+
+      - name: Await terminal release publication
+        id: publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 360); do
+            runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/librewinforms-release.yml/runs?head_sha=${CANDIDATE_SHA}&event=workflow_dispatch&per_page=20")"
+            conclusion="$(jq -r --arg sha "${CANDIDATE_SHA}" '[.workflow_runs[] | select(.head_sha == $sha)] | sort_by(.created_at) | last | .conclusion // empty' <<<"${runs}")"
+            status="$(jq -r --arg sha "${CANDIDATE_SHA}" '[.workflow_runs[] | select(.head_sha == $sha)] | sort_by(.created_at) | last | .status // empty' <<<"${runs}")"
+            run_id="$(jq -r --arg sha "${CANDIDATE_SHA}" '[.workflow_runs[] | select(.head_sha == $sha)] | sort_by(.created_at) | last | .id // empty' <<<"${runs}")"
+            if [[ "${status}" == "completed" ]]; then
+              echo "status=${status}" >> "${GITHUB_OUTPUT}"
+              echo "conclusion=${conclusion}" >> "${GITHUB_OUTPUT}"
+              echo "run_id=${run_id}" >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
+            echo "Waiting for LibreWinForms Release ${run_id:-not-created} (${status:-not-created}), attempt ${attempt}/360."
+            sleep 30
+          done
+          echo "status=timed_out" >> "${GITHUB_OUTPUT}"
+          echo "conclusion=timed_out" >> "${GITHUB_OUTPUT}"
+          echo "run_id=" >> "${GITHUB_OUTPUT}"
+
+      - name: Require successful publication
+        env:
+          RELEASE_CONCLUSION: ${{ steps.publication.outputs.conclusion }}
+          RELEASE_RUN_ID: ${{ steps.publication.outputs.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${RELEASE_CONCLUSION}" != "success" ]]; then
+            echo "LibreWinForms Release ${RELEASE_RUN_ID:-missing} completed with ${RELEASE_CONCLUSION:-missing}." >&2
+            exit 1
+          fi
+
+      - name: Verify NuGet indexing
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=0.1.0-preview.34
+          for attempt in $(seq 1 60); do
+            missing=0
+            for package_id in LibreWinForms.Sdk LibreWinForms.System.Windows.Forms LibreWinForms.WindowsFormsIntegration; do
+              lower_id="$(tr '[:upper:]' '[:lower:]' <<<"${package_id}")"
+              url="https://api.nuget.org/v3-flatcontainer/${lower_id}/${version}/${lower_id}.${version}.nupkg"
+              if ! curl --fail --silent --show-error --location --output /dev/null "${url}"; then
+                missing=1
+              fi
+            done
+            if [[ "${missing}" == "0" ]]; then
+              exit 0
+            fi
+            echo "Waiting for LibreWinForms ${version} NuGet indexing, attempt ${attempt}/60."
+            sleep 30
+          done
+          echo "LibreWinForms ${version} did not index all package IDs." >&2
+          exit 1
+
+      - name: Record publication evidence
+        env:
+          RELEASE_STATUS: ${{ steps.publication.outputs.status }}
+          RELEASE_CONCLUSION: ${{ steps.publication.outputs.conclusion }}
+          RELEASE_RUN_ID: ${{ steps.publication.outputs.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '{"candidate":"%s","tag":"%s","run_id":"%s","status":"%s","conclusion":"%s","nuget":"indexed"}\n' \
+            "${CANDIDATE_SHA}" "${RELEASE_TAG}" "${RELEASE_RUN_ID}" "${RELEASE_STATUS}" "${RELEASE_CONCLUSION}" \
+            > .release-publication.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .release-publication.json
+          git commit -m "Record LibreWinForms preview.34 publication [skip ci]"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
