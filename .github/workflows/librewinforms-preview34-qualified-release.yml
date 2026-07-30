@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 300
     env:
-      CANDIDATE_SHA: 1b41ec4cdf529af41d2a91bbb923f7bd44a808b4
+      CANDIDATE_SHA: ee48b119fcf0f06b976963fa9a08ba0b9eeb05cf
       RELEASE_TAG: librewinforms-v0.1.0-preview.34
       LIBREWPF_TAG: librewpf-v0.1.0-preview.34
     steps:
