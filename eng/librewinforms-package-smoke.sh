@@ -91,6 +91,9 @@ cat >"${sdk_template_dir}/LibreWinForms.SdkTemplate.csproj" <<EOF
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Windows.Compatibility" Version="7.0.3" />
+  </ItemGroup>
 </Project>
 EOF
 
@@ -102,6 +105,17 @@ static class Program
     [STAThread]
     static void Main()
     {
+        Application.EnableVisualStyles();
+        Application.SetHighDpiMode(HighDpiMode.SystemAware);
+        using (var bitmap = new Bitmap(64, 64))
+        using (Graphics graphics = Graphics.FromImage(bitmap))
+        using (var pen = new Pen(Color.Black))
+        {
+            graphics.DrawCurve(
+                pen,
+                new[] { new Point(0, 0), new Point(16, 32), new Point(48, 16), new Point(63, 63) });
+        }
+
         ApplicationConfiguration.Initialize();
         Application.Run(new Form1());
     }

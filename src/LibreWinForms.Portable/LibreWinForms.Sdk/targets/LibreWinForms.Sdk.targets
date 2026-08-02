@@ -2,12 +2,28 @@
   <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Package' And '$(ManagePackageVersionsCentrally)' != 'true'">
     <PackageReference Include="LibreWinForms.System.Windows.Forms" Version="$(LibreWinFormsPackageVersion)" Condition="'$(LibreWinFormsUseSystemWindowsForms)' == 'true'" />
     <PackageReference Include="LibreWinForms.WindowsFormsIntegration" Version="$(LibreWinFormsPackageVersion)" Condition="'$(LibreWinFormsUseWindowsFormsIntegration)' == 'true'" />
+    <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(LibreWinFormsProGpuPackageVersion)" GeneratePathProperty="true" Condition="'$(LibreWinFormsUseSystemWindowsForms)' == 'true'" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Package' And '$(ManagePackageVersionsCentrally)' == 'true'">
     <PackageReference Include="LibreWinForms.System.Windows.Forms" VersionOverride="$(LibreWinFormsPackageVersion)" Condition="'$(LibreWinFormsUseSystemWindowsForms)' == 'true'" />
     <PackageReference Include="LibreWinForms.WindowsFormsIntegration" VersionOverride="$(LibreWinFormsPackageVersion)" Condition="'$(LibreWinFormsUseWindowsFormsIntegration)' == 'true'" />
+    <PackageReference Include="ProGPU.System.Drawing.Common" VersionOverride="$(LibreWinFormsProGpuPackageVersion)" GeneratePathProperty="true" Condition="'$(LibreWinFormsUseSystemWindowsForms)' == 'true'" />
   </ItemGroup>
+
+  <Target Name="_LibreWinFormsSelectProGpuSystemDrawing"
+          BeforeTargets="ResolveAssemblyReferences"
+          Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseSystemWindowsForms)' == 'true'">
+    <ItemGroup>
+      <Reference Remove="@(Reference)"
+                 Condition="'%(Reference.NuGetPackageId)' == 'System.Drawing.Common'" />
+      <Reference Include="$(PkgProGPU_System_Drawing_Common)/lib/net10.0/System.Drawing.Common.dll"
+                 Condition="Exists('$(PkgProGPU_System_Drawing_Common)/lib/net10.0/System.Drawing.Common.dll')">
+        <Private>true</Private>
+        <NuGetPackageId>ProGPU.System.Drawing.Common</NuGetPackageId>
+      </Reference>
+    </ItemGroup>
+  </Target>
 
   <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseWindowsFormsIntegration)' == 'true' And '$(ManagePackageVersionsCentrally)' != 'true'">
     <PackageReference Include="System.Configuration.ConfigurationManager" Version="$(LibreWinFormsSystemConfigurationConfigurationManagerVersion)" />
