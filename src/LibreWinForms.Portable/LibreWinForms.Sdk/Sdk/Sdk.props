@@ -4,7 +4,7 @@
     <LibreWinFormsUsePortableFrameworkReferences Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == ''">true</LibreWinFormsUsePortableFrameworkReferences>
     <UseWindowsForms Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true'">false</UseWindowsForms>
     <EnableWindowsTargeting Condition="'$(EnableWindowsTargeting)' == ''">true</EnableWindowsTargeting>
-    <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == ''">0.1.0-preview.35</LibreWinFormsVersion>
+    <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == ''">0.1.0-preview.36</LibreWinFormsVersion>
     <LibreWinFormsPackageVersion Condition="'$(LibreWinFormsPackageVersion)' == ''">$(LibreWinFormsVersion)</LibreWinFormsPackageVersion>
     <LibreWinFormsSystemConfigurationConfigurationManagerVersion Condition="'$(LibreWinFormsSystemConfigurationConfigurationManagerVersion)' == ''">11.0.0-preview.5.26302.115</LibreWinFormsSystemConfigurationConfigurationManagerVersion>
     <LibreWinFormsSystemFormatsNrbfVersion Condition="'$(LibreWinFormsSystemFormatsNrbfVersion)' == ''">11.0.0-preview.5.26302.115</LibreWinFormsSystemFormatsNrbfVersion>
