@@ -6,7 +6,7 @@ on:
       version:
         description: NuGet package version to build.
         required: true
-        default: 0.1.0-preview.34
+        default: 0.1.0-preview.35
       bridge_version:
         description: LibreWPF bridge package version to build against. Defaults to version.
         required: false
@@ -14,7 +14,7 @@ on:
       progpu_version:
         description: Immutable ProGPU package version to build against.
         required: false
-        default: 0.1.0-preview.30
+        default: 0.1.0-preview.38
       bridge_ref:
         description: Immutable LibreWPF tag or commit to build against. Defaults to librewpf-v<bridge_version>.
         required: false
@@ -57,7 +57,7 @@ jobs:
           fi
           progpu_version="${{ inputs.progpu_version }}"
           if [[ -z "${progpu_version}" ]]; then
-            progpu_version="0.1.0-preview.30"
+            progpu_version="0.1.0-preview.38"
           fi
           bridge_ref="${{ inputs.bridge_ref }}"
           if [[ -z "${bridge_ref}" ]]; then
