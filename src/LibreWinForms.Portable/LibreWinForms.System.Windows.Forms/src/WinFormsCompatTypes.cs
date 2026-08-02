@@ -9591,6 +9591,15 @@ public static class Cursors
     public static Cursor SizeNS { get; } = new Cursor(PortableCursorKind.SizeNS);
 }
 
+public enum HighDpiMode
+{
+    DpiUnaware = 0,
+    SystemAware = 1,
+    PerMonitor = 2,
+    PerMonitorV2 = 3,
+    DpiUnawareGdiScaled = 4
+}
+
 public static class Application
 {
     private static readonly List<IMessageFilter> s_messageFilters = new();
@@ -9601,9 +9610,15 @@ public static class Application
     private static EventHandler? s_idle;
     private static int s_applicationHostGeneration;
     private static int s_idleDispatchPending;
+    private static int s_highDpiMode = (int)HighDpiMode.PerMonitorV2;
+    private static int s_visualStylesEnabled;
     private static bool s_useWaitCursor;
 
     public static string StartupPath => AppContext.BaseDirectory;
+
+    public static HighDpiMode HighDpiMode => (HighDpiMode)Volatile.Read(ref s_highDpiMode);
+
+    public static bool RenderWithVisualStyles => Volatile.Read(ref s_visualStylesEnabled) != 0;
 
     public static bool UseWaitCursor
     {
@@ -9652,6 +9667,25 @@ public static class Application
 
     public static void SetCompatibleTextRenderingDefault(bool defaultValue)
     {
+    }
+
+    public static void EnableVisualStyles()
+    {
+        Volatile.Write(ref s_visualStylesEnabled, 1);
+    }
+
+    public static bool SetHighDpiMode(HighDpiMode highDpiMode)
+    {
+        if (!Enum.IsDefined(highDpiMode))
+        {
+            throw new InvalidEnumArgumentException(
+                nameof(highDpiMode),
+                (int)highDpiMode,
+                typeof(HighDpiMode));
+        }
+
+        Volatile.Write(ref s_highDpiMode, (int)highDpiMode);
+        return true;
     }
 
     public static void AddMessageFilter(IMessageFilter value)

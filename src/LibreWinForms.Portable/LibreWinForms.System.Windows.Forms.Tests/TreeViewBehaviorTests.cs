@@ -54,6 +54,7 @@ internal static class TreeViewBehaviorTests
             FormOwnerKeysBehaviorTests.Run();
             ApplicationThreadLifecycleBehaviorTests.Run();
             ApplicationIdleHostBehaviorTests.Run();
+            ApplicationCompatibilityBehaviorTests.Run();
             DispatcherInvocationBehaviorTests.Run();
             KeyboardRoutingBehaviorTests.Run();
             HexEditorInputScrollDtoBehaviorTests.Run();
