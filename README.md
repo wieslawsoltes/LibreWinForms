@@ -118,7 +118,7 @@ When validating against unpublished LibreWPF/ProGPU bridge packages, build or re
 ```bash
 LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.35 \
 LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.35 \
-LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.38 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.39 \
 LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShipping%3Bhttps://api.nuget.org/v3/index.json \
 ./eng/librewinforms-pack.sh
 ```
