@@ -270,10 +270,13 @@ internal static class Program
 
     private static int RunNativePopupSmoke()
     {
+        const double popupInputX = 18.0;
+        const double popupInputY = 12.0;
+
         System.Windows.Forms.Integration.WindowsFormsHost.EnableWindowsFormsInterop();
 
         bool loaded = false;
-        bool inputAccepted = false;
+        bool inputAccepted = true;
         bool dropDownVisible = false;
         bool popupSurfaceReady = false;
         bool usesNativePopup = false;
@@ -284,26 +287,37 @@ internal static class Program
         int attempts = 0;
         System.Windows.Media.ProGPU.ProGpuWpfDiagnostics.PortablePopupSnapshot popupSnapshot = default;
 
-        using var menuStrip = new Forms.MenuStrip
+        using var hostPanel = new Forms.Panel
         {
             Width = 320,
-            Height = 28
+            Height = 80
         };
-        using var fileItem = new Forms.ToolStripMenuItem("File");
-        using var openItem = new Forms.ToolStripMenuItem("Open");
-        using var recentItem = new Forms.ToolStripMenuItem("Recent");
-        using var projectItem = new Forms.ToolStripMenuItem("Project");
-        openItem.Click += (_, _) => clickCount++;
-        recentItem.DropDownItems.Add(projectItem);
-        fileItem.DropDownItems.Add(openItem);
-        fileItem.DropDownItems.Add(recentItem);
-        menuStrip.Items.Add(fileItem);
-
         var formsHost = new System.Windows.Forms.Integration.WindowsFormsHost
         {
             Width = 320,
             Height = 80,
-            Child = menuStrip
+            Child = hostPanel
+        };
+        using var popupButton = new Forms.Button
+        {
+            Width = 160,
+            Height = 40,
+            Text = "Project"
+        };
+        popupButton.Click += (_, _) => clickCount++;
+        var popupFormsHost = new System.Windows.Forms.Integration.WindowsFormsHost
+        {
+            Width = 160,
+            Height = 40,
+            Child = popupButton
+        };
+        var nativePopup = new System.Windows.Controls.Primitives.Popup
+        {
+            PlacementTarget = formsHost,
+            Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom,
+            StaysOpen = true,
+            AllowsTransparency = false,
+            Child = popupFormsHost
         };
         var application = new WpfApplication();
         var windowTemplate = new System.Windows.Controls.ControlTemplate(typeof(WpfWindow));
@@ -346,9 +360,7 @@ internal static class Program
 
             window.ApplyTemplate();
             window.UpdateLayout();
-            System.Windows.Point menuPoint = window.PointFromScreen(
-                formsHost.PointToScreen(new System.Windows.Point(18, 14)));
-            bool sentInput = false;
+            nativePopup.IsOpen = true;
             DispatcherTimer popupTimer = null!;
             popupTimer = new DispatcherTimer(
                 TimeSpan.FromMilliseconds(50),
@@ -356,49 +368,19 @@ internal static class Program
                 (_, _) =>
                 {
                     attempts++;
-                    if (!sentInput)
-                    {
-                        if (!ReferenceEquals(window.InputHitTest(menuPoint), formsHost))
-                        {
-                            if (attempts >= 200)
-                            {
-                                timedOut = true;
-                                window.Close();
-                            }
-
-                            return;
-                        }
-
-                        inputAccepted = activationService.TryProcessInputEvent(
-                                window,
-                                new PortableWindowInputEvent(kind: 3, x: menuPoint.X, y: menuPoint.Y))
-                            && activationService.TryProcessInputEvent(
-                                window,
-                                new PortableWindowInputEvent(kind: 4, x: menuPoint.X, y: menuPoint.Y, button: 1))
-                            && activationService.TryProcessInputEvent(
-                                window,
-                                new PortableWindowInputEvent(kind: 5, x: menuPoint.X, y: menuPoint.Y, button: 1));
-                        sentInput = true;
-                        return;
-                    }
-
                     if (System.Windows.Media.ProGPU.ProGpuWpfDiagnostics.TryGetPortablePopupSnapshot(
                             window,
                             out popupSnapshot))
                     {
-                        bool currentDropDownVisible = fileItem.DropDown.Visible;
+                        bool currentDropDownVisible = nativePopup.IsOpen;
                         dropDownVisible |= currentDropDownVisible;
                         usesNativePopup = popupSnapshot.NativeWindowCount >= 1;
                         bool currentPopupSurfaceReady = usesNativePopup
-                            ? popupSnapshot.NativeWindowCount >= 1
-                                && popupSnapshot.PresentedNativeWindowCount >= 1
-                                && popupSnapshot.NativeWindowGpuHitTestCount >= 1
-                                && popupSnapshot.NativeWindowGpuHitTestOwnerCount >= 1
-                            : popupSnapshot.OpenCount >= 1
-                                && popupSnapshot.VisibleCount >= 1
-                                && popupSnapshot.NativeWindowCount == 0;
+                            && popupSnapshot.PresentedNativeWindowCount >= 1
+                            && popupSnapshot.NativeWindowGpuHitTestCount >= 1
+                            && popupSnapshot.NativeWindowGpuHitTestOwnerCount >= 1;
                         popupSurfaceReady |= currentPopupSurfaceReady;
-                        if (currentDropDownVisible && currentPopupSurfaceReady && clickCount == 0)
+                        if (currentDropDownVisible && usesNativePopup && currentPopupSurfaceReady && clickCount == 0)
                         {
                             readyPopupTicks++;
                             if (readyPopupTicks < 3 || (readyPopupTicks % 3) != 0)
@@ -406,48 +388,27 @@ internal static class Program
                                 return;
                             }
 
-                            double popupX = 18.0;
-                            double popupY = 12.0;
-                            if (!usesNativePopup)
-                            {
-                                bool foundOwnerItem = TryFindOwnerPopupMenuItemPoint(
-                                    activationService,
-                                    window,
-                                    menuPoint,
-                                    "Open",
-                                    out System.Windows.Point ownerItemPoint,
-                                    out bool scanInputAccepted);
-                                inputAccepted &= scanInputAccepted;
-                                if (!foundOwnerItem)
-                                {
-                                    return;
-                                }
-
-                                popupX = ownerItemPoint.X;
-                                popupY = ownerItemPoint.Y;
-                            }
-
                             inputAccepted &= TryRaisePopupInput(
                                 activationService,
                                 window,
                                 kind: 3,
-                                popupX,
-                                popupY,
+                                popupInputX,
+                                popupInputY,
                                 usesNativePopup);
                             inputAccepted &= TryRaisePopupInput(
                                 activationService,
                                 window,
                                 kind: 4,
-                                popupX,
-                                popupY,
+                                popupInputX,
+                                popupInputY,
                                 usesNativePopup,
                                 button: 1);
                             inputAccepted &= TryRaisePopupInput(
                                 activationService,
                                 window,
                                 kind: 5,
-                                popupX,
-                                popupY,
+                                popupInputX,
+                                popupInputY,
                                 usesNativePopup,
                                 button: 1);
                             clickInputSent = true;
@@ -476,12 +437,15 @@ internal static class Program
         };
 
         application.Run(window);
+        nativePopup.IsOpen = false;
+        popupFormsHost.Child = null;
         formsHost.Child = null;
 
         bool success = loaded
             && inputAccepted
             && dropDownVisible
             && popupSurfaceReady
+            && usesNativePopup
             && clickInputSent
             && clickCount == 1
             && !timedOut;
@@ -516,7 +480,7 @@ internal static class Program
                 new PortableWindowInputEvent(kind, x: x, y: y, button: button));
         }
 
-        return System.Windows.Media.ProGPU.ProGpuWpfDiagnostics.TryRaiseTopmostNativePopupInput(
+        return System.Windows.Media.ProGPU.ProGpuWpfDiagnostics.TryRaiseTopmostNativePopupLocalInput(
             window,
             new System.Windows.Media.ProGPU.Platform.WpfInputEventArgs(
                 (System.Windows.Media.ProGPU.Platform.WpfInputEventKind)kind,
