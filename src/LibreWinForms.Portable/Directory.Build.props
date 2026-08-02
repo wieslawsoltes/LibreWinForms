@@ -8,7 +8,7 @@
 
     <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == ''">0.1.0-preview.36</LibreWinFormsVersion>
     <LibreWinFormsBridgePackageVersion Condition="'$(LibreWinFormsBridgePackageVersion)' == ''">$(LibreWinFormsVersion)</LibreWinFormsBridgePackageVersion>
-    <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == ''">0.1.0-preview.40</LibreWinFormsProGpuPackageVersion>
+    <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == ''">0.1.0-preview.41</LibreWinFormsProGpuPackageVersion>
     <Version Condition="'$(Version)' == ''">$(LibreWinFormsVersion)</Version>
     <PackageVersion Condition="'$(PackageVersion)' == ''">$(Version)</PackageVersion>
 
@@ -20,7 +20,7 @@
     <RepositoryUrl>https://github.com/wieslawsoltes/winforms</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>librewinforms;progpu;silk.net;winforms;cross-platform</PackageTags>
-    <PackageReleaseNotes>Aligns LibreWinForms 0.1.0-preview.36 with immutable LibreWPF 0.1.0-preview.36 and ProGPU 0.1.0-preview.40; validates native popup-local Cocoa input through the same typed coordinate conversion used by production hosts; inherits ProGPU's native SIMD pixel swizzle optimization; bounds retained formatted-text and text drawing-group caches to reduce the measured churn working set by 81.3% and residual retention by 60.7% without increasing steady-frame allocations; reuses retained designer adorners and guards render-cache growth under repeated design-surface interaction; persists versioned, bounded designer SerializationStore payloads and content component collections across save/load cycles; builds unchanged .NET WinForms template projects through LibreWinForms.Sdk without requiring a Windows TFM; preserves Project Explorer and designer double-click counts; keeps MenuStrip, ToolStrip, context menus, and dropdowns correctly positioned and interactive; and retains typed X11/XWayland positioning, movement, dispatcher-pump, text, image, and scene-performance behavior.</PackageReleaseNotes>
+    <PackageReleaseNotes>Aligns LibreWinForms 0.1.0-preview.36 with immutable LibreWPF 0.1.0-preview.36 and ProGPU 0.1.0-preview.41; builds unchanged .NET WinForms templates through LibreWinForms.Sdk with Application startup compatibility and ProGPU-backed System.Drawing cardinal curves; validates native popup-local Cocoa input through the same typed coordinate conversion used by production hosts; inherits ProGPU's native SIMD pixel swizzle optimization; bounds retained formatted-text and text drawing-group caches to reduce the measured churn working set by 81.3% and residual retention by 60.7% without increasing steady-frame allocations; reuses retained designer adorners and guards render-cache growth under repeated design-surface interaction; persists versioned, bounded designer SerializationStore payloads and content component collections across save/load cycles; preserves Project Explorer and designer double-click counts; keeps MenuStrip, ToolStrip, context menus, and dropdowns correctly positioned and interactive; and retains typed X11/XWayland positioning, movement, dispatcher-pump, text, image, and scene-performance behavior.</PackageReleaseNotes>
     <IsPackable>true</IsPackable>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>

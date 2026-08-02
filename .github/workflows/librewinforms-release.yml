@@ -14,7 +14,7 @@ on:
       progpu_version:
         description: Immutable ProGPU package version to build against.
         required: false
-        default: 0.1.0-preview.40
+        default: 0.1.0-preview.41
       bridge_ref:
         description: Immutable LibreWPF tag or commit to build against. Defaults to librewpf-v<bridge_version>.
         required: false
@@ -57,7 +57,7 @@ jobs:
           fi
           progpu_version="${{ inputs.progpu_version }}"
           if [[ -z "${progpu_version}" ]]; then
-            progpu_version="0.1.0-preview.40"
+            progpu_version="0.1.0-preview.41"
           fi
           bridge_ref="${{ inputs.bridge_ref }}"
           if [[ -z "${bridge_ref}" ]]; then
