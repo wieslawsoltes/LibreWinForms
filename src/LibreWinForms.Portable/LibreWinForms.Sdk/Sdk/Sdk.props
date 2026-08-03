@@ -4,9 +4,9 @@
     <LibreWinFormsUsePortableFrameworkReferences Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == ''">true</LibreWinFormsUsePortableFrameworkReferences>
     <UseWindowsForms Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true'">false</UseWindowsForms>
     <EnableWindowsTargeting Condition="'$(EnableWindowsTargeting)' == ''">true</EnableWindowsTargeting>
-    <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == ''">0.1.0-preview.36</LibreWinFormsVersion>
+    <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == ''">0.1.0-preview.37</LibreWinFormsVersion>
     <LibreWinFormsPackageVersion Condition="'$(LibreWinFormsPackageVersion)' == ''">$(LibreWinFormsVersion)</LibreWinFormsPackageVersion>
-    <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == ''">0.1.0-preview.42</LibreWinFormsProGpuPackageVersion>
+    <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == ''">0.1.0-preview.43</LibreWinFormsProGpuPackageVersion>
     <LibreWinFormsSystemConfigurationConfigurationManagerVersion Condition="'$(LibreWinFormsSystemConfigurationConfigurationManagerVersion)' == ''">11.0.0-preview.5.26302.115</LibreWinFormsSystemConfigurationConfigurationManagerVersion>
     <LibreWinFormsSystemFormatsNrbfVersion Condition="'$(LibreWinFormsSystemFormatsNrbfVersion)' == ''">11.0.0-preview.5.26302.115</LibreWinFormsSystemFormatsNrbfVersion>
     <LibreWinFormsSystemIOPackagingVersion Condition="'$(LibreWinFormsSystemIOPackagingVersion)' == ''">11.0.0-preview.5.26302.115</LibreWinFormsSystemIOPackagingVersion>
