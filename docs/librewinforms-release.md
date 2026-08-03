@@ -9,7 +9,7 @@ LibreWinForms preview releases publish the portable WinForms package set:
 Run the local package lane:
 
 ```bash
-LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.40 ./eng/librewinforms-pack.sh
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.41 ./eng/librewinforms-pack.sh
 ```
 
 LibreWinForms depends on `LibreWPF.Transport` and `LibreWPF.ProGPU` from its matching LibreWPF release, plus `LibreWPF.Interop` and `ProGPU.System.Drawing.Common` from the immutable ProGPU version pinned by that release. CI and release workflows check out the immutable `librewpf-v<version>` tag, download its three published LibreWPF packages, verify their package identity/version/repository commit against that checkout, and pass the staged local feed through `LIBREWINFORMS_RESTORE_SOURCES`.
@@ -17,9 +17,9 @@ LibreWinForms depends on `LibreWPF.Transport` and `LibreWPF.ProGPU` from its mat
 For local validation against unpublished bridge packages:
 
 ```bash
-LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.40 \
-LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.40 \
-LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.46 \
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.41 \
+LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.41 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.47 \
 LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShipping%3Bhttps://api.nuget.org/v3/index.json \
 ./eng/librewinforms-pack.sh
 ```
@@ -27,8 +27,8 @@ LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShippin
 Additional MSBuild properties can be passed after the script name, for example when validating the standalone clone against a local LibreWPF artifact root:
 
 ```bash
-LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.40 \
-LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.46 \
+LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.41 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.47 \
 LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShipping%3Bhttps://api.nuget.org/v3/index.json \
 ./eng/librewinforms-pack.sh -p:LibreWpfManagedAssemblyRoot=/path/to/wpf/artifacts/bin/
 ```
