@@ -4268,11 +4268,14 @@ public class WindowsFormsHost : FrameworkElement
         nativeContext = null!;
         outerTransform = Matrix4x4.Identity;
         if (drawingContext is IPortableNativeDrawingContextStateSource nativeContextStateSource
-            && nativeContextStateSource.TryGetPortableNativeDrawingContextState(out var state)
-            && state.NativeDrawingContext is ProGPU.Scene.DrawingContext resolvedStateContext)
+            && nativeContextStateSource.TryGetPortableNativeDrawingContextState(out var portableState)
+            && ProGPU.Scene.ProGpuDrawingContextState.TryCreate(
+                portableState.NativeDrawingContext,
+                portableState.Transform,
+                out ProGPU.Scene.ProGpuDrawingContextState state))
         {
-            nativeContext = resolvedStateContext;
-            outerTransform = state.Transform;
+            nativeContext = state.DrawingContext;
+            outerTransform = state.OuterTransform;
             return true;
         }
 

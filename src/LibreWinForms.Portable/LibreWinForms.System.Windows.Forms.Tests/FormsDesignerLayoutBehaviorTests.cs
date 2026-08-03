@@ -42,7 +42,7 @@ internal static class FormsDesignerLayoutBehaviorTests
         RenderResourcesStayBoundedAndReusable();
         HostedLayoutAllocationsStayMeasured();
         Console.WriteLine(
-            "LibreWinForms Forms Designer layout tests passed: grid=12 toolbox=2 snap=9 adorners=18 alt=4 coordinates=1 transactions=16 group=30 keyboard=89 sourceGuard=39 surfaceRetirement=12 renderResources=14 layoutAllocation=4.");
+            "LibreWinForms Forms Designer layout tests passed: grid=12 toolbox=2 snap=9 adorners=18 alt=4 coordinates=1 transactions=16 group=30 keyboard=89 sourceGuard=42 surfaceRetirement=12 renderResources=14 layoutAllocation=4.");
     }
 
     private static void SharpDevelopOptionsDriveGridMoveAndMidpointRounding()
@@ -1106,6 +1106,15 @@ internal static class FormsDesignerLayoutBehaviorTests
         Assert(hostSource.Contains("RenderPortableDesignerAdornments(drawingContext, control, bounds);", StringComparison.Ordinal)
             && hostSource.Contains("_portableDesignerAdornerSurfacePools", StringComparison.Ordinal),
             "WindowsFormsHost stopped rendering adorners after children on an isolated overlay surface.");
+        Assert(hostSource.Contains("ProGpuDrawingContextState.TryCreate(", StringComparison.Ordinal)
+            && hostSource.Contains("portableState.NativeDrawingContext", StringComparison.Ordinal)
+            && hostSource.Contains("portableState.Transform", StringComparison.Ordinal),
+            "WindowsFormsHost stopped validating the typed native context and transform through ProGPU.");
+        Assert(hostSource.Contains("nativeContext = state.DrawingContext;", StringComparison.Ordinal)
+            && hostSource.Contains("outerTransform = state.OuterTransform;", StringComparison.Ordinal),
+            "WindowsFormsHost stopped consuming the validated typed ProGPU drawing state.");
+        Assert(!hostSource.Contains("state.NativeDrawingContext is ProGPU.Scene.DrawingContext", StringComparison.Ordinal),
+            "WindowsFormsHost reintroduced unchecked portable drawing-state extraction.");
     }
 
     private static void PaintSurfaceRetirementStaysFrameBounded()
