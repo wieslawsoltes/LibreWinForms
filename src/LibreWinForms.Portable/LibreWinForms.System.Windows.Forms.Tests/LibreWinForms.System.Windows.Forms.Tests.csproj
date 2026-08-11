@@ -11,5 +11,12 @@
   <ItemGroup>
     <ProjectReference Include="..\LibreWinForms.System.Windows.Forms\LibreWinForms.System.Windows.Forms.csproj"
                       AdditionalProperties="LibreWinFormsReferenceMode=$(LibreWinFormsReferenceMode);LibreWinFormsBridgePackageVersion=$(LibreWinFormsBridgePackageVersion);LibreWinFormsProGpuPackageVersion=$(LibreWinFormsProGpuPackageVersion)" />
+    <PackageReference Include="System.Drawing.Common"
+                      Version="10.0.0"
+                      GeneratePathProperty="true"
+                      ExcludeAssets="all"
+                      PrivateAssets="all" />
+    <AssemblyMetadata Include="MicrosoftSystemDrawingCommonPath"
+                      Value="$(PkgSystem_Drawing_Common)\lib\net10.0\System.Drawing.Common.dll" />
   </ItemGroup>
 </Project>

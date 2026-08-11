@@ -1650,7 +1650,29 @@ public unsafe partial class Control :
         {
             if (s_defaultFont is null)
             {
-                s_defaultFont = Application.DefaultFont ?? SystemFonts.MessageBoxFont;
+                // SystemFonts.MessageBoxFont/DialogFont/DefaultFont ultimately go through
+                // Font.FromHfont, which the real System.Drawing.Common throws
+                // PlatformNotSupportedException from unconditionally off Windows (a deliberate
+                // managed-code guard in dotnet/runtime, not a missing P/Invoke) - every
+                // Control's constructor reaches this getter, so without a portable fallback here
+                // no WinForms Control can ever be constructed at all off Windows. FontFamily's
+                // own constructor has no such platform gate.
+                if (!OperatingSystem.IsWindows())
+                {
+                    try
+                    {
+                        s_defaultFont = Application.DefaultFont ?? SystemFonts.MessageBoxFont;
+                    }
+                    catch (PlatformNotSupportedException)
+                    {
+                        s_defaultFont = new Font(FontFamily.GenericSansSerif, 8.25f);
+                    }
+                }
+                else
+                {
+                    s_defaultFont = Application.DefaultFont ?? SystemFonts.MessageBoxFont;
+                }
+
                 Debug.Assert(s_defaultFont is not null, "defaultFont wasn't set!");
             }
 

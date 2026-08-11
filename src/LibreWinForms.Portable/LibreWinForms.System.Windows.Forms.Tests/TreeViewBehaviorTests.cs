@@ -11,6 +11,8 @@ internal static class TreeViewBehaviorTests
     {
         try
         {
+            SystemFontCompatibilityBehaviorTests.Run();
+
             if (args.Length == 1 && string.Equals(args[0], "datagridview-new-row", StringComparison.Ordinal))
             {
                 DataGridViewNewRowBehaviorTests.Run();

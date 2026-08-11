@@ -12,6 +12,43 @@ using ProGPU.Wpf.Interop;
 
 namespace System.Windows.Forms;
 
+/// <summary>
+/// Wraps <see cref="SystemFonts"/> lookups so this portable compat layer stays usable even when the
+/// process has already loaded the real Microsoft System.Drawing.Common assembly instead of ProGPU's
+/// portable stub (both share the simple name "System.Drawing.Common" and only one wins per process) -
+/// the real assembly throws PlatformNotSupportedException for these members off Windows.
+/// </summary>
+internal static class SafePortableSystemFonts
+{
+    // Built once: when the process-wide System.Drawing.Common turns out to be the real
+    // Microsoft assembly (Windows-only GDI+ P/Invoke layer, throws PlatformNotSupportedException
+    // or a loader exception for font access off Windows), there is no managed way to build a
+    // working Font. This
+    // produces an uninitialized Font instance (skips its constructor and therefore the native Gdip
+    // call) purely so Control/Label field initializers have a non-null placeholder to hold; it must
+    // never be measured or painted with - callers only need it to avoid crashing during construction.
+    static readonly Font s_unusableFallback =
+        (Font)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Font));
+
+    internal static Font DefaultFont => Resolve(() => SystemFonts.DefaultFont);
+
+    internal static Font MenuFont => Resolve(() => SystemFonts.MenuFont);
+
+    static Font Resolve(Func<Font> systemFontsAccessor)
+    {
+        try { return systemFontsAccessor(); }
+        catch (Exception exception) when (IsUnsupportedPlatformFontException(exception))
+        {
+            return s_unusableFallback;
+        }
+    }
+
+    static bool IsUnsupportedPlatformFontException(Exception exception) =>
+        exception is PlatformNotSupportedException or DllNotFoundException or EntryPointNotFoundException
+        || exception is TypeInitializationException { InnerException: { } innerException }
+            && IsUnsupportedPlatformFontException(innerException);
+}
+
 public interface IWin32Window
 {
     IntPtr Handle { get; }
@@ -254,9 +291,9 @@ public class Control : Component, IWin32Window, ISynchronizeInvoke, IPortableWin
 
     public virtual bool ContainsFocus => Focused || Controls.Any(static control => control.ContainsFocus);
 
-    public Font Font { get; set; } = SystemFonts.DefaultFont;
+    public Font Font { get; set; } = SafePortableSystemFonts.DefaultFont;
 
-    public static Font DefaultFont => SystemFonts.DefaultFont;
+    public static Font DefaultFont => SafePortableSystemFonts.DefaultFont;
 
     public Cursor Cursor { get; set; } = Cursors.Default;
 
@@ -6147,7 +6184,7 @@ public class AxHost : Control
 
 public class FontDialog : Component
 {
-    public Font? Font { get; set; } = SystemFonts.DefaultFont;
+    public Font? Font { get; set; } = SafePortableSystemFonts.DefaultFont;
 
     public bool ShowEffects { get; set; } = true;
 
@@ -6169,7 +6206,7 @@ public class FontDialog : Component
 
     protected virtual bool RunDialog(IntPtr hwndOwner)
     {
-        Font initialFont = Font ?? SystemFonts.DefaultFont;
+        Font initialFont = Font ?? SafePortableSystemFonts.DefaultFont;
         var request = new PortableFontDialogRequest(
             initialFont.Name,
             initialFont.Size,
@@ -7663,7 +7700,7 @@ public class TreeView : Control
 
     public TreeNodeCollection Nodes { get; }
 
-    public static new Font DefaultFont => SystemFonts.DefaultFont;
+    public static new Font DefaultFont => SafePortableSystemFonts.DefaultFont;
 
     public TreeNode? SelectedNode
     {
@@ -10320,7 +10357,7 @@ public static class SystemInformation
 
     public static Size DragSize => new(4, 4);
 
-    public static Font MenuFont => SystemFonts.MenuFont;
+    public static Font MenuFont => SafePortableSystemFonts.MenuFont;
 
     public static int MouseWheelScrollLines => 3;
 
@@ -10636,7 +10673,7 @@ public class AmbientProperties
 {
     public Color BackColor { get; set; } = SystemColors.Control;
     public Cursor? Cursor { get; set; }
-    public Font Font { get; set; } = SystemFonts.DefaultFont;
+    public Font Font { get; set; } = SafePortableSystemFonts.DefaultFont;
     public Color ForeColor { get; set; } = SystemColors.ControlText;
 }
 

@@ -167,32 +167,39 @@ public static class SystemFonts
         {
             Font? defaultFont = null;
 
-            // For Arabic systems, always return Tahoma 8.
-            if (PInvokeCore.GetSystemDefaultLCID() == PInvoke.LANG_ARABIC)
+            // GetSystemDefaultLCID/GetStockObject below are Win32-only (no macOS/Linux P/Invoke
+            // shim exists for either) - on a non-Windows platform, skip straight to the portable
+            // fallback chain (Tahoma, then GenericSansSerif) instead of throwing
+            // EntryPointNotFoundException the first time any Control is constructed.
+            if (OperatingSystem.IsWindows())
             {
-                try
+                // For Arabic systems, always return Tahoma 8.
+                if (PInvokeCore.GetSystemDefaultLCID() == PInvoke.LANG_ARABIC)
                 {
-                    defaultFont = new Font("Tahoma", 8);
+                    try
+                    {
+                        defaultFont = new Font("Tahoma", 8);
+                    }
+                    catch (Exception ex) when (!IsCriticalFontException(ex)) { }
                 }
-                catch (Exception ex) when (!IsCriticalFontException(ex)) { }
+
+                // First try DEFAULT_GUI.
+                if (defaultFont is null)
+                {
+                    HFONT handle = (HFONT)PInvokeCore.GetStockObject(GET_STOCK_OBJECT_FLAGS.DEFAULT_GUI_FONT);
+                    try
+                    {
+                        using Font fontInWorldUnits = Font.FromHfont(handle);
+                        defaultFont = FontInPoints(fontInWorldUnits);
+                    }
+                    catch (ArgumentException)
+                    {
+                        // This can happen in theory if we end up pulling a non-TrueType font
+                    }
+                }
             }
 
-            // First try DEFAULT_GUI.
-            if (defaultFont is null)
-            {
-                HFONT handle = (HFONT)PInvokeCore.GetStockObject(GET_STOCK_OBJECT_FLAGS.DEFAULT_GUI_FONT);
-                try
-                {
-                    using Font fontInWorldUnits = Font.FromHfont(handle);
-                    defaultFont = FontInPoints(fontInWorldUnits);
-                }
-                catch (ArgumentException)
-                {
-                    // This can happen in theory if we end up pulling a non-TrueType font
-                }
-            }
-
-            // If DEFAULT_GUI didn't work, try Tahoma.
+            // If DEFAULT_GUI didn't work (or we're not on Windows), try Tahoma.
             if (defaultFont is null)
             {
                 try
@@ -225,7 +232,7 @@ public static class SystemFonts
         {
             Font? dialogFont = null;
 
-            if (PInvokeCore.GetSystemDefaultLCID() == PInvoke.LANG_JAPANESE)
+            if (OperatingSystem.IsWindows() && PInvokeCore.GetSystemDefaultLCID() == PInvoke.LANG_JAPANESE)
             {
                 // Always return DefaultFont for Japanese cultures.
                 dialogFont = DefaultFont;
