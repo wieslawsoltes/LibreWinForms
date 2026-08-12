@@ -29,6 +29,12 @@ internal static class TreeViewBehaviorTests
                 return 0;
             }
 
+            if (args.Length == 1 && string.Equals(args[0], "datagridview-compatibility", StringComparison.Ordinal))
+            {
+                DataGridViewCompatibilityBehaviorTests.Run();
+                return 0;
+            }
+
             if (args.Length == 1 && string.Equals(args[0], "forms-designer-menu-commands", StringComparison.Ordinal))
             {
                 FormsDesignerMenuCommandBehaviorTests.Run();
@@ -73,6 +79,7 @@ internal static class TreeViewBehaviorTests
             DataGridViewNewRowBehaviorTests.Run();
             DataGridViewLookupSortBehaviorTests.Run();
             DataGridViewInteractionBehaviorTests.Run();
+            DataGridViewCompatibilityBehaviorTests.Run();
             Console.WriteLine("LibreWinForms TreeView behavior tests passed.");
             return 0;
         }
