@@ -2100,6 +2100,7 @@ public class Form : ContainerControl, IWinFormsDialogKeyProcessor
     public event FormClosingEventHandler? FormClosing;
     public event EventHandler? Closed;
     public event FormClosedEventHandler? FormClosed;
+    public event EventHandler? Load;
     public event EventHandler? Shown;
 
     public IButtonControl? AcceptButton
@@ -2408,6 +2409,7 @@ public class Form : ContainerControl, IWinFormsDialogKeyProcessor
         }
 
         _shown = true;
+        OnLoad(EventArgs.Empty);
         OnShown(EventArgs.Empty);
     }
 
@@ -2447,6 +2449,11 @@ public class Form : ContainerControl, IWinFormsDialogKeyProcessor
     protected virtual void OnFormClosing(FormClosingEventArgs e)
     {
         FormClosing?.Invoke(this, e);
+    }
+
+    protected virtual void OnLoad(EventArgs e)
+    {
+        Load?.Invoke(this, e);
     }
 
     protected virtual void OnShown(EventArgs e)
@@ -4181,6 +4188,8 @@ public partial class DataGridView : Control, ISupportInitialize
 
     public DataGridViewRowCollection Rows { get; }
 
+    public DataGridViewRow RowTemplate { get; } = new();
+
     public int NewRowIndex => Rows.NewRowIndex;
 
     public DataGridViewEditMode EditMode { get; set; } = DataGridViewEditMode.EditOnKeystrokeOrF2;
@@ -4285,6 +4294,17 @@ public partial class DataGridView : Control, ISupportInitialize
         }
 
         public bool Contains(string columnName) => IndexOf(columnName) >= 0;
+
+        public int Add(string columnName, string headerText)
+        {
+            var column = new DataGridViewTextBoxColumn
+            {
+                Name = columnName,
+                HeaderText = headerText
+            };
+            Add(column);
+            return column.Index;
+        }
 
         public int IndexOf(string columnName)
         {
@@ -4397,6 +4417,8 @@ public partial class DataGridView : Control, ISupportInitialize
         }
 
         internal int NewRowIndex => _newRow?.Index ?? -1;
+
+        public DataGridViewRow SharedRow(int rowIndex) => this[rowIndex];
 
         public new int Add(DataGridViewRow row)
         {
@@ -4645,9 +4667,22 @@ public class DataGridViewColumn : Component
     private DataGridView? _owner;
     private bool _readOnly;
 
+    public DataGridViewColumn()
+        : this(new DataGridViewTextBoxCell())
+    {
+    }
+
+    public DataGridViewColumn(DataGridViewCell cellTemplate)
+    {
+        ArgumentNullException.ThrowIfNull(cellTemplate);
+        CellTemplate = cellTemplate;
+    }
+
     public DataGridViewAutoSizeColumnMode AutoSizeMode { get; set; }
 
     public DataGridView? DataGridView => _owner;
+
+    public virtual DataGridViewCell CellTemplate { get; set; }
 
     public string HeaderText { get; set; } = string.Empty;
 
@@ -4672,11 +4707,13 @@ public class DataGridViewColumn : Component
 
     public object? Tag { get; set; }
 
+    public Type? ValueType { get; set; }
+
     public int Width { get; set; } = 100;
 
     internal virtual DataGridViewCell CreateCell()
     {
-        return new DataGridViewTextBoxCell();
+        return (DataGridViewCell)CellTemplate.Clone();
     }
 
     internal void SetOwner(DataGridView? owner, int index)
@@ -4688,9 +4725,9 @@ public class DataGridViewColumn : Component
 
 public class DataGridViewTextBoxColumn : DataGridViewColumn
 {
-    internal override DataGridViewCell CreateCell()
+    public DataGridViewTextBoxColumn()
+        : base(new DataGridViewTextBoxCell())
     {
-        return new DataGridViewTextBoxCell();
     }
 }
 
@@ -4722,6 +4759,8 @@ public class DataGridViewRow
     public int Index { get; private set; } = -1;
 
     public bool IsNewRow => _owner is not null && _owner.NewRowIndex == Index;
+
+    public int Height { get; set; } = 22;
 
     public bool ReadOnly
     {
@@ -4808,6 +4847,11 @@ public class DataGridViewCell
 
     public DataGridViewRow? OwningRow { get; private set; }
 
+    public DataGridViewColumn? OwningColumn =>
+        DataGridView is { } dataGridView && ColumnIndex >= 0 && ColumnIndex < dataGridView.Columns.Count
+            ? dataGridView.Columns[ColumnIndex]
+            : null;
+
     public int RowIndex { get; private set; } = -1;
 
     public virtual bool ReadOnly
@@ -4844,6 +4888,39 @@ public class DataGridViewCell
     }
 
     public object? Value { get; set; }
+
+    public virtual object? DefaultNewRowValue => null;
+
+    public virtual Type? EditType => null;
+
+    public virtual Type? ValueType => Value?.GetType();
+
+    public virtual object Clone()
+    {
+        var clone = (DataGridViewCell)MemberwiseClone();
+        clone.DataGridView = null;
+        clone.OwningRow = null;
+        clone.RowIndex = -1;
+        clone.ColumnIndex = -1;
+        return clone;
+    }
+
+    public virtual void InitializeEditingControl(
+        int rowIndex,
+        object? initialFormattedValue,
+        DataGridViewCellStyle dataGridViewCellStyle)
+    {
+        if (DataGridView?.EditingControl is not IDataGridViewEditingControl editingControl)
+        {
+            return;
+        }
+
+        editingControl.EditingControlDataGridView = DataGridView;
+        editingControl.EditingControlRowIndex = rowIndex;
+        editingControl.ApplyCellStyleToEditingControl(dataGridViewCellStyle);
+        editingControl.EditingControlFormattedValue = initialFormattedValue ?? string.Empty;
+        editingControl.PrepareEditingControlForEdit(selectAll: false);
+    }
 
     internal void SetOwner(DataGridView? dataGridView, DataGridViewRow? row, int rowIndex, int columnIndex)
     {
@@ -9869,6 +9946,25 @@ public static class Application
         Volatile.Read(ref s_applicationHost)?.ExitThread();
     }
 
+    public static void Exit()
+    {
+        IWinFormsApplicationThreadContext[] threadContexts;
+        lock (s_threadContextGate)
+        {
+            threadContexts = s_threadContexts.Values.ToArray();
+        }
+
+        foreach (IWinFormsApplicationThreadContext threadContext in threadContexts)
+        {
+            threadContext.ExitThread();
+        }
+
+        if (threadContexts.Length == 0)
+        {
+            Volatile.Read(ref s_applicationHost)?.ExitThread();
+        }
+    }
+
     private static bool RunThreadContext(Form? mainForm)
     {
         IWinFormsApplicationHost? applicationHost = Volatile.Read(ref s_applicationHost);
@@ -10474,7 +10570,9 @@ public enum Keys
     Escape = 27,
     Space = 32,
     PageUp = 33,
+    Prior = PageUp,
     PageDown = 34,
+    Next = PageDown,
     End = 35,
     Home = 36,
     Left = 37,

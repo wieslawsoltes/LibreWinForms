@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <PackageReference Include="System.CodeDom" Version="10.0.0" />
+    <PackageReference Include="System.Resources.Extensions" Version="10.0.0" />
     <PackageReference Include="LibreWPF.Interop"
                       Version="$(LibreWinFormsProGpuPackageVersion)"
                       Condition="'$(LibreWinFormsReferenceMode)' != 'Project'" />

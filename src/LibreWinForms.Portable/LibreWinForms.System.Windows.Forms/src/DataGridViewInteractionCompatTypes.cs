@@ -18,6 +18,12 @@ public partial class DataGridView
 
     public event EventHandler? CurrentCellChanged;
 
+    public event DataGridViewCellCancelEventHandler? CellBeginEdit;
+
+    public event DataGridViewCellEventHandler? CellEndEdit;
+
+    public event ScrollEventHandler? Scroll;
+
     [Browsable(false)]
     public DataGridViewCell? CurrentCell
     {
@@ -43,6 +49,10 @@ public partial class DataGridView
 
     [Browsable(false)]
     public DataGridViewRow? CurrentRow => _currentCell?.OwningRow;
+
+    public Point CurrentCellAddress => _currentCell is null
+        ? new Point(-1, -1)
+        : new Point(_currentCell.ColumnIndex, _currentCell.RowIndex);
 
     [Browsable(false)]
     public Control? EditingControl => _editingControl;
@@ -204,6 +214,13 @@ public partial class DataGridView
             return false;
         }
 
+        var beginning = new DataGridViewCellCancelEventArgs(cell.ColumnIndex, cell.RowIndex);
+        CellBeginEdit?.Invoke(this, beginning);
+        if (beginning.Cancel)
+        {
+            return false;
+        }
+
         Control? editor = CreatePortableEditingControl(cell);
         if (editor is null)
         {
@@ -216,6 +233,7 @@ public partial class DataGridView
         editor.Bounds = GetCellDisplayRectangle(cell.ColumnIndex, cell.RowIndex, cutOverflow: false);
         editor.KeyDown += OnPortableEditingControlKeyDown;
         Controls.Add(editor);
+        cell.InitializeEditingControl(cell.RowIndex, cell.Value, DefaultCellStyle);
 
         if (selectAll)
         {
@@ -251,6 +269,7 @@ public partial class DataGridView
         }
 
         DetachPortableEditingControl(restoreFocus: true);
+        CellEndEdit?.Invoke(this, new DataGridViewCellEventArgs(cell.ColumnIndex, cell.RowIndex));
         if (changed)
         {
             OnCellValueChanged(new DataGridViewCellEventArgs(cell.ColumnIndex, cell.RowIndex));
@@ -365,6 +384,13 @@ public partial class DataGridView
 
     private static Control? CreatePortableEditingControl(DataGridViewCell cell)
     {
+        if (cell.EditType is { } editType
+            && typeof(Control).IsAssignableFrom(editType)
+            && Activator.CreateInstance(editType) is Control customEditor)
+        {
+            return customEditor;
+        }
+
         if (cell is DataGridViewComboBoxCell comboBoxCell)
         {
             var comboBox = new ComboBox
