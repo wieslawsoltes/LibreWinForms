@@ -9,7 +9,7 @@ LibreWinForms preview releases publish the portable WinForms package set:
 Run the local package lane:
 
 ```bash
-LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.41 ./eng/librewinforms-pack.sh
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.42 ./eng/librewinforms-pack.sh
 ```
 
 LibreWinForms depends on `LibreWPF.Transport` and `LibreWPF.ProGPU` from its matching LibreWPF release, plus `LibreWPF.Interop` and `ProGPU.System.Drawing.Common` from the immutable ProGPU version pinned by that release. CI and release workflows check out the immutable `librewpf-v<version>` tag, download its three published LibreWPF packages, verify their package identity/version/repository commit against that checkout, and pass the staged local feed through `LIBREWINFORMS_RESTORE_SOURCES`.
@@ -17,9 +17,9 @@ LibreWinForms depends on `LibreWPF.Transport` and `LibreWPF.ProGPU` from its mat
 For local validation against unpublished bridge packages:
 
 ```bash
-LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.41 \
-LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.41 \
-LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.47 \
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.42 \
+LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.42 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.48 \
 LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShipping%3Bhttps://api.nuget.org/v3/index.json \
 ./eng/librewinforms-pack.sh
 ```
@@ -27,8 +27,8 @@ LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShippin
 Additional MSBuild properties can be passed after the script name, for example when validating the standalone clone against a local LibreWPF artifact root:
 
 ```bash
-LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.41 \
-LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.47 \
+LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.42 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.48 \
 LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShipping%3Bhttps://api.nuget.org/v3/index.json \
 ./eng/librewinforms-pack.sh -p:LibreWpfManagedAssemblyRoot=/path/to/wpf/artifacts/bin/
 ```
@@ -47,6 +47,8 @@ The package lane also uses an isolated NuGet cache at `artifacts/nuget/librewinf
 Release packing sets `LIBREWINFORMS_REQUIRE_CLEAN=1`, supplies the ProGPU strong-name key explicitly, and records the exact LibreWinForms, LibreWPF bridge, and ProGPU commits in the package manifest. The release workflow resolves an immutable `bridge_ref`; by default it uses `librewpf-v<bridge_version>`, while a manual rehearsal can pass an exact LibreWPF commit. This prevents a tag rerun from silently rebuilding against a later bridge branch tip.
 
 Both CI and release run the standalone control/dispatcher/drag-drop/tree behavior executable and then restore a fresh package-only `LibreWPF.Sdk` consumer. The package smoke executes form, owned-dialog, designer, typed message-box, checkable-control, ListView, custom-paint, and retained owner-draw modes before artifacts can be published. Consuming the immutable LibreWPF release bundle keeps its Windows RID-specific PresentationCore payload intact; rebuilding the bridge on a macOS runner would not produce that Windows text runtime.
+
+Preview.42 also compiles the unchanged Microsoft `dotnet/samples` DataGridView source against the portable SDK. Its compatibility slice covers typed cell styles and painting/value events, custom cell-template/editor activation, virtual data callbacks, DataTable binding, row-sharing APIs, and MaskedTextBox behavior. `System.Resources.Extensions` is a transitive forms-package dependency so designer RESX payloads do not require an application-level workaround.
 
 After NuGet indexing, dispatch `LibreWinForms Public Package Smoke` for the published version. It restores only from NuGet.org and builds the unchanged WinForms template shape (`LibreWinForms.Sdk`, `net10.0`, `UseWindowsForms`, `ApplicationConfiguration.Initialize`) on Ubuntu and macOS.
 
