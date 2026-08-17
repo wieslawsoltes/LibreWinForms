@@ -4047,6 +4047,18 @@ public class WindowsFormsHost : FrameworkElement
             {
                 RenderDataGridView(drawingContext, dataGridView, bounds, foreground);
             }
+            else if (control is Forms.NumericUpDown numericUpDown)
+            {
+                RenderNumericUpDown(drawingContext, numericUpDown, bounds, foreground);
+            }
+            else if (control is Forms.TextBoxBase textBox)
+            {
+                RenderTextBox(drawingContext, textBox, bounds, foreground);
+            }
+            else if (control is Forms.GroupBox groupBox)
+            {
+                RenderGroupBox(drawingContext, groupBox, bounds, foreground);
+            }
             else if (control is Forms.ComboBox comboBox)
             {
                 RenderComboBox(drawingContext, comboBox, bounds, foreground);
@@ -4117,6 +4129,10 @@ public class WindowsFormsHost : FrameworkElement
             if (control is Forms.UserControl userControl)
             {
                 DrawBorder(drawingContext, userControl.BorderStyle, bounds);
+            }
+            else if (control is Forms.Panel panel)
+            {
+                DrawBorder(drawingContext, panel.BorderStyle, bounds);
             }
 
             RenderPortableDesignerAdornments(drawingContext, control, bounds);
@@ -4646,6 +4662,52 @@ public class WindowsFormsHost : FrameworkElement
             context.LineTo(p3, true, false);
         }
         drawingContext.DrawGeometry(SystemColors.ControlTextBrush, null, geometry);
+    }
+
+    private void RenderTextBox(DrawingContext drawingContext, Forms.TextBoxBase textBox, Rect bounds, Brush foreground)
+    {
+        drawingContext.DrawRectangle(
+            textBox.Enabled ? SystemColors.WindowBrush : SystemColors.ControlBrush,
+            new Pen(SystemColors.ControlDarkBrush, 1),
+            bounds);
+        DrawTextInBounds(
+            drawingContext,
+            textBox.Text,
+            new Rect(bounds.X + 4, bounds.Y + 2, Math.Max(0, bounds.Width - 8), Math.Max(0, bounds.Height - 4)),
+            textBox.Enabled ? foreground : SystemColors.GrayTextBrush,
+            12);
+    }
+
+    private void RenderGroupBox(DrawingContext drawingContext, Forms.GroupBox groupBox, Rect bounds, Brush foreground)
+    {
+        double captionWidth = string.IsNullOrEmpty(groupBox.Text) ? 0 : MeasureText(groupBox.Text, 12) + 8;
+        double borderTop = bounds.Y + 8;
+        var borderPen = new Pen(SystemColors.ControlDarkBrush, 1);
+        drawingContext.DrawLine(borderPen, new Point(bounds.X, borderTop), new Point(bounds.X + 8, borderTop));
+        drawingContext.DrawLine(borderPen, new Point(Math.Min(bounds.Right, bounds.X + 8 + captionWidth), borderTop), new Point(bounds.Right, borderTop));
+        drawingContext.DrawLine(borderPen, new Point(bounds.X, borderTop), new Point(bounds.X, bounds.Bottom));
+        drawingContext.DrawLine(borderPen, new Point(bounds.Right, borderTop), new Point(bounds.Right, bounds.Bottom));
+        drawingContext.DrawLine(borderPen, new Point(bounds.X, bounds.Bottom), new Point(bounds.Right, bounds.Bottom));
+        if (!string.IsNullOrEmpty(groupBox.Text))
+        {
+            DrawText(drawingContext, groupBox.Text, new Point(bounds.X + 12, bounds.Y), foreground, 12);
+        }
+    }
+
+    private void RenderNumericUpDown(DrawingContext drawingContext, Forms.NumericUpDown numericUpDown, Rect bounds, Brush foreground)
+    {
+        drawingContext.DrawRectangle(SystemColors.WindowBrush, new Pen(SystemColors.ControlDarkBrush, 1), bounds);
+        DrawTextInBounds(
+            drawingContext,
+            numericUpDown.Value.ToString(CultureInfo.CurrentCulture),
+            new Rect(bounds.X + 4, bounds.Y + 2, Math.Max(0, bounds.Width - 22), Math.Max(0, bounds.Height - 4)),
+            numericUpDown.Enabled ? foreground : SystemColors.GrayTextBrush,
+            12);
+        double buttonLeft = bounds.Right - 18;
+        drawingContext.DrawLine(new Pen(SystemColors.ControlDarkBrush, 1), new Point(buttonLeft, bounds.Top), new Point(buttonLeft, bounds.Bottom));
+        drawingContext.DrawLine(new Pen(SystemColors.ControlDarkBrush, 1), new Point(buttonLeft, bounds.Top + (bounds.Height / 2)), new Point(bounds.Right, bounds.Top + (bounds.Height / 2)));
+        DrawSpinnerArrow(drawingContext, new Point(buttonLeft + 9, bounds.Top + (bounds.Height / 4)), up: true, foreground);
+        DrawSpinnerArrow(drawingContext, new Point(buttonLeft + 9, bounds.Top + ((bounds.Height * 3) / 4)), up: false, foreground);
     }
 
     private void RenderListBox(DrawingContext drawingContext, Forms.ListBox listBox, Rect bounds, Brush foreground, bool checkedItems)
@@ -5288,18 +5350,7 @@ public class WindowsFormsHost : FrameworkElement
 
         if (control is Forms.NumericUpDown numericUpDown)
         {
-            drawingContext.DrawRectangle(SystemColors.WindowBrush, new Pen(SystemColors.ControlDarkBrush, 1), bounds);
-            DrawTextInBounds(
-                drawingContext,
-                numericUpDown.Value.ToString(CultureInfo.CurrentCulture),
-                new Rect(bounds.X + 4, bounds.Y + 2, Math.Max(0, bounds.Width - 22), Math.Max(0, bounds.Height - 4)),
-                foreground,
-                12);
-            double buttonLeft = bounds.Right - 18;
-            drawingContext.DrawLine(new Pen(SystemColors.ControlDarkBrush, 1), new Point(buttonLeft, bounds.Top), new Point(buttonLeft, bounds.Bottom));
-            drawingContext.DrawLine(new Pen(SystemColors.ControlDarkBrush, 1), new Point(buttonLeft, bounds.Top + (bounds.Height / 2)), new Point(bounds.Right, bounds.Top + (bounds.Height / 2)));
-            DrawSpinnerArrow(drawingContext, new Point(buttonLeft + 9, bounds.Top + (bounds.Height / 4)), up: true, foreground);
-            DrawSpinnerArrow(drawingContext, new Point(buttonLeft + 9, bounds.Top + ((bounds.Height * 3) / 4)), up: false, foreground);
+            RenderNumericUpDown(drawingContext, numericUpDown, bounds, foreground);
             return;
         }
 

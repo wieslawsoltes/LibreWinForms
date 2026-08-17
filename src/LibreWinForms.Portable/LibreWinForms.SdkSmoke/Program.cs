@@ -61,6 +61,11 @@ internal static class Program
             return RunCheckableControlsSmoke();
         }
 
+        if (args.Contains("--run-control-preview", StringComparer.Ordinal))
+        {
+            return RunControlPreviewSmoke();
+        }
+
         if (args.Contains("--run-listview", StringComparer.Ordinal))
         {
             return RunListViewSmoke();
@@ -1310,6 +1315,62 @@ internal static class Program
         {
             geometryDrawings++;
         }
+    }
+
+    private static int RunControlPreviewSmoke()
+    {
+        var root = new Forms.Panel
+        {
+            BorderStyle = Forms.BorderStyle.FixedSingle,
+            Size = new System.Drawing.Size(240, 140)
+        };
+        root.Controls.Add(new Forms.TextBox
+        {
+            Bounds = new System.Drawing.Rectangle(8, 8, 100, 20),
+            Text = "TextBox"
+        });
+        root.Controls.Add(new Forms.GroupBox
+        {
+            Bounds = new System.Drawing.Rectangle(8, 36, 140, 56),
+            Text = "GroupBox"
+        });
+        root.Controls.Add(new Forms.NumericUpDown
+        {
+            Bounds = new System.Drawing.Rectangle(8, 104, 120, 20),
+            Value = 42
+        });
+
+        var host = new SmokeWindowsFormsHost { Child = root };
+        host.Measure(new System.Windows.Size(240, 140));
+        host.Arrange(new System.Windows.Rect(0, 0, 240, 140));
+        var visual = new System.Windows.Media.DrawingVisual();
+        using (System.Windows.Media.DrawingContext drawingContext = visual.RenderOpen())
+        {
+            host.RenderForSmoke(drawingContext);
+        }
+
+        int imageDrawings = 0;
+        int textDrawings = 0;
+        int geometryDrawings = 0;
+        string lastLeafKind = string.Empty;
+        CountDrawingLeaves(
+            visual.Drawing,
+            ref imageDrawings,
+            ref textDrawings,
+            ref geometryDrawings,
+            ref lastLeafKind);
+        host.Child = null;
+
+        if (textDrawings < 3 || geometryDrawings < 12)
+        {
+            Console.Error.WriteLine(
+                $"LibreWinForms control preview smoke failed text={textDrawings} geometry={geometryDrawings}");
+            return 13;
+        }
+
+        Console.WriteLine(
+            $"LibreWinForms control preview smoke result=Success text={textDrawings} geometry={geometryDrawings}");
+        return 0;
     }
 
     private static int RunKeyboardRoutingSmoke()

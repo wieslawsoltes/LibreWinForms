@@ -180,6 +180,7 @@ modes=(
   --run-cross-framework-drag
   --run-native-popup
   --run-host-double-click
+  --run-control-preview
 )
 if [[ -n "${LIBREWINFORMS_SMOKE_MODES:-}" ]]; then
   read -r -a modes <<<"${LIBREWINFORMS_SMOKE_MODES}"
