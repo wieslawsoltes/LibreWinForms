@@ -19,7 +19,7 @@ For local validation against unpublished bridge packages:
 ```bash
 LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.42 \
 LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.42 \
-LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.48 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.50 \
 LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShipping%3Bhttps://api.nuget.org/v3/index.json \
 ./eng/librewinforms-pack.sh
 ```
@@ -28,7 +28,7 @@ Additional MSBuild properties can be passed after the script name, for example w
 
 ```bash
 LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.42 \
-LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.48 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.50 \
 LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShipping%3Bhttps://api.nuget.org/v3/index.json \
 ./eng/librewinforms-pack.sh -p:LibreWpfManagedAssemblyRoot=/path/to/wpf/artifacts/bin/
 ```

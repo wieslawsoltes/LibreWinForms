@@ -8,7 +8,7 @@
 
     <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == ''">0.1.0-preview.42</LibreWinFormsVersion>
     <LibreWinFormsBridgePackageVersion Condition="'$(LibreWinFormsBridgePackageVersion)' == ''">$(LibreWinFormsVersion)</LibreWinFormsBridgePackageVersion>
-    <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == ''">0.1.0-preview.48</LibreWinFormsProGpuPackageVersion>
+    <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == ''">0.1.0-preview.50</LibreWinFormsProGpuPackageVersion>
     <Version Condition="'$(Version)' == ''">$(LibreWinFormsVersion)</Version>
     <PackageVersion Condition="'$(PackageVersion)' == ''">$(Version)</PackageVersion>
 
@@ -20,7 +20,7 @@
     <RepositoryUrl>https://github.com/wieslawsoltes/winforms</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageTags>librewinforms;progpu;silk.net;winforms;cross-platform</PackageTags>
-    <PackageReleaseNotes>Aligns LibreWinForms 0.1.0-preview.42 with immutable LibreWPF 0.1.0-preview.42 and ProGPU 0.1.0-preview.48; builds the unchanged Microsoft DataGridView sample through LibreWinForms.Sdk with typed cell styles, painting/value events, custom cell templates and editors, virtual-mode callbacks, DataTable binding, and MaskedTextBox input; carries System.Resources.Extensions transitively so designer RESX payloads compile without application changes; validates hosted drawing contexts through the typed ProGpuDrawingContextState conversion without reflection; consumes ProGPU's compact retained picture, text, image, and readback paths; bounds retained formatted-text and drawing caches without increasing steady-frame allocations; preserves versioned designer serialization, Project Explorer/designer double-click counts, native popup-local Cocoa input, and interactive MenuStrip/ToolStrip/context-menu/dropdown placement; and retains typed X11/XWayland positioning, movement, dispatcher-pump, text, image, and scene-performance behavior.</PackageReleaseNotes>
+    <PackageReleaseNotes>Aligns LibreWinForms 0.1.0-preview.42 with immutable LibreWPF 0.1.0-preview.42 and ProGPU 0.1.0-preview.50; builds the unchanged Microsoft DataGridView sample through LibreWinForms.Sdk with typed cell styles, painting/value events, custom cell templates and editors, virtual-mode callbacks, DataTable binding, and MaskedTextBox input; carries System.Resources.Extensions transitively so designer RESX payloads compile without application changes; validates hosted drawing contexts through the typed ProGpuDrawingContextState conversion without reflection; consumes ProGPU's compact retained picture, text, image, and readback paths; bounds retained formatted-text and drawing caches without increasing steady-frame allocations; preserves versioned designer serialization, Project Explorer/designer double-click counts, native popup-local Cocoa input, and interactive MenuStrip/ToolStrip/context-menu/dropdown placement; and retains typed X11/XWayland positioning, movement, dispatcher-pump, text, image, and scene-performance behavior.</PackageReleaseNotes>
     <IsPackable>true</IsPackable>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
