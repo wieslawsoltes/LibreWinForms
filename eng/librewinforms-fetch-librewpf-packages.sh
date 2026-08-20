@@ -3,7 +3,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 bridge_checkout="${LIBREWINFORMS_BRIDGE_CHECKOUT:-${repo_root}/wpf-bridge}"
-bridge_version="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION:-0.1.0-preview.43}"
+bridge_version="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION:-0.1.0-preview.44}"
 bridge_ref="${LIBREWINFORMS_BRIDGE_REF:-librewpf-v${bridge_version}}"
 package_output="${LIBREWINFORMS_BRIDGE_PACKAGE_OUTPUT:-${bridge_checkout}/artifacts/packages/Release/NonShipping}"
 release_url="${LIBREWINFORMS_BRIDGE_RELEASE_URL:-https://github.com/wieslawsoltes/wpf/releases/download/librewpf-v${bridge_version}}"
