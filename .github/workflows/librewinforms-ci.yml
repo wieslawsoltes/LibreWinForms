@@ -19,7 +19,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 120
     env:
-      LIBREWINFORMS_DEV_PACKAGE_VERSION: 0.1.0-preview.42
+      LIBREWINFORMS_DEV_PACKAGE_VERSION: 0.1.0-preview.43
       LIBREWINFORMS_BRIDGE_PACKAGE_VERSION: 0.1.0-preview.43
       LIBREWINFORMS_PROGPU_PACKAGE_VERSION: 0.1.0-preview.53
       LIBREWINFORMS_BRIDGE_REF: librewpf-v0.1.0-preview.43
