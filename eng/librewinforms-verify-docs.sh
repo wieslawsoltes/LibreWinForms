@@ -57,12 +57,13 @@ require_text src/LibreWinForms.Portable/LibreWinForms.WindowsFormsIntegration/Li
 require_text src/LibreWinForms.Portable/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj "<PackageReadmeFile>README.md</PackageReadmeFile>"
 require_text .github/workflows/librewinforms-ci.yml "LibreWinForms Build"
 require_text .github/workflows/librewinforms-ci.yml "Stage immutable LibreWPF bridge packages"
-require_text .github/workflows/librewinforms-ci.yml "librewpf-v0.1.0-preview.42"
+require_text .github/workflows/librewinforms-ci.yml "librewpf-v0.1.0-preview.43"
 require_text .github/workflows/librewinforms-ci.yml "LIBREWINFORMS_PROGPU_PACKAGE_VERSION"
 require_text .github/workflows/librewinforms-ci.yml "LibreWinFormsReferenceMode=Package"
 require_text .github/workflows/librewinforms-ci.yml 'restore_sources="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping;https://api.nuget.org/v3/index.json"'
 require_text .github/workflows/librewinforms-ci.yml '-p:LibreWinFormsBridgePackageVersion="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION}"'
 require_text .github/workflows/librewinforms-ci.yml '-p:LibreWinFormsProGpuPackageVersion="${LIBREWINFORMS_PROGPU_PACKAGE_VERSION}"'
+require_text eng/librewinforms-package-smoke.sh '<ProGpuPackageVersion>${progpu_version}</ProGpuPackageVersion>'
 require_text .github/workflows/librewinforms-ci.yml '-p:RestoreSources="${restore_sources}"'
 require_text .github/workflows/librewinforms-ci.yml "Run package-mode SDK smoke"
 require_text .github/workflows/librewinforms-docs.yml "LibreWinForms Docs"
