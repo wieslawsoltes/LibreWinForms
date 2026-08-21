@@ -52,13 +52,13 @@ required_entries=(
 
 package_entries="$(unzip -Z1 "${package_file}")"
 for required_entry in "${required_entries[@]}"; do
-  if ! rg -Fxq "${required_entry}" <<<"${package_entries}"; then
+  if ! grep -Fxq "${required_entry}" <<<"${package_entries}"; then
     echo "Canonical source-first package is missing ${required_entry}." >&2
     exit 1
   fi
 done
 
-if rg -q '^lib/net11\.0/(ProGPU\.|System\.Drawing\.Common)' <<<"${package_entries}"; then
+if grep -Eq '^lib/net11\.0/(ProGPU\.|System\.Drawing\.Common)' <<<"${package_entries}"; then
   echo "Canonical source-first package embeds ProGPU dependencies instead of declaring package dependencies." >&2
   exit 1
 fi
@@ -71,7 +71,7 @@ if [[ "${implementation_hash}" != "${canonical_hash}" ]]; then
 fi
 
 nuspec="$(unzip -p "${package_file}" LibreWinForms.System.Windows.Forms.nuspec)"
-if ! rg -Fq 'id="ProGPU.System.Drawing.Common"' <<<"${nuspec}"; then
+if ! grep -Fq 'id="ProGPU.System.Drawing.Common"' <<<"${nuspec}"; then
   echo "Canonical source-first package does not declare ProGPU.System.Drawing.Common." >&2
   exit 1
 fi
