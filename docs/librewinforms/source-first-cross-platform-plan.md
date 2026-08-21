@@ -17,7 +17,7 @@ This is the LibreWPF model applied to WinForms: modify the real managed framewor
 
 The deletion is a cutover result, not the first migration step. Deleting the current directory before the canonical graph can build and run would discard working SharpDevelop coverage without producing a usable replacement.
 
-## 2026-08-21 implementation checkpoint
+## 2026-08-22 implementation checkpoint
 
 The repository now has a shadow source-first build graph rather than only a design proposal:
 
@@ -26,11 +26,13 @@ The repository now has a shadow source-first build graph rather than only a desi
 - `LibreWinFormsUseProGpuSystemDrawing=true` builds the canonical `System.Windows.Forms.Primitives` and `System.Windows.Forms` projects against ProGPU's `System.Drawing.Common`, backend, scene, vector, and text projects;
 - the opt-in restore graph excludes the repository's Microsoft drawing project, compiler resolution removes any stale Microsoft drawing reference, and the project-mode output gate copies the current submodule binary then rejects either a non-ProGPU strong-name token or a stale hash;
 - the canonical sources use public `IDeviceContext`/`Graphics` APIs or explicit typed portable seams instead of private implementation probes;
-- CI has a source-first shadow lane, and `eng/librewinforms-source-first.sh` keeps the canonical, ProGPU API/quality, and legacy comparison lanes visible together.
+- `packaging/LibreWinForms.System.Windows.Forms` now packs canonical implementation and reference assemblies under the existing package brand, declares ProGPU drawing as a dependency rather than embedding it, and is consumed from a fresh isolated NuGet cache by an ordinary `Form` subclass with warnings treated as errors;
+- the ProGPU-backed build no longer inherits the upstream Windows-only assembly annotation, while the default Windows build retains it; and
+- CI has a source-first shadow lane, and `eng/librewinforms-source-first.sh` keeps the canonical, ProGPU API/quality, and legacy comparison lanes visible together. The same lane packs, inspects, consumes, and uploads the canonical shadow package.
 
 Release validation completed with zero errors for the default canonical `System.Windows.Forms` build, the ProGPU-backed canonical primitives build, and the ProGPU-backed canonical `System.Windows.Forms` build. The final canonical output's `System.Drawing.Common.dll` is byte-identical to the submodule build and the generated dependency manifest identifies `ProGPU.System.Drawing.Common`; build success alone is not accepted as payload evidence. ProGPU's pinned .NET 10.0.11 API gate passes its reviewed baseline at 70 missing types, 480 missing members, 47 other shape diagnostics, and 597 total diagnostics. The remaining count is tracked debt, not a parity claim. Canonical image-recoloring paths now receive official `ColorMap`/`ImageAttributes` shapes and actually applied, defensively snapshotted remap/matrix state instead of silently ignored state; managed resolution, tag, frame, bounds, pixel-format, palette, and property metadata are also present without GPU initialization, together with deterministic fixed and CPU-only optimal palette generation. The shared affine `Drawing2D.Matrix` contract now covers official composition, parallelogram, pivot, shear, inverse, point/vector, array/span, cloning, and lifecycle behavior while retaining the typed `Matrix3x2` renderer seam. The `Blend`, `ColorBlend`, and `LinearGradientBrush` group includes public ownership semantics, aspect-ratio-scaled angle construction, transforms, gamma/spread mapping, custom stops, and renderable falloff functions through the typed ProGPU vector brush. `GraphicsPath`, `PathData`, `PathPointType`, and `GraphicsPathIterator` now provide retained point/type construction, span export and iteration, cardinal curves, deep clone/composition, markers, analytic bounds, transforms, fill hit-testing, reversal, and adaptive flattening without reflection or native GDI+ handles; text outlines, stroke expansion/hit-testing, and warp remain explicit follow-up subsystems.
 
-This checkpoint intentionally does not delete `src/LibreWinForms.Portable`. Runtime cutover still requires the typed application/window/input/message-loop host, real ProGPU paint-surface projection, remaining HDC/HRGN/HICON adapters, service integration, package-output replacement, and unchanged-application/SharpDevelop runtime gates. The compatibility lane is now a comparison and fallback lane; new generally useful APIs should land in canonical WinForms or ProGPU instead of expanding it.
+This checkpoint intentionally does not delete `src/LibreWinForms.Portable`. The shadow package proves canonical payload and dependency selection, but the production SDK still selects the compatibility package. Runtime cutover still requires the typed application/window/input/message-loop host, real ProGPU paint-surface projection, remaining HDC/HRGN/HICON adapters, service integration, production SDK replacement, and unchanged `Application.Run`/SharpDevelop runtime gates. The compatibility lane is now a comparison and fallback lane; new generally useful APIs should land in canonical WinForms or ProGPU instead of expanding it.
 
 ## Why the current package is incomplete despite having the full source
 
@@ -333,7 +335,7 @@ Exit: repository builds, tests, packs, and runs without the directory in a clean
 
 All gates are required before removing `src/LibreWinForms.Portable`:
 
-- [ ] The packed `System.Windows.Forms.dll` is produced from `src/System.Windows.Forms` canonical source.
+- [x] The shadow `LibreWinForms.System.Windows.Forms` package contains the byte-verified `System.Windows.Forms.dll` produced from `src/System.Windows.Forms` canonical source. Production SDK selection remains gated below.
 - [ ] No build, package, workflow, test, or application project references `src/LibreWinForms.Portable`.
 - [ ] No duplicate public `System.Windows.Forms` type definitions remain outside canonical sources.
 - [ ] ApiCompat reports zero missing types and members against the selected official WinForms contract.

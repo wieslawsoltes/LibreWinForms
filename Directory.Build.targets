@@ -10,7 +10,7 @@
 
   <!-- CA1416 Validate platform compatibility. Do not apply to netstandard or .NET Framework as they do not have the attribute. -->
   <ItemGroup>
-    <AssemblyAttribute Include="System.Runtime.Versioning.SupportedOSPlatform" Condition="!$(TargetFramework.StartsWith('netstandard')) and !$(TargetFramework.StartsWith('net4'))">
+    <AssemblyAttribute Include="System.Runtime.Versioning.SupportedOSPlatform" Condition="'$(LibreWinFormsUseProGpuSystemDrawing)' != 'true' and !$(TargetFramework.StartsWith('netstandard')) and !$(TargetFramework.StartsWith('net4'))">
       <!-- This tells the analyzer that we are targeting windows6.1 (windows 7). -->
       <_Parameter1>windows6.1</_Parameter1>
     </AssemblyAttribute>

@@ -39,6 +39,17 @@ jobs:
         shell: bash
         run: ./eng/librewinforms-source-first.sh
 
+      - name: Pack and consume canonical source-first package
+        shell: bash
+        run: ./eng/librewinforms-pack-source-first.sh
+
+      - name: Upload canonical source-first package
+        uses: actions/upload-artifact@v4
+        with:
+          name: canonical-source-first-package
+          path: artifacts/packages/source-first/*.nupkg
+          if-no-files-found: error
+
   packages:
     name: Package lane
     runs-on: macos-15
