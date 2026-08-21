@@ -3790,7 +3790,7 @@ public partial class ComboBox : ListControl
                         PInvokeCore.SelectClipRgn(dc, windowRegion);
                     }
 
-                    using Graphics g = Graphics.FromHdcInternal((IntPtr)dc);
+                    using Graphics g = Graphics.FromHdc((IntPtr)dc);
                     FlatComboBoxAdapter.DrawFlatCombo(this, g);
 
                     // Special handling for disabled DropDownList in dark mode
@@ -3830,7 +3830,7 @@ public partial class ComboBox : ListControl
                     {
                         if (!GetStyle(ControlStyles.UserPaint) && (FlatStyle == FlatStyle.Flat || FlatStyle == FlatStyle.Popup))
                         {
-                            using Graphics g = Graphics.FromHdcInternal((HDC)m.WParamInternal);
+                            using Graphics g = Graphics.FromHdc((HDC)m.WParamInternal);
                             FlatComboBoxAdapter.DrawFlatCombo(this, g);
                         }
 

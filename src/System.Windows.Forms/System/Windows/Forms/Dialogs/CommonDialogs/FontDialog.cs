@@ -3,8 +3,10 @@
 
 using System.ComponentModel;
 using System.Drawing;
+#if !LIBREWINFORMS_PROGPU_DRAWING
 using System.Drawing.Interop;
 using System.Runtime.CompilerServices;
+#endif
 using Windows.Win32.UI.Controls.Dialogs;
 
 namespace System.Windows.Forms;
@@ -301,6 +303,7 @@ public class FontDialog : CommonDialog
     /// </summary>
     protected override IntPtr HookProc(IntPtr hWnd, int msg, IntPtr wparam, IntPtr lparam)
     {
+#if !LIBREWINFORMS_PROGPU_DRAWING
         switch ((uint)msg)
         {
             case PInvokeCore.WM_COMMAND:
@@ -351,6 +354,7 @@ public class FontDialog : CommonDialog
 
                 break;
         }
+#endif
 
         return base.HookProc(hWnd, msg, wparam, lparam);
     }
@@ -379,6 +383,10 @@ public class FontDialog : CommonDialog
 
     protected override unsafe bool RunDialog(IntPtr hWndOwner)
     {
+#if LIBREWINFORMS_PROGPU_DRAWING
+        throw new PlatformNotSupportedException(
+            "The Win32 ChooseFont dialog requires the Windows drawing/dialog adapter.");
+#else
         using var dc = GetDcScope.ScreenDC;
         using Graphics graphics = Graphics.FromHdcInternal(dc);
         LOGFONTW logFont = Font.ToLogicalFont(graphics);
@@ -427,6 +435,7 @@ public class FontDialog : CommonDialog
         }
 
         return true;
+#endif
     }
 
     /// <summary>
@@ -460,6 +469,7 @@ public class FontDialog : CommonDialog
         }
     }
 
+#if !LIBREWINFORMS_PROGPU_DRAWING
     private void UpdateFont(ref LOGFONT lf)
     {
         using var dc = GetDcScope.ScreenDC;
@@ -469,4 +479,5 @@ public class FontDialog : CommonDialog
         // but actually gives us something in world units (device-dependent).
         _font = ControlPaint.FontInPoints(fontInWorldUnits);
     }
+#endif
 }

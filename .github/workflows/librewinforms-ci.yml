@@ -14,6 +14,31 @@ permissions:
   contents: read
 
 jobs:
+  source-first-shadow:
+    name: Canonical source and ProGPU submodule lane
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup .NET 10 for ProGPU
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Setup LibreWinForms repository SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Validate canonical source and local ProGPU graph
+        shell: bash
+        run: ./eng/librewinforms-source-first.sh
+
   packages:
     name: Package lane
     runs-on: macos-15

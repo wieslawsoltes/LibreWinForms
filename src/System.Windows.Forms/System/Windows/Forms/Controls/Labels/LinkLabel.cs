@@ -1365,7 +1365,7 @@ public partial class LinkLabel : Label, IButtonControl
             }
 
             Color color;
-            using (DeviceContextHdcScope hdc = new(g, applyGraphicsState: false))
+            using (DeviceContextHdcScope hdc = g.ToHdcScope(ApplyGraphicsProperties.None))
             {
                 color = ColorTranslator.FromWin32(
                     (int)PInvoke.GetNearestColor(hdc, (COLORREF)(uint)ColorTranslator.ToWin32(foreBrush.Color)).Value);

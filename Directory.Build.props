@@ -1,5 +1,7 @@
 <Project>
 
+  <Import Project="$(MSBuildThisFileDirectory)eng\LibreWinForms.ProGPU.props" />
+
   <Import Project="Sdk.props" Sdk="Microsoft.DotNet.Arcade.Sdk" />
   <Import Project="$(RepositoryEngineeringDir)Analyzer.props" />
   <Import Project="$(RepositoryEngineeringDir)FacadeAssemblies.props" />

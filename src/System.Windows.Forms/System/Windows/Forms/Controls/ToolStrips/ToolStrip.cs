@@ -2644,7 +2644,7 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
     {
         using Bitmap image = new(bounds.Width, bounds.Height);
         using Graphics g = Graphics.FromImage(image);
-        using DeviceContextHdcScope imageHdc = new(g, applyGraphicsState: false);
+        using DeviceContextHdcScope imageHdc = g.ToHdcScope(ApplyGraphicsProperties.None);
 
         // Send the actual wm_print message
         PInvokeCore.SendMessage(
@@ -3480,7 +3480,7 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
             // using WindowsGraphics here because we want to preserve the clipping information.
 
             // calling GetHdc by itself does not set up the clipping info.
-            using DeviceContextHdcScope toolStripHDC = new(toolstripGraphics, ApplyGraphicsProperties.Clipping);
+            using DeviceContextHdcScope toolStripHDC = toolstripGraphics.ToHdcScope(ApplyGraphicsProperties.Clipping);
 
             // Get the cached item HDC.
             HDC itemHDC = ItemHdcInfo.GetCachedItemDC(toolStripHDC, bitmapSize);

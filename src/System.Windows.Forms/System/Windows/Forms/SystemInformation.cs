@@ -3,8 +3,10 @@
 
 using System.ComponentModel;
 using System.Drawing;
+#if !LIBREWINFORMS_PROGPU_DRAWING
 using System.Drawing.Interop;
 using System.Runtime.CompilerServices;
+#endif
 using System.Runtime.InteropServices;
 using Windows.Win32.System.StationsAndDesktops;
 using Windows.Win32.UI.Accessibility;
@@ -141,6 +143,11 @@ public static class SystemInformation
 
     private static unsafe Font GetMenuFontHelper(uint dpi, bool useDpi)
     {
+#if LIBREWINFORMS_PROGPU_DRAWING
+        // Portable system settings are supplied by the windowing backend. Until
+        // that typed service is connected, preserve WinForms' managed fallback.
+        return Control.DefaultFont;
+#else
         // We can get the system's menu font through the NONCLIENTMETRICS structure
         // via SystemParametersInfo
         NONCLIENTMETRICSW data = default;
@@ -163,6 +170,7 @@ public static class SystemInformation
         }
 
         return Control.DefaultFont;
+#endif
     }
 
     /// <summary>

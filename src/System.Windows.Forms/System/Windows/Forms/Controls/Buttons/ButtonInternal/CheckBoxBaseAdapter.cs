@@ -200,7 +200,7 @@ internal abstract class CheckBoxBaseAdapter : CheckableControlBaseAdapter
 
     internal static Rectangle DrawPopupBorder(Graphics g, Rectangle r, ColorData colors)
     {
-        using DeviceContextHdcScope hdc = new(g);
+        using DeviceContextHdcScope hdc = g.ToHdcScope();
         return DrawPopupBorder(hdc, r, colors);
     }
 
@@ -310,7 +310,7 @@ internal abstract class CheckBoxBaseAdapter : CheckableControlBaseAdapter
         using (Graphics offscreen = Graphics.FromImage(bitmap))
         {
             offscreen.Clear(Color.Transparent);
-            using DeviceContextHdcScope hdc = new(offscreen, applyGraphicsState: false);
+            using DeviceContextHdcScope hdc = offscreen.ToHdcScope(ApplyGraphicsProperties.None);
             PInvoke.DrawFrameControl(
                 hdc,
                 ref rcCheck,

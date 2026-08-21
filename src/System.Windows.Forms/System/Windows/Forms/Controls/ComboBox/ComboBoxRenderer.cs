@@ -101,7 +101,7 @@ public static class ComboBoxRenderer
     /// </summary>
     public static void DrawDropDownButton(Graphics g, Rectangle bounds, ComboBoxState state)
     {
-        using DeviceContextHdcScope hdc = new(g);
+        using DeviceContextHdcScope hdc = g.ToHdcScope();
         DrawDropDownButtonForHandle(hdc, bounds, state, HWND.Null);
     }
 

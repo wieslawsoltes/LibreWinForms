@@ -333,7 +333,7 @@ public static class TextRenderer
             // This MUST come before retrieving the HDC, which locks the Graphics object
             FONT_QUALITY quality = FontQualityFromTextRenderingHint(e.GraphicsInternal);
 
-            using DeviceContextHdcScope graphicsHdc = new(e.GraphicsInternal, applyGraphicsState: false);
+            using DeviceContextHdcScope graphicsHdc = e.GraphicsInternal.ToHdcScope(ApplyGraphicsProperties.None);
             DrawTextInternal(graphicsHdc, text, font, bounds, foreColor, quality, backColor, flags);
         }
         else

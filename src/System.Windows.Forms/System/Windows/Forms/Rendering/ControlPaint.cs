@@ -1075,7 +1075,7 @@ public static unsafe partial class ControlPaint
         }
 
         // Get Win32 dc with Graphics properties applied to it.
-        using DeviceContextHdcScope hdc = new(graphics);
+        using DeviceContextHdcScope hdc = graphics.ToHdcScope();
         PInvoke.DrawEdge(hdc, ref rc, edge, flags);
     }
 
@@ -1400,7 +1400,7 @@ public static unsafe partial class ControlPaint
                 using (Graphics g2 = Graphics.FromImage(bitmap))
                 {
                     g2.Clear(Color.Transparent);
-                    using DeviceContextHdcScope dc = new(g2, applyGraphicsState: false);
+                    using DeviceContextHdcScope dc = g2.ToHdcScope(ApplyGraphicsProperties.None);
                     PInvoke.DrawFrameControl(dc, ref rcCheck, (uint)DFC_TYPE.DFC_MENU, (uint)DFCS_STATE.DFCS_MENUCHECK);
                 }
 
@@ -1470,7 +1470,7 @@ public static unsafe partial class ControlPaint
         using Graphics g2 = Graphics.FromImage(bitmap);
         g2.Clear(Color.Transparent);
 
-        using (DeviceContextHdcScope hdc = new(g2, applyGraphicsState: false))
+        using (DeviceContextHdcScope hdc = g2.ToHdcScope(ApplyGraphicsProperties.None))
         {
             // Get Win32 dc with Graphics properties applied to it.
             PInvoke.DrawFrameControl(hdc, ref rcFrame, (uint)kind, (uint)state);

@@ -2,7 +2,9 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
+#if !LIBREWINFORMS_PROGPU_DRAWING
 using Windows.Win32.Graphics.GdiPlus;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -367,6 +369,7 @@ public partial class ErrorProvider
             using SaveDcScope save = new(hdc);
             MirrorDcIfNeeded(hdc);
 
+#if !LIBREWINFORMS_PROGPU_DRAWING
             using Graphics g = hdc.CreateGraphics();
             using RegionScope windowRegionHandle = windowRegion.GetRegionScope(g);
             if (PInvoke.SetWindowRgn(this, windowRegionHandle, fRedraw: true) != 0)
@@ -374,6 +377,7 @@ public partial class ErrorProvider
                 // The HWnd owns the region.
                 windowRegionHandle.RelinquishOwnership();
             }
+#endif
 
             PInvoke.SetWindowPos(
                 this,

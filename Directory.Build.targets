@@ -1,5 +1,7 @@
 <Project>
 
+  <Import Project="$(MSBuildThisFileDirectory)eng\LibreWinForms.ProGPU.targets" />
+
   <Import Project="$(RepositoryEngineeringDir)Analyzer.targets" Condition="'$(DotNetBuildSourceOnly)' != 'true'" />
   <Import Project="Sdk.targets" Sdk="Microsoft.DotNet.Arcade.Sdk" />
   <Import Project="$(RepositoryEngineeringDir)packageContent.targets" />

@@ -2,7 +2,9 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
+#if !LIBREWINFORMS_PROGPU_DRAWING
 using System.Drawing.Interop;
+#endif
 using Microsoft.Win32;
 
 namespace System.Windows.Forms.VisualStyles;
@@ -533,6 +535,11 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
 
         SourceGenerated.EnumValidator.Validate(prop, nameof(prop));
 
+#if LIBREWINFORMS_PROGPU_DRAWING
+        // Theme fonts belong to the platform theme service; do not manufacture
+        // a private System.Drawing.Interop.LOGFONT in the portable lane.
+        return null;
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         _lastHResult = PInvoke.GetThemeFont(this, hdc, Part, State, (int)prop, out LOGFONT logfont);
 
@@ -551,6 +558,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
             // Looks like the font was not true type
             return null;
         }
+#endif
     }
 
     /// <summary>

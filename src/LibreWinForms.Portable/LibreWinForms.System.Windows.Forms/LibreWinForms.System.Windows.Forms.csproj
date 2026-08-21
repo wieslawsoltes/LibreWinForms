@@ -9,8 +9,8 @@
     <PackageTags>librewinforms;winforms;progpu;silk.net;cross-platform</PackageTags>
     <IncludeBuildOutput>true</IncludeBuildOutput>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <SignAssembly Condition="Exists('..\..\..\..\ProGPU\eng\ProGPU.snk')">true</SignAssembly>
-    <AssemblyOriginatorKeyFile Condition="Exists('..\..\..\..\ProGPU\eng\ProGPU.snk')">..\..\..\..\ProGPU\eng\ProGPU.snk</AssemblyOriginatorKeyFile>
+    <SignAssembly Condition="Exists('$(LibreWinFormsProGpuSourceRoot)eng\ProGPU.snk')">true</SignAssembly>
+    <AssemblyOriginatorKeyFile Condition="Exists('$(LibreWinFormsProGpuSourceRoot)eng\ProGPU.snk')">$(LibreWinFormsProGpuSourceRoot)eng\ProGPU.snk</AssemblyOriginatorKeyFile>
     <NoWarn>$(NoWarn);CS1591;CA1051;CA1815;IDE0005;IDE0073;IDE0300;IDE1006</NoWarn>
   </PropertyGroup>
 
@@ -28,9 +28,9 @@
     <PackageReference Include="ProGPU.System.Drawing.Common"
                       Version="$(LibreWinFormsProGpuPackageVersion)"
                       Condition="'$(LibreWinFormsReferenceMode)' != 'Project'" />
-    <ProjectReference Include="..\..\..\..\ProGPU\src\ProGPU.Wpf.Interop\ProGPU.Wpf.Interop.csproj"
+    <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\ProGPU.Wpf.Interop\ProGPU.Wpf.Interop.csproj"
                       Condition="'$(LibreWinFormsReferenceMode)' == 'Project'" />
-    <ProjectReference Include="..\..\..\..\ProGPU\src\System.Drawing.Common\System.Drawing.Common.csproj"
+    <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\System.Drawing.Common\System.Drawing.Common.csproj"
                       Condition="'$(LibreWinFormsReferenceMode)' == 'Project'" />
   </ItemGroup>
 </Project>

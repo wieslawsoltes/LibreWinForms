@@ -1,0 +1,14 @@
+<Project>
+  <PropertyGroup>
+    <!--
+      Source-first development uses the repository-owned ProGPU submodule. Consumers
+      continue to use LibreWinFormsReferenceMode=Package unless they opt into Project.
+      The sibling fallback keeps existing LibreWPF superproject checkouts working while
+      they move to the explicit source-root property.
+    -->
+    <LibreWinFormsProGpuSourceRoot
+      Condition="'$(LibreWinFormsProGpuSourceRoot)' == '' And Exists('$(MSBuildThisFileDirectory)..\external\ProGPU\src\System.Drawing.Common\System.Drawing.Common.csproj')">$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..\external\ProGPU'))</LibreWinFormsProGpuSourceRoot>
+    <LibreWinFormsProGpuSourceRoot
+      Condition="'$(LibreWinFormsProGpuSourceRoot)' == '' And Exists('$(MSBuildThisFileDirectory)..\..\ProGPU\src\System.Drawing.Common\System.Drawing.Common.csproj')">$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..\..\ProGPU'))</LibreWinFormsProGpuSourceRoot>
+  </PropertyGroup>
+</Project>

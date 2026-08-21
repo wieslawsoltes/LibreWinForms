@@ -107,7 +107,7 @@ internal partial class DrawingEventArgs
 
             _oldPalette = paletteScope.HPALETTE;
 
-            _graphics = Graphics.FromHdcInternal((IntPtr)_hdc);
+            _graphics = Graphics.FromHdc((IntPtr)_hdc);
             _graphics.PageUnit = GraphicsUnit.Pixel;
             creationAction?.Invoke(_graphics);
 
@@ -153,6 +153,11 @@ internal partial class DrawingEventArgs
         }
 
         // Check to see if we've actually corrupted the state
+#if LIBREWINFORMS_PROGPU_DRAWING
+        // ProGPU Graphics state is retained and restored by its typed Save/Restore
+        // implementation; the private GDI+ context probe has no portable shape.
+        return;
+#else
         graphics.GetContextInfo(out PointF offset, out Region? clip);
 
         using (clip)
@@ -161,5 +166,6 @@ internal partial class DrawingEventArgs
             Debug.Assert(offset.IsEmpty, "transform has been modified");
             Debug.Assert(isInfinite, "clipping as been applied");
         }
+#endif
     }
 }

@@ -1687,7 +1687,7 @@ internal abstract partial class GridEntry : GridItem, ITypeDescriptorContext
             }
             else
             {
-                using DeviceContextHdcScope hdc = new(g);
+                using DeviceContextHdcScope hdc = g.ToHdcScope();
                 VisualStyleRenderer explorerTreeRenderer = new(VisualStyleElement.ExplorerTreeView.Glyph.Opened);
                 explorerTreeRenderer.DrawBackground(hdc, outline, hwnd);
             }

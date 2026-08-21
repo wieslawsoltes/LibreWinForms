@@ -23,10 +23,10 @@
     <Reference Include="System.Windows.Controls.Ribbon" HintPath="..\..\..\..\..\artifacts\bin\System.Windows.Controls.Ribbon\$(Configuration)\$(TargetFramework)\System.Windows.Controls.Ribbon.dll" Private="true" />
     <Reference Include="UIAutomationProvider" HintPath="..\..\..\..\..\artifacts\bin\UIAutomationProvider\$(Configuration)\$(TargetFramework)\UIAutomationProvider.dll" Private="true" />
     <Reference Include="UIAutomationTypes" HintPath="..\..\..\..\..\artifacts\bin\UIAutomationTypes\$(Configuration)\$(TargetFramework)\UIAutomationTypes.dll" Private="true" />
-    <ProjectReference Include="..\..\..\..\..\external\ProGPU\src\ProGPU.Scene\ProGPU.Scene.csproj" />
-    <ProjectReference Include="..\..\..\..\..\external\ProGPU\src\ProGPU.DirectX\ProGPU.DirectX.csproj" />
-    <ProjectReference Include="..\..\..\..\..\external\ProGPU\src\ProGPU.Wpf.Interop\ProGPU.Wpf.Interop.csproj" />
-    <ProjectReference Include="..\..\..\..\..\external\ProGPU\src\System.Drawing.Common\System.Drawing.Common.csproj" />
+    <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\ProGPU.Scene\ProGPU.Scene.csproj" />
+    <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\ProGPU.DirectX\ProGPU.DirectX.csproj" />
+    <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\ProGPU.Wpf.Interop\ProGPU.Wpf.Interop.csproj" />
+    <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\System.Drawing.Common\System.Drawing.Common.csproj" />
     <ProjectReference Include="..\LibreWinForms.System.Windows.Forms\LibreWinForms.System.Windows.Forms.csproj"
                       AdditionalProperties="LibreWinFormsReferenceMode=Project" />
     <ProjectReference Include="..\LibreWinForms.WindowsFormsIntegration\LibreWinForms.WindowsFormsIntegration.csproj"

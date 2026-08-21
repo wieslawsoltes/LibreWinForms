@@ -253,7 +253,7 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
         targetRect.X += (int)graphics.Transform.OffsetX;
         targetRect.Y += (int)graphics.Transform.OffsetY;
 
-        using DeviceContextHdcScope dc = new(graphics, applyGraphicsState: false);
+        using DeviceContextHdcScope dc = graphics.ToHdcScope(ApplyGraphicsProperties.None);
 
         int imageX = 0;
         int imageY = 0;

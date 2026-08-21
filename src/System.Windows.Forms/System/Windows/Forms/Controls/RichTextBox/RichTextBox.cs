@@ -3440,7 +3440,7 @@ public partial class RichTextBox : TextBoxBase
                     // paint anything else. We will paint the background and the unformatted
                     // text ourselves, so we don't want the RTF control to paint the background
                     // and the text in the foreground color.
-                    using Graphics g = Graphics.FromHwndInternal(Handle);
+                    using Graphics g = Graphics.FromHwnd(Handle);
 
                     // Paint the background
                     g.FillRectangle(SystemBrushes.ControlDark, ClientRectangle);

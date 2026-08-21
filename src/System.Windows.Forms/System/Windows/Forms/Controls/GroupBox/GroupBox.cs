@@ -664,7 +664,7 @@ public partial class GroupBox : Control
 
         if (backColor.HasTransparency())
         {
-            using Graphics graphics = Graphics.FromHdcInternal((HDC)m.WParamInternal);
+            using Graphics graphics = Graphics.FromHdc((HDC)m.WParamInternal);
             using var brush = backColor.GetCachedSolidBrushScope();
             graphics.FillRectangle(brush, rect);
         }

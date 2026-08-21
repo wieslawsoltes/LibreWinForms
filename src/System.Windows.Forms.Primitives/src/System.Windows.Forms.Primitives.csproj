@@ -36,9 +36,29 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Accessibility\src\Accessibility.ilproj" />
-    <ProjectReference Include="..\..\System.Drawing.Common\src\System.Drawing.Common.csproj" />
     <ProjectReference Include="..\..\System.Private.Windows.Core\src\System.Private.Windows.Core.csproj" />
+    <!-- Typed Win32 HDC adapter. Portable code must not enter this seam; it remains
+         available so the canonical source also keeps its explicit Windows backend. -->
     <ProjectReference Include="..\..\System.Private.Windows.GdiPlus\System.Private.Windows.GdiPlus.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(LibreWinFormsUseProGpuSystemDrawing)' != 'true'">
+    <ProjectReference Include="..\..\System.Drawing.Common\src\System.Drawing.Common.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(LibreWinFormsUseProGpuSystemDrawing)' == 'true'">
+    <DefineConstants>$(DefineConstants);LIBREWINFORMS_PROGPU_DRAWING</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(LibreWinFormsUseProGpuSystemDrawing)' == 'true'">
+    <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\System.Drawing.Common\System.Drawing.Common.csproj" />
+    <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\ProGPU.Backend\ProGPU.Backend.csproj" />
+    <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\ProGPU.Scene\ProGPU.Scene.csproj" />
+    <!-- These helpers bridge System.Drawing's private LOGFONT representation to
+         UxTheme. The portable lane supplies theme/font behavior above the HDC
+         boundary instead of manufacturing private System.Drawing.Interop types. -->
+    <Compile Remove="System\Drawing\FontExtensions.cs" />
+    <Compile Remove="Windows\Win32\PInvoke.GetThemeFont.cs" />
   </ItemGroup>
 
   <ItemGroup>

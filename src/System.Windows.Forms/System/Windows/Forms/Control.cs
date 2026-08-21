@@ -11,7 +11,9 @@ using System.Runtime.InteropServices;
 using System.Windows.Forms.Automation;
 using System.Windows.Forms.Layout;
 using Windows.Win32.Graphics.Dwm;
+#if !LIBREWINFORMS_PROGPU_DRAWING
 using Windows.Win32.Graphics.GdiPlus;
+#endif
 using Windows.Win32.System.Ole;
 using Windows.Win32.UI.Accessibility;
 using Windows.Win32.UI.Input.KeyboardAndMouse;
@@ -2822,6 +2824,13 @@ public unsafe partial class Control :
             return oldRegion;
         }
 
+#if LIBREWINFORMS_PROGPU_DRAWING
+        // The retained Region remains authoritative for the portable window
+        // backend. A platform window adapter will project it to a native shape
+        // when that backend supports shaped top-level surfaces.
+        return oldRegion;
+#else
+
         if (region is null)
         {
             PInvoke.SetWindowRgn(this, default, PInvoke.IsWindowVisible(this));
@@ -2839,6 +2848,7 @@ public unsafe partial class Control :
         }
 
         return oldRegion;
+#endif
     }
 
     /// <summary>
@@ -4542,7 +4552,7 @@ public unsafe partial class Control :
 
     internal Graphics CreateGraphicsInternal()
     {
-        return Graphics.FromHwndInternal(Handle);
+        return Graphics.FromHwnd(Handle);
     }
 
     /// <summary>
@@ -5005,7 +5015,7 @@ public unsafe partial class Control :
 
         using Bitmap image = new(width, height, bitmap.PixelFormat);
         using Graphics g = Graphics.FromImage(image);
-        using DeviceContextHdcScope hDc = new(g, applyGraphicsState: false);
+        using DeviceContextHdcScope hDc = g.ToHdcScope(ApplyGraphicsProperties.None);
 
         // Send the WM_PRINT message.
         PInvokeCore.SendMessage(
@@ -5016,7 +5026,7 @@ public unsafe partial class Control :
 
         // Now BLT the result to the destination bitmap.
         using Graphics destGraphics = Graphics.FromImage(bitmap);
-        using DeviceContextHdcScope desthDC = new(destGraphics, applyGraphicsState: false);
+        using DeviceContextHdcScope desthDC = destGraphics.ToHdcScope(ApplyGraphicsProperties.None);
         PInvokeCore.BitBlt(
             desthDC,
             targetBounds.X,
@@ -5901,6 +5911,10 @@ public unsafe partial class Control :
         }
         else if (IsHandleCreated)
         {
+#if LIBREWINFORMS_PROGPU_DRAWING
+            using Graphics graphics = CreateGraphicsInternal();
+            OnInvalidated(new InvalidateEventArgs(Rectangle.Ceiling(region.GetBounds(graphics))));
+#else
             Debug.Assert(region.GetPointer() != null);
 
             using Graphics graphics = CreateGraphicsInternal();
@@ -5925,6 +5939,7 @@ public unsafe partial class Control :
             }
 
             OnInvalidated(new InvalidateEventArgs(Rectangle.Ceiling(region.GetBounds(graphics))));
+#endif
         }
     }
 

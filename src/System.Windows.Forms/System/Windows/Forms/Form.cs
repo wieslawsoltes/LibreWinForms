@@ -3781,7 +3781,7 @@ public partial class Form : ContainerControl
         try
         {
             // Get the screen HDC
-            using Graphics graphics = Graphics.FromHwndInternal(0);
+            using Graphics graphics = Graphics.FromHwnd(0);
             string magicString = "The quick brown fox jumped over the lazy dog.";
             double magicNumber = 44.549996948242189; // chosen for compatibility with older versions of windows forms, but approximately magicString.Length
             float stringWidth = graphics.MeasureString(magicString, font).Width;
