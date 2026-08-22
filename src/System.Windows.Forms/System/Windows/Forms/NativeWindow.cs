@@ -850,6 +850,40 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
         }
     }
 
+    internal void SetPortableBounds(LibreRectangle bounds)
+    {
+        if (_portableWindow is { } window)
+        {
+            window.Bounds = bounds;
+        }
+    }
+
+    internal void InvalidatePortable(LibreRectangle? dirtyRectangle)
+    {
+        if (_portableWindow is null)
+        {
+            return;
+        }
+
+        ILibrePaintService painting = LibrePlatform.Current.Painting;
+        if (dirtyRectangle is { } dirty)
+        {
+            painting.Invalidate(_portableHandle, dirty);
+        }
+        else
+        {
+            painting.InvalidateAll(_portableHandle);
+        }
+    }
+
+    internal void PresentPortable()
+    {
+        if (_portableWindow is not null)
+        {
+            LibrePlatform.Current.Painting.Present(_portableHandle);
+        }
+    }
+
     internal void DispatchPortableMessage(uint message)
     {
         if (HWND.IsNull)
@@ -908,7 +942,13 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
 
         public void Closed() => _owner.ReleasePortableHandle(disposeWindow: false);
 
-        public void BoundsChanged(LibreRectangle bounds) => _ = bounds;
+        public void BoundsChanged(LibreRectangle bounds)
+        {
+            if (_owner is Control.ControlNativeWindow controlWindow && controlWindow.GetControl() is { } control)
+            {
+                control.UpdatePortableBounds(bounds);
+            }
+        }
 
         public void PaintRequested(LibreRectangle dirtyRectangle) => _ = dirtyRectangle;
 

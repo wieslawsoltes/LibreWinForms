@@ -5304,7 +5304,10 @@ public partial class Form : ContainerControl
             _restoreBounds.Height = height;
         }
 
-        // Enforce maximum size...
+#if !LIBREWINFORMS_PORTABLE
+        // Enforce the Windows window-manager tracking limits. Portable backends apply their
+        // native limits through ILibreWindow; Control.ApplyBoundsConstraints above still
+        // enforces the public MinimumSize and MaximumSize properties on every platform.
         if (WindowState == FormWindowState.Normal && (Height != height || Width != width))
         {
             Size max = SystemInformation.MaxWindowTrackSize;
@@ -5338,6 +5341,7 @@ public partial class Form : ContainerControl
                 width = min.Width;
             }
         }
+#endif
 
         base.SetBoundsCore(x, y, width, height, specified);
     }

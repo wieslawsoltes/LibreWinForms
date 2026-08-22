@@ -7,21 +7,35 @@ namespace LibreWinForms.ProGPU;
 
 public sealed class ProGpuPaintService : ILibrePaintService
 {
+    private readonly ILibreDispatcher _dispatcher;
     private readonly ILibreHandleRegistry _handles;
 
-    public ProGpuPaintService(ILibreHandleRegistry handles)
+    public ProGpuPaintService(ILibreDispatcher dispatcher, ILibreHandleRegistry handles)
     {
+        _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         _handles = handles ?? throw new ArgumentNullException(nameof(handles));
     }
 
     public void Invalidate(LibreHandle target, LibreRectangle dirtyRectangle)
-        => Resolve(target).RequestPaint(dirtyRectangle);
+        => Schedule(target, dirtyRectangle);
 
     public void InvalidateAll(LibreHandle target)
-        => Resolve(target).RequestPaint(dirtyRectangle: null);
+        => Schedule(target, dirtyRectangle: null);
 
     public void Present(LibreHandle target)
-        => Resolve(target).RequestPaint(dirtyRectangle: null);
+        => Schedule(target, dirtyRectangle: null);
+
+    private void Schedule(LibreHandle target, LibreRectangle? dirtyRectangle)
+    {
+        if (_dispatcher.CheckAccess())
+        {
+            Resolve(target).RequestPaint(dirtyRectangle);
+        }
+        else
+        {
+            _dispatcher.Post(() => Resolve(target).RequestPaint(dirtyRectangle));
+        }
+    }
 
     private SilkLibreWindow Resolve(LibreHandle target)
         => _handles.TryGet(target, out SilkLibreWindow? window)

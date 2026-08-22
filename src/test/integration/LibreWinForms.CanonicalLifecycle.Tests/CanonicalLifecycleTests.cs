@@ -23,6 +23,12 @@ public class CanonicalLifecycleTests
         form.HandleCreated += (_, _) => events.Add(nameof(form.HandleCreated));
         form.VisibleChanged += (_, _) => events.Add(nameof(form.VisibleChanged));
         form.Shown += (_, _) => events.Add(nameof(form.Shown));
+        form.Shown += (_, _) =>
+        {
+            form.Bounds = new(40, 50, 640, 480);
+            form.Invalidate();
+            form.Update();
+        };
         form.FormClosing += (_, e) =>
         {
             events.Add(nameof(form.FormClosing));
@@ -43,6 +49,9 @@ public class CanonicalLifecycleTests
             nameof(form.FormClosed),
             nameof(form.HandleDestroyed));
         closeAttempts.Should().Be(2);
+        platform.LastWindowBounds.Should().Be(new LibreRectangle(40, 50, 640, 480));
+        platform.LastDirtyRectangle.Should().Be(new LibreRectangle(0, 0, 640, 480));
+        platform.PresentCount.Should().Be(1);
         form.IsDisposed.Should().BeTrue();
         form.IsHandleCreated.Should().BeFalse();
         platform.Handles.Count.Should().Be(0);
@@ -69,6 +78,12 @@ public class CanonicalLifecycleTests
         internal LibrePlatformServices Services { get; }
 
         internal int WindowsCreated { get; private set; }
+
+        internal LibreRectangle LastWindowBounds { get; private set; }
+
+        internal LibreRectangle LastDirtyRectangle { get; private set; }
+
+        internal int PresentCount { get; private set; }
 
         public bool CheckAccess() => true;
 
@@ -121,11 +136,19 @@ public class CanonicalLifecycleTests
 
         public LibreMonitor GetNearest(LibreRectangle bounds) => GetMonitors()[0];
 
-        public void Invalidate(LibreHandle target, LibreRectangle dirtyRectangle) { }
+        public void Invalidate(LibreHandle target, LibreRectangle dirtyRectangle)
+        {
+            Handles.TryGet<object>(target, out _).Should().BeTrue();
+            LastDirtyRectangle = dirtyRectangle;
+        }
 
         public void InvalidateAll(LibreHandle target) { }
 
-        public void Present(LibreHandle target) { }
+        public void Present(LibreHandle target)
+        {
+            Handles.TryGet<object>(target, out _).Should().BeTrue();
+            PresentCount++;
+        }
 
         private sealed class HeadlessWindow : ILibreWindow
         {
@@ -147,7 +170,18 @@ public class CanonicalLifecycleTests
 
             public LibreHandle Handle { get; }
 
-            public LibreRectangle Bounds { get; set; }
+            private LibreRectangle _bounds;
+
+            public LibreRectangle Bounds
+            {
+                get => _bounds;
+                set
+                {
+                    _bounds = value;
+                    _platform.LastWindowBounds = value;
+                    _events.BoundsChanged(value);
+                }
+            }
 
             public LibreWindowState State { get; set; }
 

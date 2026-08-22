@@ -6033,6 +6033,9 @@ public unsafe partial class Control :
     {
         if (IsHandleCreated)
         {
+#if LIBREWINFORMS_PORTABLE
+            InvalidatePortable(ClientRectangle);
+#else
             if (invalidateChildren)
             {
                 PInvoke.RedrawWindow(
@@ -6050,6 +6053,7 @@ public unsafe partial class Control :
                     lpRect: null,
                     bErase: !_controlStyle.HasFlag(ControlStyles.Opaque));
             }
+#endif
 
             NotifyInvalidate(ClientRectangle);
         }
@@ -6080,6 +6084,9 @@ public unsafe partial class Control :
         }
         else if (IsHandleCreated)
         {
+#if LIBREWINFORMS_PORTABLE
+            InvalidatePortable(rc);
+#else
             RECT rcArea = rc;
             if (invalidateChildren)
             {
@@ -6098,6 +6105,7 @@ public unsafe partial class Control :
                     &rcArea,
                     bErase: !_controlStyle.HasFlag(ControlStyles.Opaque));
             }
+#endif
 
             NotifyInvalidate(rc);
         }
@@ -10275,6 +10283,17 @@ public unsafe partial class Control :
             x = adjustedBounds.X;
             y = adjustedBounds.Y;
 
+#if LIBREWINFORMS_PORTABLE
+            // Portable child handles are logical, while top-level bounds belong to the typed
+            // platform window. Keep the canonical managed bounds authoritative for both.
+            OnBoundsUpdate(x, y, width, height);
+            if (IsHandleCreated && GetTopLevel())
+            {
+                _window.SetPortableBounds(new LibreRectangle(x, y, width, height));
+            }
+
+            UpdateBounds(x, y, width, height, width, height);
+#else
             if (!IsHandleCreated)
             {
                 // Handle is not created, just record our new position and we're done.
@@ -10308,6 +10327,7 @@ public unsafe partial class Control :
                     // UpdateBounds(x, y, width, height);
                 }
             }
+#endif
         }
         finally
         {
@@ -10986,9 +11006,48 @@ public unsafe partial class Control :
     {
         if (IsHandleCreated)
         {
+#if LIBREWINFORMS_PORTABLE
+            GetPortableTopLevelControl()._window.PresentPortable();
+#else
             PInvoke.UpdateWindow(this);
+#endif
         }
     }
+
+#if LIBREWINFORMS_PORTABLE
+    internal void UpdatePortableBounds(LibreRectangle bounds)
+        => UpdateBounds(bounds.X, bounds.Y, bounds.Width, bounds.Height, bounds.Width, bounds.Height);
+
+    private void InvalidatePortable(Rectangle dirtyRectangle)
+    {
+        Control root = this;
+        int offsetX = 0;
+        int offsetY = 0;
+        while (root.ParentInternal is { } parent)
+        {
+            offsetX = checked(offsetX + root._x);
+            offsetY = checked(offsetY + root._y);
+            root = parent;
+        }
+
+        root._window.InvalidatePortable(new LibreRectangle(
+            checked(offsetX + dirtyRectangle.X),
+            checked(offsetY + dirtyRectangle.Y),
+            dirtyRectangle.Width,
+            dirtyRectangle.Height));
+    }
+
+    private Control GetPortableTopLevelControl()
+    {
+        Control root = this;
+        while (root.ParentInternal is { } parent)
+        {
+            root = parent;
+        }
+
+        return root;
+    }
+#endif
 
     /// <summary>
     ///  Updates the bounds of the control based on the handle the control is bound to.
@@ -10996,6 +11055,11 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected internal void UpdateBounds()
     {
+#if LIBREWINFORMS_PORTABLE
+        // Bounds changes are pushed from ILibreWindowEvents; logical child controls already
+        // keep their managed values current in SetBoundsCore.
+        return;
+#else
         RECT rect = default;
         int clientWidth = 0;
         int clientHeight = 0;
@@ -11019,6 +11083,7 @@ public unsafe partial class Control :
             rect.Height,
             clientWidth,
             clientHeight);
+#endif
     }
 
     /// <summary>

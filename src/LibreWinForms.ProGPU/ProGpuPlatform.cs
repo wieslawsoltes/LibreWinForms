@@ -21,7 +21,7 @@ public static class ProGpuPlatform
             handles,
             windows,
             new SilkMonitorService(),
-            new ProGpuPaintService(handles));
+            new ProGpuPaintService(dispatcher, handles));
     }
 
     public static void Register() => LibrePlatform.Register(CreateServices());
