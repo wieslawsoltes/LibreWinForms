@@ -1574,9 +1574,25 @@ public unsafe partial class Control :
     ///  handle for this control. If the control's handle hasn't been
     ///  created yet, this method will return the current thread's ID.
     /// </summary>
-    internal uint CreateThreadId => IsHandleCreated
-        ? PInvokeCore.GetWindowThreadProcessId(this, out _)
-        : PInvokeCore.GetCurrentThreadId();
+#if LIBREWINFORMS_PORTABLE
+#pragma warning disable CA1822 // Portable builds compare the registered dispatcher, not an HWND owner thread.
+#endif
+    internal uint CreateThreadId
+    {
+        get
+        {
+#if LIBREWINFORMS_PORTABLE
+            return unchecked((uint)LibrePlatform.Current.Dispatcher.ManagedThreadId);
+#else
+            return IsHandleCreated
+                ? PInvokeCore.GetWindowThreadProcessId(this, out _)
+                : PInvokeCore.GetCurrentThreadId();
+#endif
+        }
+    }
+#if LIBREWINFORMS_PORTABLE
+#pragma warning restore CA1822
+#endif
 
     /// <summary>
     ///  Retrieves the cursor that will be displayed when the mouse is over this
@@ -2438,7 +2454,11 @@ public unsafe partial class Control :
                 control = marshalingControl;
             }
 
+#if LIBREWINFORMS_PORTABLE
+            return !LibrePlatform.Current.Dispatcher.CheckAccess();
+#else
             return PInvokeCore.GetWindowThreadProcessId(control, out _) != PInvokeCore.GetCurrentThreadId();
+#endif
         }
     }
 
@@ -3713,6 +3733,9 @@ public unsafe partial class Control :
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return _text ?? string.Empty;
+#else
             if (!IsHandleCreated)
             {
                 return _text ?? string.Empty;
@@ -3720,6 +3743,7 @@ public unsafe partial class Control :
 
             using var scope = MultithreadSafeCallScope.Create();
             return PInvokeCore.GetWindowText(this);
+#endif
         }
         set
         {
@@ -3727,6 +3751,9 @@ public unsafe partial class Control :
 
             if (!WindowText.Equals(value))
             {
+#if LIBREWINFORMS_PORTABLE
+                _text = value.Length == 0 ? null : value;
+#else
                 if (IsHandleCreated)
                 {
                     PInvoke.SetWindowText(this, value);
@@ -3735,6 +3762,7 @@ public unsafe partial class Control :
                 {
                     _text = value.Length == 0 ? null : value;
                 }
+#endif
             }
         }
     }
@@ -8100,9 +8128,13 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected virtual void OnPaintBackground(PaintEventArgs pevent)
     {
+#if LIBREWINFORMS_PORTABLE
+        PaintBackground(pevent, ClientRectangle);
+#else
         // We need the true client rectangle as clip rectangle causes problems on "Windows Classic" theme.
         PInvokeCore.GetClientRect(new HandleRef<HWND>(_window, InternalHandle), out RECT rect);
         PaintBackground(pevent, rect);
+#endif
     }
 
     // Transparent control support
@@ -8326,6 +8358,13 @@ public unsafe partial class Control :
 
         Color color = backColor;
 
+#if LIBREWINFORMS_PORTABLE
+        if (!color.IsFullyTransparent())
+        {
+            using var brush = color.GetCachedSolidBrushScope();
+            e.Graphics.FillRectangle(brush, rectangle);
+        }
+#else
         // Note: PaintEvent.HDC == 0 if GDI+ has used the HDC -- it wouldn't be safe for us
         // to use it without enough bookkeeping to negate any performance gain of using GDI.
         if (!color.HasTransparency())
@@ -8340,6 +8379,7 @@ public unsafe partial class Control :
             using var brush = color.GetCachedSolidBrushScope();
             e.Graphics.FillRectangle(brush, rectangle);
         }
+#endif
     }
 
     // Paints a red rectangle with a red X, painted on a white background
@@ -11046,6 +11086,77 @@ public unsafe partial class Control :
         }
 
         return root;
+    }
+
+    internal void PaintPortableFrame(ILibrePaintFrame frame)
+    {
+        ArgumentNullException.ThrowIfNull(frame);
+        LibreRectangle surface = frame.SurfaceBounds;
+        Rectangle surfaceRectangle = new(surface.X, surface.Y, surface.Width, surface.Height);
+        if (surfaceRectangle.Width <= 0 || surfaceRectangle.Height <= 0)
+        {
+            return;
+        }
+
+        // A ProGPU frame is a fresh retained recording. Repaint the complete logical
+        // control tree so an invalidated sub-rectangle never erases unchanged siblings.
+        // The scheduler still coalesces and reports the actual dirty rectangle.
+        PaintPortableControlTree(frame.Graphics, Point.Empty, surfaceRectangle);
+    }
+
+    private void PaintPortableControlTree(Graphics graphics, Point absoluteLocation, Rectangle surfaceClip)
+    {
+        if (!Visible || _width <= 0 || _height <= 0)
+        {
+            return;
+        }
+
+        Rectangle absoluteBounds = new(absoluteLocation.X, absoluteLocation.Y, _width, _height);
+        Rectangle absoluteClip = Rectangle.Intersect(surfaceClip, absoluteBounds);
+        if (absoluteClip.IsEmpty)
+        {
+            return;
+        }
+
+        Rectangle localClip = new(
+            absoluteClip.X - absoluteLocation.X,
+            absoluteClip.Y - absoluteLocation.Y,
+            absoluteClip.Width,
+            absoluteClip.Height);
+        System.Drawing.Drawing2D.GraphicsState controlState = graphics.Save();
+        try
+        {
+            graphics.TranslateTransform(absoluteLocation.X, absoluteLocation.Y);
+            graphics.SetClip(localClip, System.Drawing.Drawing2D.CombineMode.Intersect);
+            using PaintEventArgs paintEvent = new(
+                graphics,
+                localClip,
+                DrawingEventFlags.SaveState | DrawingEventFlags.GraphicsStateUnclean);
+            PaintWithErrorHandling(paintEvent, PaintLayerBackground);
+            paintEvent.ResetGraphics();
+            PaintWithErrorHandling(paintEvent, PaintLayerForeground);
+        }
+        finally
+        {
+            graphics.Restore(controlState);
+        }
+
+        if (ChildControls is not { } children)
+        {
+            return;
+        }
+
+        // WinForms index zero is the top of z-order, so record back-to-front.
+        for (int index = children.Count - 1; index >= 0; index--)
+        {
+            Control child = children[index];
+            child.PaintPortableControlTree(
+                graphics,
+                new Point(
+                    checked(absoluteLocation.X + child._x),
+                    checked(absoluteLocation.Y + child._y)),
+                absoluteClip);
+        }
     }
 #endif
 

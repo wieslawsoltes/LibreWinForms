@@ -5,6 +5,7 @@
     <AssemblyName>LibreWinForms.ProGPU</AssemblyName>
     <RootNamespace>LibreWinForms.ProGPU</RootNamespace>
     <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Deterministic>true</Deterministic>
     <StrongNameKeyId>ECMA</StrongNameKeyId>
     <IsPackable>false</IsPackable>
@@ -14,7 +15,9 @@
     <Compile Remove="tests\**\*.cs" />
     <None Remove="tests\**\*" />
     <ProjectReference Include="..\LibreWinForms.Platform\LibreWinForms.Platform.csproj" />
+    <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\System.Drawing.Common\System.Drawing.Common.csproj" />
     <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\ProGPU.Backend\ProGPU.Backend.csproj" />
+    <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\ProGPU.Scene\ProGPU.Scene.csproj" />
     <PackageReference Include="Silk.NET.Input" />
     <PackageReference Include="Silk.NET.Input.Glfw" />
     <PackageReference Include="Silk.NET.Windowing" />

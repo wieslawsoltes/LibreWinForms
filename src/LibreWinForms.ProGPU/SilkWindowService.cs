@@ -2,11 +2,14 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Diagnostics;
+using System.Drawing;
 using System.Numerics;
 using LibreWinForms.Platform;
 using ProGPU.Backend;
+using ProGPU.Scene;
 using Silk.NET.Input;
 using Silk.NET.Maths;
+using Silk.NET.WebGPU;
 using Silk.NET.Windowing;
 
 namespace LibreWinForms.ProGPU;
@@ -41,7 +44,10 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private readonly ILibreWindowEvents _events;
     private readonly IWindow _window;
     private readonly SilkWindowController _controller;
+    private readonly DrawingVisual _paintVisual = new();
     private IInputContext? _input;
+    private WgpuContext? _wgpuContext;
+    private Compositor? _compositor;
     private bool _paintQueued;
     private LibreRectangle? _dirtyRectangle;
     private bool _closed;
@@ -158,6 +164,9 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _disposed = true;
         _dispatcher.Unregister(this);
         _input?.Dispose();
+        _paintVisual.Context.Clear();
+        _compositor?.Dispose();
+        _wgpuContext?.Dispose();
         _controller.Dispose();
         _window.Dispose();
         _handles.Release(Handle);
@@ -218,6 +227,16 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private void OnLoad()
     {
         _controller.Attach();
+        _wgpuContext = new WgpuContext();
+        _wgpuContext.Initialize(_window);
+        _compositor = new Compositor(
+            _wgpuContext,
+            _wgpuContext.SwapChainFormat,
+            CompositorOptions.Default with
+            {
+                EnableGpuHitTesting = false,
+                PrimarySampleCount = 1,
+            });
         _input = _window.CreateInput();
         foreach (IKeyboard keyboard in _input.Keyboards)
         {
@@ -235,19 +254,110 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         }
     }
 
-    private void OnRender(double delta)
+    private unsafe void OnRender(double delta)
     {
         _ = delta;
-        if (!_paintQueued)
+        if (!_paintQueued || _wgpuContext is null || _compositor is null)
         {
             return;
         }
 
         _paintQueued = false;
-        LibreRectangle dirty = _dirtyRectangle ?? new LibreRectangle(0, 0, _window.Size.X, _window.Size.Y);
+        LibreRectangle surfaceBounds = new(0, 0, Math.Max(1, _window.Size.X), Math.Max(1, _window.Size.Y));
+        LibreRectangle dirty = _dirtyRectangle ?? surfaceBounds;
         _dirtyRectangle = null;
-        _events.PaintRequested(dirty);
+
+        _paintVisual.Context.Clear();
+        using (WgpuContext.PushCurrent(_wgpuContext))
+        using (Graphics graphics = Graphics.FromProGpuDrawingContext(
+            _paintVisual.Context,
+            new RectangleF(0f, 0f, surfaceBounds.Width, surfaceBounds.Height)))
+        {
+            _events.PaintRequested(new ProGpuPaintFrame(graphics, surfaceBounds, dirty));
+        }
+
+        _paintVisual.Size = new Vector2(surfaceBounds.Width, surfaceBounds.Height);
+        _paintVisual.Invalidate();
+        PresentFrame(_wgpuContext, _compositor, surfaceBounds);
     }
+
+    private unsafe void PresentFrame(
+        WgpuContext context,
+        Compositor compositor,
+        LibreRectangle surfaceBounds)
+    {
+        Vector2D<int> framebufferSize = _window.FramebufferSize;
+        uint framebufferWidth = checked((uint)Math.Max(1, framebufferSize.X));
+        uint framebufferHeight = checked((uint)Math.Max(1, framebufferSize.Y));
+        if (!context.TryReconfigureIfNeeded(framebufferWidth, framebufferHeight) || context.Surface is null)
+        {
+            RequestPaint(surfaceBounds);
+            return;
+        }
+
+        SurfaceTexture surfaceTexture = default;
+        context.Api.SurfaceGetCurrentTexture(context.Surface, &surfaceTexture);
+        TextureView* targetView = null;
+        try
+        {
+            if (surfaceTexture.Status is SurfaceGetCurrentTextureStatus.Outdated or SurfaceGetCurrentTextureStatus.Lost)
+            {
+                context.TryConfigureSwapChain(framebufferWidth, framebufferHeight, refreshCapabilities: true);
+                RequestPaint(surfaceBounds);
+                return;
+            }
+
+            if (surfaceTexture.Status == SurfaceGetCurrentTextureStatus.Timeout)
+            {
+                RequestPaint(surfaceBounds);
+                return;
+            }
+
+            if (surfaceTexture.Status != SurfaceGetCurrentTextureStatus.Success)
+            {
+                throw new InvalidOperationException($"WebGPU surface acquisition failed: {surfaceTexture.Status}.");
+            }
+
+            var viewDescriptor = new TextureViewDescriptor
+            {
+                Format = context.SwapChainFormat,
+                Dimension = TextureViewDimension.Dimension2D,
+                BaseMipLevel = 0,
+                MipLevelCount = 1,
+                BaseArrayLayer = 0,
+                ArrayLayerCount = 1,
+                Aspect = TextureAspect.All,
+            };
+            targetView = context.Api.TextureCreateView(surfaceTexture.Texture, &viewDescriptor);
+            float dpiScale = (float)DpiScale;
+            compositor.RenderScene(
+                _paintVisual,
+                checked((uint)surfaceBounds.Width),
+                checked((uint)surfaceBounds.Height),
+                framebufferWidth,
+                framebufferHeight,
+                dpiScale,
+                targetView);
+            context.Api.SurfacePresent(context.Surface);
+        }
+        finally
+        {
+            if (targetView is not null)
+            {
+                context.Api.TextureViewRelease(targetView);
+            }
+
+            if (surfaceTexture.Texture is not null)
+            {
+                context.Api.TextureRelease(surfaceTexture.Texture);
+            }
+        }
+    }
+
+    private sealed record ProGpuPaintFrame(
+        Graphics Graphics,
+        LibreRectangle SurfaceBounds,
+        LibreRectangle DirtyRectangle) : ILibrePaintFrame;
 
     private void OnClosing()
     {

@@ -950,7 +950,14 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
             }
         }
 
-        public void PaintRequested(LibreRectangle dirtyRectangle) => _ = dirtyRectangle;
+        public void PaintRequested(ILibrePaintFrame frame)
+        {
+            ArgumentNullException.ThrowIfNull(frame);
+            if (_owner is Control.ControlNativeWindow controlWindow && controlWindow.GetControl() is { } control)
+            {
+                control.PaintPortableFrame(frame);
+            }
+        }
 
         public void Input(in LibreInputEvent inputEvent) => _ = inputEvent;
     }

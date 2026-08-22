@@ -43,6 +43,8 @@ public class LibrePlatformTests
 
         public LibrePlatformServices Create() => new(this, this, Handles, this, this, this);
 
+        public int ManagedThreadId => Environment.CurrentManagedThreadId;
+
         public bool CheckAccess() => true;
         public void Post(Action callback) => callback();
         public void Send(Action callback) => callback();

@@ -22,6 +22,8 @@ public sealed class ProGpuDispatcher : ILibreDispatcher, IDisposable
     private volatile bool _exitRequested;
     private bool _disposed;
 
+    public int ManagedThreadId => _threadId;
+
     public bool CheckAccess() => Environment.CurrentManagedThreadId == _threadId;
 
     public void Post(Action callback)

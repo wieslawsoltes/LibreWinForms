@@ -39,7 +39,7 @@ public interface ILibreWindowEvents
 
     void BoundsChanged(LibreRectangle bounds);
 
-    void PaintRequested(LibreRectangle dirtyRectangle);
+    void PaintRequested(ILibrePaintFrame frame);
 
     void Input(in LibreInputEvent inputEvent);
 }

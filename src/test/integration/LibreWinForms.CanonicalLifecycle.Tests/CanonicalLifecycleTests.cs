@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Concurrent;
+using System.Drawing;
 using System.Windows.Forms;
 using FluentAssertions;
 using LibreWinForms.Platform;
@@ -17,9 +18,28 @@ public class CanonicalLifecycleTests
         HeadlessPlatform platform = new();
         LibrePlatform.Register(platform.Services);
         using Form form = new() { Text = "Canonical portable lifecycle" };
+        using Panel child = new() { Bounds = new Rectangle(12, 18, 120, 60) };
+        form.Controls.Add(child);
 
         List<string> events = [];
         int closeAttempts = 0;
+        int paintCallbacks = 0;
+        Rectangle formPaintClip = default;
+        Rectangle childPaintClip = default;
+        RectangleF visibleClip = default;
+        form.Paint += (_, e) =>
+        {
+            paintCallbacks++;
+            formPaintClip = e.ClipRectangle;
+            visibleClip = e.Graphics.VisibleClipBounds;
+            e.Graphics.FillRectangle(Brushes.CornflowerBlue, new Rectangle(4, 5, 24, 16));
+        };
+        child.Paint += (_, e) =>
+        {
+            paintCallbacks++;
+            childPaintClip = e.ClipRectangle;
+            e.Graphics.FillRectangle(Brushes.OrangeRed, new Rectangle(2, 3, 10, 8));
+        };
         form.HandleCreated += (_, _) => events.Add(nameof(form.HandleCreated));
         form.VisibleChanged += (_, _) => events.Add(nameof(form.VisibleChanged));
         form.Shown += (_, _) => events.Add(nameof(form.Shown));
@@ -52,6 +72,13 @@ public class CanonicalLifecycleTests
         platform.LastWindowBounds.Should().Be(new LibreRectangle(40, 50, 640, 480));
         platform.LastDirtyRectangle.Should().Be(new LibreRectangle(0, 0, 640, 480));
         platform.PresentCount.Should().Be(1);
+        paintCallbacks.Should().Be(2);
+        formPaintClip.Should().Be(new Rectangle(0, 0, 640, 480));
+        childPaintClip.Should().Be(new Rectangle(0, 0, 120, 60));
+        visibleClip.Should().Be(new RectangleF(0, 0, 640, 480));
+        platform.LastPaintCommandCount.Should().BeGreaterThan(0);
+        platform.LastFormPaintPixel.ToArgb().Should().Be(Color.CornflowerBlue.ToArgb());
+        platform.LastChildPaintPixel.ToArgb().Should().Be(Color.OrangeRed.ToArgb());
         form.IsDisposed.Should().BeTrue();
         form.IsHandleCreated.Should().BeFalse();
         platform.Handles.Count.Should().Be(0);
@@ -84,6 +111,14 @@ public class CanonicalLifecycleTests
         internal LibreRectangle LastDirtyRectangle { get; private set; }
 
         internal int PresentCount { get; private set; }
+
+        internal int LastPaintCommandCount { get; private set; }
+
+        internal Color LastFormPaintPixel { get; private set; }
+
+        internal Color LastChildPaintPixel { get; private set; }
+
+        public int ManagedThreadId => Environment.CurrentManagedThreadId;
 
         public bool CheckAccess() => true;
 
@@ -138,8 +173,9 @@ public class CanonicalLifecycleTests
 
         public void Invalidate(LibreHandle target, LibreRectangle dirtyRectangle)
         {
-            Handles.TryGet<object>(target, out _).Should().BeTrue();
+            Handles.TryGet(target, out HeadlessWindow? window).Should().BeTrue();
             LastDirtyRectangle = dirtyRectangle;
+            window!.RequestPaint(dirtyRectangle);
         }
 
         public void InvalidateAll(LibreHandle target) { }
@@ -216,6 +252,20 @@ public class CanonicalLifecycleTests
                 }
             }
 
+            internal void RequestPaint(LibreRectangle dirtyRectangle)
+            {
+                _platform.Post(() =>
+                {
+                    LibreRectangle surfaceBounds = new(0, 0, Bounds.Width, Bounds.Height);
+                    using Bitmap bitmap = new(surfaceBounds.Width, surfaceBounds.Height);
+                    using Graphics graphics = Graphics.FromImage(bitmap);
+                    _events.PaintRequested(new HeadlessPaintFrame(graphics, surfaceBounds, dirtyRectangle));
+                    _platform.LastPaintCommandCount = bitmap.RecordedContext.Commands.Count;
+                    _platform.LastFormPaintPixel = bitmap.GetPixel(5, 6);
+                    _platform.LastChildPaintPixel = bitmap.GetPixel(15, 22);
+                });
+            }
+
             public void Dispose()
             {
                 if (_disposed)
@@ -229,6 +279,11 @@ public class CanonicalLifecycleTests
                 _events.Closed();
             }
         }
+
+        private sealed record HeadlessPaintFrame(
+            Graphics Graphics,
+            LibreRectangle SurfaceBounds,
+            LibreRectangle DirtyRectangle) : ILibrePaintFrame;
 
         private sealed class EmptyDisposable : IDisposable
         {

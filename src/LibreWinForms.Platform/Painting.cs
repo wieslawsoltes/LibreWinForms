@@ -3,6 +3,19 @@
 
 namespace LibreWinForms.Platform;
 
+/// <summary>
+/// A renderer-owned drawing frame exposed through the normal System.Drawing API.
+/// The frame and its Graphics instance are valid only for the paint callback.
+/// </summary>
+public interface ILibrePaintFrame
+{
+    System.Drawing.Graphics Graphics { get; }
+
+    LibreRectangle SurfaceBounds { get; }
+
+    LibreRectangle DirtyRectangle { get; }
+}
+
 /// <summary>Schedules drawing without leaking renderer-specific surface objects into canonical WinForms.</summary>
 public interface ILibrePaintService
 {

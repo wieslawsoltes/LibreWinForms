@@ -6,6 +6,8 @@ namespace LibreWinForms.Platform;
 /// <summary>Runs WinForms work and nested loops on the owning UI thread.</summary>
 public interface ILibreDispatcher
 {
+    int ManagedThreadId { get; }
+
     bool CheckAccess();
 
     void Post(Action callback);
