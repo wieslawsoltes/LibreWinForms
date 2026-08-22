@@ -39,6 +39,12 @@ public interface ILibreWindowEvents
 
     void BoundsChanged(LibreRectangle bounds);
 
+    /// <summary>
+    ///  Reports that the native presentation scale changed. The scale maps the logical
+    ///  WinForms surface to framebuffer pixels and must not be treated as a Win32 DPI message.
+    /// </summary>
+    void PresentationScaleChanged(double scale);
+
     void PaintRequested(ILibrePaintFrame frame);
 
     void Input(in LibreInputEvent inputEvent);

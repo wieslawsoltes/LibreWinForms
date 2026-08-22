@@ -360,6 +360,31 @@ public class CanonicalLifecycleTests
         child.Location.Should().Be(new Point(-740, 442));
     }
 
+    [Fact]
+    public void PresentationScaleChange_InvalidatesLogicalSurfaceWithoutDoubleScalingControls()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { Size = new Size(400, 300) };
+        int deviceDpiBefore = 0;
+        int deviceDpiAfter = 0;
+
+        form.Shown += (_, _) =>
+        {
+            deviceDpiBefore = form.DeviceDpi;
+            platform.SetPresentationScale(2.0);
+            deviceDpiAfter = form.DeviceDpi;
+            platform.Post(form.Close);
+        };
+
+        Application.Run(form);
+
+        platform.LastPresentationScale.Should().Be(2.0);
+        platform.PresentationInvalidationCount.Should().Be(1);
+        deviceDpiBefore.Should().Be(96);
+        deviceDpiAfter.Should().Be(96);
+        form.Size.Should().Be(new Size(400, 300));
+    }
+
     private static HeadlessPlatform UseHeadlessPlatform(bool autoCloseWindows)
     {
         HeadlessPlatform platform;
@@ -427,6 +452,8 @@ public class CanonicalLifecycleTests
             LastWindowBounds = default;
             LastDirtyRectangle = default;
             PresentCount = 0;
+            PresentationInvalidationCount = 0;
+            LastPresentationScale = 1.0;
             LastPaintCommandCount = 0;
             SawFormPaintFill = false;
             SawTranslatedChildPaintFill = false;
@@ -444,6 +471,10 @@ public class CanonicalLifecycleTests
         internal LibreRectangle LastDirtyRectangle { get; private set; }
 
         internal int PresentCount { get; private set; }
+
+        internal int PresentationInvalidationCount { get; private set; }
+
+        internal double LastPresentationScale { get; private set; } = 1.0;
 
         internal int LastPaintCommandCount { get; private set; }
 
@@ -547,6 +578,13 @@ public class CanonicalLifecycleTests
             _lastWindow!.SendInput(new LibreInputEvent(kind, 1, modifiers, key, text, position, delta, button));
         }
 
+        internal void SetPresentationScale(double scale)
+        {
+            _lastWindow.Should().NotBeNull();
+            _lastWindow!.SetPresentationScale(scale);
+            LastPresentationScale = scale;
+        }
+
         public IReadOnlyList<LibreMonitor> GetMonitors()
             => _monitors;
 
@@ -563,7 +601,13 @@ public class CanonicalLifecycleTests
             window!.RequestPaint(dirtyRectangle);
         }
 
-        public void InvalidateAll(LibreHandle target) { }
+        public void InvalidateAll(LibreHandle target)
+        {
+            Handles.TryGet(target, out HeadlessWindow? window).Should().BeTrue();
+            PresentationInvalidationCount++;
+            LibreRectangle bounds = window!.Bounds;
+            window.RequestPaint(new LibreRectangle(0, 0, bounds.Width, bounds.Height));
+        }
 
         public void Present(LibreHandle target)
         {
@@ -576,6 +620,7 @@ public class CanonicalLifecycleTests
             private readonly HeadlessPlatform _platform;
             private readonly ILibreWindowEvents _events;
             private bool _disposed;
+            private double _dpiScale = 1.0;
 
             internal HeadlessWindow(
                 HeadlessPlatform platform,
@@ -613,7 +658,7 @@ public class CanonicalLifecycleTests
 
             public bool Enabled { get; set; } = true;
 
-            public double DpiScale => 1;
+            public double DpiScale => _dpiScale;
 
             public void Show()
             {
@@ -673,6 +718,12 @@ public class CanonicalLifecycleTests
                 {
                     _events.Input(inputEvent);
                 }
+            }
+
+            internal void SetPresentationScale(double scale)
+            {
+                _dpiScale = scale;
+                _events.PresentationScaleChanged(scale);
             }
 
             private static bool ContainsSolidFill(

@@ -20,6 +20,7 @@
     <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\ProGPU.Scene\ProGPU.Scene.csproj" />
     <PackageReference Include="Silk.NET.Input" />
     <PackageReference Include="Silk.NET.Input.Glfw" />
+    <PackageReference Include="Silk.NET.GLFW" />
     <PackageReference Include="Silk.NET.Windowing" />
     <PackageReference Include="Silk.NET.Windowing.Glfw" />
   </ItemGroup>

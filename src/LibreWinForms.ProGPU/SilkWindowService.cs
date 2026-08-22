@@ -57,6 +57,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private LibreRectangle? _dirtyRectangle;
     private LibreHandle _owner;
     private bool _enabled = true;
+    private double _reportedDpiScale = 1.0;
     private bool _closed;
     private bool _disposed;
 
@@ -90,6 +91,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         Handle = handles.Allocate(this, LibreHandleKind.Window);
         AttachEvents();
         _window.Initialize();
+        _reportedDpiScale = DpiScale;
         Owner = options.Owner;
         _dispatcher.Register(this);
         if (options.Options.HasFlag(LibreWindowOptions.Visible))
@@ -282,9 +284,32 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _window.Load += OnLoad;
         _window.Render += OnRender;
         _window.Resize += _ => _events.BoundsChanged(Bounds);
-        _window.Move += _ => _events.BoundsChanged(Bounds);
+        _window.FramebufferResize += _ => OnPresentationGeometryChanged();
+        _window.Move += _ =>
+        {
+            _events.BoundsChanged(Bounds);
+            NotifyPresentationScaleChanged();
+        };
         _window.FocusChanged += focused => EmitInput(focused ? LibreInputEventKind.FocusGained : LibreInputEventKind.FocusLost);
         _window.Closing += OnClosing;
+    }
+
+    private void OnPresentationGeometryChanged()
+    {
+        NotifyPresentationScaleChanged();
+        RequestPaint(dirtyRectangle: null);
+    }
+
+    private void NotifyPresentationScaleChanged()
+    {
+        double scale = DpiScale;
+        if (Math.Abs(scale - _reportedDpiScale) < 0.0001)
+        {
+            return;
+        }
+
+        _reportedDpiScale = scale;
+        _events.PresentationScaleChanged(scale);
     }
 
     private void OnLoad()

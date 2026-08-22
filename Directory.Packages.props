@@ -28,6 +28,7 @@
     <PackageVersion Include="Silk.NET.Input.Glfw" Version="2.23.0" />
     <PackageVersion Include="Silk.NET.Windowing" Version="2.23.0" />
     <PackageVersion Include="Silk.NET.Windowing.Glfw" Version="2.23.0" />
+    <PackageVersion Include="Silk.NET.GLFW" Version="2.23.0" />
 
     <!-- Arcade -->
     <PackageVersion Include="Microsoft.DotNet.Build.Tasks.Templating" Version="$(MicrosoftDotNetBuildTasksTemplatingPackageVersion)" />

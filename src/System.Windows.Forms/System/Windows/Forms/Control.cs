@@ -11135,6 +11135,12 @@ public unsafe partial class Control :
     internal void UpdatePortableBounds(LibreRectangle bounds)
         => UpdateBounds(bounds.X, bounds.Y, bounds.Width, bounds.Height, bounds.Width, bounds.Height);
 
+    internal void UpdatePortablePresentationScale()
+    {
+        Control root = GetPortableTopLevelControl();
+        root._window.InvalidatePortable(dirtyRectangle: null);
+    }
+
     private void InvalidatePortable(Rectangle dirtyRectangle)
     {
         Control root = this;

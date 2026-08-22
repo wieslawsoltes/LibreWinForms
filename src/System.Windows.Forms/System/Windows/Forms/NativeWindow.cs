@@ -72,6 +72,7 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
 #if LIBREWINFORMS_PORTABLE
     private LibreHandle _portableHandle;
     private ILibreWindow? _portableWindow;
+    private double _portablePresentationScale = 1.0;
 #endif
     private NativeWindow? _nextWindow;
     private readonly WeakReference<NativeWindow> _weakThisPtr;
@@ -486,6 +487,7 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
                     owner);
                 _portableWindow = services.Windows.Create(createOptions, new PortableWindowEvents(this));
                 _portableHandle = _portableWindow.Handle;
+                _portablePresentationScale = _portableWindow.DpiScale;
             }
             else
             {
@@ -835,6 +837,8 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
 #if LIBREWINFORMS_PORTABLE
     internal bool PortableEnabled => _portableWindow?.Enabled ?? true;
 
+    internal double PortablePresentationScale => _portablePresentationScale;
+
     internal void SetPortableEnabled(bool enabled)
     {
         if (_portableWindow is { } window)
@@ -938,6 +942,7 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
             }
 
             _portableHandle = default;
+            _portablePresentationScale = 1.0;
             HWND = HWND.Null;
             _ownHandle = false;
             OnHandleChange();
@@ -970,6 +975,20 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
             if (_owner is Control.ControlNativeWindow controlWindow && controlWindow.GetControl() is { } control)
             {
                 control.UpdatePortableBounds(bounds);
+            }
+        }
+
+        public void PresentationScaleChanged(double scale)
+        {
+            if (!double.IsFinite(scale) || scale <= 0.0 || scale > 8.0)
+            {
+                return;
+            }
+
+            _owner._portablePresentationScale = scale;
+            if (_owner is Control.ControlNativeWindow controlWindow && controlWindow.GetControl() is { } control)
+            {
+                control.UpdatePortablePresentationScale();
             }
         }
 
