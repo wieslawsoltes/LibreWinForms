@@ -3,9 +3,12 @@
 
 using System.Collections.Concurrent;
 using System.Drawing;
+using System.Numerics;
 using System.Windows.Forms;
 using FluentAssertions;
 using LibreWinForms.Platform;
+using ProGPU.Scene;
+using ProGpuSolidColorBrush = ProGPU.Vector.SolidColorBrush;
 using Xunit;
 
 namespace LibreWinForms.CanonicalLifecycle.Tests;
@@ -77,8 +80,8 @@ public class CanonicalLifecycleTests
         childPaintClip.Should().Be(new Rectangle(0, 0, 120, 60));
         visibleClip.Should().Be(new RectangleF(0, 0, 640, 480));
         platform.LastPaintCommandCount.Should().BeGreaterThan(0);
-        platform.LastFormPaintPixel.ToArgb().Should().Be(Color.CornflowerBlue.ToArgb());
-        platform.LastChildPaintPixel.ToArgb().Should().Be(Color.OrangeRed.ToArgb());
+        platform.SawFormPaintFill.Should().BeTrue();
+        platform.SawTranslatedChildPaintFill.Should().BeTrue();
         form.IsDisposed.Should().BeTrue();
         form.IsHandleCreated.Should().BeFalse();
         platform.Handles.Count.Should().Be(0);
@@ -114,9 +117,9 @@ public class CanonicalLifecycleTests
 
         internal int LastPaintCommandCount { get; private set; }
 
-        internal Color LastFormPaintPixel { get; private set; }
+        internal bool SawFormPaintFill { get; private set; }
 
-        internal Color LastChildPaintPixel { get; private set; }
+        internal bool SawTranslatedChildPaintFill { get; private set; }
 
         public int ManagedThreadId => Environment.CurrentManagedThreadId;
 
@@ -257,13 +260,50 @@ public class CanonicalLifecycleTests
                 _platform.Post(() =>
                 {
                     LibreRectangle surfaceBounds = new(0, 0, Bounds.Width, Bounds.Height);
-                    using Bitmap bitmap = new(surfaceBounds.Width, surfaceBounds.Height);
-                    using Graphics graphics = Graphics.FromImage(bitmap);
+                    DrawingContext context = new();
+                    using Graphics graphics = Graphics.FromProGpuDrawingContext(
+                        context,
+                        new RectangleF(0, 0, surfaceBounds.Width, surfaceBounds.Height));
                     _events.PaintRequested(new HeadlessPaintFrame(graphics, surfaceBounds, dirtyRectangle));
-                    _platform.LastPaintCommandCount = bitmap.RecordedContext.Commands.Count;
-                    _platform.LastFormPaintPixel = bitmap.GetPixel(5, 6);
-                    _platform.LastChildPaintPixel = bitmap.GetPixel(15, 22);
+                    _platform.LastPaintCommandCount = context.Commands.Count;
+                    _platform.SawFormPaintFill = ContainsSolidFill(
+                        context,
+                        new RectangleF(4, 5, 24, 16),
+                        Color.CornflowerBlue);
+                    _platform.SawTranslatedChildPaintFill = ContainsSolidFill(
+                        context,
+                        new RectangleF(14, 21, 10, 8),
+                        Color.OrangeRed);
                 });
+            }
+
+            private static bool ContainsSolidFill(
+                DrawingContext context,
+                RectangleF expectedRectangle,
+                Color expectedColor)
+            {
+                Vector4 expected = new(
+                    expectedColor.R / 255f,
+                    expectedColor.G / 255f,
+                    expectedColor.B / 255f,
+                    expectedColor.A / 255f);
+
+                foreach (RenderCommand command in context.Commands)
+                {
+                    if (command.Type == RenderCommandType.DrawRect &&
+                        command.Pen is null &&
+                        command.Brush is ProGpuSolidColorBrush brush &&
+                        command.Rect.X == expectedRectangle.X &&
+                        command.Rect.Y == expectedRectangle.Y &&
+                        command.Rect.Width == expectedRectangle.Width &&
+                        command.Rect.Height == expectedRectangle.Height &&
+                        brush.Color == expected)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
             }
 
             public void Dispose()
