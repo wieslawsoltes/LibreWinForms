@@ -164,6 +164,9 @@ public interface ILibreWindow : IDisposable
 {
     LibreHandle Handle { get; }
 
+    /// <summary>The non-null title displayed by the platform window.</summary>
+    string Title { get; set; }
+
     /// <summary>The logical owner used for platform transient-window relationships.</summary>
     LibreHandle Owner { get; set; }
 

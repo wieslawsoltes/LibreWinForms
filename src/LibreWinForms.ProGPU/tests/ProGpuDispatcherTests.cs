@@ -125,6 +125,8 @@ public class ProGpuDispatcherTests
     {
         public LibreHandle Handle => default;
 
+        public string Title { get; set; } = string.Empty;
+
         public LibreHandle Owner { get; set; }
 
         public LibreRectangle Bounds { get; set; }

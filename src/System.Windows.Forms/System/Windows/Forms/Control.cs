@@ -3796,6 +3796,10 @@ public unsafe partial class Control :
             {
 #if LIBREWINFORMS_PORTABLE
                 _text = value.Length == 0 ? null : value;
+                if (IsHandleCreated)
+                {
+                    SetPortableWindowTitle(value);
+                }
 #else
                 if (IsHandleCreated)
                 {
@@ -11181,6 +11185,9 @@ public unsafe partial class Control :
 
     internal void SetPortableWindowEnabled(bool enabled)
         => GetPortableTopLevelControl()._window.SetPortableEnabled(enabled);
+
+    internal void SetPortableWindowTitle(string title)
+        => _window.SetPortableTitle(title);
 
     internal void SetPortableOwner(Control? owner)
         => _window.SetPortableOwner(owner?._window);

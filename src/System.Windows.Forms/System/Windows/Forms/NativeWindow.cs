@@ -887,6 +887,14 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
         }
     }
 
+    internal void SetPortableTitle(string title)
+    {
+        if (_portableWindow is { } window)
+        {
+            window.Title = title;
+        }
+    }
+
     internal void SetPortableOwner(NativeWindow? owner)
     {
         if (_portableWindow is { } window)

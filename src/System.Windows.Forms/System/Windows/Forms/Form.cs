@@ -2624,7 +2624,9 @@ public partial class Form : ContainerControl
         get => base.WindowText;
         set
         {
+#if !LIBREWINFORMS_PORTABLE
             string oldText = WindowText;
+#endif
             base.WindowText = value;
 
             // For non-default FormBorderStyles, we do not set the WS_CAPTION style if
@@ -2634,10 +2636,12 @@ public partial class Form : ContainerControl
             // WS_CAPTION. Fixed this by making sure we call UpdateStyles() when
             // we transition from a non-null value to a null value or vice versa in
             // Form.WindowText.
+#if !LIBREWINFORMS_PORTABLE
             if (string.IsNullOrEmpty(oldText) || string.IsNullOrEmpty(value))
             {
                 UpdateFormStyles();
             }
+#endif
         }
     }
 

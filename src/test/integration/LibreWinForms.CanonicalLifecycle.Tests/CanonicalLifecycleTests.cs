@@ -17,6 +17,26 @@ namespace LibreWinForms.CanonicalLifecycle.Tests;
 public class CanonicalLifecycleTests
 {
     [Fact]
+    public void FormText_UsesTypedLiveWindowTitleWithoutUser32StyleRefresh()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { Text = "Initial title" };
+
+        _ = form.Handle;
+
+        platform.LastWindowTitle.Should().Be("Initial title");
+
+        form.Text = "Updated title";
+        platform.LastWindowTitle.Should().Be("Updated title");
+
+        form.Text = string.Empty;
+        platform.LastWindowTitle.Should().BeEmpty();
+
+        form.Text = "Restored title";
+        platform.LastWindowTitle.Should().Be("Restored title");
+    }
+
+    [Fact]
     public void FormIcon_UsesTypedRgbaWindowIconTransportAndShowIconClearsIt()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -756,6 +776,7 @@ public class CanonicalLifecycleTests
             CreateGraphicsCommitCount = 0;
             SawCreateGraphicsTranslatedFill = false;
             LastActivatedWindow = default;
+            LastWindowTitle = string.Empty;
             LastWindowIcons = [];
         }
 
@@ -794,6 +815,8 @@ public class CanonicalLifecycleTests
         internal bool SawCreateGraphicsTranslatedFill { get; private set; }
 
         internal LibreHandle LastActivatedWindow { get; private set; }
+
+        internal string LastWindowTitle { get; private set; } = string.Empty;
 
         internal IReadOnlyList<LibreWindowIcon> LastWindowIcons { get; private set; } = [];
 
@@ -981,6 +1004,7 @@ public class CanonicalLifecycleTests
             private double _dpiScale;
             private double _framebufferScale;
             private LibreRectangle _nativeBounds;
+            private string _title = string.Empty;
 
             internal HeadlessWindow(
                 HeadlessPlatform platform,
@@ -999,12 +1023,24 @@ public class CanonicalLifecycleTests
                     _framebufferScale);
                 _platform.LastWindowBounds = options.Bounds;
                 _platform.LastNativeWindowBounds = _nativeBounds;
+                Title = options.Title;
                 Owner = options.Owner;
                 Visible = options.Options.HasFlag(LibreWindowOptions.Visible);
                 Handle = platform.Handles.Allocate(this, LibreHandleKind.Window);
             }
 
             public LibreHandle Handle { get; }
+
+            public string Title
+            {
+                get => _title;
+                set
+                {
+                    ArgumentNullException.ThrowIfNull(value);
+                    _title = value;
+                    _platform.LastWindowTitle = value;
+                }
+            }
 
             public LibreHandle Owner { get; set; }
 

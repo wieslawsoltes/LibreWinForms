@@ -142,6 +142,17 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
 
     public LibreWindowCoordinateMode CoordinateMode => _coordinateMode;
 
+    public string Title
+    {
+        get => _window.Title;
+        set
+        {
+            VerifyAccess();
+            ArgumentNullException.ThrowIfNull(value);
+            _window.Title = value;
+        }
+    }
+
     public LibreHandle Owner
     {
         get => _owner;
