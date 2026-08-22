@@ -297,6 +297,18 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _dispatcher.Wake();
     }
 
+    public void PresentPendingPaint()
+    {
+        VerifyAccess();
+        const int maxImmediateAttempts = 3;
+        for (int attempt = 0;
+             attempt < maxImmediateAttempts && (_paintQueued || _presentationQueued);
+             attempt++)
+        {
+            _window.DoRender();
+        }
+    }
+
     internal Graphics CreateGraphics(
         LibrePoint origin,
         LibreRectangle clipRectangle)

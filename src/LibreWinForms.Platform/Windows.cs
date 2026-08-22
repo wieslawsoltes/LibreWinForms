@@ -152,6 +152,12 @@ public interface ILibreWindow : IDisposable
 
     void Activate();
 
+    /// <summary>
+    /// Synchronously processes paint already pending for this window and
+    /// returns after the backend presentation attempt completes.
+    /// </summary>
+    void PresentPendingPaint();
+
     void Close();
 }
 

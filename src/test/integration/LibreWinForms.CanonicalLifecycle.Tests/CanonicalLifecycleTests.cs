@@ -30,6 +30,9 @@ public class CanonicalLifecycleTests
         Rectangle childPaintClip = default;
         RectangleF visibleClip = default;
         RectangleF createGraphicsVisibleClip = default;
+        int paintCallbacksBeforeUpdate = -1;
+        int paintCallbacksAfterUpdate = -1;
+        int paintCallbacksAfterCleanUpdate = -1;
         List<string> inputEvents = [];
         Point mouseLocation = default;
         Point mousePosition = default;
@@ -106,7 +109,11 @@ public class CanonicalLifecycleTests
         {
             form.Bounds = new(40, 50, 640, 480);
             form.Invalidate();
+            paintCallbacksBeforeUpdate = paintCallbacks;
             form.Update();
+            paintCallbacksAfterUpdate = paintCallbacks;
+            form.Update();
+            paintCallbacksAfterCleanUpdate = paintCallbacks;
             using (Graphics graphics = child.CreateGraphics())
             {
                 createGraphicsVisibleClip = graphics.VisibleClipBounds;
@@ -157,7 +164,9 @@ public class CanonicalLifecycleTests
         closeAttempts.Should().Be(2);
         platform.LastWindowBounds.Should().Be(new LibreRectangle(40, 50, 640, 480));
         platform.LastDirtyRectangle.Should().Be(new LibreRectangle(0, 0, 640, 480));
-        platform.PresentCount.Should().Be(1);
+        platform.PresentCount.Should().Be(2);
+        paintCallbacksAfterUpdate.Should().Be(paintCallbacksBeforeUpdate + 2);
+        paintCallbacksAfterCleanUpdate.Should().Be(paintCallbacksAfterUpdate);
         paintCallbacks.Should().Be(2);
         formPaintClip.Should().Be(new Rectangle(0, 0, 640, 480));
         childPaintClip.Should().Be(new Rectangle(0, 0, 120, 60));
@@ -875,8 +884,9 @@ public class CanonicalLifecycleTests
 
         public void Present(LibreHandle target)
         {
-            Handles.TryGet<object>(target, out _).Should().BeTrue();
+            Handles.TryGet(target, out HeadlessWindow? window).Should().BeTrue();
             PresentCount++;
+            window!.PresentPendingPaint();
         }
 
         private sealed class HeadlessWindow : ILibreWindow
@@ -886,6 +896,8 @@ public class CanonicalLifecycleTests
             private readonly LibreWindowCoordinateMode _coordinateMode;
             private readonly DrawingContext _retainedContext = new();
             private bool _disposed;
+            private bool _paintQueued;
+            private LibreRectangle _dirtyRectangle;
             private double _dpiScale;
             private double _framebufferScale;
             private LibreRectangle _nativeBounds;
@@ -1028,24 +1040,43 @@ public class CanonicalLifecycleTests
 
             internal void RequestPaint(LibreRectangle dirtyRectangle)
             {
-                _platform.Post(() =>
+                if (_paintQueued)
                 {
-                    LibreRectangle surfaceBounds = new(0, 0, Bounds.Width, Bounds.Height);
-                    _retainedContext.Clear();
-                    using Graphics graphics = Graphics.FromProGpuDrawingContext(
-                        _retainedContext,
-                        new RectangleF(0, 0, surfaceBounds.Width, surfaceBounds.Height));
-                    _events.PaintRequested(new HeadlessPaintFrame(graphics, surfaceBounds, dirtyRectangle));
-                    _platform.LastPaintCommandCount = _retainedContext.Commands.Count;
-                    _platform.SawFormPaintFill = ContainsSolidFill(
-                        _retainedContext,
-                        new RectangleF(4, 5, 24, 16),
-                        Color.CornflowerBlue);
-                    _platform.SawTranslatedChildPaintFill = ContainsSolidFill(
-                        _retainedContext,
-                        new RectangleF(14, 21, 10, 8),
-                        Color.OrangeRed);
-                });
+                    _dirtyRectangle = Union(_dirtyRectangle, dirtyRectangle);
+                }
+                else
+                {
+                    _paintQueued = true;
+                    _dirtyRectangle = dirtyRectangle;
+                    _platform.Post(PresentPendingPaint);
+                }
+            }
+
+            public void PresentPendingPaint()
+            {
+                if (_disposed || !_paintQueued)
+                {
+                    return;
+                }
+
+                LibreRectangle dirtyRectangle = _dirtyRectangle;
+                _paintQueued = false;
+                _dirtyRectangle = default;
+                LibreRectangle surfaceBounds = new(0, 0, Bounds.Width, Bounds.Height);
+                _retainedContext.Clear();
+                using Graphics graphics = Graphics.FromProGpuDrawingContext(
+                    _retainedContext,
+                    new RectangleF(0, 0, surfaceBounds.Width, surfaceBounds.Height));
+                _events.PaintRequested(new HeadlessPaintFrame(graphics, surfaceBounds, dirtyRectangle));
+                _platform.LastPaintCommandCount = _retainedContext.Commands.Count;
+                _platform.SawFormPaintFill = ContainsSolidFill(
+                    _retainedContext,
+                    new RectangleF(4, 5, 24, 16),
+                    Color.CornflowerBlue);
+                _platform.SawTranslatedChildPaintFill = ContainsSolidFill(
+                    _retainedContext,
+                    new RectangleF(14, 21, 10, 8),
+                    Color.OrangeRed);
             }
 
             internal void SendInput(in LibreInputEvent inputEvent)
@@ -1097,6 +1128,19 @@ public class CanonicalLifecycleTests
 
             private static int ScaleForDpi(int value, double newDpiScale, double oldDpiScale)
                 => checked((int)Math.Round(value * newDpiScale / oldDpiScale, MidpointRounding.AwayFromZero));
+
+            private static LibreRectangle Union(LibreRectangle left, LibreRectangle right)
+            {
+                int x = Math.Min(left.X, right.X);
+                int y = Math.Min(left.Y, right.Y);
+                int rightEdge = Math.Max(
+                    checked(left.X + left.Width),
+                    checked(right.X + right.Width));
+                int bottomEdge = Math.Max(
+                    checked(left.Y + left.Height),
+                    checked(right.Y + right.Height));
+                return new LibreRectangle(x, y, checked(rightEdge - x), checked(bottomEdge - y));
+            }
 
             private static bool ContainsSolidFill(
                 DrawingContext context,

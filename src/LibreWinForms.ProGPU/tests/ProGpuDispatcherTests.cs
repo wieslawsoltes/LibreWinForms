@@ -99,4 +99,67 @@ public class ProGpuDispatcherTests
         await worker.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         handles.Release(target).Should().BeTrue();
     }
+
+    [Fact]
+    public async Task Present_FromWorker_CompletesOnOwningDispatcher()
+    {
+        using ProGpuDispatcher dispatcher = new();
+        ManagedLibreHandleRegistry handles = new();
+        TestWindow window = new(dispatcher);
+        LibreHandle target = handles.Allocate<ILibreWindow>(window, LibreHandleKind.Window);
+        ProGpuPaintService painting = new(dispatcher, handles);
+
+        Task worker = Task.Run(
+            () => painting.Present(target),
+            TestContext.Current.CancellationToken);
+        int dispatcherThread = Environment.CurrentManagedThreadId;
+        dispatcher.Run(TestContext.Current.CancellationToken);
+        await worker.ConfigureAwait(true);
+
+        window.PresentCount.Should().Be(1);
+        window.PresentThread.Should().Be(dispatcherThread);
+        handles.Release(target).Should().BeTrue();
+    }
+
+    private sealed class TestWindow(ProGpuDispatcher dispatcher) : ILibreWindow
+    {
+        public LibreHandle Handle => default;
+
+        public LibreHandle Owner { get; set; }
+
+        public LibreRectangle Bounds { get; set; }
+
+        public LibreWindowState State { get; set; }
+
+        public bool Visible => true;
+
+        public bool Enabled { get; set; } = true;
+
+        public LibreWindowCoordinateMode CoordinateMode => LibreWindowCoordinateMode.Logical;
+
+        public double FramebufferScale => 1.0;
+
+        public double DpiScale => 1.0;
+
+        public int PresentCount { get; private set; }
+
+        public int PresentThread { get; private set; }
+
+        public void Show() { }
+
+        public void Hide() { }
+
+        public void Activate() { }
+
+        public void PresentPendingPaint()
+        {
+            PresentCount++;
+            PresentThread = Environment.CurrentManagedThreadId;
+            dispatcher.RequestExit();
+        }
+
+        public void Close() { }
+
+        public void Dispose() { }
+    }
 }

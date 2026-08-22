@@ -35,5 +35,10 @@ public interface ILibrePaintService
 
     void InvalidateAll(LibreHandle target);
 
+    /// <summary>
+    /// Synchronously processes paint already pending for the target window on
+    /// its owning dispatcher and returns after the backend presentation attempt
+    /// completes. This method does not invalidate an otherwise clean window.
+    /// </summary>
     void Present(LibreHandle target);
 }

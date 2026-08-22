@@ -43,7 +43,16 @@ public sealed class ProGpuPaintService : ILibrePaintService
         => Schedule(target, dirtyRectangle: null);
 
     public void Present(LibreHandle target)
-        => Schedule(target, dirtyRectangle: null);
+    {
+        if (_dispatcher.CheckAccess())
+        {
+            ResolveWindow(target).PresentPendingPaint();
+        }
+        else
+        {
+            _dispatcher.Send(() => ResolveWindow(target).PresentPendingPaint());
+        }
+    }
 
     private void Schedule(LibreHandle target, LibreRectangle? dirtyRectangle)
     {
@@ -61,4 +70,9 @@ public sealed class ProGpuPaintService : ILibrePaintService
         => _handles.TryGet(target, out SilkLibreWindow? window)
             ? window
             : throw new ArgumentException("The handle does not identify a live ProGPU window.", nameof(target));
+
+    private ILibreWindow ResolveWindow(LibreHandle target)
+        => _handles.TryGet(target, out ILibreWindow? window)
+            ? window
+            : throw new ArgumentException("The handle does not identify a live platform window.", nameof(target));
 }
