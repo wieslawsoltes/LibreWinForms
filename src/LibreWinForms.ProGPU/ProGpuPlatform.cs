@@ -13,14 +13,15 @@ public static class ProGpuPlatform
         ProGpuDispatcher dispatcher = new();
         ManagedLibreHandleRegistry handles = new();
         ProGpuTimerService timers = new(dispatcher);
-        SilkWindowService windows = new(dispatcher, handles);
+        SilkMonitorService monitors = new();
+        SilkWindowService windows = new(dispatcher, handles, monitors);
 
         return new LibrePlatformServices(
             dispatcher,
             timers,
             handles,
             windows,
-            new SilkMonitorService(),
+            monitors,
             new ProGpuPaintService(dispatcher, handles));
     }
 

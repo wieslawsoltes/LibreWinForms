@@ -386,6 +386,40 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void LogicalPresentation_SeparatesWindowsDpiFromFramebufferScale()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        platform.SetInitialPresentationScales(dpiScale: 2.0, framebufferScale: 1.0);
+        using Form form = new()
+        {
+            StartPosition = FormStartPosition.Manual,
+            Bounds = new Rectangle(10, 20, 400, 300),
+        };
+        LibreRectangle initialNativeBounds = default;
+        Rectangle initialManagedBounds = default;
+        int initialDeviceDpi = 0;
+
+        form.Shown += (_, _) =>
+        {
+            initialNativeBounds = platform.LastNativeWindowBounds;
+            initialManagedBounds = form.Bounds;
+            initialDeviceDpi = form.DeviceDpi;
+            platform.SetPresentationScales(dpiScale: 1.0, framebufferScale: 1.0);
+            platform.Post(form.Close);
+        };
+
+        Application.Run(form);
+
+        platform.LastCoordinateMode.Should().Be(LibreWindowCoordinateMode.Logical);
+        initialNativeBounds.Should().Be(new LibreRectangle(20, 40, 800, 600));
+        initialManagedBounds.Should().Be(new Rectangle(10, 20, 400, 300));
+        initialDeviceDpi.Should().Be(96);
+        platform.LastNativeWindowBounds.Should().Be(new LibreRectangle(10, 20, 400, 300));
+        form.Bounds.Should().Be(new Rectangle(10, 20, 400, 300));
+        form.DeviceDpi.Should().Be(96);
+    }
+
+    [Fact]
     public void PerMonitorV2_UsesDevicePixelCoordinatesAndRaisesCanonicalDpiEvents()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -395,6 +429,7 @@ public class CanonicalLifecycleTests
             new(0, 0, 1920, 1040),
             2.0,
             true));
+        platform.SetInitialPresentationScales(dpiScale: 2.0, framebufferScale: 2.0);
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2).Should().BeTrue();
 
         using Form form = new()
@@ -479,6 +514,53 @@ public class CanonicalLifecycleTests
         platform.PresentationInvalidationCount.Should().Be(1);
     }
 
+    [Fact]
+    public void PerMonitorV2_SeparatesWindowsDpiFromFramebufferScale()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        platform.SetMonitors(new LibreMonitor(
+            "primary",
+            new(0, 0, 1920, 1080),
+            new(0, 0, 1920, 1040),
+            2.0,
+            true));
+        platform.SetInitialPresentationScales(dpiScale: 2.0, framebufferScale: 1.0);
+        Application.SetHighDpiMode(HighDpiMode.PerMonitorV2).Should().BeTrue();
+
+        using Form form = new()
+        {
+            AutoScaleMode = AutoScaleMode.Dpi,
+            AutoScaleDimensions = new SizeF(96, 96),
+            StartPosition = FormStartPosition.Manual,
+            Bounds = new Rectangle(10, 20, 400, 300),
+        };
+        Rectangle initialManagedBounds = default;
+        LibreRectangle initialNativeBounds = default;
+
+        form.Shown += (_, _) =>
+        {
+            initialManagedBounds = form.Bounds;
+            initialNativeBounds = platform.LastNativeWindowBounds;
+            platform.SetPresentationScales(dpiScale: 1.0, framebufferScale: 1.0);
+            platform.Post(form.Close);
+        };
+
+        try
+        {
+            Application.Run(form);
+        }
+        finally
+        {
+            Application.SetHighDpiMode(HighDpiMode.DpiUnaware).Should().BeTrue();
+        }
+
+        initialManagedBounds.Should().Be(new Rectangle(10, 20, 800, 600));
+        initialNativeBounds.Should().Be(new LibreRectangle(10, 20, 800, 600));
+        form.Bounds.Should().Be(new Rectangle(10, 20, 400, 300));
+        platform.LastNativeWindowBounds.Should().Be(new LibreRectangle(10, 20, 400, 300));
+        form.DeviceDpi.Should().Be(96);
+    }
+
     private static HeadlessPlatform UseHeadlessPlatform(bool autoCloseWindows)
     {
         HeadlessPlatform platform;
@@ -520,6 +602,8 @@ public class CanonicalLifecycleTests
         private bool _autoCloseWindows;
         private readonly Dictionary<Form, LibreHandle> _formHandles = [];
         private bool _exitRequested;
+        private double? _initialDpiScale;
+        private double? _initialFramebufferScale;
         private HeadlessWindow? _lastWindow;
         private IReadOnlyList<LibreMonitor> _monitors = CreateDefaultMonitorInventory();
 
@@ -535,6 +619,8 @@ public class CanonicalLifecycleTests
             Handles.Count.Should().Be(0);
             _autoCloseWindows = autoCloseWindows;
             _exitRequested = false;
+            _initialDpiScale = null;
+            _initialFramebufferScale = null;
             _lastWindow = null;
             _monitors = CreateDefaultMonitorInventory();
             _formHandles.Clear();
@@ -544,6 +630,7 @@ public class CanonicalLifecycleTests
 
             WindowsCreated = 0;
             LastWindowBounds = default;
+            LastNativeWindowBounds = default;
             LastDirtyRectangle = default;
             PresentCount = 0;
             PresentationInvalidationCount = 0;
@@ -562,6 +649,8 @@ public class CanonicalLifecycleTests
         internal int WindowsCreated { get; private set; }
 
         internal LibreRectangle LastWindowBounds { get; private set; }
+
+        internal LibreRectangle LastNativeWindowBounds { get; private set; }
 
         internal LibreRectangle LastDirtyRectangle { get; private set; }
 
@@ -585,6 +674,12 @@ public class CanonicalLifecycleTests
         {
             monitors.Should().NotBeEmpty();
             _monitors = monitors;
+        }
+
+        internal void SetInitialPresentationScales(double dpiScale, double framebufferScale)
+        {
+            _initialDpiScale = dpiScale;
+            _initialFramebufferScale = framebufferScale;
         }
 
         public int ManagedThreadId => Environment.CurrentManagedThreadId;
@@ -677,10 +772,13 @@ public class CanonicalLifecycleTests
         }
 
         internal void SetPresentationScale(double scale)
+            => SetPresentationScales(scale, scale);
+
+        internal void SetPresentationScales(double dpiScale, double framebufferScale)
         {
             _lastWindow.Should().NotBeNull();
-            _lastWindow!.SetPresentationScale(scale);
-            LastPresentationScale = scale;
+            _lastWindow!.SetPresentationScales(dpiScale, framebufferScale);
+            LastPresentationScale = dpiScale;
         }
 
         public IReadOnlyList<LibreMonitor> GetMonitors()
@@ -720,6 +818,7 @@ public class CanonicalLifecycleTests
             private readonly LibreWindowCoordinateMode _coordinateMode;
             private bool _disposed;
             private double _dpiScale;
+            private double _framebufferScale;
             private LibreRectangle _nativeBounds;
 
             internal HeadlessWindow(
@@ -730,9 +829,15 @@ public class CanonicalLifecycleTests
                 _platform = platform;
                 _events = events;
                 _coordinateMode = options.CoordinateMode;
-                _dpiScale = options.InitialDpiScale;
-                _nativeBounds = LibreWindowCoordinates.ToNative(options.Bounds, _coordinateMode, _dpiScale);
+                _dpiScale = platform._initialDpiScale ?? options.InitialDpiScale;
+                _framebufferScale = platform._initialFramebufferScale ?? options.InitialDpiScale;
+                _nativeBounds = LibreWindowCoordinates.ToNative(
+                    options.Bounds,
+                    _coordinateMode,
+                    _dpiScale,
+                    _framebufferScale);
                 _platform.LastWindowBounds = options.Bounds;
+                _platform.LastNativeWindowBounds = _nativeBounds;
                 Owner = options.Owner;
                 Visible = options.Options.HasFlag(LibreWindowOptions.Visible);
                 Handle = platform.Handles.Allocate(this, LibreHandleKind.Window);
@@ -744,11 +849,20 @@ public class CanonicalLifecycleTests
 
             public LibreRectangle Bounds
             {
-                get => LibreWindowCoordinates.ToManaged(_nativeBounds, _coordinateMode, _dpiScale);
+                get => LibreWindowCoordinates.ToManaged(
+                    _nativeBounds,
+                    _coordinateMode,
+                    _dpiScale,
+                    _framebufferScale);
                 set
                 {
-                    _nativeBounds = LibreWindowCoordinates.ToNative(value, _coordinateMode, _dpiScale);
+                    _nativeBounds = LibreWindowCoordinates.ToNative(
+                        value,
+                        _coordinateMode,
+                        _dpiScale,
+                        _framebufferScale);
                     _platform.LastWindowBounds = value;
+                    _platform.LastNativeWindowBounds = _nativeBounds;
                     _events.BoundsChanged(value);
                 }
             }
@@ -760,6 +874,8 @@ public class CanonicalLifecycleTests
             public bool Enabled { get; set; } = true;
 
             public LibreWindowCoordinateMode CoordinateMode => _coordinateMode;
+
+            public double FramebufferScale => _framebufferScale;
 
             public double DpiScale => _dpiScale;
 
@@ -823,11 +939,47 @@ public class CanonicalLifecycleTests
                 }
             }
 
-            internal void SetPresentationScale(double scale)
+            internal void SetPresentationScales(double dpiScale, double framebufferScale)
             {
-                _dpiScale = scale;
-                _events.PresentationScaleChanged(scale);
+                LibreRectangle oldManagedBounds = Bounds;
+                double oldDpiScale = _dpiScale;
+                _dpiScale = dpiScale;
+                _framebufferScale = framebufferScale;
+                int desiredWidth = _coordinateMode == LibreWindowCoordinateMode.DevicePixels
+                    ? ScaleForDpi(oldManagedBounds.Width, dpiScale, oldDpiScale)
+                    : oldManagedBounds.Width;
+                int desiredHeight = _coordinateMode == LibreWindowCoordinateMode.DevicePixels
+                    ? ScaleForDpi(oldManagedBounds.Height, dpiScale, oldDpiScale)
+                    : oldManagedBounds.Height;
+                if (_coordinateMode == LibreWindowCoordinateMode.Logical)
+                {
+                    _nativeBounds = LibreWindowCoordinates.ToNative(
+                        oldManagedBounds,
+                        _coordinateMode,
+                        _dpiScale,
+                        _framebufferScale);
+                }
+                else
+                {
+                    LibreRectangle nativeSize = LibreWindowCoordinates.ToNative(
+                        new LibreRectangle(0, 0, desiredWidth, desiredHeight),
+                        _coordinateMode,
+                        _dpiScale,
+                        _framebufferScale);
+                    _nativeBounds = new LibreRectangle(
+                        _nativeBounds.X,
+                        _nativeBounds.Y,
+                        nativeSize.Width,
+                        nativeSize.Height);
+                }
+
+                _platform.LastNativeWindowBounds = _nativeBounds;
+                _events.BoundsChanged(Bounds);
+                _events.PresentationScaleChanged(dpiScale);
             }
+
+            private static int ScaleForDpi(int value, double newDpiScale, double oldDpiScale)
+                => checked((int)Math.Round(value * newDpiScale / oldDpiScale, MidpointRounding.AwayFromZero));
 
             private static bool ContainsSolidFill(
                 DrawingContext context,

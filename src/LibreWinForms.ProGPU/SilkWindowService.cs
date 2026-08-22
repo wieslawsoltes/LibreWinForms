@@ -18,11 +18,21 @@ public sealed class SilkWindowService : ILibreWindowService
 {
     private readonly ProGpuDispatcher _dispatcher;
     private readonly ILibreHandleRegistry _handles;
+    private readonly ILibreMonitorService _monitors;
 
     public SilkWindowService(ProGpuDispatcher dispatcher, ILibreHandleRegistry handles)
+        : this(dispatcher, handles, new SilkMonitorService())
+    {
+    }
+
+    public SilkWindowService(
+        ProGpuDispatcher dispatcher,
+        ILibreHandleRegistry handles,
+        ILibreMonitorService monitors)
     {
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         _handles = handles ?? throw new ArgumentNullException(nameof(handles));
+        _monitors = monitors ?? throw new ArgumentNullException(nameof(monitors));
     }
 
     public ILibreWindow Create(in LibreWindowCreateOptions options, ILibreWindowEvents events)
@@ -38,7 +48,7 @@ public sealed class SilkWindowService : ILibreWindowService
             throw new ArgumentException("The owner must be a live Silk.NET window.", nameof(options));
         }
 
-        return new SilkLibreWindow(_dispatcher, _handles, options, events);
+        return new SilkLibreWindow(_dispatcher, _handles, _monitors, options, events);
     }
 }
 
@@ -46,6 +56,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
 {
     private readonly ProGpuDispatcher _dispatcher;
     private readonly ILibreHandleRegistry _handles;
+    private readonly ILibreMonitorService _monitors;
     private readonly ILibreWindowEvents _events;
     private readonly IWindow _window;
     private readonly SilkWindowController _controller;
@@ -59,22 +70,28 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private LibreHandle _owner;
     private bool _enabled = true;
     private double _reportedDpiScale = 1.0;
+    private double _reportedFramebufferScale = 1.0;
+    private readonly bool _initializing = true;
+    private bool _updatingPresentationGeometry;
     private bool _closed;
     private bool _disposed;
 
     internal SilkLibreWindow(
         ProGpuDispatcher dispatcher,
         ILibreHandleRegistry handles,
+        ILibreMonitorService monitors,
         in LibreWindowCreateOptions options,
         ILibreWindowEvents events)
     {
         _dispatcher = dispatcher;
         _handles = handles;
+        _monitors = monitors;
         _events = events;
         _coordinateMode = options.CoordinateMode;
         LibreRectangle nativeBounds = LibreWindowCoordinates.ToNative(
             options.Bounds,
             _coordinateMode,
+            options.InitialDpiScale,
             options.InitialDpiScale);
         WindowOptions silkOptions = WindowOptions.Default with
         {
@@ -98,10 +115,13 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         AttachEvents();
         _window.Initialize();
         _reportedDpiScale = DpiScale;
-        if (_coordinateMode == LibreWindowCoordinateMode.DevicePixels)
-        {
-            SetNativeBounds(LibreWindowCoordinates.ToNative(options.Bounds, _coordinateMode, _reportedDpiScale));
-        }
+        _reportedFramebufferScale = FramebufferScale;
+        SetNativeBounds(LibreWindowCoordinates.ToNative(
+            options.Bounds,
+            _coordinateMode,
+            _reportedDpiScale,
+            _reportedFramebufferScale));
+        _initializing = false;
 
         Owner = options.Owner;
         _dispatcher.Register(this);
@@ -147,11 +167,16 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         get => LibreWindowCoordinates.ToManaged(
             new LibreRectangle(_window.Position.X, _window.Position.Y, _window.Size.X, _window.Size.Y),
             _coordinateMode,
-            DpiScale);
+            DpiScale,
+            FramebufferScale);
         set
         {
             VerifyAccess();
-            SetNativeBounds(LibreWindowCoordinates.ToNative(value, _coordinateMode, DpiScale));
+            SetNativeBounds(LibreWindowCoordinates.ToNative(
+                value,
+                _coordinateMode,
+                DpiScale,
+                FramebufferScale));
         }
     }
 
@@ -207,7 +232,9 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         }
     }
 
-    public double DpiScale => DisplayScaleResolver.ResolveWindowDisplayScale(_window);
+    public double FramebufferScale => DisplayScaleResolver.ResolveWindowFramebufferScale(_window);
+
+    public double DpiScale => DisplayScaleResolver.ResolveWindowDisplayScale(_window, ResolveMonitorDpiScale());
 
     public void Show()
     {
@@ -300,16 +327,35 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _window.Size = new Vector2D<int>(Math.Max(1, bounds.Width), Math.Max(1, bounds.Height));
     }
 
+    private double ResolveMonitorDpiScale()
+    {
+        try
+        {
+            LibreRectangle nativeBounds = new(
+                _window.Position.X,
+                _window.Position.Y,
+                _window.Size.X,
+                _window.Size.Y);
+            return _monitors.GetNearest(nativeBounds).DpiScale;
+        }
+        catch (PlatformNotSupportedException)
+        {
+            return FramebufferScale;
+        }
+    }
+
     private void AttachEvents()
     {
         _window.Load += OnLoad;
         _window.Render += OnRender;
-        _window.Resize += _ => _events.BoundsChanged(Bounds);
+        _window.Resize += _ => NotifyBoundsChanged();
         _window.FramebufferResize += _ => OnPresentationGeometryChanged();
         _window.Move += _ =>
         {
-            _events.BoundsChanged(Bounds);
-            NotifyPresentationScaleChanged();
+            if (!NotifyPresentationScaleChanged())
+            {
+                NotifyBoundsChanged();
+            }
         };
         _window.FocusChanged += focused => EmitInput(focused ? LibreInputEventKind.FocusGained : LibreInputEventKind.FocusLost);
         _window.Closing += OnClosing;
@@ -317,21 +363,104 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
 
     private void OnPresentationGeometryChanged()
     {
-        NotifyPresentationScaleChanged();
-        RequestPaint(dirtyRectangle: null);
-    }
-
-    private void NotifyPresentationScaleChanged()
-    {
-        double scale = DpiScale;
-        if (Math.Abs(scale - _reportedDpiScale) < 0.0001)
+        if (_initializing)
         {
             return;
         }
 
-        _reportedDpiScale = scale;
-        _events.PresentationScaleChanged(scale);
+        NotifyPresentationScaleChanged();
+        RequestPaint(dirtyRectangle: null);
     }
+
+    private void NotifyBoundsChanged()
+    {
+        if (!_initializing && !_updatingPresentationGeometry)
+        {
+            _events.BoundsChanged(Bounds);
+        }
+    }
+
+    private bool NotifyPresentationScaleChanged()
+    {
+        if (_initializing)
+        {
+            return false;
+        }
+
+        double dpiScale = DpiScale;
+        double framebufferScale = FramebufferScale;
+        bool dpiChanged = Math.Abs(dpiScale - _reportedDpiScale) >= 0.0001;
+        bool framebufferChanged = Math.Abs(framebufferScale - _reportedFramebufferScale) >= 0.0001;
+        if (!dpiChanged && !framebufferChanged)
+        {
+            return false;
+        }
+
+        double oldDpiScale = _reportedDpiScale;
+        double oldFramebufferScale = _reportedFramebufferScale;
+        _reportedDpiScale = dpiScale;
+        _reportedFramebufferScale = framebufferScale;
+        ResizeForPresentationScale(
+            oldDpiScale,
+            oldFramebufferScale,
+            dpiScale,
+            framebufferScale,
+            dpiChanged);
+        _events.BoundsChanged(Bounds);
+
+        if (dpiChanged)
+        {
+            _events.PresentationScaleChanged(dpiScale);
+        }
+
+        return true;
+    }
+
+    private void ResizeForPresentationScale(
+        double oldDpiScale,
+        double oldFramebufferScale,
+        double newDpiScale,
+        double newFramebufferScale,
+        bool dpiChanged)
+    {
+        bool preserveLogicalSize = _coordinateMode == LibreWindowCoordinateMode.Logical;
+        if (!preserveLogicalSize && !dpiChanged)
+        {
+            return;
+        }
+
+        LibreRectangle oldManagedSize = LibreWindowCoordinates.ToManaged(
+            new LibreRectangle(0, 0, _window.Size.X, _window.Size.Y),
+            _coordinateMode,
+            oldDpiScale,
+            oldFramebufferScale);
+        int desiredWidth = preserveLogicalSize
+            ? oldManagedSize.Width
+            : ScaleForDpi(oldManagedSize.Width, newDpiScale, oldDpiScale);
+        int desiredHeight = preserveLogicalSize
+            ? oldManagedSize.Height
+            : ScaleForDpi(oldManagedSize.Height, newDpiScale, oldDpiScale);
+        LibreRectangle nativeSize = LibreWindowCoordinates.ToNative(
+            new LibreRectangle(0, 0, desiredWidth, desiredHeight),
+            _coordinateMode,
+            newDpiScale,
+            newFramebufferScale);
+        if (_window.Size.X != nativeSize.Width || _window.Size.Y != nativeSize.Height)
+        {
+            _updatingPresentationGeometry = true;
+            try
+            {
+                _window.Size = new Vector2D<int>(Math.Max(1, nativeSize.Width), Math.Max(1, nativeSize.Height));
+            }
+            finally
+            {
+                _updatingPresentationGeometry = false;
+            }
+        }
+    }
+
+    private static int ScaleForDpi(int value, double newDpiScale, double oldDpiScale)
+        => checked((int)Math.Round(value * newDpiScale / oldDpiScale, MidpointRounding.AwayFromZero));
 
     private void OnLoad()
     {
@@ -707,18 +836,32 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
 
     private LibrePoint ToManagedPoint(Vector2 position)
     {
-        double scale = _coordinateMode == LibreWindowCoordinateMode.DevicePixels ? DpiScale : 1.0;
-        return new(
-            checked((int)Math.Round(position.X * scale)),
-            checked((int)Math.Round(position.Y * scale)));
+        LibreRectangle mapped = LibreWindowCoordinates.ToManaged(
+            new LibreRectangle(
+                checked((int)Math.Round(position.X)),
+                checked((int)Math.Round(position.Y)),
+                0,
+                0),
+            _coordinateMode,
+            DpiScale,
+            FramebufferScale);
+        return new(mapped.X, mapped.Y);
     }
 
     private LibreRectangle GetSurfaceBounds()
     {
-        Vector2D<int> size = _coordinateMode == LibreWindowCoordinateMode.DevicePixels
-            ? _window.FramebufferSize
-            : _window.Size;
-        return new(0, 0, Math.Max(1, size.X), Math.Max(1, size.Y));
+        if (_coordinateMode == LibreWindowCoordinateMode.DevicePixels)
+        {
+            Vector2D<int> framebufferSize = _window.FramebufferSize;
+            return new(0, 0, Math.Max(1, framebufferSize.X), Math.Max(1, framebufferSize.Y));
+        }
+
+        LibreRectangle logical = LibreWindowCoordinates.ToManaged(
+            new LibreRectangle(0, 0, _window.Size.X, _window.Size.Y),
+            _coordinateMode,
+            DpiScale,
+            FramebufferScale);
+        return new(0, 0, Math.Max(1, logical.Width), Math.Max(1, logical.Height));
     }
 
     private static LibreRectangle Union(LibreRectangle left, LibreRectangle right)

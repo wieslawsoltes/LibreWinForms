@@ -502,6 +502,7 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
                     LibreRectangle scaledSize = LibreWindowCoordinates.ToManaged(
                         new LibreRectangle(0, 0, requestedBounds.Width, requestedBounds.Height),
                         coordinateMode,
+                        initialDpiScale,
                         initialDpiScale);
                     requestedBounds = new LibreRectangle(
                         requestedBounds.X,

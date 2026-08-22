@@ -47,24 +47,16 @@ public static class LibreWindowCoordinates
     public static LibreRectangle ToManaged(
         LibreRectangle nativeBounds,
         LibreWindowCoordinateMode mode,
-        double dpiScale)
-        => mode switch
-        {
-            LibreWindowCoordinateMode.Logical => nativeBounds,
-            LibreWindowCoordinateMode.DevicePixels => Scale(nativeBounds, NormalizeScale(dpiScale)),
-            _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown window coordinate mode."),
-        };
+        double dpiScale,
+        double framebufferScale)
+        => Scale(nativeBounds, ResolveManagedScale(mode, dpiScale, framebufferScale));
 
     public static LibreRectangle ToNative(
         LibreRectangle managedBounds,
         LibreWindowCoordinateMode mode,
-        double dpiScale)
-        => mode switch
-        {
-            LibreWindowCoordinateMode.Logical => managedBounds,
-            LibreWindowCoordinateMode.DevicePixels => Scale(managedBounds, 1.0 / NormalizeScale(dpiScale)),
-            _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown window coordinate mode."),
-        };
+        double dpiScale,
+        double framebufferScale)
+        => Scale(managedBounds, 1.0 / ResolveManagedScale(mode, dpiScale, framebufferScale));
 
     public static int ToDeviceDpi(double dpiScale)
         => checked((int)Math.Round(96.0 * NormalizeScale(dpiScale), MidpointRounding.AwayFromZero));
@@ -79,11 +71,26 @@ public static class LibreWindowCoordinates
     private static int ScaleValue(int value, double scale)
         => checked((int)Math.Round(value * scale, MidpointRounding.AwayFromZero));
 
-    private static double NormalizeScale(double scale)
+    private static double ResolveManagedScale(
+        LibreWindowCoordinateMode mode,
+        double dpiScale,
+        double framebufferScale)
+    {
+        double normalizedDpiScale = NormalizeScale(dpiScale, nameof(dpiScale));
+        double normalizedFramebufferScale = NormalizeScale(framebufferScale, nameof(framebufferScale));
+        return mode switch
+        {
+            LibreWindowCoordinateMode.Logical => normalizedFramebufferScale / normalizedDpiScale,
+            LibreWindowCoordinateMode.DevicePixels => normalizedFramebufferScale,
+            _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown window coordinate mode."),
+        };
+    }
+
+    private static double NormalizeScale(double scale, string parameterName = "scale")
     {
         if (!double.IsFinite(scale) || scale <= 0.0 || scale > 8.0)
         {
-            throw new ArgumentOutOfRangeException(nameof(scale), scale, "DPI scale must be finite and in the range (0, 8].");
+            throw new ArgumentOutOfRangeException(parameterName, scale, "Scale must be finite and in the range (0, 8].");
         }
 
         return scale;
@@ -133,6 +140,10 @@ public interface ILibreWindow : IDisposable
 
     LibreWindowCoordinateMode CoordinateMode { get; }
 
+    /// <summary>Ratio from native window screen-coordinate units to framebuffer pixels.</summary>
+    double FramebufferScale { get; }
+
+    /// <summary>DPI/content scale used by canonical font, layout, and control autoscaling.</summary>
     double DpiScale { get; }
 
     void Show();

@@ -76,12 +76,14 @@ public class LibrePlatformTests
         LibreRectangle managedBounds = LibreWindowCoordinates.ToManaged(
             nativeBounds,
             LibreWindowCoordinateMode.DevicePixels,
+            1.5,
             1.5);
 
         managedBounds.Should().Be(new LibreRectangle(-150, 30, 600, 450));
         LibreWindowCoordinates.ToNative(
             managedBounds,
             LibreWindowCoordinateMode.DevicePixels,
+            1.5,
             1.5).Should().Be(nativeBounds);
         LibreWindowCoordinates.ToDeviceDpi(1.5).Should().Be(144);
     }
@@ -91,8 +93,39 @@ public class LibrePlatformTests
     {
         LibreRectangle bounds = new(-101, 21, 401, 301);
 
-        LibreWindowCoordinates.ToManaged(bounds, LibreWindowCoordinateMode.Logical, 2.0).Should().Be(bounds);
-        LibreWindowCoordinates.ToNative(bounds, LibreWindowCoordinateMode.Logical, 2.0).Should().Be(bounds);
+        LibreWindowCoordinates.ToManaged(bounds, LibreWindowCoordinateMode.Logical, 2.0, 2.0).Should().Be(bounds);
+        LibreWindowCoordinates.ToNative(bounds, LibreWindowCoordinateMode.Logical, 2.0, 2.0).Should().Be(bounds);
+    }
+
+    [Fact]
+    public void WindowCoordinates_LogicalMode_SeparatesDpiFromFramebufferScale()
+    {
+        LibreRectangle nativeBounds = new(20, 40, 800, 600);
+
+        LibreRectangle managedBounds = LibreWindowCoordinates.ToManaged(
+            nativeBounds,
+            LibreWindowCoordinateMode.Logical,
+            dpiScale: 2.0,
+            framebufferScale: 1.0);
+
+        managedBounds.Should().Be(new LibreRectangle(10, 20, 400, 300));
+        LibreWindowCoordinates.ToNative(
+            managedBounds,
+            LibreWindowCoordinateMode.Logical,
+            dpiScale: 2.0,
+            framebufferScale: 1.0).Should().Be(nativeBounds);
+    }
+
+    [Fact]
+    public void WindowCoordinates_DevicePixels_DpiDoesNotAlterPixelConversion()
+    {
+        LibreRectangle nativeBounds = new(10, 20, 800, 600);
+
+        LibreWindowCoordinates.ToManaged(
+            nativeBounds,
+            LibreWindowCoordinateMode.DevicePixels,
+            dpiScale: 2.0,
+            framebufferScale: 1.0).Should().Be(nativeBounds);
     }
 
     [Theory]
@@ -100,14 +133,31 @@ public class LibrePlatformTests
     [InlineData(double.NaN)]
     [InlineData(double.PositiveInfinity)]
     [InlineData(8.01)]
-    public void WindowCoordinates_DevicePixels_RejectInvalidScale(double scale)
+    public void WindowCoordinates_DevicePixels_RejectInvalidDpiScale(double dpiScale)
     {
         Action convert = () => LibreWindowCoordinates.ToManaged(
             new LibreRectangle(0, 0, 1, 1),
             LibreWindowCoordinateMode.DevicePixels,
-            scale);
+            dpiScale,
+            framebufferScale: 1.0);
 
-        convert.Should().Throw<ArgumentOutOfRangeException>().WithParameterName(nameof(scale));
+        convert.Should().Throw<ArgumentOutOfRangeException>().WithParameterName(nameof(dpiScale));
+    }
+
+    [Theory]
+    [InlineData(0.0)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(8.01)]
+    public void WindowCoordinates_DevicePixels_RejectInvalidFramebufferScale(double framebufferScale)
+    {
+        Action convert = () => LibreWindowCoordinates.ToManaged(
+            new LibreRectangle(0, 0, 1, 1),
+            LibreWindowCoordinateMode.DevicePixels,
+            dpiScale: 1.0,
+            framebufferScale);
+
+        convert.Should().Throw<ArgumentOutOfRangeException>().WithParameterName(nameof(framebufferScale));
     }
 
     [Fact]
@@ -117,6 +167,7 @@ public class LibrePlatformTests
         Action convert = () => LibreWindowCoordinates.ToManaged(
             default,
             mode,
+            1.0,
             1.0);
 
         convert.Should().Throw<ArgumentOutOfRangeException>().WithParameterName(nameof(mode));
