@@ -7,7 +7,9 @@ using System.ComponentModel.Design;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms.Layout;
+#if !LIBREWINFORMS_PORTABLE
 using System.Windows.Forms.VisualStyles;
+#endif
 using Windows.Win32.Graphics.Dwm;
 using Windows.Win32.System.Threading;
 using Windows.Win32.UI.Accessibility;
@@ -26,6 +28,10 @@ namespace System.Windows.Forms;
 [DesignerCategory("Form")]
 public partial class Form : ContainerControl
 {
+#if LIBREWINFORMS_PORTABLE
+    [ThreadStatic]
+    private static Form? s_portableActiveForm;
+#endif
     private static readonly object s_activatedEvent = new();
     private static readonly object s_closingEvent = new();
     private static readonly object s_closedEvent = new();
@@ -158,7 +164,9 @@ public partial class Form : ContainerControl
     private Rectangle _restoreBounds = new(-1, -1, -1, -1);
     private CloseReason _closeReason = CloseReason.None;
 
+#if !LIBREWINFORMS_PORTABLE
     private VisualStyleRenderer? _sizeGripRenderer;
+#endif
 
     // Cache Form's size for the DPI. When Form is moved between the monitors with different DPI settings, we use
     // cached values to set the size matching the DPI on the Form instead of recalculating the size again. This help
@@ -283,7 +291,26 @@ public partial class Form : ContainerControl
     /// <summary>
     ///  Gets the currently active form for this application.
     /// </summary>
-    public static Form? ActiveForm => FromHandle(PInvokeCore.GetForegroundWindow()) as Form;
+    public static Form? ActiveForm
+#if LIBREWINFORMS_PORTABLE
+        => s_portableActiveForm is { IsDisposed: false, Visible: true } activeForm ? activeForm : null;
+#else
+        => FromHandle(PInvokeCore.GetForegroundWindow()) as Form;
+#endif
+
+#if LIBREWINFORMS_PORTABLE
+    internal static void SetPortableActiveForm(Form? form)
+    {
+        if (form is null)
+        {
+            s_portableActiveForm = null;
+        }
+        else if (!form.IsDisposed)
+        {
+            s_portableActiveForm = form;
+        }
+    }
+#endif
 
     /// <summary>
     ///
@@ -2832,7 +2859,12 @@ public partial class Form : ContainerControl
             }
             else
             {
+#if LIBREWINFORMS_PORTABLE
+                SetPortableActiveForm(this);
+                ActivatePortableWindow();
+#else
                 PInvoke.SetForegroundWindow(this);
+#endif
             }
         }
     }
@@ -3346,6 +3378,7 @@ public partial class Form : ContainerControl
     {
 #if LIBREWINFORMS_PORTABLE
         base.CreateHandle();
+        UpdateHandleWithOwner();
 #else
         // In the windows MDI code we have to suspend menu
         // updates on the parent while creating the handle. Otherwise if the
@@ -4233,6 +4266,12 @@ public partial class Form : ContainerControl
     {
         base.OnHandleDestroyed(e);
         _formStateEx[s_formStateExUseMdiChildProc] = 0;
+#if LIBREWINFORMS_PORTABLE
+        if (s_portableActiveForm == this)
+        {
+            s_portableActiveForm = null;
+        }
+#endif
 
         // Remove the form from OpenForms collection only if we're not recreating the handle of this form
         // (e.g., when ShowInTaskbar or RightToLeft properties get changed).
@@ -4453,6 +4492,17 @@ public partial class Form : ContainerControl
         if (_formState[s_formStateRenderSizeGrip] != 0)
         {
             Size size = ClientSize;
+#if LIBREWINFORMS_PORTABLE
+            DrawPortableSizeGrip(
+                e.Graphics,
+                BackColor,
+                new Rectangle(
+                    RightToLeft == RightToLeft.Yes && RightToLeftLayout ? 0 : size.Width - SizeGripSize,
+                    size.Height - SizeGripSize,
+                    SizeGripSize,
+                    SizeGripSize),
+                RightToLeft == RightToLeft.Yes && RightToLeftLayout);
+#else
             if (Application.RenderWithVisualStyles)
             {
                 _sizeGripRenderer ??= new VisualStyleRenderer(VisualStyleElement.Status.Gripper.Normal);
@@ -4472,6 +4522,7 @@ public partial class Form : ContainerControl
                     SizeGripSize,
                     SizeGripSize);
             }
+#endif
         }
 
         if (IsMdiContainer)
@@ -4479,6 +4530,26 @@ public partial class Form : ContainerControl
             e.GraphicsInternal.FillRectangle(SystemBrushes.AppWorkspace, ClientRectangle);
         }
     }
+
+#if LIBREWINFORMS_PORTABLE
+    private static void DrawPortableSizeGrip(Graphics graphics, Color backColor, Rectangle bounds, bool leftAligned)
+    {
+        using SolidBrush shadow = new(ControlPaint.Dark(backColor));
+        using SolidBrush highlight = new(ControlPaint.LightLight(backColor));
+        for (int row = 0; row < 3; row++)
+        {
+            int y = bounds.Bottom - 4 - (row * 4);
+            for (int column = 0; column <= row; column++)
+            {
+                int x = leftAligned
+                    ? bounds.Left + 2 + (column * 4)
+                    : bounds.Right - 4 - (column * 4);
+                graphics.FillRectangle(shadow, x, y, 2, 2);
+                graphics.FillRectangle(highlight, x, y, 1, 1);
+            }
+        }
+    }
+#endif
 
     /// <summary>
     ///  Raises the Resize event.
@@ -5454,6 +5525,26 @@ public partial class Form : ContainerControl
     ///   If the operating system is in a non-interactive mode, this method will throw an <see cref="InvalidOperationException"/>.
     ///  </para>
     /// </remarks>
+#if LIBREWINFORMS_PORTABLE
+    private static Form? ResolvePortableOwner(IWin32Window? owner)
+    {
+        if (owner is null)
+        {
+            return ActiveForm;
+        }
+
+        Control? ownerControl = owner as Control ?? Control.FromHandle(owner.Handle);
+        if (ownerControl?.TopLevelControlInternal is Form ownerForm)
+        {
+            return ownerForm;
+        }
+
+        throw new ArgumentException(
+            "A portable WinForms owner must resolve to a live top-level Form.",
+            nameof(owner));
+    }
+#endif
+
     public void Show(IWin32Window? owner)
     {
         if (owner == this)
@@ -5481,6 +5572,17 @@ public partial class Form : ContainerControl
             throw new InvalidOperationException(SR.CantShowModalOnNonInteractive);
         }
 
+#if LIBREWINFORMS_PORTABLE
+        Form? portableOwner = ResolvePortableOwner(owner);
+        Properties.AddOrRemoveValue(s_propDialogOwner, portableOwner);
+        Form? oldOwner = OwnerInternal;
+        if (owner is not null && portableOwner != oldOwner)
+        {
+            Owner = portableOwner;
+        }
+
+        Visible = true;
+#else
         if ((owner is not null) && !owner.GetExtendedStyle().HasFlag(WINDOW_EX_STYLE.WS_EX_TOPMOST))
         {
             // It's not the top-most window
@@ -5512,6 +5614,7 @@ public partial class Form : ContainerControl
         }
 
         Visible = true;
+#endif
     }
 
     /// <summary>
@@ -5707,6 +5810,9 @@ public partial class Form : ContainerControl
             throw new InvalidOperationException(SR.CantShowModalOnNonInteractive);
         }
 
+#if LIBREWINFORMS_PORTABLE
+        Form? portableOwner = ResolvePortableOwner(owner);
+#else
         if ((owner is not null) && !owner.GetExtendedStyle().HasFlag(WINDOW_EX_STYLE.WS_EX_TOPMOST))
         {
             // It's not the top-most window
@@ -5715,6 +5821,7 @@ public partial class Form : ContainerControl
                 owner = ownerControl.TopLevelControlInternal;
             }
         }
+#endif
 
         CalledOnLoad = false;
         CalledMakeVisible = false;
@@ -5722,6 +5829,10 @@ public partial class Form : ContainerControl
         // for modal dialogs make sure we reset close reason.
         CloseReason = CloseReason.None;
 
+#if LIBREWINFORMS_PORTABLE
+        (portableOwner ?? ActiveForm)?.CancelPortableCapture();
+        Properties.AddOrRemoveValue(s_propDialogOwner, portableOwner);
+#else
         HWND captureHwnd = PInvoke.GetCapture();
         if (!captureHwnd.IsNull)
         {
@@ -5731,6 +5842,7 @@ public partial class Form : ContainerControl
 
         HWND activeHwnd = PInvoke.GetActiveWindow();
         HandleRef<HWND> ownerHwnd = owner is null ? GetHandleRef(activeHwnd) : GetSafeHandle(owner);
+#endif
 
         Form? oldOwner = OwnerInternal;
 
@@ -5753,6 +5865,19 @@ public partial class Form : ContainerControl
             // GetActiveWindow.
             CreateControl();
 
+#if LIBREWINFORMS_PORTABLE
+            if (portableOwner is not null && portableOwner != this)
+            {
+                if (owner is not null && portableOwner != oldOwner)
+                {
+                    Owner = portableOwner;
+                }
+                else
+                {
+                    SetPortableOwner(portableOwner);
+                }
+            }
+#else
             if (!ownerHwnd.IsNull && ownerHwnd.Handle != HWND)
             {
                 // Catch the case of a window trying to own its owner
@@ -5778,6 +5903,7 @@ public partial class Form : ContainerControl
                     PInvokeCore.SetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_HWNDPARENT, ownerHwnd);
                 }
             }
+#endif
 
             try
             {
@@ -5790,8 +5916,13 @@ public partial class Form : ContainerControl
             }
             finally
             {
+#if LIBREWINFORMS_PORTABLE
+                if (portableOwner is { IsDisposed: false, Visible: true })
+                {
+                    portableOwner.Activate();
+                }
+#else
                 // Call SetActiveWindow before setting Visible = false.
-
                 if (!PInvoke.IsWindow(activeHwnd))
                 {
                     activeHwnd = ownerHwnd.Handle;
@@ -5805,6 +5936,7 @@ public partial class Form : ContainerControl
                 {
                     PInvoke.SetActiveWindow(ownerHwnd);
                 }
+#endif
 
                 SetVisibleCore(false);
                 if (IsHandleCreated)
@@ -5829,7 +5961,9 @@ public partial class Form : ContainerControl
         {
             Owner = oldOwner;
             Properties.RemoveValue(s_propDialogOwner);
+#if !LIBREWINFORMS_PORTABLE
             GC.KeepAlive(ownerHwnd.Wrapper);
+#endif
         }
 
         return DialogResult;
@@ -6128,6 +6262,17 @@ public partial class Form : ContainerControl
     {
         if (IsHandleCreated && TopLevel)
         {
+#if LIBREWINFORMS_PORTABLE
+            Control? owner = OwnerInternal;
+            if (owner is null
+                && Properties.TryGetValue(s_propDialogOwner, out IWin32Window? dialogOwner)
+                && dialogOwner is Control dialogOwnerControl)
+            {
+                owner = dialogOwnerControl.TopLevelControlInternal;
+            }
+
+            SetPortableOwner(owner);
+#else
             IHandle<HWND> ownerHwnd = NullHandle<HWND>.Instance;
             if (Properties.TryGetValue(s_propOwner, out Form? owner))
             {
@@ -6143,6 +6288,7 @@ public partial class Form : ContainerControl
 
             PInvokeCore.SetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_HWNDPARENT, ownerHwnd);
             GC.KeepAlive(ownerHwnd);
+#endif
         }
     }
 

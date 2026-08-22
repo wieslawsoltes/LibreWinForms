@@ -97,6 +97,11 @@ public sealed partial class Application
 
     private static unsafe bool InitializeComCtlSupportsVisualStyles()
     {
+#if LIBREWINFORMS_PORTABLE
+        // The portable renderer does not expose a comctl32 themed-parts backend yet. Report the
+        // capability truthfully so canonical controls take their managed/classic paint paths.
+        return false;
+#else
         if (UseVisualStyles)
         {
             // At this point, we may not have loaded ComCtl6 yet, but it will eventually be loaded,
@@ -131,6 +136,7 @@ public sealed partial class Application
         {
             return PInvoke.GetProcAddress(hModule, (PCSTR)ptr) != 0;
         }
+#endif
     }
 
     /// <summary>

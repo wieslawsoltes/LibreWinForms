@@ -33,6 +33,11 @@ public sealed class SilkWindowService : ILibreWindowService
             throw new InvalidOperationException("Silk.NET windows must be created on the dispatcher thread.");
         }
 
+        if (!options.Owner.IsNull && !_handles.TryGet(options.Owner, out SilkLibreWindow? _))
+        {
+            throw new ArgumentException("The owner must be a live Silk.NET window.", nameof(options));
+        }
+
         return new SilkLibreWindow(_dispatcher, _handles, options, events);
     }
 }
@@ -50,6 +55,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private Compositor? _compositor;
     private bool _paintQueued;
     private LibreRectangle? _dirtyRectangle;
+    private LibreHandle _owner;
+    private bool _enabled = true;
     private bool _closed;
     private bool _disposed;
 
@@ -83,6 +90,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         Handle = handles.Allocate(this, LibreHandleKind.Window);
         AttachEvents();
         _window.Initialize();
+        Owner = options.Owner;
         _dispatcher.Register(this);
         if (options.Options.HasFlag(LibreWindowOptions.Visible))
         {
@@ -91,6 +99,33 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     }
 
     public LibreHandle Handle { get; }
+
+    public LibreHandle Owner
+    {
+        get => _owner;
+        set
+        {
+            VerifyAccess();
+            if (value == Handle)
+            {
+                throw new ArgumentException("A window cannot own itself.", nameof(value));
+            }
+
+            NativeWindowHandle nativeOwner = NativeWindowHandle.Empty;
+            if (!value.IsNull)
+            {
+                if (!_handles.TryGet(value, out SilkLibreWindow? owner))
+                {
+                    throw new ArgumentException("The owner must be a live Silk.NET window.", nameof(value));
+                }
+
+                nativeOwner = owner._controller.Handle;
+            }
+
+            _controller.SetParent(nativeOwner);
+            _owner = value;
+        }
+    }
 
     public LibreRectangle Bounds
     {
@@ -126,6 +161,34 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     }
 
     public bool Visible => _window.IsVisible;
+
+    public bool Enabled
+    {
+        get => _enabled;
+        set
+        {
+            VerifyAccess();
+            if (_enabled == value)
+            {
+                return;
+            }
+
+            _enabled = value;
+            _controller.SetEnabled(value);
+            if (!value)
+            {
+                DeliverInput(new LibreInputEvent(
+                    LibreInputEventKind.FocusLost,
+                    Timestamp(),
+                    LibreInputModifiers.None,
+                    LibreKey.Unknown,
+                    null,
+                    default,
+                    default,
+                    LibrePointerButton.None));
+            }
+        }
+    }
 
     public double DpiScale => DisplayScaleResolver.ResolveWindowDisplayScale(_window);
 
@@ -401,7 +464,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     }
 
     private void OnMouseScroll(IMouse mouse, ScrollWheel wheel)
-        => _events.Input(new LibreInputEvent(
+        => DeliverInput(new LibreInputEvent(
             LibreInputEventKind.PointerWheel,
             Timestamp(),
             ReadModifiers(),
@@ -412,7 +475,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
             LibrePointerButton.None));
 
     private void EmitPointer(LibreInputEventKind kind, Vector2 position, MouseButton button)
-        => _events.Input(new LibreInputEvent(
+        => DeliverInput(new LibreInputEvent(
             kind,
             Timestamp(),
             ReadModifiers(),
@@ -435,7 +498,15 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         LibreKey key = LibreKey.Unknown,
         string? text = null,
         LibreInputModifiers modifiers = LibreInputModifiers.None)
-        => _events.Input(new LibreInputEvent(kind, Timestamp(), modifiers, key, text, default, default, LibrePointerButton.None));
+        => DeliverInput(new LibreInputEvent(kind, Timestamp(), modifiers, key, text, default, default, LibrePointerButton.None));
+
+    private void DeliverInput(in LibreInputEvent inputEvent)
+    {
+        if (_enabled || inputEvent.Kind == LibreInputEventKind.FocusLost)
+        {
+            _events.Input(inputEvent);
+        }
+    }
 
     private LibreInputModifiers ReadModifiers()
     {

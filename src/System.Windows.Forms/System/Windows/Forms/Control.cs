@@ -7037,7 +7037,14 @@ public unsafe partial class Control :
 
         if (IsHandleCreated)
         {
+#if LIBREWINFORMS_PORTABLE
+            if (ReferenceEquals(GetPortableTopLevelControl(), this))
+            {
+                SetPortableWindowEnabled(Enabled);
+            }
+#else
             PInvoke.EnableWindow(this, Enabled);
+#endif
 
             // User-paint controls should repaint when their enabled state changes
             if (GetStyle(ControlStyles.UserPaint))
@@ -11115,6 +11122,16 @@ public unsafe partial class Control :
     }
 
 #if LIBREWINFORMS_PORTABLE
+    internal bool PortableWindowEnabled => _window.PortableEnabled;
+
+    internal void SetPortableWindowEnabled(bool enabled)
+        => GetPortableTopLevelControl()._window.SetPortableEnabled(enabled);
+
+    internal void SetPortableOwner(Control? owner)
+        => _window.SetPortableOwner(owner?._window);
+
+    internal void ActivatePortableWindow() => _window.ActivatePortable();
+
     internal void UpdatePortableBounds(LibreRectangle bounds)
         => UpdateBounds(bounds.X, bounds.Y, bounds.Width, bounds.Height, bounds.Width, bounds.Height);
 

@@ -18,8 +18,7 @@ public class CanonicalLifecycleTests
     [Fact]
     public void ApplicationRun_CanonicalForm_UsesTypedPortableLifecycle()
     {
-        HeadlessPlatform platform = new();
-        LibrePlatform.Register(platform.Services);
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: true);
         using Form form = new() { Text = "Canonical portable lifecycle" };
         using InputProbeControl child = new() { Bounds = new Rectangle(12, 18, 120, 60) };
         form.Controls.Add(child);
@@ -183,6 +182,156 @@ public class CanonicalLifecycleTests
         platform.Handles.Count.Should().Be(0);
     }
 
+    [Fact]
+    public void ApplicationRun_OwnedAndNestedModalForms_PreserveCanonicalState()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form owner = new() { Text = "Owner" };
+        using Control ownerChild = new();
+        using Form tool = new() { Text = "Owned tool" };
+        using Form firstDialog = new() { Text = "First dialog" };
+        using Form nestedDialog = new() { Text = "Nested dialog" };
+
+        DialogResult firstResult = DialogResult.None;
+        DialogResult nestedResult = DialogResult.None;
+        bool ownerPublicEnabledDuringFirst = false;
+        bool ownerPlatformEnabledAfterChildDisable = false;
+        bool ownerPlatformDisabledDuringFirst = false;
+        bool toolPlatformDisabledDuringFirst = false;
+        bool firstPlatformDisabledDuringNested = false;
+        bool ownerStillDisabledAfterNested = false;
+        bool firstRestoredAfterNested = false;
+        bool ownerRestoredAfterFirst = false;
+        bool toolRestoredAfterFirst = false;
+        LibreHandle toolOwner = default;
+        LibreHandle firstOwner = default;
+        LibreHandle nestedOwner = default;
+        Exception? modalException = null;
+        List<string> events = [];
+        owner.Controls.Add(ownerChild);
+
+        nestedDialog.Shown += (_, _) =>
+        {
+            try
+            {
+                events.Add("nested-shown");
+                platform.TrackForm(nestedDialog);
+                firstPlatformDisabledDuringNested = !platform.IsWindowEnabled(firstDialog);
+                nestedOwner = platform.GetWindowOwner(nestedDialog);
+                nestedDialog.Modal.Should().BeTrue();
+                nestedDialog.Owner.Should().BeNull();
+                nestedDialog.DialogResult = DialogResult.Retry;
+            }
+            catch (Exception exception)
+            {
+                modalException = exception;
+                nestedDialog.DialogResult = DialogResult.Abort;
+            }
+        };
+        firstDialog.Shown += (_, _) =>
+        {
+            try
+            {
+                events.Add("first-shown");
+                platform.TrackForm(firstDialog);
+                ownerPublicEnabledDuringFirst = owner.Enabled;
+                ownerPlatformDisabledDuringFirst = !platform.IsWindowEnabled(owner);
+                toolPlatformDisabledDuringFirst = !platform.IsWindowEnabled(tool);
+                firstOwner = platform.GetWindowOwner(firstDialog);
+                firstDialog.Modal.Should().BeTrue();
+                firstDialog.Owner.Should().Be(owner);
+
+                firstDialog.Activate();
+                nestedResult = nestedDialog.ShowDialog();
+                events.Add("nested-returned");
+                firstRestoredAfterNested = platform.IsWindowEnabled(firstDialog);
+                ownerStillDisabledAfterNested = !platform.IsWindowEnabled(owner);
+                firstDialog.DialogResult = DialogResult.OK;
+            }
+            catch (Exception exception)
+            {
+                modalException = exception;
+                firstDialog.DialogResult = DialogResult.Abort;
+            }
+        };
+        owner.Shown += (_, _) =>
+        {
+            try
+            {
+                events.Add("owner-shown");
+                platform.TrackForm(owner);
+                owner.Activate();
+                ownerChild.Enabled = false;
+                ownerPlatformEnabledAfterChildDisable = platform.IsWindowEnabled(owner);
+                ownerChild.Enabled = true;
+                tool.Owner = owner;
+                tool.Show();
+                platform.TrackForm(tool);
+                toolOwner = platform.GetWindowOwner(tool);
+
+                firstResult = firstDialog.ShowDialog(owner);
+                events.Add("first-returned");
+                ownerRestoredAfterFirst = platform.IsWindowEnabled(owner);
+                toolRestoredAfterFirst = platform.IsWindowEnabled(tool);
+            }
+            catch (Exception exception)
+            {
+                modalException = exception;
+            }
+            finally
+            {
+                tool.Close();
+                owner.Close();
+            }
+        };
+
+        Application.Run(owner);
+
+        modalException.Should().BeNull();
+        firstResult.Should().Be(DialogResult.OK);
+        nestedResult.Should().Be(DialogResult.Retry);
+        events.Should().ContainInOrder(
+            "owner-shown",
+            "first-shown",
+            "nested-shown",
+            "nested-returned",
+            "first-returned");
+        ownerPublicEnabledDuringFirst.Should().BeTrue();
+        ownerPlatformEnabledAfterChildDisable.Should().BeTrue();
+        ownerPlatformDisabledDuringFirst.Should().BeTrue();
+        toolPlatformDisabledDuringFirst.Should().BeTrue();
+        firstPlatformDisabledDuringNested.Should().BeTrue();
+        firstRestoredAfterNested.Should().BeTrue();
+        ownerStillDisabledAfterNested.Should().BeTrue();
+        ownerRestoredAfterFirst.Should().BeTrue();
+        toolRestoredAfterFirst.Should().BeTrue();
+        toolOwner.Should().Be(platform.GetFormerWindowHandle(owner));
+        firstOwner.Should().Be(platform.GetFormerWindowHandle(owner));
+        nestedOwner.Should().Be(platform.GetFormerWindowHandle(firstDialog));
+        firstDialog.Owner.Should().BeNull();
+        nestedDialog.Owner.Should().BeNull();
+        platform.LastActivatedWindow.Should().Be(platform.GetFormerWindowHandle(owner));
+        platform.WindowsCreated.Should().Be(4);
+        platform.Handles.Count.Should().Be(0);
+    }
+
+    private static HeadlessPlatform UseHeadlessPlatform(bool autoCloseWindows)
+    {
+        HeadlessPlatform platform;
+        if (LibrePlatform.IsRegistered)
+        {
+            platform = LibrePlatform.Current.Dispatcher.Should().BeOfType<HeadlessPlatform>().Subject;
+            platform.Reset(autoCloseWindows);
+        }
+        else
+        {
+            platform = new HeadlessPlatform(autoCloseWindows);
+            LibrePlatform.Register(platform.Services);
+        }
+
+        return platform;
+    }
+
     private sealed class InputProbeControl : Control
     {
         internal InputProbeControl()
@@ -197,13 +346,37 @@ public class CanonicalLifecycleTests
         ILibrePaintService
     {
         private readonly ConcurrentQueue<Action> _queue = new();
+        private bool _autoCloseWindows;
+        private readonly Dictionary<Form, LibreHandle> _formHandles = [];
         private bool _exitRequested;
         private HeadlessWindow? _lastWindow;
 
-        internal HeadlessPlatform()
+        internal HeadlessPlatform(bool autoCloseWindows = true)
         {
+            _autoCloseWindows = autoCloseWindows;
             Handles = new ManagedLibreHandleRegistry();
             Services = new LibrePlatformServices(this, this, Handles, this, this, this);
+        }
+
+        internal void Reset(bool autoCloseWindows)
+        {
+            Handles.Count.Should().Be(0);
+            _autoCloseWindows = autoCloseWindows;
+            _exitRequested = false;
+            _lastWindow = null;
+            _formHandles.Clear();
+            while (_queue.TryDequeue(out _))
+            {
+            }
+
+            WindowsCreated = 0;
+            LastWindowBounds = default;
+            LastDirtyRectangle = default;
+            PresentCount = 0;
+            LastPaintCommandCount = 0;
+            SawFormPaintFill = false;
+            SawTranslatedChildPaintFill = false;
+            LastActivatedWindow = default;
         }
 
         internal ManagedLibreHandleRegistry Handles { get; }
@@ -223,6 +396,8 @@ public class CanonicalLifecycleTests
         internal bool SawFormPaintFill { get; private set; }
 
         internal bool SawTranslatedChildPaintFill { get; private set; }
+
+        internal LibreHandle LastActivatedWindow { get; private set; }
 
         public int ManagedThreadId => Environment.CurrentManagedThreadId;
 
@@ -255,8 +430,13 @@ public class CanonicalLifecycleTests
 
         public void RunNested(Func<bool> continueCondition, CancellationToken cancellationToken)
         {
-            while (continueCondition() && !cancellationToken.IsCancellationRequested)
+            for (int iterations = 0; continueCondition() && !cancellationToken.IsCancellationRequested; iterations++)
             {
+                if (iterations >= 100)
+                {
+                    throw new InvalidOperationException("The canonical nested modal loop did not terminate.");
+                }
+
                 PumpOnce();
             }
         }
@@ -271,6 +451,27 @@ public class CanonicalLifecycleTests
             WindowsCreated++;
             _lastWindow = new HeadlessWindow(this, options, events);
             return _lastWindow;
+        }
+
+        internal void TrackForm(Form form)
+            => _formHandles[form] = GetWindowHandle(form);
+
+        internal LibreHandle GetWindowHandle(Form form)
+            => new(form.Handle, LibreHandleKind.Window);
+
+        internal LibreHandle GetFormerWindowHandle(Form form)
+            => _formHandles[form];
+
+        internal bool IsWindowEnabled(Form form)
+        {
+            Handles.TryGet(GetWindowHandle(form), out HeadlessWindow? window).Should().BeTrue();
+            return window!.Enabled;
+        }
+
+        internal LibreHandle GetWindowOwner(Form form)
+        {
+            Handles.TryGet(GetWindowHandle(form), out HeadlessWindow? window).Should().BeTrue();
+            return window!.Owner;
         }
 
         internal void SendInput(
@@ -320,11 +521,14 @@ public class CanonicalLifecycleTests
                 _platform = platform;
                 _events = events;
                 Bounds = options.Bounds;
+                Owner = options.Owner;
                 Visible = options.Options.HasFlag(LibreWindowOptions.Visible);
                 Handle = platform.Handles.Allocate(this, LibreHandleKind.Window);
             }
 
             public LibreHandle Handle { get; }
+
+            public LibreHandle Owner { get; set; }
 
             private LibreRectangle _bounds;
 
@@ -343,17 +547,22 @@ public class CanonicalLifecycleTests
 
             public bool Visible { get; private set; }
 
+            public bool Enabled { get; set; } = true;
+
             public double DpiScale => 1;
 
             public void Show()
             {
                 Visible = true;
-                _platform.Post(Close);
+                if (_platform._autoCloseWindows)
+                {
+                    _platform.Post(Close);
+                }
             }
 
             public void Hide() => Visible = false;
 
-            public void Activate() { }
+            public void Activate() => _platform.LastActivatedWindow = Handle;
 
             public void Close()
             {
@@ -394,7 +603,13 @@ public class CanonicalLifecycleTests
                 });
             }
 
-            internal void SendInput(in LibreInputEvent inputEvent) => _events.Input(inputEvent);
+            internal void SendInput(in LibreInputEvent inputEvent)
+            {
+                if (Enabled || inputEvent.Kind == LibreInputEventKind.FocusLost)
+                {
+                    _events.Input(inputEvent);
+                }
+            }
 
             private static bool ContainsSolidFill(
                 DrawingContext context,

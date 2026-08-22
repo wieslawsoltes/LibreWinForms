@@ -783,7 +783,9 @@ public sealed partial class Application
             }
 
             bool fullModal = false;
+#if !LIBREWINFORMS_PORTABLE
             HWND hwndOwner = default;
+#endif
 
             if (reason is msoloop.ModalForm or msoloop.ModalAlert)
             {
@@ -799,6 +801,12 @@ public sealed partial class Application
 
                 BeginModalMessageLoop(context);
 
+#if LIBREWINFORMS_PORTABLE
+                if (CurrentForm is not null && CurrentForm.PortableWindowEnabled != modalEnabled)
+                {
+                    CurrentForm.SetPortableWindowEnabled(modalEnabled);
+                }
+#else
                 // If the owner window of the dialog is still enabled, disable it now.
                 // This can happen if the owner window is from a different thread or
                 // process.
@@ -825,6 +833,7 @@ public sealed partial class Application
                 {
                     PInvoke.EnableWindow(CurrentForm, modalEnabled);
                 }
+#endif
             }
 
             try
@@ -854,11 +863,13 @@ public sealed partial class Application
                 {
                     EndModalMessageLoop(context);
 
+#if !LIBREWINFORMS_PORTABLE
                     // Again, if the hwndOwner was valid and disabled above, re-enable it.
                     if (!hwndOwner.IsNull)
                     {
                         PInvoke.EnableWindow(hwndOwner, true);
                     }
+#endif
                 }
 
                 CurrentForm = oldForm;

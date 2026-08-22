@@ -23,8 +23,10 @@ public static class SystemInformation
     private static bool s_checkMultiMonitorSupport;
     private static bool s_multiMonitorSupport;
 
+#if !LIBREWINFORMS_PORTABLE
     private static HWINSTA s_processWinStation;
     private static bool s_isUserInteractive;
+#endif
 
     private static PowerStatus? s_powerStatus;
 
@@ -499,6 +501,9 @@ public static class SystemInformation
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return Environment.UserInteractive;
+#else
             HWINSTA hwinsta = PInvoke.GetProcessWindowStation();
             if (!hwinsta.IsNull && s_processWinStation != hwinsta)
             {
@@ -522,6 +527,7 @@ public static class SystemInformation
             }
 
             return s_isUserInteractive;
+#endif
         }
     }
 

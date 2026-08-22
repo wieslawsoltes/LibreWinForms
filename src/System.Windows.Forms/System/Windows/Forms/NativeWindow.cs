@@ -833,6 +833,29 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
     }
 
 #if LIBREWINFORMS_PORTABLE
+    internal bool PortableEnabled => _portableWindow?.Enabled ?? true;
+
+    internal void SetPortableEnabled(bool enabled)
+    {
+        if (_portableWindow is { } window)
+        {
+            window.Enabled = enabled;
+        }
+    }
+
+    internal void SetPortableOwner(NativeWindow? owner)
+    {
+        if (_portableWindow is { } window)
+        {
+            window.Owner = owner?._portableHandle ?? default;
+        }
+    }
+
+    internal void ActivatePortable()
+    {
+        _portableWindow?.Activate();
+    }
+
     internal void SetPortableVisibility(bool visible)
     {
         if (_portableWindow is null)

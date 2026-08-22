@@ -55,6 +55,17 @@ public unsafe partial class Control
         }
     }
 
+    internal void CancelPortableCapture()
+    {
+        Control root = GetPortableTopLevelControl();
+        Control? captured = root._portableCapturedControl;
+        root._portableCapturedControl = null;
+        root._portablePressedControl = null;
+        root._portablePressedButton = MouseButtons.None;
+        s_portableMouseButtons = MouseButtons.None;
+        captured?.OnMouseCaptureChanged(EventArgs.Empty);
+    }
+
     private void SetPortableWindowFocus(bool focused)
     {
         if (_portableWindowFocused == focused)
@@ -63,6 +74,11 @@ public unsafe partial class Control
         }
 
         _portableWindowFocused = focused;
+        if (this is Form form)
+        {
+            Form.SetPortableActiveForm(focused ? form : null);
+        }
+
         if (focused)
         {
             Control target = _portableFocusedControl ?? this;

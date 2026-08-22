@@ -49,11 +49,20 @@ public interface ILibreWindow : IDisposable
 {
     LibreHandle Handle { get; }
 
+    /// <summary>The logical owner used for platform transient-window relationships.</summary>
+    LibreHandle Owner { get; set; }
+
     LibreRectangle Bounds { get; set; }
 
     LibreWindowState State { get; set; }
 
     bool Visible { get; }
+
+    /// <summary>
+    ///  Gets or sets whether the platform window accepts user input. Modal-loop changes to this
+    ///  value do not change the corresponding WinForms <c>Control.Enabled</c> property.
+    /// </summary>
+    bool Enabled { get; set; }
 
     double DpiScale { get; }
 
