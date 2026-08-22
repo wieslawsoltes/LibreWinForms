@@ -53,10 +53,10 @@ Canonical `Screen` and the monitor-derived `SystemInformation` properties now us
 The proposed fix is a narrow typed desktop-coordinate adapter, not another WinForms object model:
 
 1. keep the raw Silk/GLFW monitor rectangle for native window placement and nearest-native-monitor lookup;
-2. obtain authoritative device-pixel display rectangles from the local OS adapter (Win32 display coordinates, CoreGraphics display bounds, and the compositor protocol where Wayland exposes them);
-3. correlate native and device rectangles by stable backend monitor identity and expose both through the monitor contract;
-4. map absolute points/rectangles through the selected monitor's paired rectangles, while continuing to map client sizes and pointer coordinates with the live window framebuffer ratio;
-5. route canonical `Screen`, `SystemInformation.VirtualScreen`, startup placement, centering, and `Control.MousePosition` through that mapper; and
+2. obtain authoritative local display data from the OS adapter: Win32 physical desktop rectangles, or AppKit/[CoreGraphics global bounds](https://developer.apple.com/documentation/coregraphics/cgdisplaybounds%28_%3A%29) paired with backing mode/pixel extent; use compositor data where Wayland exposes it;
+3. correlate native and local-pixel data by stable backend monitor identity and expose the pair through the monitor contract;
+4. make the global-coordinate policy explicit per backend. Windows/X11 can retain native physical coordinates; Cocoa must preserve its authoritative point topology and apply backing conversion only to monitor-local offsets/sizes because no unique Windows-style global pixel origin exists; Wayland must report unsupported global placement where the compositor withholds it;
+5. route canonical `Screen`, `SystemInformation.VirtualScreen`, startup placement, centering, and `Control.MousePosition` through that policy, while continuing to map client sizes and pointer coordinates with the live window framebuffer ratio; and
 6. gate the implementation with left/right/above/negative-origin mixed-scale layouts plus real Windows, macOS, X11, and Wayland display-server smokes.
 
 Until those local-OS pixel rectangles exist, the implementation keeps the internally consistent GLFW screen-coordinate topology and does not fabricate a pixel topology from DPI. This is an explicit remaining cutover gate: local window/client scaling is now correct, but mixed-scale global `Screen` device-pixel parity is not yet claimed.
