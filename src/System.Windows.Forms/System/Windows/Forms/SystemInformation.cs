@@ -3,6 +3,9 @@
 
 using System.ComponentModel;
 using System.Drawing;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#endif
 #if !LIBREWINFORMS_PROGPU_DRAWING
 using System.Drawing.Interop;
 using System.Runtime.CompilerServices;
@@ -20,8 +23,10 @@ namespace System.Windows.Forms;
 /// </summary>
 public static class SystemInformation
 {
+#if !LIBREWINFORMS_PORTABLE
     private static bool s_checkMultiMonitorSupport;
     private static bool s_multiMonitorSupport;
+#endif
 
 #if !LIBREWINFORMS_PORTABLE
     private static HWINSTA s_processWinStation;
@@ -58,7 +63,12 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the dimensions of the primary display monitor in pixels.
     /// </summary>
-    public static Size PrimaryMonitorSize => GetSize(SM_CXSCREEN, SM_CYSCREEN);
+    public static Size PrimaryMonitorSize
+#if LIBREWINFORMS_PORTABLE
+        => Screen.PrimaryScreen?.Bounds.Size ?? Size.Empty;
+#else
+        => GetSize(SM_CXSCREEN, SM_CYSCREEN);
+#endif
 
     /// <summary>
     ///  Gets the width of the vertical scroll bar in pixels.
@@ -192,9 +202,13 @@ public static class SystemInformation
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return Screen.PrimaryScreen?.WorkingArea ?? Rectangle.Empty;
+#else
             RECT workingArea = default;
             PInvokeCore.SystemParametersInfo(SPI_GETWORKAREA, ref workingArea);
             return workingArea;
+#endif
         }
     }
 
@@ -426,6 +440,9 @@ public static class SystemInformation
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return LibrePlatform.Current.Monitors.GetMonitors().Count > 1;
+#else
             if (!s_checkMultiMonitorSupport)
             {
                 s_multiMonitorSupport = PInvokeCore.GetSystemMetrics(SM_CMONITORS) != 0;
@@ -433,6 +450,7 @@ public static class SystemInformation
             }
 
             return s_multiMonitorSupport;
+#endif
         }
     }
 
@@ -460,6 +478,32 @@ public static class SystemInformation
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            IReadOnlyList<LibreMonitor> monitors = LibrePlatform.Current.Monitors.GetMonitors();
+            if (monitors.Count == 0)
+            {
+                return Rectangle.Empty;
+            }
+
+            long left = monitors[0].Bounds.X;
+            long top = monitors[0].Bounds.Y;
+            long right = (long)monitors[0].Bounds.X + monitors[0].Bounds.Width;
+            long bottom = (long)monitors[0].Bounds.Y + monitors[0].Bounds.Height;
+            for (int index = 1; index < monitors.Count; index++)
+            {
+                LibreRectangle bounds = monitors[index].Bounds;
+                left = Math.Min(left, bounds.X);
+                top = Math.Min(top, bounds.Y);
+                right = Math.Max(right, (long)bounds.X + bounds.Width);
+                bottom = Math.Max(bottom, (long)bounds.Y + bounds.Height);
+            }
+
+            return new Rectangle(
+                checked((int)left),
+                checked((int)top),
+                checked((int)(right - left)),
+                checked((int)(bottom - top)));
+#else
             if (MultiMonitorSupport)
             {
                 return new(PInvokeCore.GetSystemMetrics(SM_XVIRTUALSCREEN),
@@ -470,19 +514,49 @@ public static class SystemInformation
 
             Size size = PrimaryMonitorSize;
             return new Rectangle(0, 0, size.Width, size.Height);
+#endif
         }
     }
 
     /// <summary>
     ///  Gets the number of display monitors on the desktop.
     /// </summary>
-    public static int MonitorCount => MultiMonitorSupport ? PInvokeCore.GetSystemMetrics(SM_CMONITORS) : 1;
+    public static int MonitorCount
+#if LIBREWINFORMS_PORTABLE
+        => LibrePlatform.Current.Monitors.GetMonitors().Count;
+#else
+        => MultiMonitorSupport ? PInvokeCore.GetSystemMetrics(SM_CMONITORS) : 1;
+#endif
 
     /// <summary>
     ///  Gets a value indicating whether all the display monitors have the same color format.
     /// </summary>
     public static bool MonitorsSameDisplayFormat
+#if LIBREWINFORMS_PORTABLE
+    {
+        get
+        {
+            IReadOnlyList<LibreMonitor> monitors = LibrePlatform.Current.Monitors.GetMonitors();
+            if (monitors.Count < 2)
+            {
+                return true;
+            }
+
+            int bitsPerPixel = monitors[0].BitsPerPixel;
+            for (int index = 1; index < monitors.Count; index++)
+            {
+                if (monitors[index].BitsPerPixel != bitsPerPixel)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+    }
+#else
         => !MultiMonitorSupport || PInvokeCore.GetSystemMetrics(SM_SAMEDISPLAYFORMAT) != 0;
+#endif
 
     /// <summary>
     ///  Gets the computer name of the current system.

@@ -32,6 +32,48 @@ public class LibrePlatformTests
         create.Should().Throw<ArgumentNullException>().WithParameterName("dispatcher");
     }
 
+    [Fact]
+    public void MonitorSelection_PrefersLargestIntersection()
+    {
+        LibreMonitor[] monitors = CreateMonitorInventory();
+
+        LibreMonitor selected = LibreMonitorSelection.GetNearest(
+            monitors,
+            new LibreRectangle(-100, 100, 300, 500));
+
+        selected.Id.Should().Be("primary");
+    }
+
+    [Fact]
+    public void MonitorSelection_UsesNearestDistanceForPointsOutsideEveryMonitor()
+    {
+        LibreMonitor[] monitors = CreateMonitorInventory();
+
+        LibreMonitor left = LibreMonitorSelection.GetNearest(
+            monitors,
+            new LibreRectangle(-1400, 400, 0, 0));
+        LibreMonitor right = LibreMonitorSelection.GetNearest(
+            monitors,
+            new LibreRectangle(2200, 400, 0, 0));
+
+        left.Id.Should().Be("secondary");
+        right.Id.Should().Be("primary");
+    }
+
+    [Fact]
+    public void MonitorSelection_RejectsEmptyInventory()
+    {
+        Action select = () => LibreMonitorSelection.GetNearest([], default);
+
+        select.Should().Throw<InvalidOperationException>();
+    }
+
+    private static LibreMonitor[] CreateMonitorInventory() =>
+    [
+        new("primary", new(0, 0, 1920, 1080), new(0, 0, 1920, 1040), 1, true),
+        new("secondary", new(-1280, 0, 1280, 1024), new(-1280, 0, 1280, 984), 1.5, false),
+    ];
+
     private sealed class TestServices :
         ILibreDispatcher,
         ILibreTimerService,

@@ -3943,6 +3943,33 @@ public partial class Form : ContainerControl
 
         Point p = default;
         Size s = Size;
+#if LIBREWINFORMS_PORTABLE
+        Control? owner = OwnerInternal;
+        if (owner is null
+            && Properties.GetValueOrDefault<IWin32Window>(s_propDialogOwner) is Control dialogOwner)
+        {
+            owner = dialogOwner.TopLevelControl ?? dialogOwner;
+        }
+
+        if (owner is not null)
+        {
+            Rectangle ownerRect = owner.Bounds;
+            Rectangle screenRect = Screen.FromControl(owner).WorkingArea;
+            p.X = Math.Clamp(
+                ownerRect.X + (ownerRect.Width - s.Width) / 2,
+                screenRect.X,
+                Math.Max(screenRect.X, screenRect.Right - s.Width));
+            p.Y = Math.Clamp(
+                ownerRect.Y + (ownerRect.Height - s.Height) / 2,
+                screenRect.Y,
+                Math.Max(screenRect.Y, screenRect.Bottom - s.Height));
+            Location = p;
+        }
+        else
+        {
+            CenterToScreen();
+        }
+#else
         HWND ownerHandle = (HWND)PInvokeCore.GetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_HWNDPARENT);
 
         if (!ownerHandle.IsNull)
@@ -3977,6 +4004,7 @@ public partial class Form : ContainerControl
         {
             CenterToScreen();
         }
+#endif
     }
 
     /// <summary>
@@ -3995,6 +4023,12 @@ public partial class Form : ContainerControl
         }
         else
         {
+#if LIBREWINFORMS_PORTABLE
+            IWin32Window? dialogOwner = Properties.GetValueOrDefault<IWin32Window>(s_propDialogOwner);
+            desktop = dialogOwner is Control ownerControl
+                ? Screen.FromControl(ownerControl)
+                : Screen.FromPoint(MousePosition);
+#else
             HWND hWndOwner = default;
             if (TopLevel)
             {
@@ -4002,6 +4036,7 @@ public partial class Form : ContainerControl
             }
 
             desktop = !hWndOwner.IsNull ? Screen.FromHandle(hWndOwner) : Screen.FromPoint(MousePosition);
+#endif
         }
 
         Rectangle screenRect = desktop.WorkingArea;

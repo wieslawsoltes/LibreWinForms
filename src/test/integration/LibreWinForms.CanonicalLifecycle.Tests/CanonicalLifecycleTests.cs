@@ -315,6 +315,51 @@ public class CanonicalLifecycleTests
         platform.Handles.Count.Should().Be(0);
     }
 
+    [Fact]
+    public void ScreenAndSystemInformation_UseTypedPortableMonitorInventory()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        platform.SetMonitors(
+            new LibreMonitor(
+                "primary",
+                new(0, 0, 1920, 1080),
+                new(0, 0, 1920, 1040),
+                1,
+                true,
+                32,
+                "Primary display"),
+            new LibreMonitor(
+                "secondary",
+                new(-1280, 0, 1280, 1024),
+                new(-1280, 0, 1280, 984),
+                1.5,
+                false,
+                30,
+                "Secondary display"));
+
+        Screen[] screens = Screen.AllScreens;
+        screens.Should().HaveCount(2);
+        Screen.PrimaryScreen.Should().NotBeNull();
+        Screen.PrimaryScreen!.DeviceName.Should().Be("Primary display");
+        Screen.PrimaryScreen.Bounds.Should().Be(new Rectangle(0, 0, 1920, 1080));
+        Screen.PrimaryScreen.WorkingArea.Should().Be(new Rectangle(0, 0, 1920, 1040));
+        Screen.FromPoint(new Point(-100, 400)).DeviceName.Should().Be("Secondary display");
+        Screen.FromRectangle(new Rectangle(-100, 100, 300, 500)).Primary.Should().BeTrue();
+        SystemInformation.PrimaryMonitorSize.Should().Be(new Size(1920, 1080));
+        SystemInformation.WorkingArea.Should().Be(new Rectangle(0, 0, 1920, 1040));
+        SystemInformation.VirtualScreen.Should().Be(new Rectangle(-1280, 0, 3200, 1080));
+        SystemInformation.MonitorCount.Should().Be(2);
+        SystemInformation.MonitorsSameDisplayFormat.Should().BeFalse();
+
+        using Form owner = new() { Bounds = new Rectangle(-1000, 100, 600, 500) };
+        using CenteringForm child = new() { Size = new Size(200, 100), Owner = owner };
+        Screen.FromControl(owner).DeviceName.Should().Be("Secondary display");
+        child.CenterOnParent();
+        child.Location.Should().Be(new Point(-800, 300));
+        child.CenterOnScreen();
+        child.Location.Should().Be(new Point(-740, 442));
+    }
+
     private static HeadlessPlatform UseHeadlessPlatform(bool autoCloseWindows)
     {
         HeadlessPlatform platform;
@@ -338,6 +383,13 @@ public class CanonicalLifecycleTests
             => SetStyle(ControlStyles.Selectable | ControlStyles.StandardClick | ControlStyles.UserPaint, true);
     }
 
+    private sealed class CenteringForm : Form
+    {
+        internal void CenterOnParent() => CenterToParent();
+
+        internal void CenterOnScreen() => CenterToScreen();
+    }
+
     private sealed class HeadlessPlatform :
         ILibreDispatcher,
         ILibreTimerService,
@@ -350,6 +402,7 @@ public class CanonicalLifecycleTests
         private readonly Dictionary<Form, LibreHandle> _formHandles = [];
         private bool _exitRequested;
         private HeadlessWindow? _lastWindow;
+        private IReadOnlyList<LibreMonitor> _monitors = CreateDefaultMonitorInventory();
 
         internal HeadlessPlatform(bool autoCloseWindows = true)
         {
@@ -364,6 +417,7 @@ public class CanonicalLifecycleTests
             _autoCloseWindows = autoCloseWindows;
             _exitRequested = false;
             _lastWindow = null;
+            _monitors = CreateDefaultMonitorInventory();
             _formHandles.Clear();
             while (_queue.TryDequeue(out _))
             {
@@ -398,6 +452,12 @@ public class CanonicalLifecycleTests
         internal bool SawTranslatedChildPaintFill { get; private set; }
 
         internal LibreHandle LastActivatedWindow { get; private set; }
+
+        internal void SetMonitors(params LibreMonitor[] monitors)
+        {
+            monitors.Should().NotBeEmpty();
+            _monitors = monitors;
+        }
 
         public int ManagedThreadId => Environment.CurrentManagedThreadId;
 
@@ -488,9 +548,13 @@ public class CanonicalLifecycleTests
         }
 
         public IReadOnlyList<LibreMonitor> GetMonitors()
-            => [new("headless", new(0, 0, 1920, 1080), new(0, 0, 1920, 1040), 1, true)];
+            => _monitors;
 
-        public LibreMonitor GetNearest(LibreRectangle bounds) => GetMonitors()[0];
+        public LibreMonitor GetNearest(LibreRectangle bounds)
+            => LibreMonitorSelection.GetNearest(_monitors, bounds);
+
+        private static IReadOnlyList<LibreMonitor> CreateDefaultMonitorInventory()
+            => [new("headless", new(0, 0, 1920, 1080), new(0, 0, 1920, 1040), 1, true)];
 
         public void Invalidate(LibreHandle target, LibreRectangle dirtyRectangle)
         {
