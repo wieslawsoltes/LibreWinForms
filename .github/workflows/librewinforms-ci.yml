@@ -25,6 +25,13 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install software WebGPU adapter
+        shell: bash
+        run: |
+          ./external/ProGPU/eng/progpu-install-linux-packages.sh \
+            libvulkan1 \
+            mesa-vulkan-drivers
+
       - name: Setup .NET 10 for ProGPU
         uses: actions/setup-dotnet@v4
         with:
