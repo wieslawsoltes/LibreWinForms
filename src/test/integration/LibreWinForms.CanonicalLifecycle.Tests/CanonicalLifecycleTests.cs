@@ -225,6 +225,45 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void RetainedPaintFrame_RepaintsDirtyLayersAndPreservesCleanSiblings()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { ClientSize = new Size(320, 100) };
+        using Control dirtyChild = new() { Bounds = new Rectangle(10, 10, 80, 40) };
+        using Control cleanChild = new() { Bounds = new Rectangle(200, 10, 80, 40) };
+        form.Controls.Add(dirtyChild);
+        form.Controls.Add(cleanChild);
+
+        int formPaints = 0;
+        int dirtyChildPaints = 0;
+        int cleanChildPaints = 0;
+        form.Paint += (_, _) => formPaints++;
+        dirtyChild.Paint += (_, _) => dirtyChildPaints++;
+        cleanChild.Paint += (_, _) => cleanChildPaints++;
+
+        form.Show();
+        form.Invalidate();
+        form.Update();
+        formPaints.Should().Be(1);
+        dirtyChildPaints.Should().Be(1);
+        cleanChildPaints.Should().Be(1);
+        platform.LastRetainedLayerCount.Should().Be(3);
+        platform.LastRetainedLayerRepaintCount.Should().Be(3);
+
+        formPaints = 0;
+        dirtyChildPaints = 0;
+        cleanChildPaints = 0;
+        dirtyChild.Invalidate();
+        dirtyChild.Update();
+
+        formPaints.Should().Be(1);
+        dirtyChildPaints.Should().Be(1);
+        cleanChildPaints.Should().Be(0);
+        platform.LastRetainedLayerCount.Should().Be(3);
+        platform.LastRetainedLayerRepaintCount.Should().Be(2);
+    }
+
+    [Fact]
     public void ApplicationRun_OwnedAndNestedModalForms_PreserveCanonicalState()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -679,6 +718,8 @@ public class CanonicalLifecycleTests
             LastPresentationScale = 1.0;
             LastCoordinateMode = LibreWindowCoordinateMode.Logical;
             LastPaintCommandCount = 0;
+            LastRetainedLayerCount = 0;
+            LastRetainedLayerRepaintCount = 0;
             SawFormPaintFill = false;
             SawTranslatedChildPaintFill = false;
             CreateGraphicsCommitCount = 0;
@@ -707,6 +748,10 @@ public class CanonicalLifecycleTests
         internal LibreWindowCoordinateMode LastCoordinateMode { get; private set; }
 
         internal int LastPaintCommandCount { get; private set; }
+
+        internal int LastRetainedLayerCount { get; private set; }
+
+        internal int LastRetainedLayerRepaintCount { get; private set; }
 
         internal bool SawFormPaintFill { get; private set; }
 
@@ -895,6 +940,7 @@ public class CanonicalLifecycleTests
             private readonly ILibreWindowEvents _events;
             private readonly LibreWindowCoordinateMode _coordinateMode;
             private readonly DrawingContext _retainedContext = new();
+            private readonly Dictionary<LibreHandle, HeadlessRetainedLayer> _retainedLayers = [];
             private bool _disposed;
             private bool _paintQueued;
             private LibreRectangle _dirtyRectangle;
@@ -1063,11 +1109,21 @@ public class CanonicalLifecycleTests
                 _paintQueued = false;
                 _dirtyRectangle = default;
                 LibreRectangle surfaceBounds = new(0, 0, Bounds.Width, Bounds.Height);
-                _retainedContext.Clear();
-                using Graphics graphics = Graphics.FromProGpuDrawingContext(
+                HeadlessRetainedPaintFrame frame = new(
+                    _platform,
                     _retainedContext,
-                    new RectangleF(0, 0, surfaceBounds.Width, surfaceBounds.Height));
-                _events.PaintRequested(new HeadlessPaintFrame(graphics, surfaceBounds, dirtyRectangle));
+                    _retainedLayers,
+                    surfaceBounds,
+                    dirtyRectangle);
+                try
+                {
+                    _events.PaintRequested(frame);
+                }
+                finally
+                {
+                    frame.Complete();
+                }
+
                 _platform.LastPaintCommandCount = _retainedContext.Commands.Count;
                 _platform.SawFormPaintFill = ContainsSolidFill(
                     _retainedContext,
@@ -1181,15 +1237,155 @@ public class CanonicalLifecycleTests
                 _disposed = true;
                 Visible = false;
                 _retainedContext.Clear();
+                foreach (HeadlessRetainedLayer layer in _retainedLayers.Values)
+                {
+                    layer.Context.Clear();
+                }
+
+                _retainedLayers.Clear();
                 _platform.Handles.Release(Handle);
                 _events.Closed();
             }
-        }
 
-        private sealed record HeadlessPaintFrame(
-            Graphics Graphics,
-            LibreRectangle SurfaceBounds,
-            LibreRectangle DirtyRectangle) : ILibrePaintFrame;
+            private sealed class HeadlessRetainedPaintFrame : ILibreRetainedPaintFrame
+            {
+                private readonly HeadlessPlatform _platform;
+                private readonly DrawingContext _output;
+                private readonly Dictionary<LibreHandle, HeadlessRetainedLayer> _layers;
+                private readonly DrawingContext _fallback = new();
+                private readonly List<HeadlessRetainedLayer> _ordered = [];
+                private readonly HashSet<LibreHandle> _visited = [];
+                private int _repaintCount;
+                private bool _completed;
+
+                internal HeadlessRetainedPaintFrame(
+                    HeadlessPlatform platform,
+                    DrawingContext output,
+                    Dictionary<LibreHandle, HeadlessRetainedLayer> layers,
+                    LibreRectangle surfaceBounds,
+                    LibreRectangle dirtyRectangle)
+                {
+                    _platform = platform;
+                    _output = output;
+                    _layers = layers;
+                    SurfaceBounds = surfaceBounds;
+                    DirtyRectangle = dirtyRectangle;
+                    Graphics = Graphics.FromProGpuDrawingContext(
+                        _fallback,
+                        new RectangleF(0, 0, surfaceBounds.Width, surfaceBounds.Height));
+                }
+
+                public Graphics Graphics { get; }
+
+                public LibreRectangle SurfaceBounds { get; }
+
+                public LibreRectangle DirtyRectangle { get; }
+
+                public ILibrePaintLayer OpenLayer(
+                    LibreHandle target,
+                    LibreRectangle bounds,
+                    LibreRectangle clipRectangle)
+                {
+                    _visited.Add(target).Should().BeTrue();
+                    bool isNew = !_layers.TryGetValue(target, out HeadlessRetainedLayer? layer);
+                    if (isNew)
+                    {
+                        layer = new HeadlessRetainedLayer();
+                        _layers.Add(target, layer);
+                    }
+
+                    layer!.Bounds = bounds;
+                    _ordered.Add(layer);
+                    if (!isNew && !Intersects(bounds, DirtyRectangle))
+                    {
+                        return EmptyPaintLayer.Instance;
+                    }
+
+                    _repaintCount++;
+                    layer.Context.Clear();
+                    Graphics graphics = Graphics.FromProGpuDrawingContext(
+                        layer.Context,
+                        new RectangleF(0, 0, bounds.Width, bounds.Height));
+                    graphics.SetClip(new RectangleF(
+                        clipRectangle.X - bounds.X,
+                        clipRectangle.Y - bounds.Y,
+                        clipRectangle.Width,
+                        clipRectangle.Height));
+                    return new RecordingPaintLayer(graphics);
+                }
+
+                internal void Complete()
+                {
+                    if (_completed)
+                    {
+                        return;
+                    }
+
+                    _completed = true;
+                    Graphics.Dispose();
+                    foreach ((LibreHandle target, HeadlessRetainedLayer layer) in _layers.ToArray())
+                    {
+                        if (_visited.Contains(target))
+                        {
+                            continue;
+                        }
+
+                        layer.Context.Clear();
+                        _layers.Remove(target);
+                    }
+
+                    _output.Clear();
+                    _output.Append(_fallback);
+                    foreach (HeadlessRetainedLayer layer in _ordered)
+                    {
+                        _output.Append(layer.Context, new Vector2(layer.Bounds.X, layer.Bounds.Y));
+                    }
+
+                    _fallback.Clear();
+                    _platform.LastRetainedLayerCount = _layers.Count;
+                    _platform.LastRetainedLayerRepaintCount = _repaintCount;
+                }
+
+                private static bool Intersects(LibreRectangle left, LibreRectangle right)
+                    => left.Width > 0
+                        && left.Height > 0
+                        && right.Width > 0
+                        && right.Height > 0
+                        && left.X < right.Right
+                        && right.X < left.Right
+                        && left.Y < right.Bottom
+                        && right.Y < left.Bottom;
+
+                private sealed class RecordingPaintLayer(Graphics graphics) : ILibrePaintLayer
+                {
+                    public Graphics? Graphics { get; private set; } = graphics;
+
+                    public void Dispose()
+                    {
+                        Graphics?.Dispose();
+                        Graphics = null;
+                    }
+                }
+
+                private sealed class EmptyPaintLayer : ILibrePaintLayer
+                {
+                    internal static EmptyPaintLayer Instance { get; } = new();
+
+                    public Graphics? Graphics => null;
+
+                    public void Dispose()
+                    {
+                    }
+                }
+            }
+
+            private sealed class HeadlessRetainedLayer
+            {
+                internal DrawingContext Context { get; } = new();
+
+                internal LibreRectangle Bounds { get; set; }
+            }
+        }
 
         private sealed class EmptyDisposable : IDisposable
         {

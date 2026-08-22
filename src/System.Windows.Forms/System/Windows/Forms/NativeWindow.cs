@@ -74,6 +74,8 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
     private ILibreWindow? _portableWindow;
     private LibreWindowCoordinateMode _portableCoordinateMode;
     private double _portablePresentationScale = 1.0;
+
+    internal LibreHandle PortableHandle => _portableHandle;
 #endif
     private NativeWindow? _nextWindow;
     private readonly WeakReference<NativeWindow> _weakThisPtr;

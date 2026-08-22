@@ -61,7 +61,10 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private readonly IWindow _window;
     private readonly SilkWindowController _controller;
     private readonly LibreWindowCoordinateMode _coordinateMode;
-    private readonly DrawingVisual _paintVisual = new();
+    private readonly ContainerVisual _paintRoot = new();
+    private readonly DrawingVisual _fallbackPaintVisual = new();
+    private readonly DrawingVisual _transientPaintVisual = new();
+    private readonly Dictionary<LibreHandle, DrawingVisual> _paintLayers = [];
     private IInputContext? _input;
     private volatile WgpuContext? _wgpuContext;
     private Compositor? _compositor;
@@ -89,6 +92,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _monitors = monitors;
         _events = events;
         _coordinateMode = options.CoordinateMode;
+        _paintRoot.AddChild(_fallbackPaintVisual);
+        _paintRoot.AddTopmostChild(_transientPaintVisual);
         LibreRectangle nativeBounds = LibreWindowCoordinates.ToNative(
             options.Bounds,
             _coordinateMode,
@@ -272,7 +277,15 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _disposed = true;
         _dispatcher.Unregister(this);
         _input?.Dispose();
-        _paintVisual.Context.Clear();
+        foreach (DrawingVisual visual in _paintLayers.Values)
+        {
+            visual.Context.Clear();
+        }
+
+        _paintLayers.Clear();
+        _fallbackPaintVisual.Context.Clear();
+        _transientPaintVisual.Context.Clear();
+        _paintRoot.ClearChildren();
         _compositor?.Dispose();
         _wgpuContext?.Dispose();
         _controller.Dispose();
@@ -384,8 +397,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
                 return;
             }
 
-            _paintVisual.Context.Append(recording);
-            _paintVisual.Invalidate();
+            _transientPaintVisual.Context.Append(recording);
+            _transientPaintVisual.Invalidate();
             _presentationQueued = true;
             _dispatcher.Wake();
         }
@@ -620,18 +633,29 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         {
             LibreRectangle dirty = _dirtyRectangle ?? surfaceBounds;
             _dirtyRectangle = null;
-            _paintVisual.Context.Clear();
+            _transientPaintVisual.Context.Clear();
             using (WgpuContext.PushCurrent(_wgpuContext))
-            using (Graphics graphics = Graphics.FromProGpuDrawingContext(
-                _paintVisual.Context,
-                new RectangleF(0f, 0f, surfaceBounds.Width, surfaceBounds.Height)))
             {
-                _events.PaintRequested(new ProGpuPaintFrame(graphics, surfaceBounds, dirty));
+                ProGpuRetainedPaintFrame frame = new(
+                    _paintRoot,
+                    _fallbackPaintVisual,
+                    _transientPaintVisual,
+                    _paintLayers,
+                    surfaceBounds,
+                    dirty);
+                try
+                {
+                    _events.PaintRequested(frame);
+                }
+                finally
+                {
+                    frame.Complete();
+                }
             }
         }
 
-        _paintVisual.Size = new Vector2(surfaceBounds.Width, surfaceBounds.Height);
-        _paintVisual.Invalidate();
+        _paintRoot.Size = new Vector2(surfaceBounds.Width, surfaceBounds.Height);
+        _paintRoot.Invalidate();
         PresentFrame(_wgpuContext, _compositor, surfaceBounds);
     }
 
@@ -687,7 +711,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
                 ? 1.0f
                 : (float)DpiScale;
             compositor.RenderScene(
-                _paintVisual,
+                _paintRoot,
                 checked((uint)surfaceBounds.Width),
                 checked((uint)surfaceBounds.Height),
                 framebufferWidth,
@@ -709,11 +733,6 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
             }
         }
     }
-
-    private sealed record ProGpuPaintFrame(
-        Graphics Graphics,
-        LibreRectangle SurfaceBounds,
-        LibreRectangle DirtyRectangle) : ILibrePaintFrame;
 
     private void OnClosing()
     {

@@ -16,6 +16,36 @@ public interface ILibrePaintFrame
     LibreRectangle DirtyRectangle { get; }
 }
 
+/// <summary>
+/// A retained paint frame that stores independently replaceable control layers.
+/// Canonical WinForms opens every visible control once in back-to-front order;
+/// a missing control is removed when the frame completes.
+/// </summary>
+public interface ILibreRetainedPaintFrame : ILibrePaintFrame
+{
+    /// <summary>
+    /// Opens or reuses the retained layer identified by <paramref name="target"/>.
+    /// <paramref name="bounds"/> and <paramref name="clipRectangle"/> are in
+    /// window coordinates. A null <see cref="ILibrePaintLayer.Graphics"/> means
+    /// that the existing command recording does not intersect the dirty region
+    /// and must be retained unchanged.
+    /// </summary>
+    ILibrePaintLayer OpenLayer(
+        LibreHandle target,
+        LibreRectangle bounds,
+        LibreRectangle clipRectangle);
+}
+
+/// <summary>A frame-scoped retained control layer.</summary>
+public interface ILibrePaintLayer : IDisposable
+{
+    /// <summary>
+    /// Gets a recorder when this layer requires repainting; otherwise null when
+    /// the renderer retained the existing recording.
+    /// </summary>
+    System.Drawing.Graphics? Graphics { get; }
+}
+
 /// <summary>Schedules drawing without leaking renderer-specific surface objects into canonical WinForms.</summary>
 public interface ILibrePaintService
 {

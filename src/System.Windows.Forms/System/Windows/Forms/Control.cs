@@ -11263,10 +11263,72 @@ public unsafe partial class Control :
             return;
         }
 
-        // A ProGPU frame is a fresh retained recording. Repaint the complete logical
-        // control tree so an invalidated sub-rectangle never erases unchanged siblings.
-        // The scheduler still coalesces and reports the actual dirty rectangle.
+        if (frame is ILibreRetainedPaintFrame retainedFrame)
+        {
+            PaintPortableRetainedControlTree(retainedFrame, Point.Empty, surfaceRectangle);
+            return;
+        }
+
+        // Flat backends receive a fresh recording and therefore require the complete
+        // logical control tree so a sub-rectangle never erases unchanged siblings.
         PaintPortableControlTree(frame.Graphics, Point.Empty, surfaceRectangle);
+    }
+
+    private void PaintPortableRetainedControlTree(
+        ILibreRetainedPaintFrame frame,
+        Point absoluteLocation,
+        Rectangle surfaceClip)
+    {
+        if (!Visible || _width <= 0 || _height <= 0 || _window.PortableHandle.IsNull)
+        {
+            return;
+        }
+
+        Rectangle absoluteBounds = new(absoluteLocation.X, absoluteLocation.Y, _width, _height);
+        Rectangle absoluteClip = Rectangle.Intersect(surfaceClip, absoluteBounds);
+        if (absoluteClip.IsEmpty)
+        {
+            return;
+        }
+
+        Rectangle localClip = new(
+            absoluteClip.X - absoluteLocation.X,
+            absoluteClip.Y - absoluteLocation.Y,
+            absoluteClip.Width,
+            absoluteClip.Height);
+        using (ILibrePaintLayer layer = frame.OpenLayer(
+            _window.PortableHandle,
+            new LibreRectangle(absoluteBounds.X, absoluteBounds.Y, absoluteBounds.Width, absoluteBounds.Height),
+            new LibreRectangle(absoluteClip.X, absoluteClip.Y, absoluteClip.Width, absoluteClip.Height)))
+        {
+            if (layer.Graphics is { } graphics)
+            {
+                using PaintEventArgs paintEvent = new(
+                    graphics,
+                    localClip,
+                    DrawingEventFlags.SaveState | DrawingEventFlags.GraphicsStateUnclean);
+                PaintWithErrorHandling(paintEvent, PaintLayerBackground);
+                paintEvent.ResetGraphics();
+                PaintWithErrorHandling(paintEvent, PaintLayerForeground);
+            }
+        }
+
+        if (ChildControls is not { } children)
+        {
+            return;
+        }
+
+        // WinForms index zero is the top of z-order, so retain back-to-front.
+        for (int index = children.Count - 1; index >= 0; index--)
+        {
+            Control child = children[index];
+            child.PaintPortableRetainedControlTree(
+                frame,
+                new Point(
+                    checked(absoluteLocation.X + child._x),
+                    checked(absoluteLocation.Y + child._y)),
+                absoluteClip);
+        }
     }
 
     private void PaintPortableControlTree(Graphics graphics, Point absoluteLocation, Rectangle surfaceClip)
