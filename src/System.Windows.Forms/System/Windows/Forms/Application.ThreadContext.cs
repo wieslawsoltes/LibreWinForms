@@ -4,6 +4,9 @@
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Runtime.ExceptionServices;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#endif
 using Microsoft.Office;
 using LocalAppContextSwitches = System.Windows.Forms.Primitives.LocalAppContextSwitches;
 
@@ -43,7 +46,13 @@ public sealed partial class Application
         private List<IMessageFilter>? _messageFilters;
         private List<IMessageFilter>? _messageFilterSnapshot;
         private int _inProcessFilters;
+#if LIBREWINFORMS_PORTABLE
+#pragma warning disable IDE0044 // Windows builds mutate the shared thread HANDLE during native cleanup.
+#endif
         private HANDLE _handle;
+#if LIBREWINFORMS_PORTABLE
+#pragma warning restore IDE0044
+#endif
         private readonly uint _id;
         protected int _messageLoopCount;
         private int _modalCount;
@@ -70,6 +79,10 @@ public sealed partial class Application
         /// </summary>
         protected ThreadContext()
         {
+#if LIBREWINFORMS_PORTABLE
+            _handle = default;
+            _id = checked((uint)Environment.CurrentManagedThreadId);
+#else
             HANDLE target;
 
             PInvoke.DuplicateHandle(
@@ -84,6 +97,7 @@ public sealed partial class Application
             _handle = target;
 
             _id = PInvokeCore.GetCurrentThreadId();
+#endif
             _messageLoopCount = 0;
             t_currentThreadContext = this;
             s_contextHash[_id] = this;
@@ -269,6 +283,32 @@ public sealed partial class Application
 
             Dispose(disposing);
 
+#if LIBREWINFORMS_PORTABLE
+            try
+            {
+                ApplicationContext?.Dispose();
+                ApplicationContext = null;
+                RaiseThreadExit();
+            }
+            finally
+            {
+                try
+                {
+                    if (s_totalMessageLoopCount == 0)
+                    {
+                        RaiseExit();
+                    }
+                }
+                finally
+                {
+                    s_contextHash.Remove(_id, out _);
+                    if (t_currentThreadContext == this)
+                    {
+                        t_currentThreadContext = null;
+                    }
+                }
+            }
+#else
             try
             {
                 // We can only clean up if we're being called on our own thread.
@@ -319,6 +359,7 @@ public sealed partial class Application
                     }
                 }
             }
+#endif
         }
 
         /// <summary>
@@ -449,6 +490,7 @@ public sealed partial class Application
         /// <summary>
         ///  Our finalization. This shouldn't be called as we should always be disposed.
         /// </summary>
+#if !LIBREWINFORMS_PORTABLE
         ~ThreadContext()
         {
             // Don't call OleUninitialize as the finalizer is called on the wrong thread.
@@ -459,6 +501,7 @@ public sealed partial class Application
                 _handle = HANDLE.Null;
             }
         }
+#endif
 
         // When a Form receives a WM_ACTIVATE message, it calls this method so we can do the
         // appropriate MsoComponentManager activation magic
@@ -480,9 +523,13 @@ public sealed partial class Application
 
         private static ThreadContext Create()
         {
+#if LIBREWINFORMS_PORTABLE
+            ThreadContext context = new PortableThreadContext();
+#else
             ThreadContext context = LocalAppContextSwitches.EnableMsoComponentManager
                 ? new ComponentThreadContext()
                 : new LightThreadContext();
+#endif
 
             return context;
         }
@@ -497,7 +544,12 @@ public sealed partial class Application
                 return context;
             }
 
-            if (id == PInvokeCore.GetCurrentThreadId())
+            if (id ==
+#if LIBREWINFORMS_PORTABLE
+                checked((uint)Environment.CurrentManagedThreadId))
+#else
+                PInvokeCore.GetCurrentThreadId())
+#endif
             {
                 context = Create();
                 Debug.Assert(context._id == id);
@@ -644,6 +696,10 @@ public sealed partial class Application
 
         internal void PostQuit()
         {
+#if LIBREWINFORMS_PORTABLE
+            PostedQuit = true;
+            LibrePlatform.Current.Dispatcher.RequestExit();
+#else
             // Per KB 183116: https://web.archive.org/web/20070510025823/http://support.microsoft.com/kb/183116
             //
             // WM_QUIT may be consumed by another message pump under very specific circumstances.
@@ -653,6 +709,7 @@ public sealed partial class Application
             // We can't follow the KB article exactly, because we don't have an HWND to PostMessage to.
             PInvoke.PostThreadMessage(_id, PInvokeCore.WM_QUIT, default, default);
             PostedQuit = true;
+#endif
         }
 
         /// <summary>

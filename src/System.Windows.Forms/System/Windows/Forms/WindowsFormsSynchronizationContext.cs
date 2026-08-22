@@ -2,6 +2,9 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -27,8 +30,10 @@ public sealed class WindowsFormsSynchronizationContext : SynchronizationContext,
     {
         // Store the current thread to ensure it stays alive during an invoke.
         DestinationThread = Thread.CurrentThread;
+#if !LIBREWINFORMS_PORTABLE
         _controlToSendTo = Application.ThreadContext.FromCurrent().MarshallingControl;
         Debug.Assert(_controlToSendTo.IsHandleCreated, "Marshaling control should have created its handle in its ctor.");
+#endif
     }
 
     private WindowsFormsSynchronizationContext(Control? marshalingControl, Thread? destinationThread)
@@ -83,11 +88,19 @@ public sealed class WindowsFormsSynchronizationContext : SynchronizationContext,
             throw new InvalidAsynchronousStateException(SR.ThreadNoLongerValid);
         }
 
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.Dispatcher.Send(() => d(state));
+#else
         _controlToSendTo?.Invoke(d, [state]);
+#endif
     }
 
     public override void Post(SendOrPostCallback d, object? state)
+#if LIBREWINFORMS_PORTABLE
+        => LibrePlatform.Current.Dispatcher.Post(() => d(state));
+#else
         => _controlToSendTo?.BeginInvoke(d, [state]);
+#endif
 
     public override SynchronizationContext CreateCopy()
         => new WindowsFormsSynchronizationContext(_controlToSendTo, DestinationThread);

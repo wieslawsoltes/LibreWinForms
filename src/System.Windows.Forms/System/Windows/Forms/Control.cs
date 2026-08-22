@@ -10,7 +10,12 @@ using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Windows.Forms.Automation;
 using System.Windows.Forms.Layout;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#endif
+#if !LIBREWINFORMS_PORTABLE
 using Windows.Win32.Graphics.Dwm;
+#endif
 #if !LIBREWINFORMS_PROGPU_DRAWING
 using Windows.Win32.Graphics.GdiPlus;
 #endif
@@ -74,8 +79,24 @@ public unsafe partial class Control :
             : false;
 #pragma warning restore IDE0075
 
-    private static readonly uint WM_GETCONTROLNAME = PInvoke.RegisterWindowMessage("WM_GETCONTROLNAME");
-    private static readonly uint WM_GETCONTROLTYPE = PInvoke.RegisterWindowMessage("WM_GETCONTROLTYPE");
+#if LIBREWINFORMS_PORTABLE
+#pragma warning disable CA1802 // Windows builds initialize these IDs dynamically with RegisterWindowMessage.
+#endif
+    private static readonly uint WM_GETCONTROLNAME =
+#if LIBREWINFORMS_PORTABLE
+        0xC001;
+#else
+        PInvoke.RegisterWindowMessage("WM_GETCONTROLNAME");
+#endif
+    private static readonly uint WM_GETCONTROLTYPE =
+#if LIBREWINFORMS_PORTABLE
+        0xC002;
+#else
+        PInvoke.RegisterWindowMessage("WM_GETCONTROLTYPE");
+#endif
+#if LIBREWINFORMS_PORTABLE
+#pragma warning restore CA1802
+#endif
 
     private static readonly object s_autoSizeChangedEvent = new();
     private static readonly object s_keyDownEvent = new();
@@ -149,7 +170,13 @@ public unsafe partial class Control :
     private static readonly object s_previewKeyDownEvent = new();
     private static readonly object s_dataContextEvent = new();
 
+#if LIBREWINFORMS_PORTABLE
+#pragma warning disable CS0649, IDE0044 // Win32 registered-message storage is intentionally inactive in the typed dispatcher lane.
+#endif
     private static MessageId s_threadCallbackMessage;
+#if LIBREWINFORMS_PORTABLE
+#pragma warning restore CS0649, IDE0044
+#endif
     private static ContextCallback? s_invokeMarshaledCallbackHelperDelegate;
 
     [ThreadStatic]
@@ -230,7 +257,13 @@ public unsafe partial class Control :
     private static readonly int s_deviceDpiInternal = PropertyStore.CreateKey();
     private static readonly int s_originalDeviceDpiInternal = PropertyStore.CreateKey();
 
+#if LIBREWINFORMS_PORTABLE
+#pragma warning disable CS0414, IDE0044, CA1823 // The shared source retains the Win32 comctl32 initialization state for Windows builds.
+#endif
     private static bool s_needToLoadComCtl = true;
+#if LIBREWINFORMS_PORTABLE
+#pragma warning restore CS0414, IDE0044, CA1823
+#endif
 
     // This switch determines the default text rendering engine to use by some controls that support switching rendering engine.
     // CheckedListBox, PropertyGrid, GroupBox, Label and LinkLabel, and ButtonBase controls.
@@ -378,6 +411,10 @@ public unsafe partial class Control :
 
         if (_width != 0 && _height != 0)
         {
+#if LIBREWINFORMS_PORTABLE
+            _clientWidth = _width;
+            _clientHeight = _height;
+#else
             RECT rect = default;
 
             CreateParams cp = CreateParams;
@@ -385,6 +422,7 @@ public unsafe partial class Control :
             AdjustWindowRectExForControlDpi(ref rect, (WINDOW_STYLE)cp.Style, false, (WINDOW_EX_STYLE)cp.ExStyle);
             _clientWidth = _width - rect.Width;
             _clientHeight = _height - rect.Height;
+#endif
         }
 
         // Set up for async operations on this thread.
@@ -1377,6 +1415,7 @@ public unsafe partial class Control :
         get
         {
             // CLR4.0 or later, comctl32.dll needs to be loaded explicitly.
+#if !LIBREWINFORMS_PORTABLE
             if (s_needToLoadComCtl)
             {
                 if ((PInvoke.GetModuleHandle(Libraries.Comctl32) != 0)
@@ -1390,6 +1429,7 @@ public unsafe partial class Control :
                     throw new Win32Exception(lastWin32Error, string.Format(SR.LoadDLLError, Libraries.Comctl32));
                 }
             }
+#endif
 
             // In a typical control this is accessed ten times to create and show a control.
             // It is a net memory savings, then, to maintain a copy on control.
@@ -4563,6 +4603,26 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected virtual void CreateHandle()
     {
+#if LIBREWINFORMS_PORTABLE
+        ObjectDisposedException.ThrowIf(GetState(States.Disposed), this);
+        if (GetState(States.CreatingHandle))
+        {
+            return;
+        }
+
+        try
+        {
+            SetState(States.CreatingHandle, true);
+            CreateParams cp = CreateParams;
+            SetState(States.Mirrored, (cp.ExStyle & (int)WINDOW_EX_STYLE.WS_EX_LAYOUTRTL) != 0);
+            _window.CreateHandle(cp);
+            OnHandleCreated(EventArgs.Empty);
+        }
+        finally
+        {
+            SetState(States.CreatingHandle, false);
+        }
+#else
         ObjectDisposedException.ThrowIf(GetState(States.Disposed), this);
 
         if (GetState(States.CreatingHandle))
@@ -4627,6 +4687,7 @@ public unsafe partial class Control :
         {
             LayoutTransaction.DoLayout(ParentInternal, this, PropertyNames.Bounds);
         }
+#endif
     }
 
     /// <summary>
@@ -4717,6 +4778,15 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected virtual void DestroyHandle()
     {
+#if LIBREWINFORMS_PORTABLE
+        if (IsHandleCreated)
+        {
+            OnHandleDestroyed(EventArgs.Empty);
+        }
+
+        _window.DestroyHandle();
+        _trackMouseEvent = default;
+#else
         if (RecreatingHandle && _threadCallbackList is not null)
         {
             // See if we have a thread marshaling request pending. If so, we will need to
@@ -4772,6 +4842,7 @@ public unsafe partial class Control :
         }
 
         _trackMouseEvent = default;
+#endif
     }
 
     /// <summary>
@@ -6512,7 +6583,12 @@ public unsafe partial class Control :
 
         // We don't want to wait if we're on the same thread, or else we'll deadlock.
         // It is important that syncSameThread always be false for asynchronous calls.
-        bool syncSameThread = synchronous && PInvokeCore.GetWindowThreadProcessId(this, out _) == PInvokeCore.GetCurrentThreadId();
+        bool syncSameThread = synchronous
+#if LIBREWINFORMS_PORTABLE
+            && LibrePlatform.Current.Dispatcher.CheckAccess();
+#else
+            && PInvokeCore.GetWindowThreadProcessId(this, out _) == PInvokeCore.GetCurrentThreadId();
+#endif
 
         // Store the compressed stack information from the thread that is calling the Invoke()
         // so we can assign the same security context to the thread that will actually execute
@@ -6538,10 +6614,12 @@ public unsafe partial class Control :
 
         lock (_threadCallbackList)
         {
+#if !LIBREWINFORMS_PORTABLE
             if (s_threadCallbackMessage == PInvokeCore.WM_NULL)
             {
                 s_threadCallbackMessage = PInvoke.RegisterWindowMessage($"{Application.WindowMessagesVersion}_ThreadCallbackMessage");
             }
+#endif
 
             _threadCallbackList.Enqueue(tme);
         }
@@ -6552,7 +6630,11 @@ public unsafe partial class Control :
         }
         else
         {
+#if LIBREWINFORMS_PORTABLE
+            LibrePlatform.Current.Dispatcher.Post(InvokeMarshaledCallbacks);
+#else
             PInvokeCore.PostMessage(this, s_threadCallbackMessage);
+#endif
         }
 
         if (synchronous)
@@ -7361,6 +7443,9 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected virtual void OnHandleCreated(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        ((EventHandler?)Events[s_handleCreatedEvent])?.Invoke(this, e);
+#else
         if (IsHandleCreated)
         {
             // Setting fonts is for some reason incredibly expensive.
@@ -7436,7 +7521,9 @@ public unsafe partial class Control :
                 SetState(States.ThreadMarshalPending, false);
             }
         }
+#endif
 
+#if !LIBREWINFORMS_PORTABLE
         void HandleHighDpi()
         {
             if (!DpiAwarenessContext.IsEquivalent(DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2))
@@ -7482,6 +7569,7 @@ public unsafe partial class Control :
                 form.AdjustFormPosition();
             }
         }
+#endif
     }
 
     private void OnSetScrollPosition(object? sender, EventArgs e)
@@ -7532,6 +7620,9 @@ public unsafe partial class Control :
     {
         ((EventHandler?)Events[s_handleDestroyedEvent])?.Invoke(this, e);
 
+#if LIBREWINFORMS_PORTABLE
+        ReflectParent = null;
+#else
         // The Accessibility Object for this Control
         if (Properties.TryGetValue(s_accessibilityProperty, out AccessibleObject? accObj)
             && accObj is ControlAccessibleObject controlAccObj)
@@ -7581,6 +7672,7 @@ public unsafe partial class Control :
             // Some ActiveX controls throw exceptions when you ask for the text property after you have destroyed their
             // handle. We don't want those exceptions to bubble all the way to the top, since we leave our state in a mess.
         }
+#endif
     }
 
     /// <summary>
@@ -10422,6 +10514,43 @@ public unsafe partial class Control :
 
     protected virtual void SetVisibleCore(bool value)
     {
+#if LIBREWINFORMS_PORTABLE
+        if (value == Visible)
+        {
+            return;
+        }
+
+        if (!value)
+        {
+            SelectNextIfFocused();
+        }
+
+        SetState(States.Visible, value);
+        try
+        {
+            if (value)
+            {
+                CreateControl();
+            }
+
+            if (IsHandleCreated)
+            {
+                _window.SetPortableVisibility(value);
+            }
+        }
+        catch
+        {
+            SetState(States.Visible, !value);
+            throw;
+        }
+
+        using (new LayoutTransaction(_parent, this, PropertyNames.Visible))
+        {
+            OnVisibleChanged(EventArgs.Empty);
+        }
+
+        UpdateRoot();
+#else
         if (value != Visible)
         {
             if (!value)
@@ -10547,6 +10676,7 @@ public unsafe partial class Control :
                 &value,
                 (uint)sizeof(BOOL)).AssertSuccess();
         }
+#endif
     }
 
     /// <summary>
@@ -11146,6 +11276,10 @@ public unsafe partial class Control :
     {
         _window.ReleaseHandle();
     }
+
+#if LIBREWINFORMS_PORTABLE
+    internal void DispatchPortableMessage(uint message) => _window.DispatchPortableMessage(message);
+#endif
 
     private void WmClose(ref Message m)
     {

@@ -12,6 +12,8 @@ public interface ILibreDispatcher
 
     void Send(Action callback);
 
+    void PumpOnce();
+
     void Run(CancellationToken cancellationToken);
 
     void RunNested(Func<bool> continueCondition, CancellationToken cancellationToken);

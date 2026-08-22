@@ -47,7 +47,7 @@
   </ItemGroup>
 
   <PropertyGroup Condition="'$(LibreWinFormsUseProGpuSystemDrawing)' == 'true'">
-    <DefineConstants>$(DefineConstants);LIBREWINFORMS_PROGPU_DRAWING</DefineConstants>
+    <DefineConstants>$(DefineConstants);LIBREWINFORMS_PROGPU_DRAWING;LIBREWINFORMS_PORTABLE</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(LibreWinFormsUseProGpuSystemDrawing)' == 'true'">

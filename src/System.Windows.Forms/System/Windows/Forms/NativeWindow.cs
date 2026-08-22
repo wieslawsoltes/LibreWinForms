@@ -4,6 +4,9 @@
 using System.ComponentModel;
 using System.Runtime.ConstrainedExecution;
 using System.Runtime.InteropServices;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -38,10 +41,19 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
     private static readonly Dictionary<HWND, GCHandle> s_windowHandles = [];
     private static readonly Dictionary<short, HWND> s_windowIds = [];
     private static readonly Lock s_internalSyncObject = new();
+#if LIBREWINFORMS_PORTABLE
+#pragma warning disable CA1823 // The shared source retains the Win32 class-creation lock for Windows builds.
+#endif
     private static readonly Lock s_createWindowSyncObject = new();
+#if LIBREWINFORMS_PORTABLE
+#pragma warning restore CA1823
+#endif
 
     private readonly Lock _lock = new();
 
+#if LIBREWINFORMS_PORTABLE
+#pragma warning disable CS0649, CS0414, IDE0044 // Win32 subclassing state remains compiled for the shared Windows source path.
+#endif
     // Our window procedure delegate
     private WNDPROC? _windowProc;
 
@@ -54,6 +66,13 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
     private void* _priorWindowProcHandle;
     private bool _suppressedGC;
     private bool _ownHandle;
+#if LIBREWINFORMS_PORTABLE
+#pragma warning restore CS0649, CS0414, IDE0044
+#endif
+#if LIBREWINFORMS_PORTABLE
+    private LibreHandle _portableHandle;
+    private ILibreWindow? _portableWindow;
+#endif
     private NativeWindow? _nextWindow;
     private readonly WeakReference<NativeWindow> _weakThisPtr;
 
@@ -70,7 +89,12 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
     /// <summary>
     ///  Cache window DpiContext awareness information that helps to create handle with right context at the later time.
     /// </summary>
-    internal DPI_AWARENESS_CONTEXT DpiAwarenessContext { get; } = PInvoke.GetThreadDpiAwarenessContextInternal();
+    internal DPI_AWARENESS_CONTEXT DpiAwarenessContext { get; } =
+#if LIBREWINFORMS_PORTABLE
+        DPI_AWARENESS_CONTEXT.UNSPECIFIED_DPI_AWARENESS_CONTEXT;
+#else
+        PInvoke.GetThreadDpiAwarenessContextInternal();
+#endif
 
     /// <summary>
     ///  Override's the base object's finalize method.
@@ -87,6 +111,23 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
     /// </summary>
     internal unsafe void ForceExitMessageLoop()
     {
+#if LIBREWINFORMS_PORTABLE
+        if (HWND.IsNull)
+        {
+            return;
+        }
+
+        try
+        {
+            LibrePlatform.Current.Dispatcher.Post(DestroyHandle);
+        }
+        catch (InvalidOperationException)
+        {
+            ReleasePortableHandle(disposeWindow: false);
+        }
+
+        return;
+#else
         HWND handle;
         bool ownedHandle;
 
@@ -138,6 +179,7 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
             // If we owned the handle, post a WM_CLOSE to get rid of it.
             PInvokeCore.PostMessage(handle, PInvokeCore.WM_CLOSE);
         }
+#endif
     }
 
     /// <summary>
@@ -281,7 +323,9 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
         s_windowIds[id] = handle.Handle;
 
         // Set the Window ID
+#if !LIBREWINFORMS_PORTABLE
         PInvokeCore.SetWindowLong(handle, WINDOW_LONG_PTR_INDEX.GWL_ID, id);
+#endif
 
         return id;
     }
@@ -293,6 +337,18 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
 
     internal unsafe void AssignHandle(HWND hwnd, bool assignUniqueID)
     {
+#if LIBREWINFORMS_PORTABLE
+        _ = assignUniqueID;
+        lock (_lock)
+        {
+            CheckReleased();
+            Debug.Assert(!hwnd.IsNull);
+            HWND = hwnd;
+            _portableHandle = new LibreHandle((nint)hwnd, LibreHandleKind.LogicalControl);
+            AddWindowToTable(hwnd, this);
+            OnHandleChange();
+        }
+#else
         lock (_lock)
         {
             CheckReleased();
@@ -329,6 +385,7 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
 
             OnHandleChange();
         }
+#endif
     }
 
     /// <summary>
@@ -396,6 +453,53 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
     /// </summary>
     public virtual unsafe void CreateHandle(CreateParams cp)
     {
+#if LIBREWINFORMS_PORTABLE
+        ArgumentNullException.ThrowIfNull(cp);
+        lock (_lock)
+        {
+            CheckReleased();
+            LibrePlatformServices services = LibrePlatform.Current;
+            if (this is Control.ControlNativeWindow controlWindow && controlWindow.GetControl() is Form)
+            {
+                LibreWindowOptions options = LibreWindowOptions.Decorated;
+                WINDOW_STYLE style = (WINDOW_STYLE)(uint)cp.Style;
+                WINDOW_EX_STYLE extendedStyle = (WINDOW_EX_STYLE)(uint)cp.ExStyle;
+                if (style.HasFlag(WINDOW_STYLE.WS_THICKFRAME)) options |= LibreWindowOptions.Resizable;
+                if (style.HasFlag(WINDOW_STYLE.WS_VISIBLE)) options |= LibreWindowOptions.Visible;
+                if (extendedStyle.HasFlag(WINDOW_EX_STYLE.WS_EX_TOPMOST)) options |= LibreWindowOptions.TopMost;
+                if (extendedStyle.HasFlag(WINDOW_EX_STYLE.WS_EX_TOOLWINDOW)) options |= LibreWindowOptions.ToolWindow;
+
+                LibreHandle owner = default;
+                if (cp.Parent != 0 && FromHandle(cp.Parent) is { } parent)
+                {
+                    owner = parent._portableHandle;
+                }
+
+                LibreWindowCreateOptions createOptions = new(
+                    cp.Caption ?? string.Empty,
+                    new LibreRectangle(
+                        cp.X == PInvoke.CW_USEDEFAULT ? 100 : cp.X,
+                        cp.Y == PInvoke.CW_USEDEFAULT ? 100 : cp.Y,
+                        Math.Max(1, cp.Width),
+                        Math.Max(1, cp.Height)),
+                    options,
+                    owner);
+                _portableWindow = services.Windows.Create(createOptions, new PortableWindowEvents(this));
+                _portableHandle = _portableWindow.Handle;
+            }
+            else
+            {
+                _portableHandle = services.Handles.Allocate(this, LibreHandleKind.LogicalControl);
+            }
+
+            HWND = (HWND)_portableHandle.Value;
+            AddWindowToTable(HWND, this);
+            _ownHandle = true;
+            OnHandleChange();
+        }
+
+        return;
+#else
         lock (_lock)
         {
             CheckReleased();
@@ -488,6 +592,7 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
                 _ownHandle = true;
             }
         }
+#endif
     }
 
     /// <summary>
@@ -496,6 +601,10 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
     /// </summary>
     public void DefWndProc(ref Message m)
     {
+#if LIBREWINFORMS_PORTABLE
+        m.ResultInternal = default;
+        return;
+#else
         if (PreviousWindow is null)
         {
             if (_priorWindowProcHandle == null)
@@ -519,6 +628,7 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
         {
             m.ResultInternal = PreviousWindow.Callback(m.HWND, m.MsgInternal, m.WParamInternal, m.LParamInternal);
         }
+#endif
     }
 
     /// <summary>
@@ -526,6 +636,9 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
     /// </summary>
     public virtual void DestroyHandle()
     {
+#if LIBREWINFORMS_PORTABLE
+        ReleasePortableHandle(disposeWindow: true);
+#else
         lock (_lock)
         {
             if (!HWND.IsNull)
@@ -546,6 +659,7 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
             GC.SuppressFinalize(this);
             _suppressedGC = true;
         }
+#endif
     }
 
     /// <summary>
@@ -606,6 +720,18 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
 
         if (s_windowHandles.Count > 0)
         {
+#if LIBREWINFORMS_PORTABLE
+            GCHandle[] windowHandles = [.. s_windowHandles.Values];
+            foreach (GCHandle gcHandle in windowHandles)
+            {
+                if (gcHandle.IsAllocated && gcHandle.Target is NativeWindow window)
+                {
+                    window.ReleasePortableHandle(disposeWindow: false);
+                }
+            }
+
+            s_windowHandles.Clear();
+#else
             Debug.Assert(DefaultWindowProc != IntPtr.Zero, "We have active windows but no user window proc?");
 
             lock (s_internalSyncObject)
@@ -630,6 +756,7 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
 
                 s_windowHandles.Clear();
             }
+#endif
         }
     }
 
@@ -661,6 +788,11 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
     /// </remarks>
     private void ReleaseHandle(bool handleValid)
     {
+#if LIBREWINFORMS_PORTABLE
+        _ = handleValid;
+        ReleasePortableHandle(disposeWindow: false);
+        return;
+#else
         if (HWND.IsNull)
         {
             return;
@@ -697,7 +829,92 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
                 _suppressedGC = true;
             }
         }
+#endif
     }
+
+#if LIBREWINFORMS_PORTABLE
+    internal void SetPortableVisibility(bool visible)
+    {
+        if (_portableWindow is null)
+        {
+            return;
+        }
+
+        if (visible)
+        {
+            _portableWindow.Show();
+        }
+        else
+        {
+            _portableWindow.Hide();
+        }
+    }
+
+    internal void DispatchPortableMessage(uint message)
+    {
+        if (HWND.IsNull)
+        {
+            return;
+        }
+
+        Message managedMessage = Message.Create(HWND, message, default, default);
+        WndProc(ref managedMessage);
+    }
+
+    private void ReleasePortableHandle(bool disposeWindow)
+    {
+        ILibreWindow? window;
+        lock (_lock)
+        {
+            if (HWND.IsNull)
+            {
+                return;
+            }
+
+            HWND oldHandle = HWND;
+            window = _portableWindow;
+            _portableWindow = null;
+            RemoveWindowFromDictionary(oldHandle, this);
+            if (window is null)
+            {
+                LibrePlatform.Current.Handles.Release(_portableHandle);
+            }
+
+            _portableHandle = default;
+            HWND = HWND.Null;
+            _ownHandle = false;
+            OnHandleChange();
+            GC.SuppressFinalize(this);
+            _suppressedGC = true;
+        }
+
+        if (disposeWindow)
+        {
+            window?.Dispose();
+        }
+    }
+
+    private sealed class PortableWindowEvents : ILibreWindowEvents
+    {
+        private readonly NativeWindow _owner;
+
+        internal PortableWindowEvents(NativeWindow owner) => _owner = owner;
+
+        public bool Closing()
+        {
+            _owner.DispatchPortableMessage(PInvokeCore.WM_CLOSE);
+            return _owner.HWND.IsNull;
+        }
+
+        public void Closed() => _owner.ReleasePortableHandle(disposeWindow: false);
+
+        public void BoundsChanged(LibreRectangle bounds) => _ = bounds;
+
+        public void PaintRequested(LibreRectangle dirtyRectangle) => _ = dirtyRectangle;
+
+        public void Input(in LibreInputEvent inputEvent) => _ = inputEvent;
+    }
+#endif
 
     private static void RemoveWindowFromDictionary(HWND hwnd, NativeWindow window)
     {

@@ -2174,6 +2174,7 @@ public partial class Form : ContainerControl
         {
             base.SetVisibleCore(value);
 
+#if !LIBREWINFORMS_PORTABLE
             // We need to force this call if we were created
             // with a STARTUPINFO structure (e.g. launched from explorer), since
             // it won't send a WM_SHOWWINDOW the first time it's called.
@@ -2183,6 +2184,7 @@ public partial class Form : ContainerControl
             {
                 PInvokeCore.SendMessage(this, PInvokeCore.WM_SHOWWINDOW, (WPARAM)(BOOL)value);
             }
+#endif
         }
         else
         {
@@ -3248,7 +3250,11 @@ public partial class Form : ContainerControl
         if (IsHandleCreated)
         {
             _closeReason = CloseReason.UserClosing;
+#if LIBREWINFORMS_PORTABLE
+            DispatchPortableMessage(PInvokeCore.WM_CLOSE);
+#else
             PInvokeCore.SendMessage(this, PInvokeCore.WM_CLOSE);
+#endif
         }
         else
         {
@@ -3338,6 +3344,9 @@ public partial class Form : ContainerControl
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected override void CreateHandle()
     {
+#if LIBREWINFORMS_PORTABLE
+        base.CreateHandle();
+#else
         // In the windows MDI code we have to suspend menu
         // updates on the parent while creating the handle. Otherwise if the
         // child is created maximized, the menu ends up with two sets of
@@ -3429,6 +3438,7 @@ public partial class Form : ContainerControl
             //
             UpdateStyles();
         }
+#endif
     }
 
     // Deactivates active MDI child and temporarily marks it as un-focusable,
@@ -4190,6 +4200,7 @@ public partial class Form : ContainerControl
         _formStateEx[s_formStateExUseMdiChildProc] = (IsMdiChild && Visible) ? 1 : 0;
         base.OnHandleCreated(e);
 
+#if !LIBREWINFORMS_PORTABLE
         UpdateLayered();
 
         // Normally, we update the form's title properties here after the handle is created.
@@ -4209,6 +4220,7 @@ public partial class Form : ContainerControl
         {
             SetScreenCaptureModeInternal(FormScreenCaptureMode);
         }
+#endif
     }
 
     /// <summary>

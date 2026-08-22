@@ -5,6 +5,26 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 configuration="${CONFIGURATION:-Release}"
 progpu_root="${repo_root}/external/ProGPU"
 
+run_test_project() {
+  local project="$1"
+  local minimum_tests="$2"
+  shift 2
+
+  "${repo_root}/eng/common/dotnet.sh" build \
+    "${project}" \
+    --configuration "${configuration}" \
+    --nologo \
+    -t:Rebuild \
+    -p:MicrosoftNETCoreAppRefPackageVersion= \
+    "$@"
+  "${repo_root}/eng/common/dotnet.sh" run \
+    --project "${project}" \
+    --configuration "${configuration}" \
+    --no-build \
+    -- \
+    --minimum-expected-tests "${minimum_tests}"
+}
+
 if [[ ! -f "${progpu_root}/src/System.Drawing.Common/System.Drawing.Common.csproj" ]]; then
   echo "The external/ProGPU submodule is not initialized. Run git submodule update --init --recursive." >&2
   exit 1
@@ -25,16 +45,19 @@ echo "Building canonical System.Windows.Forms against source-built ProGPU System
   -p:LibreWinFormsReferenceMode=Project
 
 echo "Testing typed platform contracts and the ProGPU/Silk.NET loop foundation."
-"${repo_root}/eng/common/dotnet.sh" test \
+run_test_project \
   "${repo_root}/src/LibreWinForms.Platform/tests/LibreWinForms.Platform.Tests.csproj" \
-  --configuration "${configuration}" \
-  --nologo \
-  -p:MicrosoftNETCoreAppRefPackageVersion=
-"${repo_root}/eng/common/dotnet.sh" test \
+  4
+run_test_project \
   "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
-  --configuration "${configuration}" \
-  --nologo \
-  -p:MicrosoftNETCoreAppRefPackageVersion=
+  4
+
+echo "Testing unchanged canonical Application.Run(Form) against a typed headless backend."
+run_test_project \
+  "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
+  1 \
+  -p:LibreWinFormsUseProGpuSystemDrawing=true \
+  -p:LibreWinFormsReferenceMode=Project
 
 echo "Verifying ProGPU System.Drawing API debt and focused quality gates."
 (

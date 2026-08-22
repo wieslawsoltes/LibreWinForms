@@ -46,6 +46,7 @@ public class LibrePlatformTests
         public bool CheckAccess() => true;
         public void Post(Action callback) => callback();
         public void Send(Action callback) => callback();
+        public void PumpOnce() { }
         public void Run(CancellationToken cancellationToken) { }
         public void RunNested(Func<bool> continueCondition, CancellationToken cancellationToken) { }
         public void RequestExit() { }

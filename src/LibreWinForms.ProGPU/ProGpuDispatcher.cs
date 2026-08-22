@@ -118,7 +118,7 @@ public sealed class ProGpuDispatcher : ILibreDispatcher, IDisposable
 
     internal void Wake() => _wake.Set();
 
-    internal void PumpOnce()
+    public void PumpOnce()
     {
         VerifyAccess();
         while (_work.TryDequeue(out Action? callback))

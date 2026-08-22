@@ -52,6 +52,12 @@ internal static partial class ScaleHelper
 
     private static void InitializeStatics()
     {
+#if LIBREWINFORMS_PORTABLE
+        // The portable monitor service becomes authoritative once a top-level window exists.
+        // Keep construction independent of USER32/GDI and start at WinForms' logical DPI.
+        s_processPerMonitorAware = false;
+        InitialSystemDpi = OneHundredPercentLogicalDpi;
+#else
         s_processPerMonitorAware = GetPerMonitorAware();
         InitialSystemDpi = GetSystemDpi();
 
@@ -93,6 +99,7 @@ internal static partial class ScaleHelper
                 _ => true
             };
         }
+#endif
     }
 
     /// <summary>
@@ -102,6 +109,9 @@ internal static partial class ScaleHelper
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return false;
+#else
             if (s_processPerMonitorAware)
             {
                 // We can't cache this value because different top level windows can have different DPI awareness context
@@ -113,6 +123,7 @@ internal static partial class ScaleHelper
             {
                 return false;
             }
+#endif
         }
     }
 
