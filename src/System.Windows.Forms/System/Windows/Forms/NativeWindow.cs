@@ -478,6 +478,11 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
                 if (style.HasFlag(WINDOW_STYLE.WS_VISIBLE)) options |= LibreWindowOptions.Visible;
                 if (extendedStyle.HasFlag(WINDOW_EX_STYLE.WS_EX_TOPMOST)) options |= LibreWindowOptions.TopMost;
                 if (extendedStyle.HasFlag(WINDOW_EX_STYLE.WS_EX_TOOLWINDOW)) options |= LibreWindowOptions.ToolWindow;
+                LibreWindowState initialState = style.HasFlag(WINDOW_STYLE.WS_MAXIMIZE)
+                    ? LibreWindowState.Maximized
+                    : style.HasFlag(WINDOW_STYLE.WS_MINIMIZE)
+                        ? LibreWindowState.Minimized
+                        : LibreWindowState.Normal;
 
                 LibreHandle owner = default;
                 if (cp.Parent != 0 && FromHandle(cp.Parent) is { } parent)
@@ -519,7 +524,8 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
                     options,
                     owner,
                     coordinateMode,
-                    initialDpiScale);
+                    initialDpiScale,
+                    initialState);
                 _portableWindow = services.Windows.Create(createOptions, new PortableWindowEvents(this));
                 _portableHandle = _portableWindow.Handle;
                 _portableCoordinateMode = _portableWindow.CoordinateMode;
@@ -895,6 +901,14 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
         }
     }
 
+    internal void SetPortableState(LibreWindowState state)
+    {
+        if (_portableWindow is { } window)
+        {
+            window.State = state;
+        }
+    }
+
     internal void SetPortableOwner(NativeWindow? owner)
     {
         if (_portableWindow is { } window)
@@ -1047,6 +1061,14 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
             if (_owner is Control.ControlNativeWindow controlWindow && controlWindow.GetControl() is { } control)
             {
                 control.UpdatePortableBounds(bounds);
+            }
+        }
+
+        public void StateChanged(LibreWindowState state)
+        {
+            if (_owner is Control.ControlNativeWindow controlWindow && controlWindow.GetControl() is Form form)
+            {
+                form.UpdatePortableWindowState(state);
             }
         }
 

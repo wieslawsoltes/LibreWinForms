@@ -17,6 +17,34 @@ namespace LibreWinForms.CanonicalLifecycle.Tests;
 public class CanonicalLifecycleTests
 {
     [Fact]
+    public void FormWindowState_UsesTypedInitialLiveAndPlatformDrivenTransitions()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { WindowState = FormWindowState.Maximized };
+
+        _ = form.Handle;
+
+        platform.LastWindowState.Should().Be(LibreWindowState.Maximized);
+
+        form.WindowState = FormWindowState.Normal;
+        platform.LastWindowState.Should().Be(LibreWindowState.Normal);
+
+        form.Show();
+        form.WindowState = FormWindowState.Minimized;
+        platform.LastWindowState.Should().Be(LibreWindowState.Minimized);
+        form.WindowState.Should().Be(FormWindowState.Minimized);
+
+        platform.ChangeLastWindowState(LibreWindowState.Maximized);
+        form.WindowState.Should().Be(FormWindowState.Maximized);
+
+        platform.ChangeLastWindowState(LibreWindowState.FullScreen);
+        form.WindowState.Should().Be(FormWindowState.Maximized);
+
+        platform.ChangeLastWindowState(LibreWindowState.Normal);
+        form.WindowState.Should().Be(FormWindowState.Normal);
+    }
+
+    [Fact]
     public void FormText_UsesTypedLiveWindowTitleWithoutUser32StyleRefresh()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -777,6 +805,7 @@ public class CanonicalLifecycleTests
             SawCreateGraphicsTranslatedFill = false;
             LastActivatedWindow = default;
             LastWindowTitle = string.Empty;
+            LastWindowState = LibreWindowState.Normal;
             LastWindowIcons = [];
         }
 
@@ -818,7 +847,15 @@ public class CanonicalLifecycleTests
 
         internal string LastWindowTitle { get; private set; } = string.Empty;
 
+        internal LibreWindowState LastWindowState { get; private set; }
+
         internal IReadOnlyList<LibreWindowIcon> LastWindowIcons { get; private set; } = [];
+
+        internal void ChangeLastWindowState(LibreWindowState state)
+        {
+            _lastWindow.Should().NotBeNull();
+            _lastWindow!.State = state;
+        }
 
         internal void SetMonitors(params LibreMonitor[] monitors)
         {
@@ -1005,6 +1042,7 @@ public class CanonicalLifecycleTests
             private double _framebufferScale;
             private LibreRectangle _nativeBounds;
             private string _title = string.Empty;
+            private LibreWindowState _state;
 
             internal HeadlessWindow(
                 HeadlessPlatform platform,
@@ -1024,6 +1062,8 @@ public class CanonicalLifecycleTests
                 _platform.LastWindowBounds = options.Bounds;
                 _platform.LastNativeWindowBounds = _nativeBounds;
                 Title = options.Title;
+                _state = options.InitialState;
+                _platform.LastWindowState = _state;
                 Owner = options.Owner;
                 Visible = options.Options.HasFlag(LibreWindowOptions.Visible);
                 Handle = platform.Handles.Allocate(this, LibreHandleKind.Window);
@@ -1064,7 +1104,16 @@ public class CanonicalLifecycleTests
                 }
             }
 
-            public LibreWindowState State { get; set; }
+            public LibreWindowState State
+            {
+                get => _state;
+                set
+                {
+                    _state = value;
+                    _platform.LastWindowState = value;
+                    _events.StateChanged(value);
+                }
+            }
 
             public bool Visible { get; private set; }
 

@@ -39,7 +39,8 @@ public readonly record struct LibreWindowCreateOptions(
     LibreWindowOptions Options,
     LibreHandle Owner,
     LibreWindowCoordinateMode CoordinateMode = LibreWindowCoordinateMode.Logical,
-    double InitialDpiScale = 1.0);
+    double InitialDpiScale = 1.0,
+    LibreWindowState InitialState = LibreWindowState.Normal);
 
 /// <summary>An immutable, tightly packed RGBA8 icon image for a platform window.</summary>
 public sealed class LibreWindowIcon
@@ -147,6 +148,9 @@ public interface ILibreWindowEvents
     void Closed();
 
     void BoundsChanged(LibreRectangle bounds);
+
+    /// <summary>Reports a user- or platform-driven top-level window-state transition.</summary>
+    void StateChanged(LibreWindowState state);
 
     /// <summary>
     ///  Reports that the native presentation scale changed. Logical-coordinate windows use

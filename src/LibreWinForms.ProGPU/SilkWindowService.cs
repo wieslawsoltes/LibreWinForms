@@ -112,6 +112,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
             Size = new Vector2D<int>(Math.Max(1, nativeBounds.Width), Math.Max(1, nativeBounds.Height)),
             Position = new Vector2D<int>(nativeBounds.X, nativeBounds.Y),
             Title = options.Title,
+            WindowState = ToSilkWindowState(options.InitialState),
             TopMost = options.Options.HasFlag(LibreWindowOptions.TopMost),
             WindowBorder = ResolveBorder(options.Options),
         };
@@ -200,23 +201,11 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
 
     public LibreWindowState State
     {
-        get => _window.WindowState switch
-        {
-            WindowState.Minimized => LibreWindowState.Minimized,
-            WindowState.Maximized => LibreWindowState.Maximized,
-            WindowState.Fullscreen => LibreWindowState.FullScreen,
-            _ => LibreWindowState.Normal,
-        };
+        get => FromSilkWindowState(_window.WindowState);
         set
         {
             VerifyAccess();
-            _window.WindowState = value switch
-            {
-                LibreWindowState.Minimized => WindowState.Minimized,
-                LibreWindowState.Maximized => WindowState.Maximized,
-                LibreWindowState.FullScreen => WindowState.Fullscreen,
-                _ => WindowState.Normal,
-            };
+            _window.WindowState = ToSilkWindowState(value);
         }
     }
 
@@ -484,6 +473,26 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         return options.HasFlag(LibreWindowOptions.Resizable) ? WindowBorder.Resizable : WindowBorder.Fixed;
     }
 
+    private static WindowState ToSilkWindowState(LibreWindowState state)
+        => state switch
+        {
+            LibreWindowState.Normal => WindowState.Normal,
+            LibreWindowState.Minimized => WindowState.Minimized,
+            LibreWindowState.Maximized => WindowState.Maximized,
+            LibreWindowState.FullScreen => WindowState.Fullscreen,
+            _ => throw new ArgumentOutOfRangeException(nameof(state), state, "Unknown window state."),
+        };
+
+    private static LibreWindowState FromSilkWindowState(WindowState state)
+        => state switch
+        {
+            WindowState.Normal => LibreWindowState.Normal,
+            WindowState.Minimized => LibreWindowState.Minimized,
+            WindowState.Maximized => LibreWindowState.Maximized,
+            WindowState.Fullscreen => LibreWindowState.FullScreen,
+            _ => throw new ArgumentOutOfRangeException(nameof(state), state, "Unknown Silk.NET window state."),
+        };
+
     private void SetNativeBounds(LibreRectangle bounds)
     {
         _window.Position = new Vector2D<int>(bounds.X, bounds.Y);
@@ -520,8 +529,17 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
                 NotifyBoundsChanged();
             }
         };
+        _window.StateChanged += OnStateChanged;
         _window.FocusChanged += focused => EmitInput(focused ? LibreInputEventKind.FocusGained : LibreInputEventKind.FocusLost);
         _window.Closing += OnClosing;
+    }
+
+    private void OnStateChanged(WindowState state)
+    {
+        if (!_initializing)
+        {
+            _events.StateChanged(FromSilkWindowState(state));
+        }
     }
 
     private void OnPresentationGeometryChanged()

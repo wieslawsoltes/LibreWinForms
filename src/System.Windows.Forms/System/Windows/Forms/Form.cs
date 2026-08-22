@@ -2593,6 +2593,18 @@ public partial class Form : ContainerControl
                     break;
             }
 
+#if LIBREWINFORMS_PORTABLE
+            if (IsHandleCreated)
+            {
+                SetPortableWindowState(value switch
+                {
+                    FormWindowState.Normal => LibreWindowState.Normal,
+                    FormWindowState.Minimized => LibreWindowState.Minimized,
+                    FormWindowState.Maximized => LibreWindowState.Maximized,
+                    _ => throw new ArgumentOutOfRangeException(nameof(value), value, "Unknown form window state."),
+                });
+            }
+#else
             if (IsHandleCreated && Visible)
             {
                 switch (value)
@@ -2608,6 +2620,7 @@ public partial class Form : ContainerControl
                         break;
                 }
             }
+#endif
 
             // Now set the local property to the passed in value so that
             // when UpdateWindowState is by the ShowWindow call above, the window state in effect when
@@ -2615,6 +2628,37 @@ public partial class Form : ContainerControl
             _formState[s_formStateWindowState] = (int)value;
         }
     }
+
+#if LIBREWINFORMS_PORTABLE
+    internal void UpdatePortableWindowState(LibreWindowState state)
+    {
+        FormWindowState value = state switch
+        {
+            LibreWindowState.Normal => FormWindowState.Normal,
+            LibreWindowState.Minimized => FormWindowState.Minimized,
+            LibreWindowState.Maximized or LibreWindowState.FullScreen => FormWindowState.Maximized,
+            _ => throw new ArgumentOutOfRangeException(nameof(state), state, "Unknown portable window state."),
+        };
+
+        FormWindowState oldState = WindowState;
+        if (oldState == value)
+        {
+            return;
+        }
+
+        if (oldState != FormWindowState.Minimized && value == FormWindowState.Minimized)
+        {
+            SuspendLayoutForMinimize();
+        }
+        else if (oldState == FormWindowState.Minimized && value != FormWindowState.Minimized)
+        {
+            ResumeLayoutFromMinimize();
+        }
+
+        SetState(States.SizeLockedByOS, value != FormWindowState.Normal);
+        _formState[s_formStateWindowState] = (int)value;
+    }
+#endif
 
     /// <summary>
     ///  Gets or sets the text to display in the caption bar of the form.
