@@ -29,6 +29,7 @@ public class CanonicalLifecycleTests
         Rectangle formPaintClip = default;
         Rectangle childPaintClip = default;
         RectangleF visibleClip = default;
+        RectangleF createGraphicsVisibleClip = default;
         List<string> inputEvents = [];
         Point mouseLocation = default;
         Point mousePosition = default;
@@ -106,6 +107,17 @@ public class CanonicalLifecycleTests
             form.Bounds = new(40, 50, 640, 480);
             form.Invalidate();
             form.Update();
+            using (Graphics graphics = child.CreateGraphics())
+            {
+                createGraphicsVisibleClip = graphics.VisibleClipBounds;
+                graphics.FillRectangle(Brushes.MediumPurple, new Rectangle(2, 3, 10, 8));
+            }
+
+            using (child.CreateGraphics())
+            {
+                // A recorder with no application drawing must not queue a presentation.
+            }
+
             try
             {
                 platform.SendInput(LibreInputEventKind.FocusGained);
@@ -150,9 +162,12 @@ public class CanonicalLifecycleTests
         formPaintClip.Should().Be(new Rectangle(0, 0, 640, 480));
         childPaintClip.Should().Be(new Rectangle(0, 0, 120, 60));
         visibleClip.Should().Be(new RectangleF(0, 0, 640, 480));
+        createGraphicsVisibleClip.Should().Be(new RectangleF(0, 0, 120, 60));
         platform.LastPaintCommandCount.Should().BeGreaterThan(0);
         platform.SawFormPaintFill.Should().BeTrue();
         platform.SawTranslatedChildPaintFill.Should().BeTrue();
+        platform.CreateGraphicsCommitCount.Should().Be(1);
+        platform.SawCreateGraphicsTranslatedFill.Should().BeTrue();
         inputException.Should().BeNull();
         inputEvents.Should().ContainInOrder(
             nameof(child.MouseEnter),
@@ -180,6 +195,24 @@ public class CanonicalLifecycleTests
         form.IsDisposed.Should().BeTrue();
         form.IsHandleCreated.Should().BeFalse();
         platform.Handles.Count.Should().Be(0);
+    }
+
+    [Fact]
+    public void ControlCreateGraphics_UsesAncestorClipWithoutNativeHwndGraphics()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { ClientSize = new Size(100, 50) };
+        using Panel parent = new() { Bounds = new Rectangle(10, 5, 30, 20) };
+        using Control child = new() { Bounds = new Rectangle(20, 0, 30, 20) };
+        parent.Controls.Add(child);
+        form.Controls.Add(parent);
+
+        using (Graphics graphics = child.CreateGraphics())
+        {
+            graphics.VisibleClipBounds.Should().Be(new RectangleF(0, 0, 10, 20));
+        }
+
+        platform.CreateGraphicsCommitCount.Should().Be(0);
     }
 
     [Fact]
@@ -639,6 +672,8 @@ public class CanonicalLifecycleTests
             LastPaintCommandCount = 0;
             SawFormPaintFill = false;
             SawTranslatedChildPaintFill = false;
+            CreateGraphicsCommitCount = 0;
+            SawCreateGraphicsTranslatedFill = false;
             LastActivatedWindow = default;
         }
 
@@ -667,6 +702,10 @@ public class CanonicalLifecycleTests
         internal bool SawFormPaintFill { get; private set; }
 
         internal bool SawTranslatedChildPaintFill { get; private set; }
+
+        internal int CreateGraphicsCommitCount { get; private set; }
+
+        internal bool SawCreateGraphicsTranslatedFill { get; private set; }
 
         internal LibreHandle LastActivatedWindow { get; private set; }
 
@@ -787,6 +826,35 @@ public class CanonicalLifecycleTests
         public LibreMonitor GetNearest(LibreRectangle bounds)
             => LibreMonitorSelection.GetNearest(_monitors, bounds);
 
+        public Graphics CreateGraphics(
+            LibreHandle target,
+            LibrePoint origin,
+            LibreRectangle clipRectangle)
+        {
+            if (Handles.TryGet(target, out HeadlessWindow? window))
+            {
+                return window.CreateGraphics(origin, clipRectangle);
+            }
+
+            Handles.TryGet<object>(target, out _).Should().BeTrue();
+            DrawingContext recording = new();
+            Graphics graphics = Graphics.FromProGpuDrawingContext(
+                recording,
+                new RectangleF(
+                    clipRectangle.X,
+                    clipRectangle.Y,
+                    clipRectangle.Width,
+                    clipRectangle.Height),
+                Matrix4x4.CreateTranslation(origin.X, origin.Y, 0f),
+                () => recording.Clear());
+            graphics.SetClip(new RectangleF(
+                clipRectangle.X - origin.X,
+                clipRectangle.Y - origin.Y,
+                clipRectangle.Width,
+                clipRectangle.Height));
+            return graphics;
+        }
+
         private static IReadOnlyList<LibreMonitor> CreateDefaultMonitorInventory()
             => [new("headless", new(0, 0, 1920, 1080), new(0, 0, 1920, 1040), 1, true)];
 
@@ -816,6 +884,7 @@ public class CanonicalLifecycleTests
             private readonly HeadlessPlatform _platform;
             private readonly ILibreWindowEvents _events;
             private readonly LibreWindowCoordinateMode _coordinateMode;
+            private readonly DrawingContext _retainedContext = new();
             private bool _disposed;
             private double _dpiScale;
             private double _framebufferScale;
@@ -909,23 +978,71 @@ public class CanonicalLifecycleTests
                 }
             }
 
+            internal Graphics CreateGraphics(
+                LibrePoint origin,
+                LibreRectangle clipRectangle)
+            {
+                DrawingContext recording = new();
+                int infrastructureCommandCount = 0;
+                Graphics graphics = Graphics.FromProGpuDrawingContext(
+                    recording,
+                    new RectangleF(
+                        clipRectangle.X,
+                        clipRectangle.Y,
+                        clipRectangle.Width,
+                        clipRectangle.Height),
+                    Matrix4x4.CreateTranslation(origin.X, origin.Y, 0f),
+                    () => CompleteGraphics(recording, infrastructureCommandCount));
+                graphics.SetClip(new RectangleF(
+                    clipRectangle.X - origin.X,
+                    clipRectangle.Y - origin.Y,
+                    clipRectangle.Width,
+                    clipRectangle.Height));
+                infrastructureCommandCount = checked(recording.Commands.Count + 1);
+                return graphics;
+            }
+
+            private void CompleteGraphics(
+                DrawingContext recording,
+                int infrastructureCommandCount)
+            {
+                try
+                {
+                    if (_disposed || recording.Commands.Count <= infrastructureCommandCount)
+                    {
+                        return;
+                    }
+
+                    _retainedContext.Append(recording);
+                    _platform.CreateGraphicsCommitCount++;
+                    _platform.SawCreateGraphicsTranslatedFill = ContainsSolidFill(
+                        recording,
+                        new RectangleF(14, 21, 10, 8),
+                        Color.MediumPurple);
+                }
+                finally
+                {
+                    recording.Clear();
+                }
+            }
+
             internal void RequestPaint(LibreRectangle dirtyRectangle)
             {
                 _platform.Post(() =>
                 {
                     LibreRectangle surfaceBounds = new(0, 0, Bounds.Width, Bounds.Height);
-                    DrawingContext context = new();
+                    _retainedContext.Clear();
                     using Graphics graphics = Graphics.FromProGpuDrawingContext(
-                        context,
+                        _retainedContext,
                         new RectangleF(0, 0, surfaceBounds.Width, surfaceBounds.Height));
                     _events.PaintRequested(new HeadlessPaintFrame(graphics, surfaceBounds, dirtyRectangle));
-                    _platform.LastPaintCommandCount = context.Commands.Count;
+                    _platform.LastPaintCommandCount = _retainedContext.Commands.Count;
                     _platform.SawFormPaintFill = ContainsSolidFill(
-                        context,
+                        _retainedContext,
                         new RectangleF(4, 5, 24, 16),
                         Color.CornflowerBlue);
                     _platform.SawTranslatedChildPaintFill = ContainsSolidFill(
-                        context,
+                        _retainedContext,
                         new RectangleF(14, 21, 10, 8),
                         Color.OrangeRed);
                 });
@@ -1019,6 +1136,7 @@ public class CanonicalLifecycleTests
 
                 _disposed = true;
                 Visible = false;
+                _retainedContext.Clear();
                 _platform.Handles.Release(Handle);
                 _events.Closed();
             }

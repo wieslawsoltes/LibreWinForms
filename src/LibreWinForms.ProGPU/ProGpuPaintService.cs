@@ -16,6 +16,26 @@ public sealed class ProGpuPaintService : ILibrePaintService
         _handles = handles ?? throw new ArgumentNullException(nameof(handles));
     }
 
+    public System.Drawing.Graphics CreateGraphics(
+        LibreHandle target,
+        LibrePoint origin,
+        LibreRectangle clipRectangle)
+    {
+        if (_handles.TryGet(target, out SilkLibreWindow? window))
+        {
+            return window.CreateGraphics(origin, clipRectangle);
+        }
+
+        if (!_handles.TryGet<object>(target, out _))
+        {
+            throw new ArgumentException(
+                "The handle does not identify a live ProGPU window or logical control.",
+                nameof(target));
+        }
+
+        return SilkLibreWindow.CreateDetachedGraphics(origin, clipRectangle);
+    }
+
     public void Invalidate(LibreHandle target, LibreRectangle dirtyRectangle)
         => Schedule(target, dirtyRectangle);
 

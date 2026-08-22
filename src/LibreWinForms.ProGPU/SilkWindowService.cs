@@ -63,9 +63,10 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private readonly LibreWindowCoordinateMode _coordinateMode;
     private readonly DrawingVisual _paintVisual = new();
     private IInputContext? _input;
-    private WgpuContext? _wgpuContext;
+    private volatile WgpuContext? _wgpuContext;
     private Compositor? _compositor;
     private bool _paintQueued;
+    private bool _presentationQueued;
     private LibreRectangle? _dirtyRectangle;
     private LibreHandle _owner;
     private bool _enabled = true;
@@ -74,7 +75,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private readonly bool _initializing = true;
     private bool _updatingPresentationGeometry;
     private bool _closed;
-    private bool _disposed;
+    private volatile bool _disposed;
 
     internal SilkLibreWindow(
         ProGpuDispatcher dispatcher,
@@ -296,6 +297,105 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _dispatcher.Wake();
     }
 
+    internal Graphics CreateGraphics(
+        LibrePoint origin,
+        LibreRectangle clipRectangle)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        WgpuContext targetContext = _wgpuContext
+            ?? throw new InvalidOperationException("The ProGPU window drawing context is not initialized.");
+        DrawingContext recording = new();
+        int infrastructureCommandCount = 0;
+        Graphics graphics = Graphics.FromProGpuDrawingContext(
+            recording,
+            ToDrawingRectangle(clipRectangle),
+            Matrix4x4.CreateTranslation(origin.X, origin.Y, 0f),
+            targetContext,
+            () => CompleteGraphics(recording, infrastructureCommandCount));
+        ApplyLocalClip(graphics, origin, clipRectangle);
+        // Disposing Graphics balances the initial clip with one pop command.
+        infrastructureCommandCount = checked(recording.Commands.Count + 1);
+        return graphics;
+    }
+
+    internal static Graphics CreateDetachedGraphics(
+        LibrePoint origin,
+        LibreRectangle clipRectangle)
+    {
+        DrawingContext recording = new();
+        Graphics graphics = Graphics.FromProGpuDrawingContext(
+            recording,
+            ToDrawingRectangle(clipRectangle),
+            Matrix4x4.CreateTranslation(origin.X, origin.Y, 0f),
+            () => recording.Clear());
+        ApplyLocalClip(graphics, origin, clipRectangle);
+        return graphics;
+    }
+
+    private void CompleteGraphics(
+        DrawingContext recording,
+        int infrastructureCommandCount)
+    {
+        if (_disposed || recording.Commands.Count <= infrastructureCommandCount)
+        {
+            recording.Clear();
+            return;
+        }
+
+        if (_dispatcher.CheckAccess())
+        {
+            CommitGraphics(recording);
+            return;
+        }
+
+        try
+        {
+            _dispatcher.Post(() => CommitGraphics(recording));
+        }
+        catch (ObjectDisposedException)
+        {
+            recording.Clear();
+        }
+        catch
+        {
+            recording.Clear();
+            throw;
+        }
+    }
+
+    private void CommitGraphics(DrawingContext recording)
+    {
+        try
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _paintVisual.Context.Append(recording);
+            _paintVisual.Invalidate();
+            _presentationQueued = true;
+            _dispatcher.Wake();
+        }
+        finally
+        {
+            recording.Clear();
+        }
+    }
+
+    private static RectangleF ToDrawingRectangle(LibreRectangle rectangle)
+        => new(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height);
+
+    private static void ApplyLocalClip(
+        Graphics graphics,
+        LibrePoint origin,
+        LibreRectangle clipRectangle)
+        => graphics.SetClip(new RectangleF(
+            clipRectangle.X - origin.X,
+            clipRectangle.Y - origin.Y,
+            clipRectangle.Width,
+            clipRectangle.Height));
+
     void IProGpuLoopParticipant.Pump()
     {
         if (_disposed)
@@ -305,7 +405,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
 
         _window.DoEvents();
         _window.DoUpdate();
-        if (_paintQueued && Visible)
+        if ((_paintQueued || _presentationQueued) && Visible)
         {
             _window.DoRender();
         }
@@ -495,23 +595,27 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private unsafe void OnRender(double delta)
     {
         _ = delta;
-        if (!_paintQueued || _wgpuContext is null || _compositor is null)
+        if ((!_paintQueued && !_presentationQueued) || _wgpuContext is null || _compositor is null)
         {
             return;
         }
 
+        bool repaint = _paintQueued;
         _paintQueued = false;
+        _presentationQueued = false;
         LibreRectangle surfaceBounds = GetSurfaceBounds();
-        LibreRectangle dirty = _dirtyRectangle ?? surfaceBounds;
-        _dirtyRectangle = null;
-
-        _paintVisual.Context.Clear();
-        using (WgpuContext.PushCurrent(_wgpuContext))
-        using (Graphics graphics = Graphics.FromProGpuDrawingContext(
-            _paintVisual.Context,
-            new RectangleF(0f, 0f, surfaceBounds.Width, surfaceBounds.Height)))
+        if (repaint)
         {
-            _events.PaintRequested(new ProGpuPaintFrame(graphics, surfaceBounds, dirty));
+            LibreRectangle dirty = _dirtyRectangle ?? surfaceBounds;
+            _dirtyRectangle = null;
+            _paintVisual.Context.Clear();
+            using (WgpuContext.PushCurrent(_wgpuContext))
+            using (Graphics graphics = Graphics.FromProGpuDrawingContext(
+                _paintVisual.Context,
+                new RectangleF(0f, 0f, surfaceBounds.Width, surfaceBounds.Height)))
+            {
+                _events.PaintRequested(new ProGpuPaintFrame(graphics, surfaceBounds, dirty));
+            }
         }
 
         _paintVisual.Size = new Vector2(surfaceBounds.Width, surfaceBounds.Height);

@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Drawing;
 using FluentAssertions;
 using LibreWinForms.Platform;
 using Xunit;
@@ -75,5 +76,27 @@ public class ProGpuDispatcherTests
         await worker.ConfigureAwait(true);
 
         callbackThread.Should().Be(dispatcherThread);
+    }
+
+    [Fact]
+    public async Task CreateGraphics_ForLogicalControl_DoesNotRequireDispatcherPump()
+    {
+        using ProGpuDispatcher dispatcher = new();
+        ManagedLibreHandleRegistry handles = new();
+        LibreHandle target = handles.Allocate(new object(), LibreHandleKind.LogicalControl);
+        ProGpuPaintService painting = new(dispatcher, handles);
+
+        Task worker = Task.Run(() =>
+        {
+            using Graphics graphics = painting.CreateGraphics(
+                target,
+                new LibrePoint(7, 9),
+                new LibreRectangle(7, 9, 20, 10));
+            graphics.VisibleClipBounds.Should().Be(new RectangleF(0, 0, 20, 10));
+            graphics.FillRectangle(Brushes.Red, 0, 0, 4, 3);
+        }, TestContext.Current.CancellationToken);
+
+        await worker.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        handles.Release(target).Should().BeTrue();
     }
 }

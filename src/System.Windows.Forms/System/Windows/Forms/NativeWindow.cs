@@ -941,6 +941,21 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
         }
     }
 
+    internal System.Drawing.Graphics CreateGraphicsPortable(
+        LibrePoint origin,
+        LibreRectangle clipRectangle)
+    {
+        if (HWND.IsNull)
+        {
+            throw new InvalidOperationException("A Graphics cannot be created before the portable handle exists.");
+        }
+
+        return LibrePlatform.Current.Painting.CreateGraphics(
+            _portableHandle,
+            origin,
+            clipRectangle);
+    }
+
     internal void PresentPortable()
     {
         if (_portableWindow is not null)

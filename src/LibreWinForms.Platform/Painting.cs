@@ -19,6 +19,18 @@ public interface ILibrePaintFrame
 /// <summary>Schedules drawing without leaking renderer-specific surface objects into canonical WinForms.</summary>
 public interface ILibrePaintService
 {
+    /// <summary>
+    /// Creates a disposable Graphics recorder whose local origin maps to
+    /// <paramref name="origin"/> and whose visible region is the supplied
+    /// window-space clip. A window target commits recorded commands for
+    /// presentation when the Graphics is disposed; a logical target may return
+    /// a detached recorder for measurement and off-screen use.
+    /// </summary>
+    System.Drawing.Graphics CreateGraphics(
+        LibreHandle target,
+        LibrePoint origin,
+        LibreRectangle clipRectangle);
+
     void Invalidate(LibreHandle target, LibreRectangle dirtyRectangle);
 
     void InvalidateAll(LibreHandle target);

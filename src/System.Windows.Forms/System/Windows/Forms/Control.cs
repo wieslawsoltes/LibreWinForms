@@ -4663,7 +4663,47 @@ public unsafe partial class Control :
 
     internal Graphics CreateGraphicsInternal()
     {
+#if LIBREWINFORMS_PORTABLE
+        _ = Handle;
+        Control root = this;
+        int originX = 0;
+        int originY = 0;
+        while (root.ParentInternal is { } parent)
+        {
+            originX = checked(originX + root._x);
+            originY = checked(originY + root._y);
+            root = parent;
+        }
+
+        _ = root.Handle;
+        Rectangle visibleClip = new(originX, originY, _clientWidth, _clientHeight);
+        Control descendant = this;
+        int ancestorOriginX = originX;
+        int ancestorOriginY = originY;
+        while (descendant.ParentInternal is { } ancestor)
+        {
+            ancestorOriginX = checked(ancestorOriginX - descendant._x);
+            ancestorOriginY = checked(ancestorOriginY - descendant._y);
+            visibleClip = Rectangle.Intersect(
+                visibleClip,
+                new Rectangle(
+                    ancestorOriginX,
+                    ancestorOriginY,
+                    ancestor._clientWidth,
+                    ancestor._clientHeight));
+            descendant = ancestor;
+        }
+
+        return root._window.CreateGraphicsPortable(
+            new LibrePoint(originX, originY),
+            new LibreRectangle(
+                visibleClip.X,
+                visibleClip.Y,
+                visibleClip.Width,
+                visibleClip.Height));
+#else
         return Graphics.FromHwnd(Handle);
+#endif
     }
 
     /// <summary>

@@ -203,6 +203,11 @@ public class LibrePlatformTests
         public ILibreWindow Create(in LibreWindowCreateOptions options, ILibreWindowEvents events) => throw new NotSupportedException();
         public IReadOnlyList<LibreMonitor> GetMonitors() => [];
         public LibreMonitor GetNearest(LibreRectangle bounds) => default;
+        public System.Drawing.Graphics CreateGraphics(
+            LibreHandle target,
+            LibrePoint origin,
+            LibreRectangle clipRectangle)
+            => throw new NotSupportedException();
         public void Invalidate(LibreHandle target, LibreRectangle dirtyRectangle) { }
         public void InvalidateAll(LibreHandle target) { }
         public void Present(LibreHandle target) { }
