@@ -49,6 +49,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private readonly ILibreWindowEvents _events;
     private readonly IWindow _window;
     private readonly SilkWindowController _controller;
+    private readonly LibreWindowCoordinateMode _coordinateMode;
     private readonly DrawingVisual _paintVisual = new();
     private IInputContext? _input;
     private WgpuContext? _wgpuContext;
@@ -70,6 +71,11 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _dispatcher = dispatcher;
         _handles = handles;
         _events = events;
+        _coordinateMode = options.CoordinateMode;
+        LibreRectangle nativeBounds = LibreWindowCoordinates.ToNative(
+            options.Bounds,
+            _coordinateMode,
+            options.InitialDpiScale);
         WindowOptions silkOptions = WindowOptions.Default with
         {
             API = GraphicsAPI.None,
@@ -79,8 +85,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
             VSync = false,
             FramesPerSecond = 0,
             UpdatesPerSecond = 0,
-            Size = new Vector2D<int>(Math.Max(1, options.Bounds.Width), Math.Max(1, options.Bounds.Height)),
-            Position = new Vector2D<int>(options.Bounds.X, options.Bounds.Y),
+            Size = new Vector2D<int>(Math.Max(1, nativeBounds.Width), Math.Max(1, nativeBounds.Height)),
+            Position = new Vector2D<int>(nativeBounds.X, nativeBounds.Y),
             Title = options.Title,
             TopMost = options.Options.HasFlag(LibreWindowOptions.TopMost),
             WindowBorder = ResolveBorder(options.Options),
@@ -92,6 +98,11 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         AttachEvents();
         _window.Initialize();
         _reportedDpiScale = DpiScale;
+        if (_coordinateMode == LibreWindowCoordinateMode.DevicePixels)
+        {
+            SetNativeBounds(LibreWindowCoordinates.ToNative(options.Bounds, _coordinateMode, _reportedDpiScale));
+        }
+
         Owner = options.Owner;
         _dispatcher.Register(this);
         if (options.Options.HasFlag(LibreWindowOptions.Visible))
@@ -101,6 +112,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     }
 
     public LibreHandle Handle { get; }
+
+    public LibreWindowCoordinateMode CoordinateMode => _coordinateMode;
 
     public LibreHandle Owner
     {
@@ -131,12 +144,14 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
 
     public LibreRectangle Bounds
     {
-        get => new(_window.Position.X, _window.Position.Y, _window.Size.X, _window.Size.Y);
+        get => LibreWindowCoordinates.ToManaged(
+            new LibreRectangle(_window.Position.X, _window.Position.Y, _window.Size.X, _window.Size.Y),
+            _coordinateMode,
+            DpiScale);
         set
         {
             VerifyAccess();
-            _window.Position = new Vector2D<int>(value.X, value.Y);
-            _window.Size = new Vector2D<int>(Math.Max(1, value.Width), Math.Max(1, value.Height));
+            SetNativeBounds(LibreWindowCoordinates.ToNative(value, _coordinateMode, DpiScale));
         }
     }
 
@@ -279,6 +294,12 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         return options.HasFlag(LibreWindowOptions.Resizable) ? WindowBorder.Resizable : WindowBorder.Fixed;
     }
 
+    private void SetNativeBounds(LibreRectangle bounds)
+    {
+        _window.Position = new Vector2D<int>(bounds.X, bounds.Y);
+        _window.Size = new Vector2D<int>(Math.Max(1, bounds.Width), Math.Max(1, bounds.Height));
+    }
+
     private void AttachEvents()
     {
         _window.Load += OnLoad;
@@ -351,7 +372,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         }
 
         _paintQueued = false;
-        LibreRectangle surfaceBounds = new(0, 0, Math.Max(1, _window.Size.X), Math.Max(1, _window.Size.Y));
+        LibreRectangle surfaceBounds = GetSurfaceBounds();
         LibreRectangle dirty = _dirtyRectangle ?? surfaceBounds;
         _dirtyRectangle = null;
 
@@ -417,7 +438,9 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
                 Aspect = TextureAspect.All,
             };
             targetView = context.Api.TextureCreateView(surfaceTexture.Texture, &viewDescriptor);
-            float dpiScale = (float)DpiScale;
+            float dpiScale = _coordinateMode == LibreWindowCoordinateMode.DevicePixels
+                ? 1.0f
+                : (float)DpiScale;
             compositor.RenderScene(
                 _paintVisual,
                 checked((uint)surfaceBounds.Width),
@@ -495,7 +518,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
             ReadModifiers(),
             LibreKey.Unknown,
             null,
-            ToPoint(mouse.Position),
+            ToManagedPoint(mouse.Position),
             new LibrePoint(checked((int)Math.Round(wheel.X * 120)), checked((int)Math.Round(wheel.Y * 120))),
             LibrePointerButton.None));
 
@@ -506,7 +529,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
             ReadModifiers(),
             LibreKey.Unknown,
             null,
-            ToPoint(position),
+            ToManagedPoint(position),
             default,
             button switch
             {
@@ -682,8 +705,21 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _ => LibreKey.Unknown,
     };
 
-    private static LibrePoint ToPoint(Vector2 position)
-        => new(checked((int)Math.Round(position.X)), checked((int)Math.Round(position.Y)));
+    private LibrePoint ToManagedPoint(Vector2 position)
+    {
+        double scale = _coordinateMode == LibreWindowCoordinateMode.DevicePixels ? DpiScale : 1.0;
+        return new(
+            checked((int)Math.Round(position.X * scale)),
+            checked((int)Math.Round(position.Y * scale)));
+    }
+
+    private LibreRectangle GetSurfaceBounds()
+    {
+        Vector2D<int> size = _coordinateMode == LibreWindowCoordinateMode.DevicePixels
+            ? _window.FramebufferSize
+            : _window.Size;
+        return new(0, 0, Math.Max(1, size.X), Math.Max(1, size.Y));
+    }
 
     private static LibreRectangle Union(LibreRectangle left, LibreRectangle right)
     {

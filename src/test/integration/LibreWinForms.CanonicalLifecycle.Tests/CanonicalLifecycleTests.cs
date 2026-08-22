@@ -385,6 +385,100 @@ public class CanonicalLifecycleTests
         form.Size.Should().Be(new Size(400, 300));
     }
 
+    [Fact]
+    public void PerMonitorV2_UsesDevicePixelCoordinatesAndRaisesCanonicalDpiEvents()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        platform.SetMonitors(new LibreMonitor(
+            "primary",
+            new(0, 0, 1920, 1080),
+            new(0, 0, 1920, 1040),
+            2.0,
+            true));
+        Application.SetHighDpiMode(HighDpiMode.PerMonitorV2).Should().BeTrue();
+
+        using Form form = new()
+        {
+            AutoScaleMode = AutoScaleMode.Dpi,
+            AutoScaleDimensions = new SizeF(96, 96),
+            StartPosition = FormStartPosition.Manual,
+            Bounds = new Rectangle(10, 20, 400, 300),
+        };
+        using Control child = new() { Bounds = new Rectangle(20, 30, 100, 40) };
+        form.Controls.Add(child);
+
+        int initialFormDpi = 0;
+        int initialChildDpi = 0;
+        Rectangle initialFormBounds = default;
+        Rectangle initialChildBounds = default;
+        int changedFormDpi = 0;
+        int changedChildDpi = 0;
+        Rectangle changedFormBounds = default;
+        Rectangle changedChildBounds = default;
+        DpiChangedEventArgs? changed = null;
+        Exception? callbackException = null;
+        List<string> dpiEvents = [];
+
+        child.DpiChangedBeforeParent += (_, _) => dpiEvents.Add("child-before");
+        form.DpiChanged += (_, e) =>
+        {
+            dpiEvents.Add("form");
+            changed = e;
+        };
+        child.DpiChangedAfterParent += (_, _) => dpiEvents.Add("child-after");
+        form.Shown += (_, _) =>
+        {
+            try
+            {
+                initialFormDpi = form.DeviceDpi;
+                initialChildDpi = child.DeviceDpi;
+                initialFormBounds = form.Bounds;
+                initialChildBounds = child.Bounds;
+
+                platform.SetPresentationScale(1.0);
+
+                changedFormDpi = form.DeviceDpi;
+                changedChildDpi = child.DeviceDpi;
+                changedFormBounds = form.Bounds;
+                changedChildBounds = child.Bounds;
+            }
+            catch (Exception exception)
+            {
+                callbackException = exception;
+            }
+            finally
+            {
+                platform.Post(form.Close);
+            }
+        };
+
+        try
+        {
+            Application.Run(form);
+        }
+        finally
+        {
+            Application.SetHighDpiMode(HighDpiMode.DpiUnaware).Should().BeTrue();
+        }
+
+        platform.LastCoordinateMode.Should().Be(LibreWindowCoordinateMode.DevicePixels);
+        callbackException.Should().BeNull();
+        initialFormDpi.Should().Be(192);
+        initialChildDpi.Should().Be(192);
+        initialFormBounds.Should().Be(new Rectangle(10, 20, 800, 600));
+        initialChildBounds.Should().Be(new Rectangle(40, 60, 200, 80));
+        changedFormDpi.Should().Be(96);
+        changedChildDpi.Should().Be(96);
+        changedFormBounds.Should().Be(new Rectangle(5, 10, 400, 300));
+        changedChildBounds.Should().Be(new Rectangle(20, 30, 100, 40));
+        changed.Should().NotBeNull();
+        changed!.DeviceDpiOld.Should().Be(192);
+        changed.DeviceDpiNew.Should().Be(96);
+        changed.SuggestedRectangle.Should().Be(new Rectangle(5, 10, 400, 300));
+        dpiEvents.Should().ContainInOrder("child-before", "form", "child-after");
+        platform.PresentationInvalidationCount.Should().Be(1);
+    }
+
     private static HeadlessPlatform UseHeadlessPlatform(bool autoCloseWindows)
     {
         HeadlessPlatform platform;
@@ -454,6 +548,7 @@ public class CanonicalLifecycleTests
             PresentCount = 0;
             PresentationInvalidationCount = 0;
             LastPresentationScale = 1.0;
+            LastCoordinateMode = LibreWindowCoordinateMode.Logical;
             LastPaintCommandCount = 0;
             SawFormPaintFill = false;
             SawTranslatedChildPaintFill = false;
@@ -475,6 +570,8 @@ public class CanonicalLifecycleTests
         internal int PresentationInvalidationCount { get; private set; }
 
         internal double LastPresentationScale { get; private set; } = 1.0;
+
+        internal LibreWindowCoordinateMode LastCoordinateMode { get; private set; }
 
         internal int LastPaintCommandCount { get; private set; }
 
@@ -540,6 +637,7 @@ public class CanonicalLifecycleTests
         public ILibreWindow Create(in LibreWindowCreateOptions options, ILibreWindowEvents events)
         {
             WindowsCreated++;
+            LastCoordinateMode = options.CoordinateMode;
             _lastWindow = new HeadlessWindow(this, options, events);
             return _lastWindow;
         }
@@ -619,8 +717,10 @@ public class CanonicalLifecycleTests
         {
             private readonly HeadlessPlatform _platform;
             private readonly ILibreWindowEvents _events;
+            private readonly LibreWindowCoordinateMode _coordinateMode;
             private bool _disposed;
-            private double _dpiScale = 1.0;
+            private double _dpiScale;
+            private LibreRectangle _nativeBounds;
 
             internal HeadlessWindow(
                 HeadlessPlatform platform,
@@ -629,7 +729,10 @@ public class CanonicalLifecycleTests
             {
                 _platform = platform;
                 _events = events;
-                Bounds = options.Bounds;
+                _coordinateMode = options.CoordinateMode;
+                _dpiScale = options.InitialDpiScale;
+                _nativeBounds = LibreWindowCoordinates.ToNative(options.Bounds, _coordinateMode, _dpiScale);
+                _platform.LastWindowBounds = options.Bounds;
                 Owner = options.Owner;
                 Visible = options.Options.HasFlag(LibreWindowOptions.Visible);
                 Handle = platform.Handles.Allocate(this, LibreHandleKind.Window);
@@ -639,14 +742,12 @@ public class CanonicalLifecycleTests
 
             public LibreHandle Owner { get; set; }
 
-            private LibreRectangle _bounds;
-
             public LibreRectangle Bounds
             {
-                get => _bounds;
+                get => LibreWindowCoordinates.ToManaged(_nativeBounds, _coordinateMode, _dpiScale);
                 set
                 {
-                    _bounds = value;
+                    _nativeBounds = LibreWindowCoordinates.ToNative(value, _coordinateMode, _dpiScale);
                     _platform.LastWindowBounds = value;
                     _events.BoundsChanged(value);
                 }
@@ -657,6 +758,8 @@ public class CanonicalLifecycleTests
             public bool Visible { get; private set; }
 
             public bool Enabled { get; set; } = true;
+
+            public LibreWindowCoordinateMode CoordinateMode => _coordinateMode;
 
             public double DpiScale => _dpiScale;
 

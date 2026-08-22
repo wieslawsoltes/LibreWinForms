@@ -22,12 +22,73 @@ public enum LibreWindowState
     FullScreen,
 }
 
+/// <summary>Defines the managed coordinate space exposed by a platform window.</summary>
+public enum LibreWindowCoordinateMode
+{
+    /// <summary>Managed coordinates are 96-DPI logical units and presentation supplies the pixel scale.</summary>
+    Logical,
+
+    /// <summary>Managed client coordinates are framebuffer/device pixels and presentation is one-to-one.</summary>
+    DevicePixels,
+}
+
 /// <summary>Typed creation data for an independent platform window.</summary>
 public readonly record struct LibreWindowCreateOptions(
     string Title,
     LibreRectangle Bounds,
     LibreWindowOptions Options,
-    LibreHandle Owner);
+    LibreHandle Owner,
+    LibreWindowCoordinateMode CoordinateMode = LibreWindowCoordinateMode.Logical,
+    double InitialDpiScale = 1.0);
+
+/// <summary>Checked conversion between native logical window units and managed coordinates.</summary>
+public static class LibreWindowCoordinates
+{
+    public static LibreRectangle ToManaged(
+        LibreRectangle nativeBounds,
+        LibreWindowCoordinateMode mode,
+        double dpiScale)
+        => mode switch
+        {
+            LibreWindowCoordinateMode.Logical => nativeBounds,
+            LibreWindowCoordinateMode.DevicePixels => Scale(nativeBounds, NormalizeScale(dpiScale)),
+            _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown window coordinate mode."),
+        };
+
+    public static LibreRectangle ToNative(
+        LibreRectangle managedBounds,
+        LibreWindowCoordinateMode mode,
+        double dpiScale)
+        => mode switch
+        {
+            LibreWindowCoordinateMode.Logical => managedBounds,
+            LibreWindowCoordinateMode.DevicePixels => Scale(managedBounds, 1.0 / NormalizeScale(dpiScale)),
+            _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown window coordinate mode."),
+        };
+
+    public static int ToDeviceDpi(double dpiScale)
+        => checked((int)Math.Round(96.0 * NormalizeScale(dpiScale), MidpointRounding.AwayFromZero));
+
+    private static LibreRectangle Scale(LibreRectangle bounds, double scale)
+        => new(
+            ScaleValue(bounds.X, scale),
+            ScaleValue(bounds.Y, scale),
+            Math.Max(0, ScaleValue(bounds.Width, scale)),
+            Math.Max(0, ScaleValue(bounds.Height, scale)));
+
+    private static int ScaleValue(int value, double scale)
+        => checked((int)Math.Round(value * scale, MidpointRounding.AwayFromZero));
+
+    private static double NormalizeScale(double scale)
+    {
+        if (!double.IsFinite(scale) || scale <= 0.0 || scale > 8.0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(scale), scale, "DPI scale must be finite and in the range (0, 8].");
+        }
+
+        return scale;
+    }
+}
 
 /// <summary>Events raised by a platform window on its dispatcher thread.</summary>
 public interface ILibreWindowEvents
@@ -40,8 +101,8 @@ public interface ILibreWindowEvents
     void BoundsChanged(LibreRectangle bounds);
 
     /// <summary>
-    ///  Reports that the native presentation scale changed. The scale maps the logical
-    ///  WinForms surface to framebuffer pixels and must not be treated as a Win32 DPI message.
+    ///  Reports that the native presentation scale changed. Logical-coordinate windows use
+    ///  this only for presentation; device-pixel windows also use it for canonical DPI changes.
     /// </summary>
     void PresentationScaleChanged(double scale);
 
@@ -69,6 +130,8 @@ public interface ILibreWindow : IDisposable
     ///  value do not change the corresponding WinForms <c>Control.Enabled</c> property.
     /// </summary>
     bool Enabled { get; set; }
+
+    LibreWindowCoordinateMode CoordinateMode { get; }
 
     double DpiScale { get; }
 

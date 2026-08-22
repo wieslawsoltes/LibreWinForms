@@ -68,6 +68,60 @@ public class LibrePlatformTests
         select.Should().Throw<InvalidOperationException>();
     }
 
+    [Fact]
+    public void WindowCoordinates_DevicePixels_ScaleAndRoundTripNegativeBounds()
+    {
+        LibreRectangle nativeBounds = new(-100, 20, 400, 300);
+
+        LibreRectangle managedBounds = LibreWindowCoordinates.ToManaged(
+            nativeBounds,
+            LibreWindowCoordinateMode.DevicePixels,
+            1.5);
+
+        managedBounds.Should().Be(new LibreRectangle(-150, 30, 600, 450));
+        LibreWindowCoordinates.ToNative(
+            managedBounds,
+            LibreWindowCoordinateMode.DevicePixels,
+            1.5).Should().Be(nativeBounds);
+        LibreWindowCoordinates.ToDeviceDpi(1.5).Should().Be(144);
+    }
+
+    [Fact]
+    public void WindowCoordinates_LogicalMode_DoesNotScaleBounds()
+    {
+        LibreRectangle bounds = new(-101, 21, 401, 301);
+
+        LibreWindowCoordinates.ToManaged(bounds, LibreWindowCoordinateMode.Logical, 2.0).Should().Be(bounds);
+        LibreWindowCoordinates.ToNative(bounds, LibreWindowCoordinateMode.Logical, 2.0).Should().Be(bounds);
+    }
+
+    [Theory]
+    [InlineData(0.0)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(8.01)]
+    public void WindowCoordinates_DevicePixels_RejectInvalidScale(double scale)
+    {
+        Action convert = () => LibreWindowCoordinates.ToManaged(
+            new LibreRectangle(0, 0, 1, 1),
+            LibreWindowCoordinateMode.DevicePixels,
+            scale);
+
+        convert.Should().Throw<ArgumentOutOfRangeException>().WithParameterName(nameof(scale));
+    }
+
+    [Fact]
+    public void WindowCoordinates_RejectUnknownCoordinateMode()
+    {
+        const LibreWindowCoordinateMode mode = (LibreWindowCoordinateMode)42;
+        Action convert = () => LibreWindowCoordinates.ToManaged(
+            default,
+            mode,
+            1.0);
+
+        convert.Should().Throw<ArgumentOutOfRangeException>().WithParameterName(nameof(mode));
+    }
+
     private static LibreMonitor[] CreateMonitorInventory() =>
     [
         new("primary", new(0, 0, 1920, 1080), new(0, 0, 1920, 1040), 1, true),

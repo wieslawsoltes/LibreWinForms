@@ -72,6 +72,7 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
 #if LIBREWINFORMS_PORTABLE
     private LibreHandle _portableHandle;
     private ILibreWindow? _portableWindow;
+    private LibreWindowCoordinateMode _portableCoordinateMode;
     private double _portablePresentationScale = 1.0;
 #endif
     private NativeWindow? _nextWindow;
@@ -92,7 +93,13 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
     /// </summary>
     internal DPI_AWARENESS_CONTEXT DpiAwarenessContext { get; } =
 #if LIBREWINFORMS_PORTABLE
-        DPI_AWARENESS_CONTEXT.UNSPECIFIED_DPI_AWARENESS_CONTEXT;
+        ScaleHelper.GetThreadHighDpiMode() switch
+        {
+            HighDpiMode.PerMonitorV2 => DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2,
+            HighDpiMode.PerMonitor => DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE,
+            HighDpiMode.SystemAware => DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_SYSTEM_AWARE,
+            _ => DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_UNAWARE,
+        };
 #else
         PInvoke.GetThreadDpiAwarenessContextInternal();
 #endif
@@ -476,17 +483,43 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
                     owner = parent._portableHandle;
                 }
 
+                LibreRectangle requestedBounds = new(
+                    cp.X == PInvoke.CW_USEDEFAULT ? 100 : cp.X,
+                    cp.Y == PInvoke.CW_USEDEFAULT ? 100 : cp.Y,
+                    Math.Max(1, cp.Width),
+                    Math.Max(1, cp.Height));
+                LibreWindowCoordinateMode coordinateMode = ScaleHelper.IsThreadPerMonitorV2Aware
+                    ? LibreWindowCoordinateMode.DevicePixels
+                    : LibreWindowCoordinateMode.Logical;
+                double initialDpiScale = coordinateMode == LibreWindowCoordinateMode.DevicePixels
+                    ? services.Monitors.GetNearest(requestedBounds).DpiScale
+                    : 1.0;
+                if (coordinateMode == LibreWindowCoordinateMode.DevicePixels)
+                {
+                    // Canonical top-level autoscaling changes size but deliberately keeps
+                    // Location unchanged. Create the native window at those eventual managed
+                    // device bounds so initialization does not visibly reposition it.
+                    LibreRectangle scaledSize = LibreWindowCoordinates.ToManaged(
+                        new LibreRectangle(0, 0, requestedBounds.Width, requestedBounds.Height),
+                        coordinateMode,
+                        initialDpiScale);
+                    requestedBounds = new LibreRectangle(
+                        requestedBounds.X,
+                        requestedBounds.Y,
+                        scaledSize.Width,
+                        scaledSize.Height);
+                }
+
                 LibreWindowCreateOptions createOptions = new(
                     cp.Caption ?? string.Empty,
-                    new LibreRectangle(
-                        cp.X == PInvoke.CW_USEDEFAULT ? 100 : cp.X,
-                        cp.Y == PInvoke.CW_USEDEFAULT ? 100 : cp.Y,
-                        Math.Max(1, cp.Width),
-                        Math.Max(1, cp.Height)),
+                    requestedBounds,
                     options,
-                    owner);
+                    owner,
+                    coordinateMode,
+                    initialDpiScale);
                 _portableWindow = services.Windows.Create(createOptions, new PortableWindowEvents(this));
                 _portableHandle = _portableWindow.Handle;
+                _portableCoordinateMode = _portableWindow.CoordinateMode;
                 _portablePresentationScale = _portableWindow.DpiScale;
             }
             else
@@ -837,7 +870,11 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
 #if LIBREWINFORMS_PORTABLE
     internal bool PortableEnabled => _portableWindow?.Enabled ?? true;
 
+    internal LibreWindowCoordinateMode PortableCoordinateMode => _portableCoordinateMode;
+
     internal double PortablePresentationScale => _portablePresentationScale;
+
+    internal LibreRectangle PortableBounds => _portableWindow?.Bounds ?? default;
 
     internal void SetPortableEnabled(bool enabled)
     {
@@ -942,6 +979,7 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
             }
 
             _portableHandle = default;
+            _portableCoordinateMode = LibreWindowCoordinateMode.Logical;
             _portablePresentationScale = 1.0;
             HWND = HWND.Null;
             _ownHandle = false;
@@ -988,7 +1026,7 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
             _owner._portablePresentationScale = scale;
             if (_owner is Control.ControlNativeWindow controlWindow && controlWindow.GetControl() is { } control)
             {
-                control.UpdatePortablePresentationScale();
+                control.UpdatePortablePresentationScale(scale);
             }
         }
 

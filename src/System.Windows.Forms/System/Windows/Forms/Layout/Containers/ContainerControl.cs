@@ -309,7 +309,15 @@ public class ContainerControl : ScrollableControl, IContainerControl
         {
             if (_currentAutoScaleDimensions.IsEmpty)
             {
+#if LIBREWINFORMS_PORTABLE
+                // DPI and disabled autoscaling do not consume an HFONT. Avoid exporting a
+                // Windows GDI handle from a cross-platform System.Drawing implementation.
+                _currentAutoScaleDimensions = AutoScaleMode == AutoScaleMode.Font
+                    ? GetCurrentAutoScaleDimensions(FontHandle)
+                    : GetCurrentAutoScaleDimensions(default);
+#else
                 _currentAutoScaleDimensions = GetCurrentAutoScaleDimensions(FontHandle);
+#endif
             }
 
             return _currentAutoScaleDimensions;
@@ -1429,6 +1437,14 @@ public class ContainerControl : ScrollableControl, IContainerControl
 
             if (IsHandleCreated)
             {
+#if LIBREWINFORMS_PORTABLE
+                SetBoundsCore(
+                    suggestedRectangle.X,
+                    suggestedRectangle.Y,
+                    suggestedRectangle.Width,
+                    suggestedRectangle.Height,
+                    BoundsSpecified.All);
+#else
                 PInvoke.SetWindowPos(
                     this,
                     HWND.HWND_TOP,
@@ -1437,6 +1453,7 @@ public class ContainerControl : ScrollableControl, IContainerControl
                     suggestedRectangle.Width,
                     suggestedRectangle.Height,
                     SET_WINDOW_POS_FLAGS.SWP_NOZORDER | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+#endif
             }
         }
         finally

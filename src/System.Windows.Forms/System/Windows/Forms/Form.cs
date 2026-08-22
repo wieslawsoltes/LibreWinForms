@@ -784,7 +784,12 @@ public partial class Form : ContainerControl
         {
             CreateParams cp = base.CreateParams;
 
-            if (IsHandleCreated && WindowStyle.HasFlag(WINDOW_STYLE.WS_DISABLED))
+            if (IsHandleCreated &&
+#if LIBREWINFORMS_PORTABLE
+                !PortableWindowEnabled)
+#else
+                WindowStyle.HasFlag(WINDOW_STYLE.WS_DISABLED))
+#endif
             {
                 // Forms that are parent of a modal dialog must keep their WS_DISABLED style
                 cp.Style |= (int)WINDOW_STYLE.WS_DISABLED;
@@ -4684,6 +4689,47 @@ public partial class Form : ContainerControl
         OnDpiChanged(e);
     }
 
+#if LIBREWINFORMS_PORTABLE
+    internal void ApplyPortableDpiChange(int newDeviceDpi, Rectangle suggestedRectangle)
+    {
+        int oldDeviceDpi = DeviceDpiInternal;
+        if (oldDeviceDpi == newDeviceDpi)
+        {
+            return;
+        }
+
+        ApplyPortableDpiToChildrenBeforeParent(this, newDeviceDpi);
+        DeviceDpiInternal = newDeviceDpi;
+        OnDpiChanged(new DpiChangedEventArgs(oldDeviceDpi, newDeviceDpi, suggestedRectangle));
+        ApplyPortableDpiToChildrenAfterParent(this);
+    }
+
+    private static void ApplyPortableDpiToChildrenBeforeParent(Control parent, int newDeviceDpi)
+    {
+        foreach (Control child in parent.Controls)
+        {
+            ApplyPortableDpiToChildrenBeforeParent(child, newDeviceDpi);
+            if (child.IsHandleCreated)
+            {
+                child.ApplyPortableDpiChangeBeforeParent(newDeviceDpi);
+            }
+        }
+    }
+
+    private static void ApplyPortableDpiToChildrenAfterParent(Control parent)
+    {
+        foreach (Control child in parent.Controls)
+        {
+            if (child.IsHandleCreated)
+            {
+                child.ApplyPortableDpiChangeAfterParent();
+            }
+
+            ApplyPortableDpiToChildrenAfterParent(child);
+        }
+    }
+#endif
+
     /// <summary>
     ///  Allows derived form to handle WM_GETDPISCALEDSIZE message.
     /// </summary>
@@ -6628,6 +6674,12 @@ public partial class Form : ContainerControl
     /// </summary>
     private unsafe void UpdateWindowIcon(bool redrawFrame, int dpi = 0)
     {
+#if LIBREWINFORMS_PORTABLE
+        // Icon transport requires a typed platform-window icon contract. Do not export
+        // ProGPU images as Win32 HICONs on the portable path.
+        _ = this;
+        return;
+#else
         if (IsHandleCreated)
         {
             Icon? icon;
@@ -6686,6 +6738,7 @@ public partial class Form : ContainerControl
                 PInvoke.RedrawWindow(this, lprcUpdate: null, HRGN.Null, REDRAW_WINDOW_FLAGS.RDW_INVALIDATE | REDRAW_WINDOW_FLAGS.RDW_FRAME);
             }
         }
+#endif
     }
 
     /// <summary>

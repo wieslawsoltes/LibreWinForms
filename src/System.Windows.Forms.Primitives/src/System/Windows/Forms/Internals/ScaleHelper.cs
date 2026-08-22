@@ -29,6 +29,9 @@ internal static partial class ScaleHelper
     // Backing field, indicating that we will need to send a PerMonitorV2 query in due course.
     private static bool s_processPerMonitorAware;
     private static Size? s_logicalSmallSystemIconSize;
+#if LIBREWINFORMS_PORTABLE
+    private static HighDpiMode s_portableHighDpiMode = HighDpiMode.DpiUnaware;
+#endif
 
     /// <summary>
     ///  The initial primary monitor DPI (logical pixels per inch) for the process.
@@ -53,9 +56,10 @@ internal static partial class ScaleHelper
     private static void InitializeStatics()
     {
 #if LIBREWINFORMS_PORTABLE
-        // The portable monitor service becomes authoritative once a top-level window exists.
-        // Keep construction independent of USER32/GDI and start at WinForms' logical DPI.
-        s_processPerMonitorAware = false;
+        // A monitor becomes authoritative when the first top-level portable window is
+        // created. Controls still start at WinForms' design DPI and are updated from
+        // that window before HandleCreated is raised.
+        s_processPerMonitorAware = s_portableHighDpiMode is HighDpiMode.PerMonitor or HighDpiMode.PerMonitorV2;
         InitialSystemDpi = OneHundredPercentLogicalDpi;
 #else
         s_processPerMonitorAware = GetPerMonitorAware();
@@ -110,7 +114,7 @@ internal static partial class ScaleHelper
         get
         {
 #if LIBREWINFORMS_PORTABLE
-            return false;
+            return s_portableHighDpiMode == HighDpiMode.PerMonitorV2;
 #else
             if (s_processPerMonitorAware)
             {
@@ -378,6 +382,9 @@ internal static partial class ScaleHelper
     /// </summary>
     internal static HighDpiMode GetThreadHighDpiMode()
     {
+#if LIBREWINFORMS_PORTABLE
+        return s_portableHighDpiMode;
+#else
         // For Windows 10 RS2 and above
         if (OsVersion.IsWindows10_1607OrGreater())
         {
@@ -430,6 +437,7 @@ internal static partial class ScaleHelper
         // We should never get here.
         Debug.Fail("Unexpected DPI state.");
         return HighDpiMode.DpiUnaware;
+#endif
     }
 
     /// <summary>
@@ -449,6 +457,11 @@ internal static partial class ScaleHelper
     /// <returns><see langword="true"/> if the mode was successfully set.</returns>
     internal static bool SetProcessHighDpiMode(HighDpiMode highDpiMode)
     {
+#if LIBREWINFORMS_PORTABLE
+        s_portableHighDpiMode = highDpiMode;
+        InitializeStatics();
+        return true;
+#else
         bool success = false;
 
         if (OsVersion.IsWindows10_1703OrGreater())
@@ -505,6 +518,7 @@ internal static partial class ScaleHelper
         InitializeStatics();
 
         return success;
+#endif
     }
 
     /// <summary>

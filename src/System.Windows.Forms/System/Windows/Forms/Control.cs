@@ -6635,6 +6635,12 @@ public unsafe partial class Control :
 
     private static void AdjustWindowRectExForDpi(ref RECT rect, WINDOW_STYLE style, bool bMenu, WINDOW_EX_STYLE exStyle, int dpi)
     {
+#if LIBREWINFORMS_PORTABLE
+        // Portable ILibreWindow bounds currently describe the drawable client surface.
+        // Native decoration insets belong to the window backend, so there is no Win32
+        // non-client rectangle to add here.
+        return;
+#else
         if ((ScaleHelper.IsThreadPerMonitorV2Aware || ScaleHelper.IsScalingRequired) && OsVersion.IsWindows10_1703OrGreater())
         {
             PInvoke.AdjustWindowRectExForDpi(ref rect, style, bMenu, exStyle, (uint)dpi);
@@ -6643,6 +6649,7 @@ public unsafe partial class Control :
         {
             PInvoke.AdjustWindowRectEx(ref rect, style, bMenu, exStyle);
         }
+#endif
     }
 
     private object MarshaledInvoke(Control caller, Delegate method, object?[]? args, bool synchronous)
@@ -7537,6 +7544,7 @@ public unsafe partial class Control :
     protected virtual void OnHandleCreated(EventArgs e)
     {
 #if LIBREWINFORMS_PORTABLE
+        InitializePortableDpi();
         ((EventHandler?)Events[s_handleCreatedEvent])?.Invoke(this, e);
 #else
         if (IsHandleCreated)
@@ -10983,7 +10991,14 @@ public unsafe partial class Control :
         return align;
     }
 
-    private void SetWindowFont() => PInvokeCore.SendMessage(this, PInvokeCore.WM_SETFONT, (WPARAM)FontHandle, (LPARAM)(BOOL)false);
+    private void SetWindowFont()
+    {
+#if !LIBREWINFORMS_PORTABLE
+        PInvokeCore.SendMessage(this, PInvokeCore.WM_SETFONT, (WPARAM)FontHandle, (LPARAM)(BOOL)false);
+#else
+        _ = this;
+#endif
+    }
 
     private void SetWindowStyle(int flag, bool value)
     {
@@ -11135,10 +11150,37 @@ public unsafe partial class Control :
     internal void UpdatePortableBounds(LibreRectangle bounds)
         => UpdateBounds(bounds.X, bounds.Y, bounds.Width, bounds.Height, bounds.Width, bounds.Height);
 
-    internal void UpdatePortablePresentationScale()
+    internal void UpdatePortablePresentationScale(double scale)
     {
         Control root = GetPortableTopLevelControl();
+        if (root is Form form
+            && root._window.PortableCoordinateMode == LibreWindowCoordinateMode.DevicePixels)
+        {
+            LibreRectangle suggested = root._window.PortableBounds;
+            form.ApplyPortableDpiChange(
+                LibreWindowCoordinates.ToDeviceDpi(scale),
+                new Rectangle(suggested.X, suggested.Y, suggested.Width, suggested.Height));
+        }
+
         root._window.InvalidatePortable(dirtyRectangle: null);
+    }
+
+    private void InitializePortableDpi()
+    {
+        if (!ScaleHelper.IsThreadPerMonitorV2Aware)
+        {
+            return;
+        }
+
+        Control root = GetPortableTopLevelControl();
+        if (root._window.PortableCoordinateMode != LibreWindowCoordinateMode.DevicePixels)
+        {
+            return;
+        }
+
+        ApplyDpiChangeBeforeParent(
+            LibreWindowCoordinates.ToDeviceDpi(root._window.PortablePresentationScale),
+            raiseEvent: false);
     }
 
     private void InvalidatePortable(Rectangle dirtyRectangle)
@@ -11971,10 +12013,6 @@ public unsafe partial class Control :
     {
         DefWndProc(ref m);
 
-        // Cache the current DPI before updating DeviceDpiInternal.
-        OriginalDeviceDpiInternal = DeviceDpiInternal;
-        int oldDeviceDpi = DeviceDpiInternal;
-
         // In order to support tests, will be querying Dpi from the message first.
         int newDeviceDpi = (short)m.WParamInternal.LOWORD;
 
@@ -11984,9 +12022,22 @@ public unsafe partial class Control :
             newDeviceDpi = (int)PInvoke.GetDpiForWindow(this);
         }
 
+        ApplyDpiChangeBeforeParent(newDeviceDpi, raiseEvent: true);
+    }
+
+    private void ApplyDpiChangeBeforeParent(int newDeviceDpi, bool raiseEvent)
+    {
+        // Cache the current DPI before updating DeviceDpiInternal.
+        OriginalDeviceDpiInternal = DeviceDpiInternal;
+        int oldDeviceDpi = DeviceDpiInternal;
+
         if (OriginalDeviceDpiInternal == newDeviceDpi)
         {
-            OnDpiChangedBeforeParent(EventArgs.Empty);
+            if (raiseEvent)
+            {
+                OnDpiChangedBeforeParent(EventArgs.Empty);
+            }
+
             return;
         }
 
@@ -11997,7 +12048,11 @@ public unsafe partial class Control :
 
         if (fontDpi == DeviceDpiInternal)
         {
-            OnDpiChangedBeforeParent(EventArgs.Empty);
+            if (raiseEvent)
+            {
+                OnDpiChangedBeforeParent(EventArgs.Empty);
+            }
+
             return;
         }
 
@@ -12029,8 +12084,17 @@ public unsafe partial class Control :
             RescaleConstantsForDpi(OriginalDeviceDpiInternal, DeviceDpiInternal);
         }
 
-        OnDpiChangedBeforeParent(EventArgs.Empty);
+        if (raiseEvent)
+        {
+            OnDpiChangedBeforeParent(EventArgs.Empty);
+        }
     }
+
+    internal void ApplyPortableDpiChangeBeforeParent(int newDeviceDpi)
+        => ApplyDpiChangeBeforeParent(newDeviceDpi, raiseEvent: true);
+
+    internal void ApplyPortableDpiChangeAfterParent()
+        => OnDpiChangedAfterParent(EventArgs.Empty);
 
     /// <summary>
     ///  Handles the WM_DPICHANGED_AFTERPARENT message
