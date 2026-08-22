@@ -373,13 +373,13 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private void OnKeyDown(IKeyboard keyboard, Key key, int scanCode)
     {
         _ = scanCode;
-        EmitInput(LibreInputEventKind.KeyDown, key: (int)key, modifiers: ReadModifiers(keyboard));
+        EmitInput(LibreInputEventKind.KeyDown, key: MapKey(key), modifiers: ReadModifiers(keyboard));
     }
 
     private void OnKeyUp(IKeyboard keyboard, Key key, int scanCode)
     {
         _ = scanCode;
-        EmitInput(LibreInputEventKind.KeyUp, key: (int)key, modifiers: ReadModifiers(keyboard));
+        EmitInput(LibreInputEventKind.KeyUp, key: MapKey(key), modifiers: ReadModifiers(keyboard));
     }
 
     private void OnKeyChar(IKeyboard keyboard, char character)
@@ -404,8 +404,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         => _events.Input(new LibreInputEvent(
             LibreInputEventKind.PointerWheel,
             Timestamp(),
-            LibreInputModifiers.None,
-            0,
+            ReadModifiers(),
+            LibreKey.Unknown,
             null,
             ToPoint(mouse.Position),
             new LibrePoint(checked((int)Math.Round(wheel.X * 120)), checked((int)Math.Round(wheel.Y * 120))),
@@ -415,8 +415,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         => _events.Input(new LibreInputEvent(
             kind,
             Timestamp(),
-            LibreInputModifiers.None,
-            0,
+            ReadModifiers(),
+            LibreKey.Unknown,
             null,
             ToPoint(position),
             default,
@@ -432,10 +432,26 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
 
     private void EmitInput(
         LibreInputEventKind kind,
-        int key = 0,
+        LibreKey key = LibreKey.Unknown,
         string? text = null,
         LibreInputModifiers modifiers = LibreInputModifiers.None)
         => _events.Input(new LibreInputEvent(kind, Timestamp(), modifiers, key, text, default, default, LibrePointerButton.None));
+
+    private LibreInputModifiers ReadModifiers()
+    {
+        LibreInputModifiers modifiers = LibreInputModifiers.None;
+        if (_input is null)
+        {
+            return modifiers;
+        }
+
+        foreach (IKeyboard keyboard in _input.Keyboards)
+        {
+            modifiers |= ReadModifiers(keyboard);
+        }
+
+        return modifiers;
+    }
 
     private static LibreInputModifiers ReadModifiers(IKeyboard keyboard)
     {
@@ -446,6 +462,129 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         if (keyboard.IsKeyPressed(Key.SuperLeft) || keyboard.IsKeyPressed(Key.SuperRight)) modifiers |= LibreInputModifiers.Meta;
         return modifiers;
     }
+
+    private static LibreKey MapKey(Key key) => key switch
+    {
+        Key.Space => LibreKey.Space,
+        Key.Apostrophe => LibreKey.Apostrophe,
+        Key.Comma => LibreKey.Comma,
+        Key.Minus => LibreKey.Minus,
+        Key.Period => LibreKey.Period,
+        Key.Slash => LibreKey.Slash,
+        Key.Number0 => LibreKey.D0,
+        Key.Number1 => LibreKey.D1,
+        Key.Number2 => LibreKey.D2,
+        Key.Number3 => LibreKey.D3,
+        Key.Number4 => LibreKey.D4,
+        Key.Number5 => LibreKey.D5,
+        Key.Number6 => LibreKey.D6,
+        Key.Number7 => LibreKey.D7,
+        Key.Number8 => LibreKey.D8,
+        Key.Number9 => LibreKey.D9,
+        Key.Semicolon => LibreKey.Semicolon,
+        Key.Equal => LibreKey.Equal,
+        Key.A => LibreKey.A,
+        Key.B => LibreKey.B,
+        Key.C => LibreKey.C,
+        Key.D => LibreKey.D,
+        Key.E => LibreKey.E,
+        Key.F => LibreKey.F,
+        Key.G => LibreKey.G,
+        Key.H => LibreKey.H,
+        Key.I => LibreKey.I,
+        Key.J => LibreKey.J,
+        Key.K => LibreKey.K,
+        Key.L => LibreKey.L,
+        Key.M => LibreKey.M,
+        Key.N => LibreKey.N,
+        Key.O => LibreKey.O,
+        Key.P => LibreKey.P,
+        Key.Q => LibreKey.Q,
+        Key.R => LibreKey.R,
+        Key.S => LibreKey.S,
+        Key.T => LibreKey.T,
+        Key.U => LibreKey.U,
+        Key.V => LibreKey.V,
+        Key.W => LibreKey.W,
+        Key.X => LibreKey.X,
+        Key.Y => LibreKey.Y,
+        Key.Z => LibreKey.Z,
+        Key.LeftBracket => LibreKey.LeftBracket,
+        Key.BackSlash => LibreKey.Backslash,
+        Key.RightBracket => LibreKey.RightBracket,
+        Key.GraveAccent => LibreKey.GraveAccent,
+        Key.Escape => LibreKey.Escape,
+        Key.Enter => LibreKey.Enter,
+        Key.Tab => LibreKey.Tab,
+        Key.Backspace => LibreKey.Backspace,
+        Key.Insert => LibreKey.Insert,
+        Key.Delete => LibreKey.Delete,
+        Key.Right => LibreKey.Right,
+        Key.Left => LibreKey.Left,
+        Key.Down => LibreKey.Down,
+        Key.Up => LibreKey.Up,
+        Key.PageUp => LibreKey.PageUp,
+        Key.PageDown => LibreKey.PageDown,
+        Key.Home => LibreKey.Home,
+        Key.End => LibreKey.End,
+        Key.CapsLock => LibreKey.CapsLock,
+        Key.ScrollLock => LibreKey.ScrollLock,
+        Key.NumLock => LibreKey.NumLock,
+        Key.PrintScreen => LibreKey.PrintScreen,
+        Key.Pause => LibreKey.Pause,
+        Key.F1 => LibreKey.F1,
+        Key.F2 => LibreKey.F2,
+        Key.F3 => LibreKey.F3,
+        Key.F4 => LibreKey.F4,
+        Key.F5 => LibreKey.F5,
+        Key.F6 => LibreKey.F6,
+        Key.F7 => LibreKey.F7,
+        Key.F8 => LibreKey.F8,
+        Key.F9 => LibreKey.F9,
+        Key.F10 => LibreKey.F10,
+        Key.F11 => LibreKey.F11,
+        Key.F12 => LibreKey.F12,
+        Key.F13 => LibreKey.F13,
+        Key.F14 => LibreKey.F14,
+        Key.F15 => LibreKey.F15,
+        Key.F16 => LibreKey.F16,
+        Key.F17 => LibreKey.F17,
+        Key.F18 => LibreKey.F18,
+        Key.F19 => LibreKey.F19,
+        Key.F20 => LibreKey.F20,
+        Key.F21 => LibreKey.F21,
+        Key.F22 => LibreKey.F22,
+        Key.F23 => LibreKey.F23,
+        Key.F24 => LibreKey.F24,
+        Key.F25 => LibreKey.F25,
+        Key.Keypad0 => LibreKey.NumPad0,
+        Key.Keypad1 => LibreKey.NumPad1,
+        Key.Keypad2 => LibreKey.NumPad2,
+        Key.Keypad3 => LibreKey.NumPad3,
+        Key.Keypad4 => LibreKey.NumPad4,
+        Key.Keypad5 => LibreKey.NumPad5,
+        Key.Keypad6 => LibreKey.NumPad6,
+        Key.Keypad7 => LibreKey.NumPad7,
+        Key.Keypad8 => LibreKey.NumPad8,
+        Key.Keypad9 => LibreKey.NumPad9,
+        Key.KeypadDecimal => LibreKey.NumPadDecimal,
+        Key.KeypadDivide => LibreKey.NumPadDivide,
+        Key.KeypadMultiply => LibreKey.NumPadMultiply,
+        Key.KeypadSubtract => LibreKey.NumPadSubtract,
+        Key.KeypadAdd => LibreKey.NumPadAdd,
+        Key.KeypadEnter => LibreKey.NumPadEnter,
+        Key.KeypadEqual => LibreKey.NumPadEqual,
+        Key.ShiftLeft => LibreKey.LeftShift,
+        Key.ControlLeft => LibreKey.LeftControl,
+        Key.AltLeft => LibreKey.LeftAlt,
+        Key.SuperLeft => LibreKey.LeftMeta,
+        Key.ShiftRight => LibreKey.RightShift,
+        Key.ControlRight => LibreKey.RightControl,
+        Key.AltRight => LibreKey.RightAlt,
+        Key.SuperRight => LibreKey.RightMeta,
+        Key.Menu => LibreKey.Menu,
+        _ => LibreKey.Unknown,
+    };
 
     private static LibrePoint ToPoint(Vector2 position)
         => new(checked((int)Math.Round(position.X)), checked((int)Math.Round(position.Y)));

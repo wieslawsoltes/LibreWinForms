@@ -959,7 +959,13 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
             }
         }
 
-        public void Input(in LibreInputEvent inputEvent) => _ = inputEvent;
+        public void Input(in LibreInputEvent inputEvent)
+        {
+            if (_owner is Control.ControlNativeWindow controlWindow && controlWindow.GetControl() is { } control)
+            {
+                control.DispatchPortableInput(inputEvent);
+            }
+        }
     }
 #endif
 

@@ -1156,7 +1156,12 @@ public unsafe partial class Control :
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     [SRCategory(nameof(SR.CatFocus))]
     [SRDescription(nameof(SR.ControlCanFocusDescr))]
-    public bool CanFocus => IsHandleCreated && PInvoke.IsWindowVisible(this) && PInvoke.IsWindowEnabled(this);
+    public bool CanFocus
+#if LIBREWINFORMS_PORTABLE
+        => IsHandleCreated && Visible && Enabled;
+#else
+        => IsHandleCreated && PInvoke.IsWindowVisible(this) && PInvoke.IsWindowEnabled(this);
+#endif
 
     /// <summary>
     ///  Determines if events can be fired on the control. If this control is being
@@ -1186,6 +1191,21 @@ public unsafe partial class Control :
     [SRDescription(nameof(SR.ControlCaptureDescr))]
     public bool Capture
     {
+#if LIBREWINFORMS_PORTABLE
+        get => GetPortableTopLevelControl()._portableCapturedControl == this;
+        set
+        {
+            Control root = GetPortableTopLevelControl();
+            if (value)
+            {
+                root._portableCapturedControl = this;
+            }
+            else if (root._portableCapturedControl == this)
+            {
+                root._portableCapturedControl = null;
+            }
+        }
+#else
         get => IsHandleCreated && PInvoke.GetCapture() == HWND;
         set
         {
@@ -1203,6 +1223,7 @@ public unsafe partial class Control :
                 PInvoke.ReleaseCapture();
             }
         }
+#endif
     }
 
     /// <summary>
@@ -1343,6 +1364,9 @@ public unsafe partial class Control :
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return IsHandleCreated && PortableContainsFocus();
+#else
             if (!IsHandleCreated)
             {
                 return false;
@@ -1350,6 +1374,7 @@ public unsafe partial class Control :
 
             HWND focusHwnd = PInvoke.GetFocus();
             return !focusHwnd.IsNull && (focusHwnd == Handle || PInvoke.IsChild(this, focusHwnd));
+#endif
         }
     }
 
@@ -1935,7 +1960,13 @@ public unsafe partial class Control :
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     [SRDescription(nameof(SR.ControlFocusedDescr))]
     public virtual bool Focused
+#if LIBREWINFORMS_PORTABLE
+        => IsHandleCreated
+            && GetPortableTopLevelControl()._portableWindowFocused
+            && GetPortableTopLevelControl()._portableFocusedControl == this;
+#else
         => IsHandleCreated && PInvoke.GetFocus() == InternalHandle;
+#endif
 
     /// <summary>
     ///  Retrieves the current font for this control. This will be the font used
@@ -2659,6 +2690,9 @@ public unsafe partial class Control :
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return s_portableModifierKeys;
+#else
             Keys modifiers = 0;
 
             if (PInvoke.GetKeyState((int)Keys.ShiftKey) < 0)
@@ -2677,6 +2711,7 @@ public unsafe partial class Control :
             }
 
             return modifiers;
+#endif
         }
     }
 
@@ -2688,6 +2723,9 @@ public unsafe partial class Control :
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return s_portableMouseButtons;
+#else
             MouseButtons buttons = default;
 
             if (PInvoke.GetKeyState((int)Keys.LButton) < 0)
@@ -2716,6 +2754,7 @@ public unsafe partial class Control :
             }
 
             return buttons;
+#endif
         }
     }
 
@@ -2726,8 +2765,12 @@ public unsafe partial class Control :
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return s_portableMousePosition;
+#else
             PInvoke.GetCursorPos(out Point pt);
             return pt;
+#endif
         }
     }
 
@@ -5296,10 +5339,17 @@ public unsafe partial class Control :
     /// </summary>
     private protected virtual bool FocusInternal()
     {
+#if LIBREWINFORMS_PORTABLE
+        if (CanFocus)
+        {
+            GetPortableTopLevelControl().SetPortableFocus(this);
+        }
+#else
         if (CanFocus)
         {
             PInvoke.SetFocus(this);
         }
+#endif
 
         if (Focused && ParentInternal is not null)
         {
@@ -8736,8 +8786,13 @@ public unsafe partial class Control :
     /// </summary>
     public Point PointToClient(Point p)
     {
+#if LIBREWINFORMS_PORTABLE
+        Point origin = PortableClientOriginOnScreen();
+        return new Point(checked(p.X - origin.X), checked(p.Y - origin.Y));
+#else
         PInvokeCore.MapWindowPoints((HWND)default, this, ref p);
         return p;
+#endif
     }
 
     /// <summary>
@@ -8745,8 +8800,13 @@ public unsafe partial class Control :
     /// </summary>
     public Point PointToScreen(Point p)
     {
+#if LIBREWINFORMS_PORTABLE
+        Point origin = PortableClientOriginOnScreen();
+        return new Point(checked(p.X + origin.X), checked(p.Y + origin.Y));
+#else
         PInvokeCore.MapWindowPoints(this, (HWND)default, ref p);
         return p;
+#endif
     }
 
     /// <summary>

@@ -21,7 +21,7 @@ public class CanonicalLifecycleTests
         HeadlessPlatform platform = new();
         LibrePlatform.Register(platform.Services);
         using Form form = new() { Text = "Canonical portable lifecycle" };
-        using Panel child = new() { Bounds = new Rectangle(12, 18, 120, 60) };
+        using InputProbeControl child = new() { Bounds = new Rectangle(12, 18, 120, 60) };
         form.Controls.Add(child);
 
         List<string> events = [];
@@ -30,6 +30,19 @@ public class CanonicalLifecycleTests
         Rectangle formPaintClip = default;
         Rectangle childPaintClip = default;
         RectangleF visibleClip = default;
+        List<string> inputEvents = [];
+        Point mouseLocation = default;
+        Point mousePosition = default;
+        bool focusedDuringGotFocus = false;
+        bool containsFocusDuringKeyDown = false;
+        bool shiftSeenDuringKeyDown = false;
+        bool leftButtonSeenDuringMouseDown = false;
+        bool captureSeenDuringMouseDown = false;
+        bool noButtonSeenDuringMouseUp = false;
+        Keys keyCode = Keys.None;
+        char keyChar = default;
+        int wheelDelta = 0;
+        Exception? inputException = null;
         form.Paint += (_, e) =>
         {
             paintCallbacks++;
@@ -43,6 +56,49 @@ public class CanonicalLifecycleTests
             childPaintClip = e.ClipRectangle;
             e.Graphics.FillRectangle(Brushes.OrangeRed, new Rectangle(2, 3, 10, 8));
         };
+        child.GotFocus += (_, _) =>
+        {
+            inputEvents.Add(nameof(child.GotFocus));
+            focusedDuringGotFocus = child.Focused;
+        };
+        child.LostFocus += (_, _) => inputEvents.Add(nameof(child.LostFocus));
+        child.MouseEnter += (_, _) => inputEvents.Add(nameof(child.MouseEnter));
+        child.MouseMove += (_, e) =>
+        {
+            inputEvents.Add(nameof(child.MouseMove));
+            mouseLocation = e.Location;
+            mousePosition = Control.MousePosition;
+        };
+        child.MouseDown += (_, _) =>
+        {
+            inputEvents.Add(nameof(child.MouseDown));
+            leftButtonSeenDuringMouseDown = Control.MouseButtons == MouseButtons.Left;
+            captureSeenDuringMouseDown = child.Capture;
+        };
+        child.Click += (_, _) => inputEvents.Add(nameof(child.Click));
+        child.MouseUp += (_, _) =>
+        {
+            inputEvents.Add(nameof(child.MouseUp));
+            noButtonSeenDuringMouseUp = Control.MouseButtons == MouseButtons.None;
+        };
+        child.MouseWheel += (_, e) =>
+        {
+            inputEvents.Add(nameof(child.MouseWheel));
+            wheelDelta = e.Delta;
+        };
+        child.KeyDown += (_, e) =>
+        {
+            inputEvents.Add(nameof(child.KeyDown));
+            keyCode = e.KeyCode;
+            shiftSeenDuringKeyDown = Control.ModifierKeys == Keys.Shift;
+            containsFocusDuringKeyDown = form.ContainsFocus && child.ContainsFocus;
+        };
+        child.KeyPress += (_, e) =>
+        {
+            inputEvents.Add(nameof(child.KeyPress));
+            keyChar = e.KeyChar;
+        };
+        child.KeyUp += (_, _) => inputEvents.Add(nameof(child.KeyUp));
         form.HandleCreated += (_, _) => events.Add(nameof(form.HandleCreated));
         form.VisibleChanged += (_, _) => events.Add(nameof(form.VisibleChanged));
         form.Shown += (_, _) => events.Add(nameof(form.Shown));
@@ -51,6 +107,22 @@ public class CanonicalLifecycleTests
             form.Bounds = new(40, 50, 640, 480);
             form.Invalidate();
             form.Update();
+            try
+            {
+                platform.SendInput(LibreInputEventKind.FocusGained);
+                platform.SendInput(LibreInputEventKind.PointerMove, position: new(17, 24));
+                platform.SendInput(LibreInputEventKind.PointerDown, position: new(17, 24), button: LibrePointerButton.Primary);
+                platform.SendInput(LibreInputEventKind.PointerUp, position: new(17, 24), button: LibrePointerButton.Primary);
+                platform.SendInput(LibreInputEventKind.PointerWheel, position: new(17, 24), delta: new(0, 120));
+                platform.SendInput(LibreInputEventKind.KeyDown, modifiers: LibreInputModifiers.Shift, key: LibreKey.A);
+                platform.SendInput(LibreInputEventKind.TextInput, modifiers: LibreInputModifiers.Shift, text: "a");
+                platform.SendInput(LibreInputEventKind.KeyUp, key: LibreKey.A);
+                platform.SendInput(LibreInputEventKind.FocusLost);
+            }
+            catch (Exception exception)
+            {
+                inputException = exception;
+            }
         };
         form.FormClosing += (_, e) =>
         {
@@ -82,9 +154,39 @@ public class CanonicalLifecycleTests
         platform.LastPaintCommandCount.Should().BeGreaterThan(0);
         platform.SawFormPaintFill.Should().BeTrue();
         platform.SawTranslatedChildPaintFill.Should().BeTrue();
+        inputException.Should().BeNull();
+        inputEvents.Should().ContainInOrder(
+            nameof(child.MouseEnter),
+            nameof(child.MouseMove),
+            nameof(child.GotFocus),
+            nameof(child.MouseDown),
+            nameof(child.Click),
+            nameof(child.MouseUp),
+            nameof(child.MouseWheel),
+            nameof(child.KeyDown),
+            nameof(child.KeyPress),
+            nameof(child.KeyUp),
+            nameof(child.LostFocus));
+        mouseLocation.Should().Be(new Point(5, 6));
+        mousePosition.Should().Be(new Point(57, 74));
+        focusedDuringGotFocus.Should().BeTrue();
+        containsFocusDuringKeyDown.Should().BeTrue();
+        shiftSeenDuringKeyDown.Should().BeTrue();
+        leftButtonSeenDuringMouseDown.Should().BeTrue();
+        captureSeenDuringMouseDown.Should().BeTrue();
+        noButtonSeenDuringMouseUp.Should().BeTrue();
+        keyCode.Should().Be(Keys.A);
+        keyChar.Should().Be('a');
+        wheelDelta.Should().Be(120);
         form.IsDisposed.Should().BeTrue();
         form.IsHandleCreated.Should().BeFalse();
         platform.Handles.Count.Should().Be(0);
+    }
+
+    private sealed class InputProbeControl : Control
+    {
+        internal InputProbeControl()
+            => SetStyle(ControlStyles.Selectable | ControlStyles.StandardClick | ControlStyles.UserPaint, true);
     }
 
     private sealed class HeadlessPlatform :
@@ -96,6 +198,7 @@ public class CanonicalLifecycleTests
     {
         private readonly ConcurrentQueue<Action> _queue = new();
         private bool _exitRequested;
+        private HeadlessWindow? _lastWindow;
 
         internal HeadlessPlatform()
         {
@@ -166,7 +269,21 @@ public class CanonicalLifecycleTests
         public ILibreWindow Create(in LibreWindowCreateOptions options, ILibreWindowEvents events)
         {
             WindowsCreated++;
-            return new HeadlessWindow(this, options, events);
+            _lastWindow = new HeadlessWindow(this, options, events);
+            return _lastWindow;
+        }
+
+        internal void SendInput(
+            LibreInputEventKind kind,
+            LibreInputModifiers modifiers = LibreInputModifiers.None,
+            LibreKey key = LibreKey.Unknown,
+            string? text = null,
+            LibrePoint position = default,
+            LibrePoint delta = default,
+            LibrePointerButton button = LibrePointerButton.None)
+        {
+            _lastWindow.Should().NotBeNull();
+            _lastWindow!.SendInput(new LibreInputEvent(kind, 1, modifiers, key, text, position, delta, button));
         }
 
         public IReadOnlyList<LibreMonitor> GetMonitors()
@@ -276,6 +393,8 @@ public class CanonicalLifecycleTests
                         Color.OrangeRed);
                 });
             }
+
+            internal void SendInput(in LibreInputEvent inputEvent) => _events.Input(inputEvent);
 
             private static bool ContainsSolidFill(
                 DrawingContext context,

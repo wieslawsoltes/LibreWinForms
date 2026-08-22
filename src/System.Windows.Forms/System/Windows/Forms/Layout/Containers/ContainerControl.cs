@@ -622,6 +622,28 @@ public class ContainerControl : ScrollableControl, IContainerControl
         Debug.WriteLineIf(_activeControl is not null
             && !Contains(_activeControl), "ActiveControl is not a child of this ContainerControl");
 
+#if LIBREWINFORMS_PORTABLE
+        if (_activeControl is { Visible: true } activeControl)
+        {
+            if (!activeControl.Focused)
+            {
+                activeControl.Focus();
+            }
+
+            return;
+        }
+
+        ContainerControl? portableContainer = this;
+        while (portableContainer is not null && !portableContainer.Visible)
+        {
+            portableContainer = portableContainer.ParentInternal?.GetContainerControl() as ContainerControl;
+        }
+
+        if (portableContainer is { Visible: true, Focused: false })
+        {
+            portableContainer.Focus();
+        }
+#else
         if (_activeControl is not null && _activeControl.Visible)
         {
             // Avoid focus loops, especially with ComboBoxes.
@@ -653,6 +675,7 @@ public class ContainerControl : ScrollableControl, IContainerControl
                 PInvoke.SetFocus(containerControl);
             }
         }
+#endif
     }
 
     private SizeF GetParentAutoScaleFactor()
