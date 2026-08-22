@@ -909,6 +909,14 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
         }
     }
 
+    internal void SetPortableTopMost(bool topMost)
+    {
+        if (_portableWindow is { } window)
+        {
+            window.TopMost = topMost;
+        }
+    }
+
     internal void SetPortableOwner(NativeWindow? owner)
     {
         if (_portableWindow is { } window)

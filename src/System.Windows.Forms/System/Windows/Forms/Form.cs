@@ -788,6 +788,15 @@ public partial class Form : ContainerControl
         {
             CreateParams cp = base.CreateParams;
 
+#if LIBREWINFORMS_PORTABLE
+            // Portable NativeWindow translates this canonical style into LibreWindowOptions.TopMost
+            // before creating the platform window. Native Windows reapplies TopMost after creation.
+            if (TopLevel && TopMost)
+            {
+                cp.ExStyle |= (int)WINDOW_EX_STYLE.WS_EX_TOPMOST;
+            }
+#endif
+
             if (IsHandleCreated &&
 #if LIBREWINFORMS_PORTABLE
                 !PortableWindowEnabled)
@@ -2100,11 +2109,15 @@ public partial class Form : ContainerControl
         {
             if (IsHandleCreated && TopLevel)
             {
+#if LIBREWINFORMS_PORTABLE
+                SetPortableWindowTopMost(value);
+#else
                 PInvoke.SetWindowPos(
                     this,
                     value ? HWND.HWND_TOPMOST : HWND.HWND_NOTOPMOST,
                     0, 0, 0, 0,
                     SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE);
+#endif
             }
 
             _formState[s_formStateTopMost] = value ? 1 : 0;

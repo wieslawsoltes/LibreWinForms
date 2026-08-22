@@ -239,6 +239,16 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         }
     }
 
+    public bool TopMost
+    {
+        get => _window.TopMost;
+        set
+        {
+            VerifyAccess();
+            _window.TopMost = value;
+        }
+    }
+
     public double FramebufferScale => DisplayScaleResolver.ResolveWindowFramebufferScale(_window);
 
     public double DpiScale => DisplayScaleResolver.ResolveWindowDisplayScale(_window, ResolveMonitorDpiScale());

@@ -17,6 +17,23 @@ namespace LibreWinForms.CanonicalLifecycle.Tests;
 public class CanonicalLifecycleTests
 {
     [Fact]
+    public void FormTopMost_UsesTypedInitialAndLiveWindowTopMost()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { TopMost = true };
+
+        _ = form.Handle;
+
+        platform.LastWindowTopMost.Should().BeTrue();
+
+        form.TopMost = false;
+        platform.LastWindowTopMost.Should().BeFalse();
+
+        form.TopMost = true;
+        platform.LastWindowTopMost.Should().BeTrue();
+    }
+
+    [Fact]
     public void FormWindowState_UsesTypedInitialLiveAndPlatformDrivenTransitions()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -806,6 +823,7 @@ public class CanonicalLifecycleTests
             LastActivatedWindow = default;
             LastWindowTitle = string.Empty;
             LastWindowState = LibreWindowState.Normal;
+            LastWindowTopMost = false;
             LastWindowIcons = [];
         }
 
@@ -848,6 +866,8 @@ public class CanonicalLifecycleTests
         internal string LastWindowTitle { get; private set; } = string.Empty;
 
         internal LibreWindowState LastWindowState { get; private set; }
+
+        internal bool LastWindowTopMost { get; private set; }
 
         internal IReadOnlyList<LibreWindowIcon> LastWindowIcons { get; private set; } = [];
 
@@ -1043,6 +1063,7 @@ public class CanonicalLifecycleTests
             private LibreRectangle _nativeBounds;
             private string _title = string.Empty;
             private LibreWindowState _state;
+            private bool _topMost;
 
             internal HeadlessWindow(
                 HeadlessPlatform platform,
@@ -1064,6 +1085,7 @@ public class CanonicalLifecycleTests
                 Title = options.Title;
                 _state = options.InitialState;
                 _platform.LastWindowState = _state;
+                TopMost = options.Options.HasFlag(LibreWindowOptions.TopMost);
                 Owner = options.Owner;
                 Visible = options.Options.HasFlag(LibreWindowOptions.Visible);
                 Handle = platform.Handles.Allocate(this, LibreHandleKind.Window);
@@ -1118,6 +1140,16 @@ public class CanonicalLifecycleTests
             public bool Visible { get; private set; }
 
             public bool Enabled { get; set; } = true;
+
+            public bool TopMost
+            {
+                get => _topMost;
+                set
+                {
+                    _topMost = value;
+                    _platform.LastWindowTopMost = value;
+                }
+            }
 
             public LibreWindowCoordinateMode CoordinateMode => _coordinateMode;
 

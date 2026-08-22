@@ -137,6 +137,8 @@ public class ProGpuDispatcherTests
 
         public bool Enabled { get; set; } = true;
 
+        public bool TopMost { get; set; }
+
         public LibreWindowCoordinateMode CoordinateMode => LibreWindowCoordinateMode.Logical;
 
         public double FramebufferScale => 1.0;

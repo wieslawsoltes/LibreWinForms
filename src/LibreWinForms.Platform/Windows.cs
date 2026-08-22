@@ -186,6 +186,9 @@ public interface ILibreWindow : IDisposable
     /// </summary>
     bool Enabled { get; set; }
 
+    /// <summary>Gets or sets whether the platform keeps this top-level window above non-topmost windows.</summary>
+    bool TopMost { get; set; }
+
     LibreWindowCoordinateMode CoordinateMode { get; }
 
     /// <summary>Ratio from native window screen-coordinate units to framebuffer pixels.</summary>

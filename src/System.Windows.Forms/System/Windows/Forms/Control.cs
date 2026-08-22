@@ -11192,6 +11192,9 @@ public unsafe partial class Control :
     internal void SetPortableWindowState(LibreWindowState state)
         => _window.SetPortableState(state);
 
+    internal void SetPortableWindowTopMost(bool topMost)
+        => _window.SetPortableTopMost(topMost);
+
     internal void SetPortableOwner(Control? owner)
         => _window.SetPortableOwner(owner?._window);
 
