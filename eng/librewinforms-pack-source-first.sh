@@ -44,10 +44,13 @@ required_entries=(
   "lib/net11.0/System.Private.Windows.Core.dll"
   "lib/net11.0/System.Private.Windows.Core.xml"
   "lib/net11.0/Accessibility.dll"
+  "lib/net11.0/LibreWinForms.Platform.dll"
+  "lib/net11.0/LibreWinForms.Platform.xml"
   "ref/net11.0/System.Windows.Forms.dll"
   "ref/net11.0/System.Windows.Forms.Primitives.dll"
   "ref/net11.0/System.Private.Windows.Core.dll"
   "ref/net11.0/Accessibility.dll"
+  "ref/net11.0/LibreWinForms.Platform.dll"
 )
 
 package_entries="$(unzip -Z1 "${package_file}")"
@@ -67,6 +70,13 @@ implementation_hash="$(unzip -p "${package_file}" lib/net11.0/System.Windows.For
 canonical_hash="$(sha256sum "${repo_root}/artifacts/bin/System.Windows.Forms/${configuration}/net11.0/System.Windows.Forms.dll" | cut -d' ' -f1)"
 if [[ "${implementation_hash}" != "${canonical_hash}" ]]; then
   echo "Packed System.Windows.Forms.dll is not the current canonical build output." >&2
+  exit 1
+fi
+
+platform_implementation_hash="$(unzip -p "${package_file}" lib/net11.0/LibreWinForms.Platform.dll | sha256sum | cut -d' ' -f1)"
+platform_canonical_hash="$(sha256sum "${repo_root}/artifacts/bin/LibreWinForms.Platform/${configuration}/net11.0/LibreWinForms.Platform.dll" | cut -d' ' -f1)"
+if [[ "${platform_implementation_hash}" != "${platform_canonical_hash}" ]]; then
+  echo "Packed LibreWinForms.Platform.dll is not the current source build output." >&2
   exit 1
 fi
 
@@ -95,4 +105,5 @@ NUGET_PACKAGES="${smoke_root}/packages" "${dotnet}" build \
 
 echo "Canonical source-first package validated: ${package_file}"
 echo "System.Windows.Forms SHA-256: ${implementation_hash}"
+echo "LibreWinForms.Platform SHA-256: ${platform_implementation_hash}"
 echo "Fresh-cache canonical package consumer validated with warnings treated as errors."

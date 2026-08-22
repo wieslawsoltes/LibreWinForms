@@ -24,7 +24,7 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(LibreWinFormsUseProGpuSystemDrawing)' == 'true'">
-    <DefineConstants>$(DefineConstants);LIBREWINFORMS_PROGPU_DRAWING</DefineConstants>
+    <DefineConstants>$(DefineConstants);LIBREWINFORMS_PROGPU_DRAWING;LIBREWINFORMS_PORTABLE</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
@@ -42,6 +42,7 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(LibreWinFormsUseProGpuSystemDrawing)' == 'true'">
+    <ProjectReference Include="..\LibreWinForms.Platform\LibreWinForms.Platform.csproj" />
     <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\System.Drawing.Common\System.Drawing.Common.csproj" />
     <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\ProGPU.Backend\ProGPU.Backend.csproj" />
     <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\ProGPU.Scene\ProGPU.Scene.csproj" />

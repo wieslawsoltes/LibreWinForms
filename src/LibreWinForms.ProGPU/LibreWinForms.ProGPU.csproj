@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>$(NetCurrent)</TargetFramework>
+    <AssemblyName>LibreWinForms.ProGPU</AssemblyName>
+    <RootNamespace>LibreWinForms.ProGPU</RootNamespace>
+    <Nullable>enable</Nullable>
+    <Deterministic>true</Deterministic>
+    <StrongNameKeyId>ECMA</StrongNameKeyId>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="tests\**\*.cs" />
+    <None Remove="tests\**\*" />
+    <ProjectReference Include="..\LibreWinForms.Platform\LibreWinForms.Platform.csproj" />
+    <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\ProGPU.Backend\ProGPU.Backend.csproj" />
+    <PackageReference Include="Silk.NET.Input" />
+    <PackageReference Include="Silk.NET.Input.Glfw" />
+    <PackageReference Include="Silk.NET.Windowing" />
+    <PackageReference Include="Silk.NET.Windowing.Glfw" />
+  </ItemGroup>
+
+</Project>

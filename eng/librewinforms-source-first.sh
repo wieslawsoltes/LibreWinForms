@@ -24,6 +24,18 @@ echo "Building canonical System.Windows.Forms against source-built ProGPU System
   -p:LibreWinFormsUseProGpuSystemDrawing=true \
   -p:LibreWinFormsReferenceMode=Project
 
+echo "Testing typed platform contracts and the ProGPU/Silk.NET loop foundation."
+"${repo_root}/eng/common/dotnet.sh" test \
+  "${repo_root}/src/LibreWinForms.Platform/tests/LibreWinForms.Platform.Tests.csproj" \
+  --configuration "${configuration}" \
+  --nologo \
+  -p:MicrosoftNETCoreAppRefPackageVersion=
+"${repo_root}/eng/common/dotnet.sh" test \
+  "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
+  --configuration "${configuration}" \
+  --nologo \
+  -p:MicrosoftNETCoreAppRefPackageVersion=
+
 echo "Verifying ProGPU System.Drawing API debt and focused quality gates."
 (
   cd "${progpu_root}"
