@@ -173,6 +173,31 @@ public class LibrePlatformTests
         convert.Should().Throw<ArgumentOutOfRangeException>().WithParameterName(nameof(mode));
     }
 
+    [Fact]
+    public void WindowIcon_SnapshotsValidatedRgbaPixels()
+    {
+        byte[] source = [1, 2, 3, 4, 5, 6, 7, 8];
+        LibreWindowIcon icon = new(2, 1, source);
+        source[0] = 99;
+        byte[] copied = new byte[icon.PixelByteLength];
+
+        icon.CopyPixelsTo(copied);
+
+        icon.Width.Should().Be(2);
+        icon.Height.Should().Be(1);
+        copied.Should().Equal(1, 2, 3, 4, 5, 6, 7, 8);
+    }
+
+    [Fact]
+    public void WindowIcon_RejectsInvalidDimensionsAndPixelLength()
+    {
+        Action invalidWidth = () => new LibreWindowIcon(0, 1, []);
+        Action invalidLength = () => new LibreWindowIcon(2, 1, [1, 2, 3, 4]);
+
+        invalidWidth.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("width");
+        invalidLength.Should().Throw<ArgumentException>().WithParameterName("rgbaPixels");
+    }
+
     private static LibreMonitor[] CreateMonitorInventory() =>
     [
         new("primary", new(0, 0, 1920, 1080), new(0, 0, 1920, 1040), 1, true),

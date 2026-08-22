@@ -7,6 +7,7 @@ using System.Numerics;
 using LibreWinForms.Platform;
 using ProGPU.Backend;
 using ProGPU.Scene;
+using Silk.NET.Core;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.WebGPU;
@@ -241,6 +242,32 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     public double FramebufferScale => DisplayScaleResolver.ResolveWindowFramebufferScale(_window);
 
     public double DpiScale => DisplayScaleResolver.ResolveWindowDisplayScale(_window, ResolveMonitorDpiScale());
+
+    public void SetIcons(IReadOnlyList<LibreWindowIcon> icons)
+    {
+        VerifyAccess();
+        ArgumentNullException.ThrowIfNull(icons);
+        if (icons.Count == 0)
+        {
+            _window.SetWindowIcon(default);
+            return;
+        }
+
+        RawImage[] rawImages = new RawImage[icons.Count];
+        byte[][] pixelBuffers = new byte[icons.Count][];
+        for (int index = 0; index < icons.Count; index++)
+        {
+            LibreWindowIcon icon = icons[index]
+                ?? throw new ArgumentException("Window icon collections cannot contain null entries.", nameof(icons));
+            byte[] pixels = new byte[icon.PixelByteLength];
+            icon.CopyPixelsTo(pixels);
+            pixelBuffers[index] = pixels;
+            rawImages[index] = new RawImage(icon.Width, icon.Height, pixels);
+        }
+
+        _window.SetWindowIcon(rawImages);
+        GC.KeepAlive(pixelBuffers);
+    }
 
     public void Show()
     {

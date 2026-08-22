@@ -5,6 +5,10 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.ComponentModel.Design;
 using System.Drawing;
+#if LIBREWINFORMS_PORTABLE
+using System.Drawing.Imaging;
+using LibreWinForms.Platform;
+#endif
 using System.Runtime.InteropServices;
 using System.Windows.Forms.Layout;
 #if !LIBREWINFORMS_PORTABLE
@@ -1871,7 +1875,9 @@ public partial class Form : ContainerControl
             _formStateEx[s_formStateExShowIcon] = value ? 1 : 0;
             if (!value)
             {
+#if !LIBREWINFORMS_PORTABLE
                 UpdateStyles();
+#endif
             }
 
             UpdateWindowIcon(true);
@@ -3384,6 +3390,7 @@ public partial class Form : ContainerControl
 #if LIBREWINFORMS_PORTABLE
         base.CreateHandle();
         UpdateHandleWithOwner();
+        UpdateWindowIcon(false);
 #else
         // In the windows MDI code we have to suspend menu
         // updates on the parent while creating the handle. Otherwise if the
@@ -6675,9 +6682,39 @@ public partial class Form : ContainerControl
     private unsafe void UpdateWindowIcon(bool redrawFrame, int dpi = 0)
     {
 #if LIBREWINFORMS_PORTABLE
-        // Icon transport requires a typed platform-window icon contract. Do not export
-        // ProGPU images as Win32 HICONs on the portable path.
-        _ = this;
+        if (!IsHandleCreated)
+        {
+            return;
+        }
+
+        Icon? icon = ((FormBorderStyle == FormBorderStyle.FixedDialog && _formState[s_formStateIconSet] == 0) || !ShowIcon)
+            ? null
+            : Icon;
+        if (icon is null)
+        {
+            SetPortableWindowIcons([]);
+            return;
+        }
+
+        if (dpi == 0)
+        {
+            dpi = DeviceDpi;
+        }
+
+        List<LibreWindowIcon> icons = [CreatePortableWindowIcon(icon)];
+        int smallSize = Math.Max(1, checked((int)Math.Round(16.0 * dpi / ScaleHelper.InitialSystemDpi)));
+        if (icon.Width != smallSize || icon.Height != smallSize)
+        {
+            using Icon smallIcon = new(icon, smallSize, smallSize);
+            icons.Add(CreatePortableWindowIcon(smallIcon));
+        }
+
+        SetPortableWindowIcons(icons);
+        if (redrawFrame)
+        {
+            Invalidate();
+        }
+
         return;
 #else
         if (IsHandleCreated)
@@ -6740,6 +6777,38 @@ public partial class Form : ContainerControl
         }
 #endif
     }
+
+#if LIBREWINFORMS_PORTABLE
+    private static unsafe LibreWindowIcon CreatePortableWindowIcon(Icon icon)
+    {
+        using Bitmap bitmap = icon.ToBitmap();
+        Rectangle bounds = new(0, 0, bitmap.Width, bitmap.Height);
+        BitmapData data = bitmap.LockBits(bounds, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        try
+        {
+            byte[] rgba = new byte[checked(bitmap.Width * bitmap.Height * 4)];
+            for (int y = 0; y < bitmap.Height; y++)
+            {
+                ReadOnlySpan<byte> source = new((byte*)data.Scan0 + checked(y * data.Stride), bitmap.Width * 4);
+                Span<byte> destination = rgba.AsSpan(y * bitmap.Width * 4, bitmap.Width * 4);
+                for (int x = 0; x < bitmap.Width; x++)
+                {
+                    int offset = x * 4;
+                    destination[offset] = source[offset + 2];
+                    destination[offset + 1] = source[offset + 1];
+                    destination[offset + 2] = source[offset];
+                    destination[offset + 3] = source[offset + 3];
+                }
+            }
+
+            return new LibreWindowIcon(bitmap.Width, bitmap.Height, rgba);
+        }
+        finally
+        {
+            bitmap.UnlockBits(data);
+        }
+    }
+#endif
 
     /// <summary>
     ///  Update the window state from the handle, if created.

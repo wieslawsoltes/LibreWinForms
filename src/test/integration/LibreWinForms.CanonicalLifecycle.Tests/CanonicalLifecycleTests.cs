@@ -3,6 +3,7 @@
 
 using System.Collections.Concurrent;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.Numerics;
 using System.Windows.Forms;
 using FluentAssertions;
@@ -15,6 +16,36 @@ namespace LibreWinForms.CanonicalLifecycle.Tests;
 
 public class CanonicalLifecycleTests
 {
+    [Fact]
+    public void FormIcon_UsesTypedRgbaWindowIconTransportAndShowIconClearsIt()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Bitmap bitmap = new(2, 1);
+        bitmap.SetPixel(0, 0, Color.FromArgb(255, 10, 20, 30));
+        bitmap.SetPixel(1, 0, Color.FromArgb(255, 200, 150, 100));
+        using MemoryStream stream = new();
+        bitmap.Save(stream, ImageFormat.Png);
+        stream.Position = 0;
+        using Icon icon = new(stream);
+        using Form form = new() { Icon = icon };
+
+        _ = form.Handle;
+
+        platform.LastWindowIcons.Should().HaveCount(2);
+        LibreWindowIcon original = platform.LastWindowIcons[0];
+        byte[] pixels = new byte[original.PixelByteLength];
+        original.CopyPixelsTo(pixels);
+        original.Width.Should().Be(2);
+        original.Height.Should().Be(1);
+        pixels.Should().Equal(10, 20, 30, 255, 200, 150, 100, 255);
+
+        form.ShowIcon = false;
+        platform.LastWindowIcons.Should().BeEmpty();
+
+        form.ShowIcon = true;
+        platform.LastWindowIcons.Should().HaveCount(2);
+    }
+
     [Fact]
     public void ApplicationRun_CanonicalForm_UsesTypedPortableLifecycle()
     {
@@ -725,6 +756,7 @@ public class CanonicalLifecycleTests
             CreateGraphicsCommitCount = 0;
             SawCreateGraphicsTranslatedFill = false;
             LastActivatedWindow = default;
+            LastWindowIcons = [];
         }
 
         internal ManagedLibreHandleRegistry Handles { get; }
@@ -762,6 +794,8 @@ public class CanonicalLifecycleTests
         internal bool SawCreateGraphicsTranslatedFill { get; private set; }
 
         internal LibreHandle LastActivatedWindow { get; private set; }
+
+        internal IReadOnlyList<LibreWindowIcon> LastWindowIcons { get; private set; } = [];
 
         internal void SetMonitors(params LibreMonitor[] monitors)
         {
@@ -1005,6 +1039,9 @@ public class CanonicalLifecycleTests
             public double FramebufferScale => _framebufferScale;
 
             public double DpiScale => _dpiScale;
+
+            public void SetIcons(IReadOnlyList<LibreWindowIcon> icons)
+                => _platform.LastWindowIcons = icons.ToArray();
 
             public void Show()
             {

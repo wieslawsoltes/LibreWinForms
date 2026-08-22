@@ -141,6 +141,8 @@ public class ProGpuDispatcherTests
 
         public double DpiScale => 1.0;
 
+        public void SetIcons(IReadOnlyList<LibreWindowIcon> icons) { }
+
         public int PresentCount { get; private set; }
 
         public int PresentThread { get; private set; }

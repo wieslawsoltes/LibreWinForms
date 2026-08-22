@@ -11187,6 +11187,9 @@ public unsafe partial class Control :
 
     internal void ActivatePortableWindow() => _window.ActivatePortable();
 
+    internal void SetPortableWindowIcons(IReadOnlyList<LibreWindowIcon> icons)
+        => GetPortableTopLevelControl()._window.SetPortableIcons(icons);
+
     internal void UpdatePortableBounds(LibreRectangle bounds)
         => UpdateBounds(bounds.X, bounds.Y, bounds.Width, bounds.Height, bounds.Width, bounds.Height);
 

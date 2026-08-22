@@ -925,6 +925,14 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
         }
     }
 
+    internal void SetPortableIcons(IReadOnlyList<LibreWindowIcon> icons)
+    {
+        if (_portableWindow is { } window)
+        {
+            window.SetIcons(icons);
+        }
+    }
+
     internal void InvalidatePortable(LibreRectangle? dirtyRectangle)
     {
         if (_portableWindow is null)

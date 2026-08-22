@@ -41,6 +41,47 @@ public readonly record struct LibreWindowCreateOptions(
     LibreWindowCoordinateMode CoordinateMode = LibreWindowCoordinateMode.Logical,
     double InitialDpiScale = 1.0);
 
+/// <summary>An immutable, tightly packed RGBA8 icon image for a platform window.</summary>
+public sealed class LibreWindowIcon
+{
+    private readonly byte[] _rgbaPixels;
+
+    public LibreWindowIcon(int width, int height, ReadOnlySpan<byte> rgbaPixels)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+
+        int requiredLength = checked(checked(width * height) * 4);
+        if (rgbaPixels.Length != requiredLength)
+        {
+            throw new ArgumentException(
+                $"RGBA8 pixel data must contain exactly {requiredLength} bytes.",
+                nameof(rgbaPixels));
+        }
+
+        Width = width;
+        Height = height;
+        _rgbaPixels = rgbaPixels.ToArray();
+    }
+
+    public int Width { get; }
+
+    public int Height { get; }
+
+    public int PixelByteLength => _rgbaPixels.Length;
+
+    /// <summary>Copies the immutable RGBA8 snapshot into caller-owned storage.</summary>
+    public void CopyPixelsTo(Span<byte> destination)
+    {
+        if (destination.Length < _rgbaPixels.Length)
+        {
+            throw new ArgumentException("The destination is smaller than the icon pixel data.", nameof(destination));
+        }
+
+        _rgbaPixels.CopyTo(destination);
+    }
+}
+
 /// <summary>Checked conversion between native logical window units and managed coordinates.</summary>
 public static class LibreWindowCoordinates
 {
@@ -145,6 +186,12 @@ public interface ILibreWindow : IDisposable
 
     /// <summary>DPI/content scale used by canonical font, layout, and control autoscaling.</summary>
     double DpiScale { get; }
+
+    /// <summary>
+    ///  Replaces the platform icon set with immutable RGBA8 snapshots. An empty list restores
+    ///  the platform default. Implementations must consume or copy all data before returning.
+    /// </summary>
+    void SetIcons(IReadOnlyList<LibreWindowIcon> icons);
 
     void Show();
 
