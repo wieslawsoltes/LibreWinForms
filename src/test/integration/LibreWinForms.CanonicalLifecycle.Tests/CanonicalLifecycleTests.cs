@@ -933,6 +933,87 @@ public class CanonicalLifecycleTests
         form.Handle.Should().Be(formHandle);
     }
 
+    [Fact]
+    public void StockCursors_UseTypedPortableTransportWithHoverInheritanceAndCapture()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new()
+        {
+            Bounds = new Rectangle(20, 30, 240, 160),
+            Cursor = Cursors.Cross,
+        };
+        using Control child = new()
+        {
+            Bounds = new Rectangle(10, 12, 80, 50),
+            Cursor = Cursors.Hand,
+        };
+        form.Controls.Add(child);
+        int cursorChanged = 0;
+        child.CursorChanged += (_, _) => cursorChanged++;
+
+        _ = form.Handle;
+        form.Show();
+        Cursors.Default.Should().Be(Cursors.Arrow);
+
+        platform.SendInput(LibreInputEventKind.PointerMove, position: new LibrePoint(15, 18));
+        platform.LastCursorShape.Should().Be(LibreCursorShape.Hand);
+
+        child.Cursor = Cursors.IBeam;
+        platform.LastCursorShape.Should().Be(LibreCursorShape.IBeam);
+        cursorChanged.Should().Be(1);
+
+        child.Capture = true;
+        platform.SendInput(LibreInputEventKind.PointerMove, position: new LibrePoint(160, 100));
+        (Cursor Cursor, LibreCursorShape Shape)[] stockCursors =
+        [
+            (Cursors.AppStarting, LibreCursorShape.AppStarting),
+            (Cursors.Arrow, LibreCursorShape.Arrow),
+            (Cursors.Cross, LibreCursorShape.Cross),
+            (Cursors.Default, LibreCursorShape.Arrow),
+            (Cursors.IBeam, LibreCursorShape.IBeam),
+            (Cursors.No, LibreCursorShape.No),
+            (Cursors.SizeAll, LibreCursorShape.SizeAll),
+            (Cursors.SizeNESW, LibreCursorShape.SizeNESW),
+            (Cursors.SizeNS, LibreCursorShape.SizeNS),
+            (Cursors.SizeNWSE, LibreCursorShape.SizeNWSE),
+            (Cursors.SizeWE, LibreCursorShape.SizeWE),
+            (Cursors.UpArrow, LibreCursorShape.UpArrow),
+            (Cursors.WaitCursor, LibreCursorShape.Wait),
+            (Cursors.Help, LibreCursorShape.Help),
+            (Cursors.Hand, LibreCursorShape.Hand),
+            (Cursors.HSplit, LibreCursorShape.HSplit),
+            (Cursors.VSplit, LibreCursorShape.VSplit),
+            (Cursors.NoMove2D, LibreCursorShape.NoMove2D),
+            (Cursors.NoMoveHoriz, LibreCursorShape.NoMoveHoriz),
+            (Cursors.NoMoveVert, LibreCursorShape.NoMoveVert),
+            (Cursors.PanEast, LibreCursorShape.PanEast),
+            (Cursors.PanNE, LibreCursorShape.PanNE),
+            (Cursors.PanNorth, LibreCursorShape.PanNorth),
+            (Cursors.PanNW, LibreCursorShape.PanNW),
+            (Cursors.PanSE, LibreCursorShape.PanSE),
+            (Cursors.PanSouth, LibreCursorShape.PanSouth),
+            (Cursors.PanSW, LibreCursorShape.PanSW),
+            (Cursors.PanWest, LibreCursorShape.PanWest),
+        ];
+        foreach ((Cursor cursor, LibreCursorShape shape) in stockCursors)
+        {
+            child.Cursor = cursor;
+            platform.LastCursorShape.Should().Be(shape);
+        }
+
+        child.Capture = false;
+        platform.LastCursorShape.Should().Be(LibreCursorShape.Cross);
+
+        child.Cursor = null!;
+        platform.SendInput(LibreInputEventKind.PointerMove, position: new LibrePoint(15, 18));
+        platform.LastCursorShape.Should().Be(LibreCursorShape.Cross);
+
+        child.UseWaitCursor = true;
+        platform.LastCursorShape.Should().Be(LibreCursorShape.Wait);
+        cursorChanged.Should().BeGreaterThan(20);
+        platform.CursorChangeCount.Should().BeGreaterThan(20);
+    }
+
     private static HeadlessPlatform UseHeadlessPlatform(bool autoCloseWindows)
     {
         HeadlessPlatform platform;
@@ -1027,6 +1108,8 @@ public class CanonicalLifecycleTests
             LastWindowOpacity = 1d;
             LastWindowZOrder = null;
             WindowZOrderChangeCount = 0;
+            LastCursorShape = null;
+            CursorChangeCount = 0;
             LastWindowIcons = [];
         }
 
@@ -1087,6 +1170,10 @@ public class CanonicalLifecycleTests
         internal LibreWindowZOrder? LastWindowZOrder { get; private set; }
 
         internal int WindowZOrderChangeCount { get; private set; }
+
+        internal LibreCursorShape? LastCursorShape { get; private set; }
+
+        internal int CursorChangeCount { get; private set; }
 
         internal LibreSize LastWindowMinimumSize { get; private set; }
 
@@ -1455,6 +1542,12 @@ public class CanonicalLifecycleTests
             {
                 _platform.LastWindowZOrder = value;
                 _platform.WindowZOrderChangeCount++;
+            }
+
+            public void SetCursor(LibreCursorShape shape)
+            {
+                _platform.LastCursorShape = shape;
+                _platform.CursorChangeCount++;
             }
 
             public void SetSizeConstraints(LibreSize minimum, LibreSize maximum)

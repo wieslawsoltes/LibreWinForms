@@ -23,6 +23,7 @@ public unsafe partial class Control
     private Control? _portablePressedControl;
     private MouseButtons _portablePressedButton;
     private bool _portableWindowFocused;
+    private LibreCursorShape? _portableAppliedCursorShape;
 
     internal void DispatchPortableInput(in LibreInputEvent inputEvent)
     {
@@ -64,6 +65,7 @@ public unsafe partial class Control
         root._portablePressedButton = MouseButtons.None;
         s_portableMouseButtons = MouseButtons.None;
         captured?.OnMouseCaptureChanged(EventArgs.Empty);
+        root.RefreshPortableCursor();
     }
 
     private void SetPortableWindowFocus(bool focused)
@@ -143,6 +145,7 @@ public unsafe partial class Control
         Control? hit = PortableHitTest(rootPosition);
         UpdatePortableHover(hit);
         Control? target = _portableCapturedControl ?? hit;
+        RefreshPortableCursor();
         if (target is null)
         {
             return;
@@ -184,6 +187,7 @@ public unsafe partial class Control
                 _portableCapturedControl = null;
                 _portablePressedControl = null;
                 _portablePressedButton = MouseButtons.None;
+                RefreshPortableCursor();
                 break;
             case LibreInputEventKind.PointerWheel:
                 DispatchPortableMouseWheel(target, s_portableMousePosition, inputEvent.Delta.Y);
@@ -215,6 +219,20 @@ public unsafe partial class Control
         _portableHoveredControl?.OnMouseLeave(EventArgs.Empty);
         _portableHoveredControl = target;
         target?.OnMouseEnter(EventArgs.Empty);
+    }
+
+    private void RefreshPortableCursor(bool force = false)
+    {
+        Control root = GetPortableTopLevelControl();
+        Control? target = root._portableCapturedControl ?? root._portableHoveredControl;
+        LibreCursorShape shape = (target?.Cursor ?? Cursors.Default).PortableShape;
+        if (!force && root._portableAppliedCursorShape == shape)
+        {
+            return;
+        }
+
+        root._window.SetPortableCursor(shape);
+        root._portableAppliedCursorShape = shape;
     }
 
     private Control? PortableHitTest(Point position)

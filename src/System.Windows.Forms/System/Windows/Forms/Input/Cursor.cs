@@ -6,6 +6,9 @@ using System.Drawing;
 using System.Drawing.Design;
 using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#endif
 using Windows.Win32.System.Com;
 using Windows.Win32.System.Ole;
 
@@ -24,6 +27,9 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     private readonly byte[]? _cursorData;
     private HCURSOR _handle;
     private readonly bool _freeHandle;
+#if LIBREWINFORMS_PORTABLE
+    private readonly LibreCursorShape? _portableShape;
+#endif
 
     /// <summary>
     ///  If created by the <see cref="Cursors"/> class, this is the property name that created it.
@@ -35,20 +41,71 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
         GC.SuppressFinalize(this);
         _freeHandle = false;
         CursorsProperty = cursorsProperty;
+#if LIBREWINFORMS_PORTABLE
+        _portableShape = GetPortableShape(cursorsProperty);
+#else
         _handle = PInvoke.LoadCursor(HINSTANCE.Null, nResourceId);
         if (_handle.IsNull)
         {
             throw new Win32Exception(string.Format(SR.FailedToLoadCursor, Marshal.GetLastWin32Error()));
         }
+#endif
     }
 
     internal Cursor(string resource, string cursorsProperty)
+#if !LIBREWINFORMS_PORTABLE
         : this(typeof(Cursors).Assembly.GetManifestResourceStream(typeof(Cursor), resource).OrThrowIfNull())
+#endif
     {
         GC.SuppressFinalize(this);
         CursorsProperty = cursorsProperty;
         _freeHandle = false;
+#if LIBREWINFORMS_PORTABLE
+        _portableShape = GetPortableShape(cursorsProperty);
+#endif
     }
+
+#if LIBREWINFORMS_PORTABLE
+    internal LibreCursorShape PortableShape
+        => _portableShape
+            ?? throw new PlatformNotSupportedException("Only platform-provided cursors can be applied by the portable backend.");
+
+    private static LibreCursorShape GetPortableShape(string cursorsProperty)
+        => cursorsProperty switch
+        {
+            nameof(Cursors.AppStarting) => LibreCursorShape.AppStarting,
+            nameof(Cursors.Arrow) or nameof(Cursors.Default) => LibreCursorShape.Arrow,
+            nameof(Cursors.Cross) => LibreCursorShape.Cross,
+            nameof(Cursors.IBeam) => LibreCursorShape.IBeam,
+            nameof(Cursors.No) => LibreCursorShape.No,
+            nameof(Cursors.SizeAll) => LibreCursorShape.SizeAll,
+            nameof(Cursors.SizeNESW) => LibreCursorShape.SizeNESW,
+            nameof(Cursors.SizeNS) => LibreCursorShape.SizeNS,
+            nameof(Cursors.SizeNWSE) => LibreCursorShape.SizeNWSE,
+            nameof(Cursors.SizeWE) => LibreCursorShape.SizeWE,
+            nameof(Cursors.UpArrow) => LibreCursorShape.UpArrow,
+            nameof(Cursors.WaitCursor) => LibreCursorShape.Wait,
+            nameof(Cursors.Help) => LibreCursorShape.Help,
+            nameof(Cursors.Hand) => LibreCursorShape.Hand,
+            nameof(Cursors.HSplit) => LibreCursorShape.HSplit,
+            nameof(Cursors.VSplit) => LibreCursorShape.VSplit,
+            nameof(Cursors.NoMove2D) => LibreCursorShape.NoMove2D,
+            nameof(Cursors.NoMoveHoriz) => LibreCursorShape.NoMoveHoriz,
+            nameof(Cursors.NoMoveVert) => LibreCursorShape.NoMoveVert,
+            nameof(Cursors.PanEast) => LibreCursorShape.PanEast,
+            nameof(Cursors.PanNE) => LibreCursorShape.PanNE,
+            nameof(Cursors.PanNorth) => LibreCursorShape.PanNorth,
+            nameof(Cursors.PanNW) => LibreCursorShape.PanNW,
+            nameof(Cursors.PanSE) => LibreCursorShape.PanSE,
+            nameof(Cursors.PanSouth) => LibreCursorShape.PanSouth,
+            nameof(Cursors.PanSW) => LibreCursorShape.PanSW,
+            nameof(Cursors.PanWest) => LibreCursorShape.PanWest,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(cursorsProperty),
+                cursorsProperty,
+                "Unknown platform cursor property."),
+        };
+#endif
 
     /// <summary>
     ///  Initializes a new instance of the <see cref="Cursor"/> class from the specified <paramref name="handle"/>.
@@ -157,6 +214,12 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            if (_portableShape is not null)
+            {
+                throw new PlatformNotSupportedException("Platform-provided portable cursors do not expose Win32 handles.");
+            }
+#endif
             ObjectDisposedException.ThrowIf(_handle.IsNull, this);
             return (nint)_handle;
         }
@@ -469,12 +532,34 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
 
     public static bool operator ==(Cursor? left, Cursor? right)
     {
-        return right is null || left is null ? left is null && right is null : left._handle == right._handle;
+        if (right is null || left is null)
+        {
+            return left is null && right is null;
+        }
+
+#if LIBREWINFORMS_PORTABLE
+        if (left._portableShape is not null || right._portableShape is not null)
+        {
+            return left._portableShape == right._portableShape;
+        }
+#endif
+
+        return left._handle == right._handle;
     }
 
     public static bool operator !=(Cursor? left, Cursor? right) => !(left == right);
 
-    public override unsafe int GetHashCode() => (int)_handle.Value;
+    public override unsafe int GetHashCode()
+    {
+#if LIBREWINFORMS_PORTABLE
+        if (_portableShape is { } shape)
+        {
+            return shape.GetHashCode();
+        }
+#endif
+
+        return (int)_handle.Value;
+    }
 
     public override bool Equals(object? obj) => obj is Cursor cursor && this == cursor;
 }

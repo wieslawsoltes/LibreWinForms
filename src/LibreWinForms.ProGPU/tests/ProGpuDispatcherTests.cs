@@ -153,6 +153,8 @@ public class ProGpuDispatcherTests
 
         public void SetZOrder(LibreWindowZOrder value) { }
 
+        public void SetCursor(LibreCursorShape shape) { }
+
         public void SetSizeConstraints(LibreSize minimum, LibreSize maximum) { }
 
         public LibreWindowCoordinateMode CoordinateMode => LibreWindowCoordinateMode.Logical;

@@ -35,6 +35,38 @@ public enum LibreWindowZOrder
     Back,
 }
 
+/// <summary>Identifies a platform-provided mouse cursor without exposing native handles.</summary>
+public enum LibreCursorShape
+{
+    Arrow,
+    AppStarting,
+    Cross,
+    IBeam,
+    Wait,
+    No,
+    SizeAll,
+    SizeNESW,
+    SizeNS,
+    SizeNWSE,
+    SizeWE,
+    UpArrow,
+    Help,
+    Hand,
+    HSplit,
+    VSplit,
+    NoMove2D,
+    NoMoveHoriz,
+    NoMoveVert,
+    PanEast,
+    PanNE,
+    PanNorth,
+    PanNW,
+    PanSE,
+    PanSouth,
+    PanSW,
+    PanWest,
+}
+
 /// <summary>Defines the managed coordinate space exposed by a platform window.</summary>
 public enum LibreWindowCoordinateMode
 {
@@ -229,6 +261,9 @@ public interface ILibreWindow : IDisposable
 
     /// <summary>Moves this top-level window to the front or back without changing its bounds.</summary>
     void SetZOrder(LibreWindowZOrder value);
+
+    /// <summary>Applies a platform-provided cursor to this top-level window.</summary>
+    void SetCursor(LibreCursorShape shape);
 
     /// <summary>
     ///  Atomically replaces the managed-coordinate window-size limits. Zero maximum dimensions

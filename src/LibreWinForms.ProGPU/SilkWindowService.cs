@@ -81,6 +81,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private double _opacity;
     private LibreSize _minimumSize;
     private LibreSize _maximumSize;
+    private LibreCursorShape _cursorShape = LibreCursorShape.Arrow;
     private double _reportedDpiScale = 1.0;
     private double _reportedFramebufferScale = 1.0;
     private readonly bool _initializing = true;
@@ -373,6 +374,14 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
             LibreWindowZOrder.Back => NativeWindowZOrder.Back,
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, "Unknown window z-order operation."),
         });
+    }
+
+    public void SetCursor(LibreCursorShape shape)
+    {
+        VerifyAccess();
+        _ = ToSilkStandardCursor(shape);
+        _cursorShape = shape;
+        ApplyCursor();
     }
 
     public void SetSizeConstraints(LibreSize minimum, LibreSize maximum)
@@ -871,6 +880,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
                 PrimarySampleCount = 1,
             });
         _input = _window.CreateInput();
+        ApplyCursor();
         foreach (IKeyboard keyboard in _input.Keyboards)
         {
             keyboard.KeyDown += OnKeyDown;
@@ -1055,6 +1065,49 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
             ToManagedPoint(mouse.Position),
             new LibrePoint(checked((int)Math.Round(wheel.X * 120)), checked((int)Math.Round(wheel.Y * 120))),
             LibrePointerButton.None));
+
+    private void ApplyCursor()
+    {
+        if (_input is null)
+        {
+            return;
+        }
+
+        StandardCursor requested = ToSilkStandardCursor(_cursorShape);
+        foreach (IMouse mouse in _input.Mice)
+        {
+            ICursor cursor = mouse.Cursor;
+            cursor.CursorMode = CursorMode.Normal;
+            cursor.Type = CursorType.Standard;
+            cursor.StandardCursor = cursor.IsSupported(requested)
+                ? requested
+                : StandardCursor.Arrow;
+        }
+    }
+
+    private static StandardCursor ToSilkStandardCursor(LibreCursorShape shape)
+        => shape switch
+        {
+            LibreCursorShape.Arrow => StandardCursor.Arrow,
+            LibreCursorShape.IBeam => StandardCursor.IBeam,
+            LibreCursorShape.Wait => StandardCursor.Wait,
+            LibreCursorShape.Cross => StandardCursor.Crosshair,
+            LibreCursorShape.SizeWE or LibreCursorShape.HSplit or LibreCursorShape.NoMoveVert or
+                LibreCursorShape.PanEast or LibreCursorShape.PanWest => StandardCursor.HResize,
+            LibreCursorShape.SizeNS or LibreCursorShape.VSplit or LibreCursorShape.NoMoveHoriz or
+                LibreCursorShape.PanNorth or LibreCursorShape.PanSouth => StandardCursor.VResize,
+            LibreCursorShape.SizeAll or LibreCursorShape.NoMove2D => StandardCursor.ResizeAll,
+            LibreCursorShape.No => StandardCursor.NotAllowed,
+            LibreCursorShape.Hand => StandardCursor.Hand,
+            LibreCursorShape.AppStarting => StandardCursor.WaitArrow,
+            LibreCursorShape.SizeNWSE or LibreCursorShape.PanNW or LibreCursorShape.PanSE =>
+                StandardCursor.NwseResize,
+            LibreCursorShape.SizeNESW or LibreCursorShape.PanNE or LibreCursorShape.PanSW =>
+                StandardCursor.NeswResize,
+            LibreCursorShape.Help => StandardCursor.Hand,
+            LibreCursorShape.UpArrow => StandardCursor.Arrow,
+            _ => throw new ArgumentOutOfRangeException(nameof(shape), shape, "Unknown cursor shape."),
+        };
 
     private void EmitPointer(LibreInputEventKind kind, Vector2 position, MouseButton button)
         => DeliverInput(new LibreInputEvent(

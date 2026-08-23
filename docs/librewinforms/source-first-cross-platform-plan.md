@@ -462,6 +462,16 @@ The first implementation checkpoint establishes these repository-owned paths:
 
 The canonical graph currently builds successfully on Linux with its existing Windows drawing dependency. The ProGPU substitution remains opt-in until the pinned drawing contract is sufficiently complete to compile the canonical consumers. This is an explicit, measurable dependency rather than a reason to add more compatibility controls.
 
+## Current stock-cursor checkpoint
+
+The current slice reuses canonical `Cursor`, `Cursors`, `Control.Cursor`, ambient inheritance, `UseWaitCursor`, hover hit testing, and capture state instead of adding portable lookalike properties. Portable construction gives all 28 built-in cursor properties exact semantic identities without loading USER32 resources. `Default` intentionally shares Arrow identity, while final backend fallbacks such as UpArrow-to-Arrow do not collapse distinct WinForms cursor equality.
+
+`ILibreWindow.SetCursor` carries only `LibreCursorShape`. The Silk.NET backend applies supported `StandardCursor` values to every mouse after input initialization and falls back to Arrow only at that final platform boundary. Canonical cursor changes resolve from the captured control or deepest hovered logical child. The expanded headless lifecycle gate drives every built-in shape through the real canonical property and proves live changes, parent inheritance, `UseWaitCursor`, hover, and capture dispatch without USER32. Exact local validation passes default canonical 0 warnings/0 errors, ProGPU canonical 613 warnings/0 errors, platform 22/22, backend 10/10, lifecycle 21/21, drawing 151/151, the unchanged 421-diagnostic API baseline with no breaks, comparison 0 warnings/0 errors, canonical pack inspection, and fresh-cache consumption with warnings treated as errors. The packed `System.Windows.Forms.dll` SHA-256 is `c58ddb2d1d501cb2f79d70e254b91b601d3aac8bc1320935d0eeb33b2468b2f4`; the packed `LibreWinForms.Platform.dll` SHA-256 is `9ffb4239a0a015af3bd781c617186ef0a6d50a96d4d426aa6e4f2afd72cef060`. Hosted evidence is pending.
+
+Custom `.cur` decoding/rendering, `Cursor.Current`, `Clip`, `Position`, hide/show balancing, cursor drawing, and native-handle interop remain explicit separate seams rather than being represented by fake handles.
+
+The preceding z-order checkpoint also has exact hosted evidence: build workflow `32910212351` and docs workflow `32910212353` pass attempt 1. Hosted packed hashes are `2ca5df5af36304109f2cef3939a3c351209b9aa732b7730d707f07c8145ef1e8` for `System.Windows.Forms.dll` and `ae8f29065a6eecf55ef267b2e464d4ad4d63370afdefc3492f76d905dab68587` for `LibreWinForms.Platform.dll`; canonical artifact `9586449728` has digest `df16e97a77cfd8d7ff85d2ab65b4458ce998882b994a8278549cd5514dee35e4`, package artifact `9586461285` has digest `36f42f287e847d8e7b49748fa6a4388fdabc23c140e64f8ef60060b8629136ae`, and docs artifact `9586257065` has digest `32a25f00fc8924db8b751c600c27c286ca804443e2e5a33b6afc39d56a10855e`.
+
 ## Proposed fixes for the missing-property problem
 
 The permanent fix is not to manually add thousands of properties to the compatibility source. Apply these fixes in order:

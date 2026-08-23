@@ -1204,6 +1204,8 @@ public unsafe partial class Control :
             {
                 root._portableCapturedControl = null;
             }
+
+            root.RefreshPortableCursor();
         }
 #else
         get => IsHandleCreated && PInvoke.GetCapture() == HWND;
@@ -1659,6 +1661,9 @@ public unsafe partial class Control :
             // Other things can change the cursor. We always want to force the correct cursor.
             if (IsHandleCreated)
             {
+#if LIBREWINFORMS_PORTABLE
+                GetPortableTopLevelControl().RefreshPortableCursor(force: true);
+#else
                 // We want to instantly change the cursor if the mouse is within our bounds.
                 // This includes the case where the mouse is over one of our children.
                 PInvoke.GetCursorPos(out Point p);
@@ -1667,6 +1672,7 @@ public unsafe partial class Control :
                 {
                     PInvokeCore.SendMessage(this, PInvokeCore.WM_SETCURSOR, (WPARAM)HWND, (LPARAM)(int)PInvoke.HTCLIENT);
                 }
+#endif
             }
 
             if (!resolvedCursor.Equals(value))
@@ -3556,6 +3562,13 @@ public unsafe partial class Control :
             if (GetState(States.UseWaitCursor) != value)
             {
                 SetState(States.UseWaitCursor, value);
+
+#if LIBREWINFORMS_PORTABLE
+                if (IsHandleCreated)
+                {
+                    GetPortableTopLevelControl().RefreshPortableCursor(force: true);
+                }
+#endif
 
                 if (ChildControls is { } children)
                 {

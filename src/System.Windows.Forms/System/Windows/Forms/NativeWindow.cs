@@ -975,6 +975,11 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
         _portableWindow?.SetZOrder(value);
     }
 
+    internal void SetPortableCursor(LibreCursorShape shape)
+    {
+        _portableWindow?.SetCursor(shape);
+    }
+
     internal void SetPortableShowInTaskbar(bool showInTaskbar)
     {
         _portableShowInTaskbar = showInTaskbar;
