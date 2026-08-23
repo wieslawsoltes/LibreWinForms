@@ -11205,6 +11205,9 @@ public unsafe partial class Control :
     internal void SetPortableWindowTopMost(bool topMost)
         => _window.SetPortableTopMost(topMost);
 
+    internal void SetPortableWindowShowInTaskbar(bool showInTaskbar)
+        => _window.SetPortableShowInTaskbar(showInTaskbar);
+
     internal void SetPortableOwner(Control? owner)
         => _window.SetPortableOwner(owner?._window);
 

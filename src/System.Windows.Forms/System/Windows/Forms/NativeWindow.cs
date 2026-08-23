@@ -76,6 +76,7 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
     private double _portablePresentationScale = 1.0;
     private WINDOW_STYLE _portableStyle;
     private WINDOW_EX_STYLE _portableExtendedStyle;
+    private bool _portableShowInTaskbar = true;
 
     internal LibreHandle PortableHandle => _portableHandle;
 #endif
@@ -473,8 +474,9 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
             LibrePlatformServices services = LibrePlatform.Current;
             _portableStyle = (WINDOW_STYLE)(uint)cp.Style;
             _portableExtendedStyle = (WINDOW_EX_STYLE)(uint)cp.ExStyle;
-            if (this is Control.ControlNativeWindow controlWindow && controlWindow.GetControl() is Form)
+            if (this is Control.ControlNativeWindow controlWindow && controlWindow.GetControl() is Form form)
             {
+                _portableShowInTaskbar = form.ShowInTaskbar;
                 LibreWindowOptions options = LibreWindowOptions.None;
                 LibreWindowBorder border = ResolvePortableBorder(_portableStyle);
                 if (border != LibreWindowBorder.Hidden) options |= LibreWindowOptions.Decorated;
@@ -529,7 +531,9 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
                     owner,
                     coordinateMode,
                     initialDpiScale,
-                    initialState);
+                    initialState,
+                    _portableShowInTaskbar
+                        && !_portableExtendedStyle.HasFlag(WINDOW_EX_STYLE.WS_EX_TOOLWINDOW));
                 _portableWindow = services.Windows.Create(createOptions, new PortableWindowEvents(this));
                 _portableHandle = _portableWindow.Handle;
                 _portableCoordinateMode = _portableWindow.CoordinateMode;
@@ -905,7 +909,11 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
     internal WINDOW_EX_STYLE PortableExtendedStyle
     {
         get => _portableExtendedStyle;
-        set => _portableExtendedStyle = value;
+        set
+        {
+            _portableExtendedStyle = value;
+            ApplyPortableShowInTaskbar();
+        }
     }
 
     internal void SetPortableEnabled(bool enabled)
@@ -937,6 +945,21 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
         if (_portableWindow is { } window)
         {
             window.TopMost = topMost;
+        }
+    }
+
+    internal void SetPortableShowInTaskbar(bool showInTaskbar)
+    {
+        _portableShowInTaskbar = showInTaskbar;
+        ApplyPortableShowInTaskbar();
+    }
+
+    private void ApplyPortableShowInTaskbar()
+    {
+        if (_portableWindow is { } window)
+        {
+            window.ShowInTaskbar = _portableShowInTaskbar
+                && !_portableExtendedStyle.HasFlag(WINDOW_EX_STYLE.WS_EX_TOOLWINDOW);
         }
     }
 
@@ -1069,6 +1092,7 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
             _portablePresentationScale = 1.0;
             _portableStyle = default;
             _portableExtendedStyle = default;
+            _portableShowInTaskbar = true;
             HWND = HWND.Null;
             _ownHandle = false;
             OnHandleChange();

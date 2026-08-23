@@ -141,6 +141,8 @@ public class ProGpuDispatcherTests
 
         public LibreWindowBorder Border { get; set; }
 
+        public bool ShowInTaskbar { get; set; } = true;
+
         public LibreWindowCoordinateMode CoordinateMode => LibreWindowCoordinateMode.Logical;
 
         public double FramebufferScale => 1.0;

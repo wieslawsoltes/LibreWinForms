@@ -17,6 +17,31 @@ namespace LibreWinForms.CanonicalLifecycle.Tests;
 public class CanonicalLifecycleTests
 {
     [Fact]
+    public void ShowInTaskbar_UsesTypedInitialAndLivePlatformState()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { ShowInTaskbar = false };
+
+        nint handle = form.Handle;
+
+        platform.LastWindowShowInTaskbar.Should().BeFalse();
+
+        form.ShowInTaskbar = true;
+        platform.LastWindowShowInTaskbar.Should().BeTrue();
+        form.Handle.Should().Be(handle);
+
+        form.FormBorderStyle = FormBorderStyle.FixedToolWindow;
+        platform.LastWindowShowInTaskbar.Should().BeFalse();
+
+        form.FormBorderStyle = FormBorderStyle.FixedDialog;
+        platform.LastWindowShowInTaskbar.Should().BeTrue();
+
+        form.ShowInTaskbar = false;
+        platform.LastWindowShowInTaskbar.Should().BeFalse();
+        form.Handle.Should().Be(handle);
+    }
+
+    [Fact]
     public void FormBorderStyle_UsesTypedInitialAndLiveWindowBorder()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -845,6 +870,7 @@ public class CanonicalLifecycleTests
             LastWindowState = LibreWindowState.Normal;
             LastWindowTopMost = false;
             LastWindowBorder = LibreWindowBorder.Hidden;
+            LastWindowShowInTaskbar = true;
             LastWindowIcons = [];
         }
 
@@ -891,6 +917,8 @@ public class CanonicalLifecycleTests
         internal bool LastWindowTopMost { get; private set; }
 
         internal LibreWindowBorder LastWindowBorder { get; private set; }
+
+        internal bool LastWindowShowInTaskbar { get; private set; }
 
         internal IReadOnlyList<LibreWindowIcon> LastWindowIcons { get; private set; } = [];
 
@@ -1088,6 +1116,7 @@ public class CanonicalLifecycleTests
             private LibreWindowState _state;
             private bool _topMost;
             private LibreWindowBorder _border;
+            private bool _showInTaskbar;
 
             internal HeadlessWindow(
                 HeadlessPlatform platform,
@@ -1115,6 +1144,7 @@ public class CanonicalLifecycleTests
                     : options.Options.HasFlag(LibreWindowOptions.Resizable)
                         ? LibreWindowBorder.Resizable
                         : LibreWindowBorder.Fixed;
+                ShowInTaskbar = options.ShowInTaskbar;
                 Owner = options.Owner;
                 Visible = options.Options.HasFlag(LibreWindowOptions.Visible);
                 Handle = platform.Handles.Allocate(this, LibreHandleKind.Window);
@@ -1187,6 +1217,16 @@ public class CanonicalLifecycleTests
                 {
                     _border = value;
                     _platform.LastWindowBorder = value;
+                }
+            }
+
+            public bool ShowInTaskbar
+            {
+                get => _showInTaskbar;
+                set
+                {
+                    _showInTaskbar = value;
+                    _platform.LastWindowShowInTaskbar = value;
                 }
             }
 

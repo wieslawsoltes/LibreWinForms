@@ -1861,7 +1861,11 @@ public partial class Form : ContainerControl
                 _formState[s_formStateTaskBar] = value ? 1 : 0;
                 if (IsHandleCreated)
                 {
+#if LIBREWINFORMS_PORTABLE
+                    SetPortableWindowShowInTaskbar(value);
+#else
                     RecreateHandle();
+#endif
                 }
             }
         }

@@ -47,7 +47,8 @@ public readonly record struct LibreWindowCreateOptions(
     LibreHandle Owner,
     LibreWindowCoordinateMode CoordinateMode = LibreWindowCoordinateMode.Logical,
     double InitialDpiScale = 1.0,
-    LibreWindowState InitialState = LibreWindowState.Normal);
+    LibreWindowState InitialState = LibreWindowState.Normal,
+    bool ShowInTaskbar = true);
 
 /// <summary>An immutable, tightly packed RGBA8 icon image for a platform window.</summary>
 public sealed class LibreWindowIcon
@@ -198,6 +199,9 @@ public interface ILibreWindow : IDisposable
 
     /// <summary>Gets or sets the platform-managed top-level border mode.</summary>
     LibreWindowBorder Border { get; set; }
+
+    /// <summary>Gets or sets whether the platform exposes this top-level window in its task switcher.</summary>
+    bool ShowInTaskbar { get; set; }
 
     LibreWindowCoordinateMode CoordinateMode { get; }
 

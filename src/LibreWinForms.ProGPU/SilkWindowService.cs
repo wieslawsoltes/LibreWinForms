@@ -74,6 +74,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private LibreRectangle? _dirtyRectangle;
     private LibreHandle _owner;
     private bool _enabled = true;
+    private bool _showInTaskbar;
     private double _reportedDpiScale = 1.0;
     private double _reportedFramebufferScale = 1.0;
     private readonly bool _initializing = true;
@@ -119,9 +120,11 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
 
         _window = Silk.NET.Windowing.Window.Create(silkOptions);
         _controller = new SilkWindowController(_window);
+        _showInTaskbar = options.ShowInTaskbar;
         Handle = handles.Allocate(this, LibreHandleKind.Window);
         AttachEvents();
         _window.Initialize();
+        _controller.SetShowInTaskbar(_showInTaskbar);
         _reportedDpiScale = DpiScale;
         _reportedFramebufferScale = FramebufferScale;
         SetNativeBounds(LibreWindowCoordinates.ToNative(
@@ -256,6 +259,22 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         {
             VerifyAccess();
             _window.WindowBorder = ToSilkWindowBorder(value);
+        }
+    }
+
+    public bool ShowInTaskbar
+    {
+        get => _showInTaskbar;
+        set
+        {
+            VerifyAccess();
+            if (_showInTaskbar == value)
+            {
+                return;
+            }
+
+            _showInTaskbar = value;
+            _controller.SetShowInTaskbar(value);
         }
     }
 
