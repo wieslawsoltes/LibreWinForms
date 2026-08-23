@@ -29,6 +29,12 @@ public enum LibreWindowBorder
     Resizable,
 }
 
+public enum LibreWindowZOrder
+{
+    Front,
+    Back,
+}
+
 /// <summary>Defines the managed coordinate space exposed by a platform window.</summary>
 public enum LibreWindowCoordinateMode
 {
@@ -220,6 +226,9 @@ public interface ILibreWindow : IDisposable
 
     /// <summary>Gets or sets whole-window opacity, including platform decorations, from zero to one.</summary>
     double Opacity { get; set; }
+
+    /// <summary>Moves this top-level window to the front or back without changing its bounds.</summary>
+    void SetZOrder(LibreWindowZOrder value);
 
     /// <summary>
     ///  Atomically replaces the managed-coordinate window-size limits. Zero maximum dimensions

@@ -364,6 +364,17 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         }
     }
 
+    public void SetZOrder(LibreWindowZOrder value)
+    {
+        VerifyAccess();
+        _controller.SetZOrder(value switch
+        {
+            LibreWindowZOrder.Front => NativeWindowZOrder.Front,
+            LibreWindowZOrder.Back => NativeWindowZOrder.Back,
+            _ => throw new ArgumentOutOfRangeException(nameof(value), value, "Unknown window z-order operation."),
+        });
+    }
+
     public void SetSizeConstraints(LibreSize minimum, LibreSize maximum)
     {
         VerifyAccess();

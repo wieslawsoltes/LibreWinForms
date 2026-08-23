@@ -151,6 +151,8 @@ public class ProGpuDispatcherTests
 
         public double Opacity { get; set; } = 1d;
 
+        public void SetZOrder(LibreWindowZOrder value) { }
+
         public void SetSizeConstraints(LibreSize minimum, LibreSize maximum) { }
 
         public LibreWindowCoordinateMode CoordinateMode => LibreWindowCoordinateMode.Logical;

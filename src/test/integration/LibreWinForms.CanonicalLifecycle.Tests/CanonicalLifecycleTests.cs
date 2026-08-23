@@ -899,6 +899,40 @@ public class CanonicalLifecycleTests
         form.DeviceDpi.Should().Be(96);
     }
 
+    [Fact]
+    public void BringToFrontAndSendToBack_PreserveCanonicalChildAndTopLevelSemantics()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new();
+        using Control first = new();
+        using Control second = new();
+        form.Controls.Add(first);
+        form.Controls.Add(second);
+
+        _ = form.Handle;
+        _ = first.Handle;
+        _ = second.Handle;
+        nint formHandle = form.Handle;
+
+        first.BringToFront();
+        form.Controls.GetChildIndex(first).Should().Be(0);
+        platform.WindowZOrderChangeCount.Should().Be(0);
+
+        first.SendToBack();
+        form.Controls.GetChildIndex(first).Should().Be(form.Controls.Count - 1);
+        platform.WindowZOrderChangeCount.Should().Be(0);
+
+        form.BringToFront();
+        platform.LastWindowZOrder.Should().Be(LibreWindowZOrder.Front);
+        platform.WindowZOrderChangeCount.Should().Be(1);
+        form.Handle.Should().Be(formHandle);
+
+        form.SendToBack();
+        platform.LastWindowZOrder.Should().Be(LibreWindowZOrder.Back);
+        platform.WindowZOrderChangeCount.Should().Be(2);
+        form.Handle.Should().Be(formHandle);
+    }
+
     private static HeadlessPlatform UseHeadlessPlatform(bool autoCloseWindows)
     {
         HeadlessPlatform platform;
@@ -991,6 +1025,8 @@ public class CanonicalLifecycleTests
             LastWindowCanMinimize = true;
             LastWindowCanMaximize = true;
             LastWindowOpacity = 1d;
+            LastWindowZOrder = null;
+            WindowZOrderChangeCount = 0;
             LastWindowIcons = [];
         }
 
@@ -1047,6 +1083,10 @@ public class CanonicalLifecycleTests
         internal bool LastWindowCanMaximize { get; private set; }
 
         internal double LastWindowOpacity { get; private set; }
+
+        internal LibreWindowZOrder? LastWindowZOrder { get; private set; }
+
+        internal int WindowZOrderChangeCount { get; private set; }
 
         internal LibreSize LastWindowMinimumSize { get; private set; }
 
@@ -1409,6 +1449,12 @@ public class CanonicalLifecycleTests
                     _opacity = value;
                     _platform.LastWindowOpacity = value;
                 }
+            }
+
+            public void SetZOrder(LibreWindowZOrder value)
+            {
+                _platform.LastWindowZOrder = value;
+                _platform.WindowZOrderChangeCount++;
             }
 
             public void SetSizeConstraints(LibreSize minimum, LibreSize maximum)

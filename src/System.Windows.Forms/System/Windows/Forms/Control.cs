@@ -4531,13 +4531,21 @@ public unsafe partial class Control :
         {
             _parent.Controls.SetChildIndex(this, 0);
         }
+#if LIBREWINFORMS_PORTABLE
+        else if (IsHandleCreated && GetTopLevel() && PortableWindowEnabled)
+#else
         else if (IsHandleCreated && GetTopLevel() && PInvoke.IsWindowEnabled(this))
+#endif
         {
+#if LIBREWINFORMS_PORTABLE
+            _window.SetPortableZOrder(LibreWindowZOrder.Front);
+#else
             PInvoke.SetWindowPos(
                 this,
                 HWND.HWND_TOP,
                 0, 0, 0, 0,
                 SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE);
+#endif
         }
     }
 
@@ -10333,11 +10341,15 @@ public unsafe partial class Control :
         }
         else if (IsHandleCreated && GetTopLevel())
         {
+#if LIBREWINFORMS_PORTABLE
+            _window.SetPortableZOrder(LibreWindowZOrder.Back);
+#else
             PInvoke.SetWindowPos(
                 this,
                 HWND.HWND_BOTTOM,
                 0, 0, 0, 0,
                 SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE);
+#endif
         }
     }
 
@@ -11606,6 +11618,12 @@ public unsafe partial class Control :
             return;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        // Logical child controls are ordered by the canonical ControlCollection. The retained
+        // portable renderer consumes that managed ordering and there is no child native window
+        // whose z-order needs to be synchronized.
+        return;
+#else
         HWND previous = HWND.HWND_TOP;
         for (int i = Controls.GetChildIndex(control); --i >= 0;)
         {
@@ -11633,6 +11651,7 @@ public unsafe partial class Control :
                 _state &= ~States.NoZOrder;
             }
         }
+#endif
     }
 
     /// <summary>
