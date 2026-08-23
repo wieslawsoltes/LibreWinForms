@@ -533,7 +533,9 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
                     initialDpiScale,
                     initialState,
                     _portableShowInTaskbar
-                        && !_portableExtendedStyle.HasFlag(WINDOW_EX_STYLE.WS_EX_TOOLWINDOW));
+                        && !_portableExtendedStyle.HasFlag(WINDOW_EX_STYLE.WS_EX_TOOLWINDOW),
+                    _portableStyle.HasFlag(WINDOW_STYLE.WS_MINIMIZEBOX),
+                    _portableStyle.HasFlag(WINDOW_STYLE.WS_MAXIMIZEBOX));
                 _portableWindow = services.Windows.Create(createOptions, new PortableWindowEvents(this));
                 _portableHandle = _portableWindow.Handle;
                 _portableCoordinateMode = _portableWindow.CoordinateMode;
@@ -902,6 +904,8 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
             if (_portableWindow is { } window)
             {
                 window.Border = ResolvePortableBorder(value);
+                window.CanMinimize = value.HasFlag(WINDOW_STYLE.WS_MINIMIZEBOX);
+                window.CanMaximize = value.HasFlag(WINDOW_STYLE.WS_MAXIMIZEBOX);
             }
         }
     }

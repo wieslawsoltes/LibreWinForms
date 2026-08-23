@@ -75,6 +75,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private LibreHandle _owner;
     private bool _enabled = true;
     private bool _showInTaskbar;
+    private bool _canMinimize;
+    private bool _canMaximize;
     private double _reportedDpiScale = 1.0;
     private double _reportedFramebufferScale = 1.0;
     private readonly bool _initializing = true;
@@ -121,9 +123,14 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _window = Silk.NET.Windowing.Window.Create(silkOptions);
         _controller = new SilkWindowController(_window);
         _showInTaskbar = options.ShowInTaskbar;
+        _canMinimize = options.CanMinimize;
+        _canMaximize = options.CanMaximize;
         Handle = handles.Allocate(this, LibreHandleKind.Window);
         AttachEvents();
         _window.Initialize();
+        ApplyControllerBorder(ResolveBorder(options.Options));
+        _controller.SetCanMinimize(_canMinimize);
+        _controller.SetCanMaximize(_canMaximize);
         _controller.SetShowInTaskbar(_showInTaskbar);
         _reportedDpiScale = DpiScale;
         _reportedFramebufferScale = FramebufferScale;
@@ -259,6 +266,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         {
             VerifyAccess();
             _window.WindowBorder = ToSilkWindowBorder(value);
+            ApplyControllerBorder(value);
         }
     }
 
@@ -275,6 +283,38 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
 
             _showInTaskbar = value;
             _controller.SetShowInTaskbar(value);
+        }
+    }
+
+    public bool CanMinimize
+    {
+        get => _canMinimize;
+        set
+        {
+            VerifyAccess();
+            if (_canMinimize == value)
+            {
+                return;
+            }
+
+            _canMinimize = value;
+            _controller.SetCanMinimize(value);
+        }
+    }
+
+    public bool CanMaximize
+    {
+        get => _canMaximize;
+        set
+        {
+            VerifyAccess();
+            if (_canMaximize == value)
+            {
+                return;
+            }
+
+            _canMaximize = value;
+            _controller.SetCanMaximize(value);
         }
     }
 
@@ -512,6 +552,14 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         return options.HasFlag(LibreWindowOptions.Resizable)
             ? LibreWindowBorder.Resizable
             : LibreWindowBorder.Fixed;
+    }
+
+    private void ApplyControllerBorder(LibreWindowBorder border)
+    {
+        _controller.SetDecorations(border == LibreWindowBorder.Hidden
+            ? NativeWindowDecorations.None
+            : NativeWindowDecorations.Full);
+        _controller.SetCanResize(border == LibreWindowBorder.Resizable);
     }
 
     private static WindowBorder ToSilkWindowBorder(LibreWindowBorder border)

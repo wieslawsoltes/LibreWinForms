@@ -48,7 +48,9 @@ public readonly record struct LibreWindowCreateOptions(
     LibreWindowCoordinateMode CoordinateMode = LibreWindowCoordinateMode.Logical,
     double InitialDpiScale = 1.0,
     LibreWindowState InitialState = LibreWindowState.Normal,
-    bool ShowInTaskbar = true);
+    bool ShowInTaskbar = true,
+    bool CanMinimize = true,
+    bool CanMaximize = true);
 
 /// <summary>An immutable, tightly packed RGBA8 icon image for a platform window.</summary>
 public sealed class LibreWindowIcon
@@ -202,6 +204,12 @@ public interface ILibreWindow : IDisposable
 
     /// <summary>Gets or sets whether the platform exposes this top-level window in its task switcher.</summary>
     bool ShowInTaskbar { get; set; }
+
+    /// <summary>Gets or sets whether native chrome offers minimize.</summary>
+    bool CanMinimize { get; set; }
+
+    /// <summary>Gets or sets whether native chrome offers maximize.</summary>
+    bool CanMaximize { get; set; }
 
     LibreWindowCoordinateMode CoordinateMode { get; }
 

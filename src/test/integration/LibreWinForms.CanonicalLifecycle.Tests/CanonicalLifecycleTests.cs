@@ -17,6 +17,32 @@ namespace LibreWinForms.CanonicalLifecycle.Tests;
 public class CanonicalLifecycleTests
 {
     [Fact]
+    public void MinimizeAndMaximizeBoxes_UseTypedInitialAndLiveChromeState()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { MinimizeBox = false, MaximizeBox = false };
+
+        nint handle = form.Handle;
+
+        platform.LastWindowCanMinimize.Should().BeFalse();
+        platform.LastWindowCanMaximize.Should().BeFalse();
+
+        form.MinimizeBox = true;
+        platform.LastWindowCanMinimize.Should().BeTrue();
+        form.Handle.Should().Be(handle);
+
+        form.MaximizeBox = true;
+        platform.LastWindowCanMaximize.Should().BeTrue();
+        form.Handle.Should().Be(handle);
+
+        form.MinimizeBox = false;
+        form.MaximizeBox = false;
+        platform.LastWindowCanMinimize.Should().BeFalse();
+        platform.LastWindowCanMaximize.Should().BeFalse();
+        form.Handle.Should().Be(handle);
+    }
+
+    [Fact]
     public void ShowInTaskbar_UsesTypedInitialAndLivePlatformState()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -871,6 +897,8 @@ public class CanonicalLifecycleTests
             LastWindowTopMost = false;
             LastWindowBorder = LibreWindowBorder.Hidden;
             LastWindowShowInTaskbar = true;
+            LastWindowCanMinimize = true;
+            LastWindowCanMaximize = true;
             LastWindowIcons = [];
         }
 
@@ -919,6 +947,10 @@ public class CanonicalLifecycleTests
         internal LibreWindowBorder LastWindowBorder { get; private set; }
 
         internal bool LastWindowShowInTaskbar { get; private set; }
+
+        internal bool LastWindowCanMinimize { get; private set; }
+
+        internal bool LastWindowCanMaximize { get; private set; }
 
         internal IReadOnlyList<LibreWindowIcon> LastWindowIcons { get; private set; } = [];
 
@@ -1117,6 +1149,8 @@ public class CanonicalLifecycleTests
             private bool _topMost;
             private LibreWindowBorder _border;
             private bool _showInTaskbar;
+            private bool _canMinimize;
+            private bool _canMaximize;
 
             internal HeadlessWindow(
                 HeadlessPlatform platform,
@@ -1145,6 +1179,8 @@ public class CanonicalLifecycleTests
                         ? LibreWindowBorder.Resizable
                         : LibreWindowBorder.Fixed;
                 ShowInTaskbar = options.ShowInTaskbar;
+                CanMinimize = options.CanMinimize;
+                CanMaximize = options.CanMaximize;
                 Owner = options.Owner;
                 Visible = options.Options.HasFlag(LibreWindowOptions.Visible);
                 Handle = platform.Handles.Allocate(this, LibreHandleKind.Window);
@@ -1227,6 +1263,26 @@ public class CanonicalLifecycleTests
                 {
                     _showInTaskbar = value;
                     _platform.LastWindowShowInTaskbar = value;
+                }
+            }
+
+            public bool CanMinimize
+            {
+                get => _canMinimize;
+                set
+                {
+                    _canMinimize = value;
+                    _platform.LastWindowCanMinimize = value;
+                }
+            }
+
+            public bool CanMaximize
+            {
+                get => _canMaximize;
+                set
+                {
+                    _canMaximize = value;
+                    _platform.LastWindowCanMaximize = value;
                 }
             }
 

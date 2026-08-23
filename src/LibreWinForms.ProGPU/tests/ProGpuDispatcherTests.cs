@@ -143,6 +143,10 @@ public class ProGpuDispatcherTests
 
         public bool ShowInTaskbar { get; set; } = true;
 
+        public bool CanMinimize { get; set; } = true;
+
+        public bool CanMaximize { get; set; } = true;
+
         public LibreWindowCoordinateMode CoordinateMode => LibreWindowCoordinateMode.Logical;
 
         public double FramebufferScale => 1.0;
