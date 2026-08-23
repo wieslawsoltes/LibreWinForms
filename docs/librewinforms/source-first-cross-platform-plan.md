@@ -490,6 +490,10 @@ The expanded lifecycle gate recreates a focused child control and its form in se
 
 Exact hosted validation for implementation commit `5225f255ddf6ca4bea9caf67b14f2c7949df0e10` passes attempt 1 in build workflow `32921086928` and docs workflow `32921086983`, with the same 22/10/23/151 test counts, unchanged 421-diagnostic API baseline with no breaks, canonical build baselines, comparison 30 warnings/0 errors, both package modes, and fresh-cache consumption. Hosted packed hashes are `d190b209a24afee6943d515de5749a74c88b8b16f36fbb5b0d3946f2c5cd1140` for `System.Windows.Forms.dll` and `85594efe4bb1c85e9f0c41da35ed22bb8fb07edcfab09733074faa68779d3ef7` for `LibreWinForms.Platform.dll`. Canonical artifact `9590041161`, immutable-package artifact `9590216181`, and docs artifact `9589848397` have digests `541a73eafdca473cec0a2474cf7194fbf2719c1f83b51f83cce1ad7fc89a0b22`, `dc169a7643dfdf31b8164817aced063832419ee9a22ffcee5e2e25739cf9de90`, and `8550089fc217fbaa47683358ad394730dc95137fa4819ffa366390a7517c9e37` respectively.
 
+## Current ProGPU preview 60 dependency checkpoint
+
+The source-first development graph now pins ProGPU merge commit `7d38d49082501458ce8867f7d58b232613f4c965`, which incorporates latest `main` commit `812ab6dc49b6630471c21a837409f1152f6110bd` (preview 60) into the System.Drawing API/quality feature branch. The merge preserves the repository submodule path for exact source validation while the ordinary consumer graph continues to use immutable NuGet packages. Before advancing the LibreWinForms pin, the merged ProGPU head passed the independent API gate with 55 missing types, 319 missing members, 47 other diagnostics (`421` total), no breaking changes, all 151 System.Drawing tests, and all 26 System.Drawing BenchmarkDotNet short-run cases. This dependency refresh changes neither the public WinForms surface nor the measured drawing debt; the full LibreWinForms source-first and package gates remain mandatory at the pinned commit.
+
 ## Proposed fixes for the missing-property problem
 
 The permanent fix is not to manually add thousands of properties to the compatibility source. Apply these fixes in order:
