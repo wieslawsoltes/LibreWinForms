@@ -75,6 +75,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private LibreHandle _owner;
     private bool _enabled = true;
     private bool _showInTaskbar;
+    private bool _canClose;
     private bool _canMinimize;
     private bool _canMaximize;
     private LibreSize _minimumSize;
@@ -126,6 +127,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _window = Silk.NET.Windowing.Window.Create(silkOptions);
         _controller = new SilkWindowController(_window);
         _showInTaskbar = options.ShowInTaskbar;
+        _canClose = options.CanClose;
         _canMinimize = options.CanMinimize;
         _canMaximize = options.CanMaximize;
         _minimumSize = options.MinimumSize;
@@ -134,6 +136,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         AttachEvents();
         _window.Initialize();
         ApplyControllerBorder(ResolveBorder(options.Options));
+        _controller.SetCanClose(_canClose);
         _controller.SetCanMinimize(_canMinimize);
         _controller.SetCanMaximize(_canMaximize);
         _controller.SetShowInTaskbar(_showInTaskbar);
@@ -321,6 +324,22 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
 
             _canMaximize = value;
             _controller.SetCanMaximize(value);
+        }
+    }
+
+    public bool CanClose
+    {
+        get => _canClose;
+        set
+        {
+            VerifyAccess();
+            if (_canClose == value)
+            {
+                return;
+            }
+
+            _canClose = value;
+            _controller.SetCanClose(value);
         }
     }
 

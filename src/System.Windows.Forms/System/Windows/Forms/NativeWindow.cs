@@ -524,6 +524,7 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
                         scaledSize.Height);
                 }
 
+                bool hasControlBox = _portableStyle.HasFlag(WINDOW_STYLE.WS_SYSMENU);
                 LibreWindowCreateOptions createOptions = new(
                     cp.Caption ?? string.Empty,
                     requestedBounds,
@@ -534,10 +535,11 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
                     initialState,
                     _portableShowInTaskbar
                         && !_portableExtendedStyle.HasFlag(WINDOW_EX_STYLE.WS_EX_TOOLWINDOW),
-                    _portableStyle.HasFlag(WINDOW_STYLE.WS_MINIMIZEBOX),
-                    _portableStyle.HasFlag(WINDOW_STYLE.WS_MAXIMIZEBOX),
+                    hasControlBox && _portableStyle.HasFlag(WINDOW_STYLE.WS_MINIMIZEBOX),
+                    hasControlBox && _portableStyle.HasFlag(WINDOW_STYLE.WS_MAXIMIZEBOX),
                     new LibreSize(form.MinimumSize.Width, form.MinimumSize.Height),
-                    new LibreSize(form.MaximumSize.Width, form.MaximumSize.Height));
+                    new LibreSize(form.MaximumSize.Width, form.MaximumSize.Height),
+                    CanClose: hasControlBox);
                 _portableWindow = services.Windows.Create(createOptions, new PortableWindowEvents(this));
                 _portableHandle = _portableWindow.Handle;
                 _portableCoordinateMode = _portableWindow.CoordinateMode;
@@ -905,9 +907,11 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
             _portableStyle = value;
             if (_portableWindow is { } window)
             {
+                bool hasControlBox = value.HasFlag(WINDOW_STYLE.WS_SYSMENU);
                 window.Border = ResolvePortableBorder(value);
-                window.CanMinimize = value.HasFlag(WINDOW_STYLE.WS_MINIMIZEBOX);
-                window.CanMaximize = value.HasFlag(WINDOW_STYLE.WS_MAXIMIZEBOX);
+                window.CanMinimize = hasControlBox && value.HasFlag(WINDOW_STYLE.WS_MINIMIZEBOX);
+                window.CanMaximize = hasControlBox && value.HasFlag(WINDOW_STYLE.WS_MAXIMIZEBOX);
+                window.CanClose = hasControlBox;
             }
         }
     }
