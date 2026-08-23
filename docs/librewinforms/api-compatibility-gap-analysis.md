@@ -64,6 +64,12 @@ This is intentionally not a claim for the whole cursor subsystem. Custom `.cur` 
 
 The prior z-order checkpoint's pending hosted evidence is now complete: LibreWinForms workflow `32910212351` and docs workflow `32910212353` pass attempt 1 with lifecycle 20/20 and the previously recorded aggregate counts. Canonical artifact `9586449728`, package artifact `9586461285`, and docs artifact `9586257065` have digests `df16e97a77cfd8d7ff85d2ab65b4458ce998882b994a8278549cd5514dee35e4`, `36f42f287e847d8e7b49748fa6a4388fdabc23c140e64f8ef60060b8629136ae`, and `32a25f00fc8924db8b751c600c27c286ca804443e2e5a33b6afc39d56a10855e` respectively.
 
+### Managed child-parenting checkpoint
+
+The current source-first slice removes another native assumption without adding a compatibility property or fake HWND relationship. Portable child handles are logical registry identities; canonical `ControlCollection` and `ParentInternal` remain authoritative for hierarchy, layout, painting, hit testing, input routing, and child z-order. `SetParentHandle` is consequently managed-only on the portable path and no longer sends logical handles through USER32 `GetParent`, `SetParent`, or parking-window calls. The native Windows branch is unchanged.
+
+The lifecycle case creates the child handle before the form handle, then proves stable identity and canonical collection/event behavior across initial show, live moves between created parents, removal, and reattachment. Cursor hit testing verifies that routing follows the new managed tree and coordinate origin immediately. Exact local validation passes default canonical 0 warnings/0 errors, ProGPU canonical 613 warnings/0 errors, platform 22/22, backend 10/10, lifecycle 22/22, drawing 151/151, the unchanged 421-diagnostic API baseline with no breaks, comparison 30 warnings/0 errors, canonical pack inspection, and fresh-cache consumption with warnings treated as errors. Local packed `System.Windows.Forms.dll` SHA-256 is `ae09fe59fd2bb79ca11242f80d224f51cfe9e8e08725b2c185f667e4a5c68c32`; local packed `LibreWinForms.Platform.dll` SHA-256 is `115b46c29e87e753120f1c02c2fd66bf52ab04bd1011449d35881cb532ccc6f1`. This needs no ProGPU operation because there is no native child window to parent. ActiveX, MDI, foreign HWND hosting, native control subclasses, and top-level owner relationships are not covered by this checkpoint. Hosted evidence is pending.
+
 ## Scope and evidence
 
 This report examined:

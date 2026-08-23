@@ -10582,6 +10582,14 @@ public unsafe partial class Control :
     {
         Debug.Assert(value != -1, "Outdated call to SetParentHandle");
 
+#if LIBREWINFORMS_PORTABLE
+        // Portable child handles are stable logical identities, not native child windows. The
+        // canonical ControlCollection and ParentInternal relationship is authoritative for
+        // layout, painting, input hit testing, and z-order, so there is no native parent to
+        // synchronize or parking window to use here.
+        Debug.Assert(!IsHandleCreated || Handle != value, "Cycle created in SetParentHandle");
+        return;
+#else
         if (IsHandleCreated)
         {
             HWND parentHandle = PInvoke.GetParent(this);
@@ -10649,6 +10657,7 @@ public unsafe partial class Control :
                 Application.UnparkHandle(this, _window.DpiAwarenessContext);
             }
         }
+#endif
     }
 
     private protected void SetState(States flag, bool value)

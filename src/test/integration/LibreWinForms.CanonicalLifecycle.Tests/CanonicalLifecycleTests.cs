@@ -1014,6 +1014,67 @@ public class CanonicalLifecycleTests
         platform.CursorChangeCount.Should().BeGreaterThan(20);
     }
 
+    [Fact]
+    public void PreCreatedChildHandle_ReparentsThroughCanonicalManagedTreeWithoutNativeParenting()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new()
+        {
+            Bounds = new Rectangle(20, 30, 280, 180),
+        };
+        using Panel left = new()
+        {
+            Bounds = new Rectangle(0, 0, 100, 100),
+            Cursor = Cursors.Cross,
+        };
+        using Panel right = new()
+        {
+            Bounds = new Rectangle(120, 0, 100, 100),
+            Cursor = Cursors.IBeam,
+        };
+        using Control child = new()
+        {
+            Bounds = new Rectangle(10, 10, 40, 40),
+            Cursor = Cursors.Hand,
+        };
+        int parentChanged = 0;
+        child.ParentChanged += (_, _) => parentChanged++;
+        form.Controls.Add(left);
+        form.Controls.Add(right);
+        left.Controls.Add(child);
+
+        nint childHandle = child.Handle;
+        child.IsHandleCreated.Should().BeTrue();
+        form.IsHandleCreated.Should().BeFalse();
+
+        form.Show();
+        child.Handle.Should().Be(childHandle);
+        child.Parent.Should().BeSameAs(left);
+        platform.SendInput(LibreInputEventKind.PointerMove, position: new LibrePoint(15, 15));
+        platform.LastCursorShape.Should().Be(LibreCursorShape.Hand);
+
+        right.Controls.Add(child);
+        child.Handle.Should().Be(childHandle);
+        child.Parent.Should().BeSameAs(right);
+        left.Controls.Count.Should().Be(0);
+        right.Controls.Count.Should().Be(1);
+        right.Controls[0].Should().BeSameAs(child);
+        platform.SendInput(LibreInputEventKind.PointerMove, position: new LibrePoint(15, 15));
+        platform.LastCursorShape.Should().Be(LibreCursorShape.Cross);
+        platform.SendInput(LibreInputEventKind.PointerMove, position: new LibrePoint(135, 15));
+        platform.LastCursorShape.Should().Be(LibreCursorShape.Hand);
+
+        right.Controls.Remove(child);
+        child.Handle.Should().Be(childHandle);
+        child.Parent.Should().BeNull();
+        left.Controls.Add(child);
+        child.Handle.Should().Be(childHandle);
+        child.Parent.Should().BeSameAs(left);
+        parentChanged.Should().Be(5);
+        platform.SendInput(LibreInputEventKind.PointerMove, position: new LibrePoint(15, 15));
+        platform.LastCursorShape.Should().Be(LibreCursorShape.Hand);
+    }
+
     private static HeadlessPlatform UseHeadlessPlatform(bool autoCloseWindows)
     {
         HeadlessPlatform platform;
