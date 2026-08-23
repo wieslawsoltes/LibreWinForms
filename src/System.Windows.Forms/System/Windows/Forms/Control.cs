@@ -3738,8 +3738,13 @@ public unsafe partial class Control :
     /// </summary>
     private protected WINDOW_EX_STYLE ExtendedWindowStyle
     {
+#if LIBREWINFORMS_PORTABLE
+        get => _window.PortableExtendedStyle;
+        set => _window.PortableExtendedStyle = value;
+#else
         get => (WINDOW_EX_STYLE)PInvokeCore.GetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE);
         set => PInvokeCore.SetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, (nint)value);
+#endif
     }
 
     /// <summary>
@@ -3747,8 +3752,13 @@ public unsafe partial class Control :
     /// </summary>
     internal WINDOW_STYLE WindowStyle
     {
+#if LIBREWINFORMS_PORTABLE
+        get => _window.PortableStyle;
+        set => _window.PortableStyle = value;
+#else
         get => (WINDOW_STYLE)PInvokeCore.GetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_STYLE);
         set => PInvokeCore.SetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_STYLE, (nint)value);
+#endif
     }
 
     /// <summary>
@@ -11665,6 +11675,7 @@ public unsafe partial class Control :
             SetState(States.Mirrored, ((WINDOW_EX_STYLE)cp.ExStyle).HasFlag(WINDOW_EX_STYLE.WS_EX_LAYOUTRTL));
         }
 
+#if !LIBREWINFORMS_PORTABLE
         PInvoke.SetWindowPos(
             this,
             HWND.HWND_TOP,
@@ -11674,6 +11685,7 @@ public unsafe partial class Control :
                 | SET_WINDOW_POS_FLAGS.SWP_NOMOVE
                 | SET_WINDOW_POS_FLAGS.SWP_NOSIZE
                 | SET_WINDOW_POS_FLAGS.SWP_NOZORDER);
+#endif
 
         Invalidate(true);
     }

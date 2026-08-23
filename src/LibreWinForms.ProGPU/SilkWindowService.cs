@@ -114,7 +114,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
             Title = options.Title,
             WindowState = ToSilkWindowState(options.InitialState),
             TopMost = options.Options.HasFlag(LibreWindowOptions.TopMost),
-            WindowBorder = ResolveBorder(options.Options),
+            WindowBorder = ToSilkWindowBorder(ResolveBorder(options.Options)),
         };
 
         _window = Silk.NET.Windowing.Window.Create(silkOptions);
@@ -246,6 +246,16 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         {
             VerifyAccess();
             _window.TopMost = value;
+        }
+    }
+
+    public LibreWindowBorder Border
+    {
+        get => FromSilkWindowBorder(_window.WindowBorder);
+        set
+        {
+            VerifyAccess();
+            _window.WindowBorder = ToSilkWindowBorder(value);
         }
     }
 
@@ -473,15 +483,35 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         }
     }
 
-    private static WindowBorder ResolveBorder(LibreWindowOptions options)
+    private static LibreWindowBorder ResolveBorder(LibreWindowOptions options)
     {
         if (!options.HasFlag(LibreWindowOptions.Decorated))
         {
-            return WindowBorder.Hidden;
+            return LibreWindowBorder.Hidden;
         }
 
-        return options.HasFlag(LibreWindowOptions.Resizable) ? WindowBorder.Resizable : WindowBorder.Fixed;
+        return options.HasFlag(LibreWindowOptions.Resizable)
+            ? LibreWindowBorder.Resizable
+            : LibreWindowBorder.Fixed;
     }
+
+    private static WindowBorder ToSilkWindowBorder(LibreWindowBorder border)
+        => border switch
+        {
+            LibreWindowBorder.Hidden => WindowBorder.Hidden,
+            LibreWindowBorder.Fixed => WindowBorder.Fixed,
+            LibreWindowBorder.Resizable => WindowBorder.Resizable,
+            _ => throw new ArgumentOutOfRangeException(nameof(border), border, "Unknown window border mode."),
+        };
+
+    private static LibreWindowBorder FromSilkWindowBorder(WindowBorder border)
+        => border switch
+        {
+            WindowBorder.Hidden => LibreWindowBorder.Hidden,
+            WindowBorder.Fixed => LibreWindowBorder.Fixed,
+            WindowBorder.Resizable => LibreWindowBorder.Resizable,
+            _ => throw new ArgumentOutOfRangeException(nameof(border), border, "Unknown Silk.NET window border mode."),
+        };
 
     private static WindowState ToSilkWindowState(LibreWindowState state)
         => state switch

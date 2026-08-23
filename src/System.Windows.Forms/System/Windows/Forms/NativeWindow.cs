@@ -74,6 +74,8 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
     private ILibreWindow? _portableWindow;
     private LibreWindowCoordinateMode _portableCoordinateMode;
     private double _portablePresentationScale = 1.0;
+    private WINDOW_STYLE _portableStyle;
+    private WINDOW_EX_STYLE _portableExtendedStyle;
 
     internal LibreHandle PortableHandle => _portableHandle;
 #endif
@@ -469,18 +471,20 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
         {
             CheckReleased();
             LibrePlatformServices services = LibrePlatform.Current;
+            _portableStyle = (WINDOW_STYLE)(uint)cp.Style;
+            _portableExtendedStyle = (WINDOW_EX_STYLE)(uint)cp.ExStyle;
             if (this is Control.ControlNativeWindow controlWindow && controlWindow.GetControl() is Form)
             {
-                LibreWindowOptions options = LibreWindowOptions.Decorated;
-                WINDOW_STYLE style = (WINDOW_STYLE)(uint)cp.Style;
-                WINDOW_EX_STYLE extendedStyle = (WINDOW_EX_STYLE)(uint)cp.ExStyle;
-                if (style.HasFlag(WINDOW_STYLE.WS_THICKFRAME)) options |= LibreWindowOptions.Resizable;
-                if (style.HasFlag(WINDOW_STYLE.WS_VISIBLE)) options |= LibreWindowOptions.Visible;
-                if (extendedStyle.HasFlag(WINDOW_EX_STYLE.WS_EX_TOPMOST)) options |= LibreWindowOptions.TopMost;
-                if (extendedStyle.HasFlag(WINDOW_EX_STYLE.WS_EX_TOOLWINDOW)) options |= LibreWindowOptions.ToolWindow;
-                LibreWindowState initialState = style.HasFlag(WINDOW_STYLE.WS_MAXIMIZE)
+                LibreWindowOptions options = LibreWindowOptions.None;
+                LibreWindowBorder border = ResolvePortableBorder(_portableStyle);
+                if (border != LibreWindowBorder.Hidden) options |= LibreWindowOptions.Decorated;
+                if (border == LibreWindowBorder.Resizable) options |= LibreWindowOptions.Resizable;
+                if (_portableStyle.HasFlag(WINDOW_STYLE.WS_VISIBLE)) options |= LibreWindowOptions.Visible;
+                if (_portableExtendedStyle.HasFlag(WINDOW_EX_STYLE.WS_EX_TOPMOST)) options |= LibreWindowOptions.TopMost;
+                if (_portableExtendedStyle.HasFlag(WINDOW_EX_STYLE.WS_EX_TOOLWINDOW)) options |= LibreWindowOptions.ToolWindow;
+                LibreWindowState initialState = _portableStyle.HasFlag(WINDOW_STYLE.WS_MAXIMIZE)
                     ? LibreWindowState.Maximized
-                    : style.HasFlag(WINDOW_STYLE.WS_MINIMIZE)
+                    : _portableStyle.HasFlag(WINDOW_STYLE.WS_MINIMIZE)
                         ? LibreWindowState.Minimized
                         : LibreWindowState.Normal;
 
@@ -885,6 +889,25 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
 
     internal LibreRectangle PortableBounds => _portableWindow?.Bounds ?? default;
 
+    internal WINDOW_STYLE PortableStyle
+    {
+        get => _portableStyle;
+        set
+        {
+            _portableStyle = value;
+            if (_portableWindow is { } window)
+            {
+                window.Border = ResolvePortableBorder(value);
+            }
+        }
+    }
+
+    internal WINDOW_EX_STYLE PortableExtendedStyle
+    {
+        get => _portableExtendedStyle;
+        set => _portableExtendedStyle = value;
+    }
+
     internal void SetPortableEnabled(bool enabled)
     {
         if (_portableWindow is { } window)
@@ -916,6 +939,13 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
             window.TopMost = topMost;
         }
     }
+
+    private static LibreWindowBorder ResolvePortableBorder(WINDOW_STYLE style)
+        => style.HasFlag(WINDOW_STYLE.WS_THICKFRAME)
+            ? LibreWindowBorder.Resizable
+            : style.HasFlag(WINDOW_STYLE.WS_BORDER)
+                ? LibreWindowBorder.Fixed
+                : LibreWindowBorder.Hidden;
 
     internal void SetPortableOwner(NativeWindow? owner)
     {
@@ -1037,6 +1067,8 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
             _portableHandle = default;
             _portableCoordinateMode = LibreWindowCoordinateMode.Logical;
             _portablePresentationScale = 1.0;
+            _portableStyle = default;
+            _portableExtendedStyle = default;
             HWND = HWND.Null;
             _ownHandle = false;
             OnHandleChange();

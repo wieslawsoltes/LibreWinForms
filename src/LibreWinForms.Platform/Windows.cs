@@ -22,6 +22,13 @@ public enum LibreWindowState
     FullScreen,
 }
 
+public enum LibreWindowBorder
+{
+    Hidden,
+    Fixed,
+    Resizable,
+}
+
 /// <summary>Defines the managed coordinate space exposed by a platform window.</summary>
 public enum LibreWindowCoordinateMode
 {
@@ -188,6 +195,9 @@ public interface ILibreWindow : IDisposable
 
     /// <summary>Gets or sets whether the platform keeps this top-level window above non-topmost windows.</summary>
     bool TopMost { get; set; }
+
+    /// <summary>Gets or sets the platform-managed top-level border mode.</summary>
+    LibreWindowBorder Border { get; set; }
 
     LibreWindowCoordinateMode CoordinateMode { get; }
 

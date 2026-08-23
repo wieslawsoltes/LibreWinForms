@@ -6734,7 +6734,9 @@ public partial class Form : ContainerControl
     protected override void OnStyleChanged(EventArgs e)
     {
         base.OnStyleChanged(e);
+#if !LIBREWINFORMS_PORTABLE
         AdjustSystemMenu();
+#endif
     }
 
     /// <summary>

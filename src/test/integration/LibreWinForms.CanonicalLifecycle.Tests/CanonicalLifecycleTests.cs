@@ -17,6 +17,26 @@ namespace LibreWinForms.CanonicalLifecycle.Tests;
 public class CanonicalLifecycleTests
 {
     [Fact]
+    public void FormBorderStyle_UsesTypedInitialAndLiveWindowBorder()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { FormBorderStyle = FormBorderStyle.None };
+
+        _ = form.Handle;
+
+        platform.LastWindowBorder.Should().Be(LibreWindowBorder.Hidden);
+
+        form.FormBorderStyle = FormBorderStyle.Sizable;
+        platform.LastWindowBorder.Should().Be(LibreWindowBorder.Resizable);
+
+        form.FormBorderStyle = FormBorderStyle.FixedDialog;
+        platform.LastWindowBorder.Should().Be(LibreWindowBorder.Fixed);
+
+        form.FormBorderStyle = FormBorderStyle.None;
+        platform.LastWindowBorder.Should().Be(LibreWindowBorder.Hidden);
+    }
+
+    [Fact]
     public void FormTopMost_UsesTypedInitialAndLiveWindowTopMost()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -824,6 +844,7 @@ public class CanonicalLifecycleTests
             LastWindowTitle = string.Empty;
             LastWindowState = LibreWindowState.Normal;
             LastWindowTopMost = false;
+            LastWindowBorder = LibreWindowBorder.Hidden;
             LastWindowIcons = [];
         }
 
@@ -868,6 +889,8 @@ public class CanonicalLifecycleTests
         internal LibreWindowState LastWindowState { get; private set; }
 
         internal bool LastWindowTopMost { get; private set; }
+
+        internal LibreWindowBorder LastWindowBorder { get; private set; }
 
         internal IReadOnlyList<LibreWindowIcon> LastWindowIcons { get; private set; } = [];
 
@@ -1064,6 +1087,7 @@ public class CanonicalLifecycleTests
             private string _title = string.Empty;
             private LibreWindowState _state;
             private bool _topMost;
+            private LibreWindowBorder _border;
 
             internal HeadlessWindow(
                 HeadlessPlatform platform,
@@ -1086,6 +1110,11 @@ public class CanonicalLifecycleTests
                 _state = options.InitialState;
                 _platform.LastWindowState = _state;
                 TopMost = options.Options.HasFlag(LibreWindowOptions.TopMost);
+                Border = !options.Options.HasFlag(LibreWindowOptions.Decorated)
+                    ? LibreWindowBorder.Hidden
+                    : options.Options.HasFlag(LibreWindowOptions.Resizable)
+                        ? LibreWindowBorder.Resizable
+                        : LibreWindowBorder.Fixed;
                 Owner = options.Owner;
                 Visible = options.Options.HasFlag(LibreWindowOptions.Visible);
                 Handle = platform.Handles.Allocate(this, LibreHandleKind.Window);
@@ -1148,6 +1177,16 @@ public class CanonicalLifecycleTests
                 {
                     _topMost = value;
                     _platform.LastWindowTopMost = value;
+                }
+            }
+
+            public LibreWindowBorder Border
+            {
+                get => _border;
+                set
+                {
+                    _border = value;
+                    _platform.LastWindowBorder = value;
                 }
             }
 
