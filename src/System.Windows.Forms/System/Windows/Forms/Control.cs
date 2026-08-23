@@ -11208,6 +11208,9 @@ public unsafe partial class Control :
     internal void SetPortableWindowShowInTaskbar(bool showInTaskbar)
         => _window.SetPortableShowInTaskbar(showInTaskbar);
 
+    internal void SetPortableWindowSizeConstraints(LibreSize minimum, LibreSize maximum)
+        => _window.SetPortableSizeConstraints(minimum, maximum);
+
     internal void SetPortableOwner(Control? owner)
         => _window.SetPortableOwner(owner?._window);
 

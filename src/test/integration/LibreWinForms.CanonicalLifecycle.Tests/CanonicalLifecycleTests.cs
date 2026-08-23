@@ -17,6 +17,36 @@ namespace LibreWinForms.CanonicalLifecycle.Tests;
 public class CanonicalLifecycleTests
 {
     [Fact]
+    public void FormSizeConstraints_UseTypedInitialAndLivePlatformState()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new()
+        {
+            MinimumSize = new Size(200, 150),
+            MaximumSize = new Size(900, 700),
+        };
+
+        nint handle = form.Handle;
+
+        platform.LastWindowMinimumSize.Should().Be(new LibreSize(200, 150));
+        platform.LastWindowMaximumSize.Should().Be(new LibreSize(900, 700));
+
+        form.MinimumSize = new Size(300, 240);
+        platform.LastWindowMinimumSize.Should().Be(new LibreSize(300, 240));
+        platform.LastWindowMaximumSize.Should().Be(new LibreSize(900, 700));
+        form.Handle.Should().Be(handle);
+
+        form.MaximumSize = new Size(640, 480);
+        platform.LastWindowMinimumSize.Should().Be(new LibreSize(300, 240));
+        platform.LastWindowMaximumSize.Should().Be(new LibreSize(640, 480));
+        form.Handle.Should().Be(handle);
+
+        form.MaximumSize = Size.Empty;
+        platform.LastWindowMaximumSize.Should().Be(new LibreSize(0, 0));
+        form.Handle.Should().Be(handle);
+    }
+
+    [Fact]
     public void MinimizeAndMaximizeBoxes_UseTypedInitialAndLiveChromeState()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -952,6 +982,10 @@ public class CanonicalLifecycleTests
 
         internal bool LastWindowCanMaximize { get; private set; }
 
+        internal LibreSize LastWindowMinimumSize { get; private set; }
+
+        internal LibreSize LastWindowMaximumSize { get; private set; }
+
         internal IReadOnlyList<LibreWindowIcon> LastWindowIcons { get; private set; } = [];
 
         internal void ChangeLastWindowState(LibreWindowState state)
@@ -1181,6 +1215,7 @@ public class CanonicalLifecycleTests
                 ShowInTaskbar = options.ShowInTaskbar;
                 CanMinimize = options.CanMinimize;
                 CanMaximize = options.CanMaximize;
+                SetSizeConstraints(options.MinimumSize, options.MaximumSize);
                 Owner = options.Owner;
                 Visible = options.Options.HasFlag(LibreWindowOptions.Visible);
                 Handle = platform.Handles.Allocate(this, LibreHandleKind.Window);
@@ -1284,6 +1319,12 @@ public class CanonicalLifecycleTests
                     _canMaximize = value;
                     _platform.LastWindowCanMaximize = value;
                 }
+            }
+
+            public void SetSizeConstraints(LibreSize minimum, LibreSize maximum)
+            {
+                _platform.LastWindowMinimumSize = minimum;
+                _platform.LastWindowMaximumSize = maximum;
             }
 
             public LibreWindowCoordinateMode CoordinateMode => _coordinateMode;

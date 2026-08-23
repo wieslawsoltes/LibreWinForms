@@ -535,7 +535,9 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
                     _portableShowInTaskbar
                         && !_portableExtendedStyle.HasFlag(WINDOW_EX_STYLE.WS_EX_TOOLWINDOW),
                     _portableStyle.HasFlag(WINDOW_STYLE.WS_MINIMIZEBOX),
-                    _portableStyle.HasFlag(WINDOW_STYLE.WS_MAXIMIZEBOX));
+                    _portableStyle.HasFlag(WINDOW_STYLE.WS_MAXIMIZEBOX),
+                    new LibreSize(form.MinimumSize.Width, form.MinimumSize.Height),
+                    new LibreSize(form.MaximumSize.Width, form.MaximumSize.Height));
                 _portableWindow = services.Windows.Create(createOptions, new PortableWindowEvents(this));
                 _portableHandle = _portableWindow.Handle;
                 _portableCoordinateMode = _portableWindow.CoordinateMode;
@@ -927,6 +929,9 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
             window.Enabled = enabled;
         }
     }
+
+    internal void SetPortableSizeConstraints(LibreSize minimum, LibreSize maximum)
+        => _portableWindow?.SetSizeConstraints(minimum, maximum);
 
     internal void SetPortableTitle(string title)
     {

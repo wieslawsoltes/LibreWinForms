@@ -77,6 +77,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private bool _showInTaskbar;
     private bool _canMinimize;
     private bool _canMaximize;
+    private LibreSize _minimumSize;
+    private LibreSize _maximumSize;
     private double _reportedDpiScale = 1.0;
     private double _reportedFramebufferScale = 1.0;
     private readonly bool _initializing = true;
@@ -96,6 +98,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _monitors = monitors;
         _events = events;
         _coordinateMode = options.CoordinateMode;
+        ValidateSizeConstraints(options.MinimumSize, options.MaximumSize);
         _paintRoot.AddChild(_fallbackPaintVisual);
         _paintRoot.AddTopmostChild(_transientPaintVisual);
         LibreRectangle nativeBounds = LibreWindowCoordinates.ToNative(
@@ -125,6 +128,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _showInTaskbar = options.ShowInTaskbar;
         _canMinimize = options.CanMinimize;
         _canMaximize = options.CanMaximize;
+        _minimumSize = options.MinimumSize;
+        _maximumSize = options.MaximumSize;
         Handle = handles.Allocate(this, LibreHandleKind.Window);
         AttachEvents();
         _window.Initialize();
@@ -134,6 +139,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _controller.SetShowInTaskbar(_showInTaskbar);
         _reportedDpiScale = DpiScale;
         _reportedFramebufferScale = FramebufferScale;
+        ApplySizeConstraints();
         SetNativeBounds(LibreWindowCoordinates.ToNative(
             options.Bounds,
             _coordinateMode,
@@ -316,6 +322,15 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
             _canMaximize = value;
             _controller.SetCanMaximize(value);
         }
+    }
+
+    public void SetSizeConstraints(LibreSize minimum, LibreSize maximum)
+    {
+        VerifyAccess();
+        ValidateSizeConstraints(minimum, maximum);
+        _minimumSize = minimum;
+        _maximumSize = maximum;
+        ApplySizeConstraints();
     }
 
     public double FramebufferScale => DisplayScaleResolver.ResolveWindowFramebufferScale(_window);
@@ -694,6 +709,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
             dpiScale,
             framebufferScale,
             dpiChanged);
+        ApplySizeConstraints();
         _events.BoundsChanged(Bounds);
 
         if (dpiChanged)
@@ -749,6 +765,38 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
 
     private static int ScaleForDpi(int value, double newDpiScale, double oldDpiScale)
         => checked((int)Math.Round(value * newDpiScale / oldDpiScale, MidpointRounding.AwayFromZero));
+
+    private void ApplySizeConstraints()
+    {
+        LibreRectangle nativeMinimum = LibreWindowCoordinates.ToNative(
+            new LibreRectangle(0, 0, _minimumSize.Width, _minimumSize.Height),
+            _coordinateMode,
+            _reportedDpiScale,
+            _reportedFramebufferScale);
+        LibreRectangle nativeMaximum = LibreWindowCoordinates.ToNative(
+            new LibreRectangle(0, 0, _maximumSize.Width, _maximumSize.Height),
+            _coordinateMode,
+            _reportedDpiScale,
+            _reportedFramebufferScale);
+        _controller.SetSizeConstraints(
+            new NativeWindowSize(nativeMinimum.Width, nativeMinimum.Height),
+            new NativeWindowSize(
+                _maximumSize.Width == 0 ? int.MaxValue : nativeMaximum.Width,
+                _maximumSize.Height == 0 ? int.MaxValue : nativeMaximum.Height));
+    }
+
+    private static void ValidateSizeConstraints(LibreSize minimum, LibreSize maximum)
+    {
+        if (minimum.Width < 0 || minimum.Height < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(minimum), minimum, "Minimum dimensions cannot be negative.");
+        }
+
+        if (maximum.Width < 0 || maximum.Height < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximum), maximum, "Maximum dimensions cannot be negative.");
+        }
+    }
 
     private void OnLoad()
     {

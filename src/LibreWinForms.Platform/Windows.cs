@@ -50,7 +50,9 @@ public readonly record struct LibreWindowCreateOptions(
     LibreWindowState InitialState = LibreWindowState.Normal,
     bool ShowInTaskbar = true,
     bool CanMinimize = true,
-    bool CanMaximize = true);
+    bool CanMaximize = true,
+    LibreSize MinimumSize = default,
+    LibreSize MaximumSize = default);
 
 /// <summary>An immutable, tightly packed RGBA8 icon image for a platform window.</summary>
 public sealed class LibreWindowIcon
@@ -210,6 +212,12 @@ public interface ILibreWindow : IDisposable
 
     /// <summary>Gets or sets whether native chrome offers maximize.</summary>
     bool CanMaximize { get; set; }
+
+    /// <summary>
+    ///  Atomically replaces the managed-coordinate window-size limits. Zero maximum dimensions
+    ///  are unbounded. Implementations convert the values to their native coordinate space.
+    /// </summary>
+    void SetSizeConstraints(LibreSize minimum, LibreSize maximum);
 
     LibreWindowCoordinateMode CoordinateMode { get; }
 

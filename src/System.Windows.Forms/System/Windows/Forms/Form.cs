@@ -1282,6 +1282,15 @@ public partial class Form : ContainerControl
             }
         }
 
+#if LIBREWINFORMS_PORTABLE
+        if (IsHandleCreated)
+        {
+            SetPortableWindowSizeConstraints(
+                new LibreSize(MinimumSize.Width, MinimumSize.Height),
+                new LibreSize(MaximumSize.Width, MaximumSize.Height));
+        }
+#endif
+
         OnMaximumSizeChanged(EventArgs.Empty);
     }
 
@@ -1398,6 +1407,7 @@ public partial class Form : ContainerControl
                 Size = new Size(Math.Max(size.Width, value.Width), Math.Max(size.Height, value.Height));
             }
 
+#if !LIBREWINFORMS_PORTABLE
             if (IsHandleCreated)
             {
                 // "Move" the form to the same size and position to prevent windows from moving it
@@ -1411,7 +1421,17 @@ public partial class Form : ContainerControl
                     Size.Height,
                     SET_WINDOW_POS_FLAGS.SWP_NOZORDER | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
             }
+#endif
         }
+
+#if LIBREWINFORMS_PORTABLE
+        if (IsHandleCreated)
+        {
+            SetPortableWindowSizeConstraints(
+                new LibreSize(MinimumSize.Width, MinimumSize.Height),
+                new LibreSize(MaximumSize.Width, MaximumSize.Height));
+        }
+#endif
 
         OnMinimumSizeChanged(EventArgs.Empty);
     }
