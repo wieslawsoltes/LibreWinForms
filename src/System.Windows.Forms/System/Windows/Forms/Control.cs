@@ -9525,6 +9525,59 @@ public unsafe partial class Control :
 
     internal virtual void RecreateHandleCore()
     {
+#if LIBREWINFORMS_PORTABLE
+        lock (this)
+        {
+            if (!IsHandleCreated)
+            {
+                return;
+            }
+
+            bool focused = ContainsFocus;
+            bool created = GetState(States.Created);
+
+            if (GetState(States.TrackingMouseEvent))
+            {
+                SetState(States.MouseEnterPending, true);
+                UnhookMouseEvent();
+            }
+
+            SetState(States.Recreate, true);
+            try
+            {
+                // Logical child handles have no native parent to park. Top-level controls
+                // dispose and recreate their typed platform window; their managed child tree
+                // and child logical handles remain authoritative and stable.
+                DestroyHandle();
+                CreateHandle();
+            }
+            catch
+            {
+                if (!IsHandleCreated)
+                {
+                    SetState(States.Created, false);
+                }
+
+                throw;
+            }
+            finally
+            {
+                SetState(States.Recreate, false);
+            }
+
+            if (created)
+            {
+                CreateControl();
+            }
+
+            if (focused)
+            {
+                Focus();
+            }
+
+            GC.KeepAlive(this);
+        }
+#else
         lock (this)
         {
             if (!IsHandleCreated)
@@ -9686,6 +9739,7 @@ public unsafe partial class Control :
 
             GC.KeepAlive(this);
         }
+#endif
     }
 
     /// <summary>

@@ -1075,6 +1075,96 @@ public class CanonicalLifecycleTests
         platform.LastCursorShape.Should().Be(LibreCursorShape.Hand);
     }
 
+    [Fact]
+    public void BaseAndFormHandleRecreation_UseLogicalAndTypedPortableLifecycles()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using RecreatingForm form = new()
+        {
+            Bounds = new Rectangle(20, 30, 280, 180),
+            StartPosition = FormStartPosition.CenterScreen,
+        };
+        using RecreatingControl child = new()
+        {
+            Bounds = new Rectangle(10, 12, 80, 50),
+        };
+        using Control descendant = new()
+        {
+            Bounds = new Rectangle(2, 3, 20, 15),
+        };
+        child.Controls.Add(descendant);
+        form.Controls.Add(child);
+        form.Show();
+        platform.SendInput(LibreInputEventKind.FocusGained);
+        child.Focus().Should().BeTrue();
+
+        nint originalFormHandle = form.Handle;
+        nint originalChildHandle = child.Handle;
+        nint descendantHandle = descendant.Handle;
+        int childHandleCreated = 0;
+        int childHandleDestroyed = 0;
+        bool childCreatedWhileRecreating = false;
+        bool childDestroyedWhileRecreating = false;
+        child.HandleCreated += (_, _) =>
+        {
+            childHandleCreated++;
+            childCreatedWhileRecreating = child.RecreatingHandle;
+        };
+        child.HandleDestroyed += (_, _) =>
+        {
+            childHandleDestroyed++;
+            childDestroyedWhileRecreating = child.RecreatingHandle;
+        };
+
+        child.RecreatePortableHandle();
+
+        child.Handle.Should().NotBe(originalChildHandle);
+        child.IsHandleCreated.Should().BeTrue();
+        child.Created.Should().BeTrue();
+        child.Parent.Should().BeSameAs(form);
+        descendant.Handle.Should().Be(descendantHandle);
+        form.Handle.Should().Be(originalFormHandle);
+        child.ContainsFocus.Should().BeTrue();
+        childHandleCreated.Should().Be(1);
+        childHandleDestroyed.Should().Be(1);
+        childCreatedWhileRecreating.Should().BeTrue();
+        childDestroyedWhileRecreating.Should().BeTrue();
+        child.RecreatingHandle.Should().BeFalse();
+
+        nint recreatedChildHandle = child.Handle;
+        int formHandleCreated = 0;
+        int formHandleDestroyed = 0;
+        bool formCreatedWhileRecreating = false;
+        bool formDestroyedWhileRecreating = false;
+        form.HandleCreated += (_, _) =>
+        {
+            formHandleCreated++;
+            formCreatedWhileRecreating = form.RecreatingHandle;
+        };
+        form.HandleDestroyed += (_, _) =>
+        {
+            formHandleDestroyed++;
+            formDestroyedWhileRecreating = form.RecreatingHandle;
+        };
+
+        form.RecreatePortableHandle();
+
+        form.Handle.Should().NotBe(originalFormHandle);
+        form.IsHandleCreated.Should().BeTrue();
+        form.Created.Should().BeTrue();
+        form.Visible.Should().BeTrue();
+        form.Bounds.Should().Be(new Rectangle(20, 30, 280, 180));
+        form.StartPosition.Should().Be(FormStartPosition.CenterScreen);
+        child.Handle.Should().Be(recreatedChildHandle);
+        descendant.Handle.Should().Be(descendantHandle);
+        platform.WindowsCreated.Should().Be(2);
+        formHandleCreated.Should().Be(1);
+        formHandleDestroyed.Should().Be(1);
+        formCreatedWhileRecreating.Should().BeTrue();
+        formDestroyedWhileRecreating.Should().BeTrue();
+        form.RecreatingHandle.Should().BeFalse();
+    }
+
     private static HeadlessPlatform UseHeadlessPlatform(bool autoCloseWindows)
     {
         HeadlessPlatform platform;
@@ -1103,6 +1193,19 @@ public class CanonicalLifecycleTests
         internal void CenterOnParent() => CenterToParent();
 
         internal void CenterOnScreen() => CenterToScreen();
+    }
+
+    private sealed class RecreatingControl : Control
+    {
+        internal RecreatingControl()
+            => SetStyle(ControlStyles.Selectable | ControlStyles.StandardClick | ControlStyles.UserPaint, true);
+
+        internal void RecreatePortableHandle() => RecreateHandle();
+    }
+
+    private sealed class RecreatingForm : Form
+    {
+        internal void RecreatePortableHandle() => RecreateHandle();
     }
 
     private sealed class HeadlessPlatform :

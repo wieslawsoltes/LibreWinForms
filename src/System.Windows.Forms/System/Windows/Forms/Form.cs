@@ -5156,6 +5156,31 @@ public partial class Form : ContainerControl
 
     internal override unsafe void RecreateHandleCore()
     {
+#if LIBREWINFORMS_PORTABLE
+        FormStartPosition oldStartPosition = FormStartPosition.Manual;
+        if (StartPosition != FormStartPosition.Manual)
+        {
+            oldStartPosition = StartPosition;
+            StartPosition = FormStartPosition.Manual;
+        }
+
+        _inRecreateHandle = true;
+        try
+        {
+            base.RecreateHandleCore();
+        }
+        finally
+        {
+            _inRecreateHandle = false;
+        }
+
+        if (oldStartPosition != FormStartPosition.Manual)
+        {
+            StartPosition = oldStartPosition;
+        }
+
+        GC.KeepAlive(this);
+#else
         WINDOWPLACEMENT wp = default;
 
         FormStartPosition oldStartPosition = FormStartPosition.Manual;
@@ -5219,6 +5244,7 @@ public partial class Form : ContainerControl
         }
 
         GC.KeepAlive(this);
+#endif
     }
 
     private void SetFormTitleProperties()
