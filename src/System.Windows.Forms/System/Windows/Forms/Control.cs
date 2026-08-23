@@ -11205,6 +11205,9 @@ public unsafe partial class Control :
     internal void SetPortableWindowTopMost(bool topMost)
         => _window.SetPortableTopMost(topMost);
 
+    internal void SetPortableWindowOpacity(double opacity)
+        => _window.SetPortableOpacity(opacity);
+
     internal void SetPortableWindowShowInTaskbar(bool showInTaskbar)
         => _window.SetPortableShowInTaskbar(showInTaskbar);
 

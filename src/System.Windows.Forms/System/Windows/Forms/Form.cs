@@ -1654,11 +1654,15 @@ public partial class Form : ContainerControl
                 _formState[s_formStateLayered] = (TransparencyKey != Color.Empty) ? 1 : 0;
                 if (oldLayered != (_formState[s_formStateLayered] != 0))
                 {
+#if LIBREWINFORMS_PORTABLE
+                    UpdateStyles();
+#else
                     CreateParams cp = CreateParams;
                     if ((int)ExtendedWindowStyle != cp.ExStyle)
                     {
                         PInvokeCore.SetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, cp.ExStyle);
                     }
+#endif
                 }
             }
 
@@ -6471,6 +6475,12 @@ public partial class Form : ContainerControl
     /// </summary>
     private void UpdateLayered()
     {
+#if LIBREWINFORMS_PORTABLE
+        if (IsHandleCreated && TopLevel)
+        {
+            SetPortableWindowOpacity(double.IsFinite(Opacity) ? Opacity : 0d);
+        }
+#else
         if ((_formState[s_formStateLayered] != 0) && IsHandleCreated && TopLevel)
         {
             BOOL result;
@@ -6496,6 +6506,7 @@ public partial class Form : ContainerControl
                 throw new Win32Exception();
             }
         }
+#endif
     }
 
     private unsafe void UpdateMenuHandles(bool recreateMenu = false)

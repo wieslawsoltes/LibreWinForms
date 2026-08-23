@@ -539,7 +539,8 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
                     hasControlBox && _portableStyle.HasFlag(WINDOW_STYLE.WS_MAXIMIZEBOX),
                     new LibreSize(form.MinimumSize.Width, form.MinimumSize.Height),
                     new LibreSize(form.MaximumSize.Width, form.MaximumSize.Height),
-                    CanClose: hasControlBox);
+                    CanClose: hasControlBox,
+                    Opacity: double.IsFinite(form.Opacity) ? form.Opacity : 0d);
                 _portableWindow = services.Windows.Create(createOptions, new PortableWindowEvents(this));
                 _portableHandle = _portableWindow.Handle;
                 _portableCoordinateMode = _portableWindow.CoordinateMode;
@@ -958,6 +959,14 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
         if (_portableWindow is { } window)
         {
             window.TopMost = topMost;
+        }
+    }
+
+    internal void SetPortableOpacity(double opacity)
+    {
+        if (_portableWindow is { } window)
+        {
+            window.Opacity = opacity;
         }
     }
 

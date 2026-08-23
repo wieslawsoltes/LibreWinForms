@@ -149,6 +149,8 @@ public class ProGpuDispatcherTests
 
         public bool CanClose { get; set; } = true;
 
+        public double Opacity { get; set; } = 1d;
+
         public void SetSizeConstraints(LibreSize minimum, LibreSize maximum) { }
 
         public LibreWindowCoordinateMode CoordinateMode => LibreWindowCoordinateMode.Logical;

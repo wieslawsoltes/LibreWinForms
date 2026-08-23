@@ -53,7 +53,8 @@ public readonly record struct LibreWindowCreateOptions(
     bool CanMaximize = true,
     LibreSize MinimumSize = default,
     LibreSize MaximumSize = default,
-    bool CanClose = true);
+    bool CanClose = true,
+    double Opacity = 1d);
 
 /// <summary>An immutable, tightly packed RGBA8 icon image for a platform window.</summary>
 public sealed class LibreWindowIcon
@@ -216,6 +217,9 @@ public interface ILibreWindow : IDisposable
 
     /// <summary>Gets or sets whether native chrome offers close and its system menu.</summary>
     bool CanClose { get; set; }
+
+    /// <summary>Gets or sets whole-window opacity, including platform decorations, from zero to one.</summary>
+    double Opacity { get; set; }
 
     /// <summary>
     ///  Atomically replaces the managed-coordinate window-size limits. Zero maximum dimensions

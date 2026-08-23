@@ -98,6 +98,41 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void Opacity_UsesTypedInitialAndLiveWholeWindowState()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { Opacity = 0.35d };
+
+        nint handle = form.Handle;
+
+        platform.LastWindowOpacity.Should().Be(0.35d);
+
+        form.Opacity = 0.72d;
+        platform.LastWindowOpacity.Should().Be(0.72d);
+        form.Handle.Should().Be(handle);
+
+        form.Opacity = 2d;
+        form.Opacity.Should().Be(1d);
+        platform.LastWindowOpacity.Should().Be(1d);
+        form.Handle.Should().Be(handle);
+
+        form.Opacity = -1d;
+        form.Opacity.Should().Be(0d);
+        platform.LastWindowOpacity.Should().Be(0d);
+        form.Handle.Should().Be(handle);
+
+        form.Opacity = double.NaN;
+        double.IsNaN(form.Opacity).Should().BeTrue();
+        platform.LastWindowOpacity.Should().Be(0d);
+        form.Handle.Should().Be(handle);
+
+        form.AllowTransparency = false;
+        form.Opacity.Should().Be(1d);
+        platform.LastWindowOpacity.Should().Be(1d);
+        form.Handle.Should().Be(handle);
+    }
+
+    [Fact]
     public void ShowInTaskbar_UsesTypedInitialAndLivePlatformState()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -955,6 +990,7 @@ public class CanonicalLifecycleTests
             LastWindowCanClose = true;
             LastWindowCanMinimize = true;
             LastWindowCanMaximize = true;
+            LastWindowOpacity = 1d;
             LastWindowIcons = [];
         }
 
@@ -1009,6 +1045,8 @@ public class CanonicalLifecycleTests
         internal bool LastWindowCanMinimize { get; private set; }
 
         internal bool LastWindowCanMaximize { get; private set; }
+
+        internal double LastWindowOpacity { get; private set; }
 
         internal LibreSize LastWindowMinimumSize { get; private set; }
 
@@ -1214,6 +1252,7 @@ public class CanonicalLifecycleTests
             private bool _canClose;
             private bool _canMinimize;
             private bool _canMaximize;
+            private double _opacity = 1d;
 
             internal HeadlessWindow(
                 HeadlessPlatform platform,
@@ -1245,6 +1284,7 @@ public class CanonicalLifecycleTests
                 CanClose = options.CanClose;
                 CanMinimize = options.CanMinimize;
                 CanMaximize = options.CanMaximize;
+                Opacity = options.Opacity;
                 SetSizeConstraints(options.MinimumSize, options.MaximumSize);
                 Owner = options.Owner;
                 Visible = options.Options.HasFlag(LibreWindowOptions.Visible);
@@ -1358,6 +1398,16 @@ public class CanonicalLifecycleTests
                 {
                     _canMaximize = value;
                     _platform.LastWindowCanMaximize = value;
+                }
+            }
+
+            public double Opacity
+            {
+                get => _opacity;
+                set
+                {
+                    _opacity = value;
+                    _platform.LastWindowOpacity = value;
                 }
             }
 

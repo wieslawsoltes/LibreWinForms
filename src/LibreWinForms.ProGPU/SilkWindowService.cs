@@ -78,6 +78,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private bool _canClose;
     private bool _canMinimize;
     private bool _canMaximize;
+    private double _opacity;
     private LibreSize _minimumSize;
     private LibreSize _maximumSize;
     private double _reportedDpiScale = 1.0;
@@ -100,6 +101,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _events = events;
         _coordinateMode = options.CoordinateMode;
         ValidateSizeConstraints(options.MinimumSize, options.MaximumSize);
+        ValidateOpacity(options.Opacity);
         _paintRoot.AddChild(_fallbackPaintVisual);
         _paintRoot.AddTopmostChild(_transientPaintVisual);
         LibreRectangle nativeBounds = LibreWindowCoordinates.ToNative(
@@ -130,6 +132,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _canClose = options.CanClose;
         _canMinimize = options.CanMinimize;
         _canMaximize = options.CanMaximize;
+        _opacity = options.Opacity;
         _minimumSize = options.MinimumSize;
         _maximumSize = options.MaximumSize;
         Handle = handles.Allocate(this, LibreHandleKind.Window);
@@ -139,6 +142,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _controller.SetCanClose(_canClose);
         _controller.SetCanMinimize(_canMinimize);
         _controller.SetCanMaximize(_canMaximize);
+        _controller.SetOpacity(_opacity);
         _controller.SetShowInTaskbar(_showInTaskbar);
         _reportedDpiScale = DpiScale;
         _reportedFramebufferScale = FramebufferScale;
@@ -340,6 +344,23 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
 
             _canClose = value;
             _controller.SetCanClose(value);
+        }
+    }
+
+    public double Opacity
+    {
+        get => _opacity;
+        set
+        {
+            VerifyAccess();
+            ValidateOpacity(value);
+            if (_opacity == value)
+            {
+                return;
+            }
+
+            _opacity = value;
+            _controller.SetOpacity(value);
         }
     }
 
@@ -814,6 +835,14 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         if (maximum.Width < 0 || maximum.Height < 0)
         {
             throw new ArgumentOutOfRangeException(nameof(maximum), maximum, "Maximum dimensions cannot be negative.");
+        }
+    }
+
+    private static void ValidateOpacity(double value)
+    {
+        if (!double.IsFinite(value) || value is < 0d or > 1d)
+        {
+            throw new ArgumentOutOfRangeException(nameof(value), value, "Window opacity must be finite and between zero and one.");
         }
     }
 
