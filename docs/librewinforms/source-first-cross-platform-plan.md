@@ -526,6 +526,12 @@ The development graph now advances its exact ProGPU pin to `8758d938ab2fb9d10fef
 
 The focused state suite passes 8/8 with production source-copy and hatch-origin pixels, balanced source-copy batches across two hosted flushes, and zero managed allocation across 1,024 warmed `TransformElements` round trips. The complete drawing suite passes 178/178. ApiCompat removes one missing-type and fourteen missing-member suppressions, reaching 48 missing types, 303 missing members, 47 other diagnostics (`398` total) with no breaks or stale suppressions. Downstream, the ProGPU adapter rebuilds at 0 warnings/0 errors and passes 10/10 tests; canonical `System.Windows.Forms` rebuilds with 613 known compatibility warnings/0 errors and passes 24/24 lifecycle tests. The public package lane remains intact, the submodule remains the development graph, and the frozen portable comparison remains in place until the documented cutover gates pass. Hosted evidence remains pending for the commit that advances this pin.
 
+## Current ProGPU point/source-rectangle image checkpoint
+
+The development graph advances its exact ProGPU pin to `875da5b2d717b9e09f0428cb5e70271dcc8d8788`. Eleven official `Graphics.DrawImage` members now route through the existing typed retained texture, source-unit conversion, sampling, image-remap/color-matrix, and callback path. Point and integer placement preserve source dimensions; unscaled/clipped drawing restricts matching source and destination extents without stretching; point-anchored source rectangles crop at their converted pixel size; float-source rectangle overloads honor attributes and cancellation before retaining resources. Destination point arrays remain a separate affine/perspective renderer task and are not faked with axis-aligned bounds.
+
+Five focused production tests and the complete 183/183 drawing suite pass. ApiCompat reaches 48 missing types, 292 missing members, 47 other diagnostics (`387` total) with no breaks or stale suppressions. Downstream adapter build/tests remain 0 warnings/0 errors and 10/10; canonical `System.Windows.Forms` remains 613 known compatibility warnings/0 errors and 24/24 lifecycle tests. The package lane and frozen portable comparison are unchanged; hosted evidence remains pending for this exact pin.
+
 ## Proposed fixes for the missing-property problem
 
 The permanent fix is not to manually add thousands of properties to the compatibility source. Apply these fixes in order:
