@@ -556,6 +556,12 @@ The development graph advances its exact ProGPU pin to `051503be319348c917d31e07
 
 Five focused tests cover numeric identity, supported brush mapping, and zero allocation across 4,096 warmed getter reads. The complete drawing suite passes 215/215; ApiCompat reaches 42 missing types, 281 missing members, 47 other diagnostics (`370` total) with no breaks or stale suppressions. Downstream adapter build/tests remain 0 warnings/0 errors and 10/10; canonical `System.Windows.Forms` remains 613 known compatibility warnings/0 errors and 24/24 lifecycle tests. NuGet support and the frozen portable comparison remain unchanged. Hosted evidence is pending for this exact pin.
 
+## Current ProGPU brush-base checkpoint
+
+The development graph advances its exact ProGPU pin to `80848433b35cf866e29e8cb27e03b5e8eb041fc7`. `Brush` now has the official `MarshalByRefObject`, `ICloneable`, abstract `Clone`, and protected disposal inheritance shape. The ProGPU-specific lowering method no longer leaks into the public `System.Drawing` API: it is an internal virtual renderer seam with a clear unsupported default, while built-in brushes keep their typed implementations. `SolidBrush` gains independent cloning and post-disposal rejection, and protected native-brush injection names the required Windows adapter instead of storing an untyped handle.
+
+Four focused tests cover clone ownership, disposal, third-party derived hooks, renderer adaptation, and the native-handle boundary. The complete drawing suite passes 219/219; ApiCompat reaches 42 missing types, 278 missing members, 44 other diagnostics (`364` total) with no breaks or stale suppressions. The benchmark consumer compiles at 0 warnings/errors. Downstream adapter build/tests remain 0 warnings/0 errors and 10/10; canonical `System.Windows.Forms` remains 613 known compatibility warnings/0 errors and 24/24 lifecycle tests. NuGet support and the frozen portable comparison remain unchanged. Hosted evidence is pending for this exact pin; the broad local headless graph is separately blocked by an absent `microsoft-ui-xaml` theme checkout after the changed drawing assembly compiles.
+
 ## Proposed fixes for the missing-property problem
 
 The permanent fix is not to manually add thousands of properties to the compatibility source. Apply these fixes in order:
