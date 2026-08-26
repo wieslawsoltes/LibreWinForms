@@ -532,6 +532,12 @@ The development graph advances its exact ProGPU pin to `875da5b2d717b9e09f0428cb
 
 Five focused production tests and the complete 183/183 drawing suite pass. ApiCompat reaches 48 missing types, 292 missing members, 47 other diagnostics (`387` total) with no breaks or stale suppressions. Downstream adapter build/tests remain 0 warnings/0 errors and 10/10; canonical `System.Windows.Forms` remains 613 known compatibility warnings/0 errors and 24/24 lifecycle tests. The package lane and frozen portable comparison are unchanged; hosted evidence remains pending for this exact pin.
 
+## Current ProGPU coordinate-space checkpoint
+
+The development graph advances its exact ProGPU pin to `4aa5ca5dc4fda0d11acb54daed1207f60e559780`. `Drawing2D.CoordinateSpace` and all array/span `Graphics.TransformPoints` overloads now use the same world, page-unit/page-scale, and explicit host base transforms as production retained drawing. This provides typed world/page/device conversion for bitmap and LibreWinForms-hosted graphics without querying a native device context. Caller-owned storage is mutated in place, same-space conversions preserve it, and invalid or non-invertible boundaries fail explicitly.
+
+Five focused tests cover exact identity, all six directed conversions, array/span mutation, validation/disposal, and zero allocation across 1,024 warmed span conversions. The complete drawing suite passes 188/188; ApiCompat reaches 47 missing types, 288 missing members, 47 other diagnostics (`382` total) with no breaks or stale suppressions. Downstream adapter build/tests remain 0 warnings/0 errors and 10/10; canonical `System.Windows.Forms` remains 613 known compatibility warnings/0 errors and 24/24 lifecycle tests. NuGet support and the frozen portable comparison are unchanged. Hosted evidence remains pending for this exact pin.
+
 ## Proposed fixes for the missing-property problem
 
 The permanent fix is not to manually add thousands of properties to the compatibility source. Apply these fixes in order:
