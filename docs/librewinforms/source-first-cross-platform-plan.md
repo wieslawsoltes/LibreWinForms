@@ -538,6 +538,12 @@ The development graph advances its exact ProGPU pin to `4aa5ca5dc4fda0d11acb54da
 
 Five focused tests cover exact identity, all six directed conversions, array/span mutation, validation/disposal, and zero allocation across 1,024 warmed span conversions. The complete drawing suite passes 188/188; ApiCompat reaches 47 missing types, 288 missing members, 47 other diagnostics (`382` total) with no breaks or stale suppressions. Downstream adapter build/tests remain 0 warnings/0 errors and 10/10; canonical `System.Windows.Forms` remains 613 known compatibility warnings/0 errors and 24/24 lifecycle tests. NuGet support and the frozen portable comparison are unchanged. Hosted evidence remains pending for this exact pin.
 
+## Current ProGPU graphics-container checkpoint
+
+The development graph advances its exact ProGPU pin to `e970da334d4782761ed5523f7ac9a03915ca2526`. The official sealed `Drawing2D.GraphicsContainer` and all four `Graphics.BeginContainer`/`EndContainer` members share a typed ordered state stack with `Graphics.Save`/`Restore`. Public world/page/clip/quality state resets inside a container while the parent transform and clip remain effective through compact hidden `Matrix3x2` state and enclosing retained geometry-clip scopes. Rectangle containers map source units into destination coordinates and compose the explicit LibreWinForms host transform. Ending, restoring across, or disposing nested scopes invalidates tokens and balances the recorder without HDC, GDI+, runtime reflection, or private-state scans.
+
+Twelve focused tests cover exact shape/defaults, state restoration, nested and rectangle mappings, inherited-clip pixels, token ownership/invalidation, invalid units, recorder balance, and a 256-byte-per-round-trip upper allocation bound across 1,024 warmed transitions. The complete drawing suite passes 200/200; ApiCompat reaches 46 missing types, 284 missing members, 47 other diagnostics (`377` total) with no breaks or stale suppressions. Downstream adapter build/tests remain 0 warnings/0 errors and 10/10; canonical `System.Windows.Forms` remains 613 known compatibility warnings/0 errors and 24/24 lifecycle tests. NuGet support and the frozen portable comparison are unchanged. Hosted evidence remains pending for this exact pin.
+
 ## Proposed fixes for the missing-property problem
 
 The permanent fix is not to manually add thousands of properties to the compatibility source. Apply these fixes in order:
