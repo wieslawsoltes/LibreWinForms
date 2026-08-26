@@ -3,6 +3,7 @@
 
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Numerics;
 using LibreWinForms.Platform;
 using ProGPU.Backend;
@@ -517,11 +518,55 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
             ToDrawingRectangle(clipRectangle),
             Matrix4x4.CreateTranslation(origin.X, origin.Y, 0f),
             targetContext,
+            intention => FlushGraphics(recording, infrastructureCommandCount, intention),
             () => CompleteGraphics(recording, infrastructureCommandCount));
         ApplyLocalClip(graphics, origin, clipRectangle);
         // Disposing Graphics balances the initial clip with one pop command.
         infrastructureCommandCount = checked(recording.Commands.Count + 1);
         return graphics;
+    }
+
+    private void FlushGraphics(
+        DrawingContext recording,
+        int infrastructureCommandCount,
+        FlushIntention intention)
+    {
+        void FlushOnDispatcher()
+        {
+            if (_disposed || recording.Commands.Count <= infrastructureCommandCount)
+            {
+                recording.Clear();
+            }
+            else
+            {
+                CommitGraphics(recording);
+            }
+
+            if (!_disposed && intention == FlushIntention.Sync)
+            {
+                PresentPendingPaint();
+            }
+        }
+
+        if (_dispatcher.CheckAccess())
+        {
+            FlushOnDispatcher();
+            return;
+        }
+
+        try
+        {
+            _dispatcher.Send(FlushOnDispatcher);
+        }
+        catch (ObjectDisposedException)
+        {
+            recording.Clear();
+        }
+        catch
+        {
+            recording.Clear();
+            throw;
+        }
     }
 
     internal static Graphics CreateDetachedGraphics(

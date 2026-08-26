@@ -3,6 +3,7 @@
 
 using System.Collections.Concurrent;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Numerics;
 using System.Windows.Forms;
@@ -479,6 +480,35 @@ public class CanonicalLifecycleTests
         }
 
         platform.CreateGraphicsCommitCount.Should().Be(0);
+    }
+
+    [Fact]
+    public void ControlCreateGraphics_FlushCommitsBatchesAndDrawingContinues()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { ClientSize = new Size(100, 50) };
+        using Control child = new() { Bounds = new Rectangle(10, 5, 30, 20) };
+        form.Controls.Add(child);
+        _ = form.Handle;
+
+        using (Graphics graphics = child.CreateGraphics())
+        {
+            graphics.FillRectangle(Brushes.Red, 0, 0, 4, 3);
+            graphics.Flush();
+
+            platform.CreateGraphicsCommitCount.Should().Be(1);
+            platform.CreateGraphicsFlushCount.Should().Be(1);
+            platform.LastCreateGraphicsFlushIntention.Should().Be(FlushIntention.Flush);
+
+            graphics.FillRectangle(Brushes.Blue, 4, 0, 4, 3);
+            graphics.Flush(FlushIntention.Sync);
+
+            platform.CreateGraphicsCommitCount.Should().Be(2);
+            platform.CreateGraphicsFlushCount.Should().Be(2);
+            platform.LastCreateGraphicsFlushIntention.Should().Be(FlushIntention.Sync);
+        }
+
+        platform.CreateGraphicsCommitCount.Should().Be(2);
     }
 
     [Fact]
@@ -1259,6 +1289,8 @@ public class CanonicalLifecycleTests
             SawFormPaintFill = false;
             SawTranslatedChildPaintFill = false;
             CreateGraphicsCommitCount = 0;
+            CreateGraphicsFlushCount = 0;
+            LastCreateGraphicsFlushIntention = null;
             SawCreateGraphicsTranslatedFill = false;
             LastActivatedWindow = default;
             LastWindowTitle = string.Empty;
@@ -1308,6 +1340,10 @@ public class CanonicalLifecycleTests
         internal bool SawTranslatedChildPaintFill { get; private set; }
 
         internal int CreateGraphicsCommitCount { get; private set; }
+
+        internal int CreateGraphicsFlushCount { get; private set; }
+
+        internal FlushIntention? LastCreateGraphicsFlushIntention { get; private set; }
 
         internal bool SawCreateGraphicsTranslatedFill { get; private set; }
 
@@ -1773,6 +1809,7 @@ public class CanonicalLifecycleTests
                         clipRectangle.Width,
                         clipRectangle.Height),
                     Matrix4x4.CreateTranslation(origin.X, origin.Y, 0f),
+                    intention => FlushGraphics(recording, infrastructureCommandCount, intention),
                     () => CompleteGraphics(recording, infrastructureCommandCount));
                 graphics.SetClip(new RectangleF(
                     clipRectangle.X - origin.X,
@@ -1781,6 +1818,16 @@ public class CanonicalLifecycleTests
                     clipRectangle.Height));
                 infrastructureCommandCount = checked(recording.Commands.Count + 1);
                 return graphics;
+            }
+
+            private void FlushGraphics(
+                DrawingContext recording,
+                int infrastructureCommandCount,
+                FlushIntention intention)
+            {
+                _platform.CreateGraphicsFlushCount++;
+                _platform.LastCreateGraphicsFlushIntention = intention;
+                CompleteGraphics(recording, infrastructureCommandCount);
             }
 
             private void CompleteGraphics(
