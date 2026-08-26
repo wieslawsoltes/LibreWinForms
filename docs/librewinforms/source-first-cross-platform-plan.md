@@ -550,6 +550,12 @@ The development graph advances its exact ProGPU pin to `ab95514d1ad3ea0a033d6be0
 
 Ten focused cases cover scaled thumbnail pixels, callback behavior, dimension validation, unsupported storage, icon pixels and placement, validation-before-recording, and a 4,608-byte-per-operation allocation ceiling across 32 warmed creations. The complete drawing suite passes 210/210; ApiCompat reaches 45 missing types, 282 missing members, 47 other diagnostics (`374` total) with no breaks or stale suppressions. The ARM64/.NET 10.0.11 ShortRun records a 170.455 microsecond median, 192.464 microsecond mean, 38.656 microsecond standard deviation, and 7.77 KB allocated; the three measured iterations and denied process-priority elevation make it coarse local evidence. Downstream adapter build/tests remain 0 warnings/0 errors and 10/10; canonical `System.Windows.Forms` remains 613 known compatibility warnings/0 errors and 24/24 lifecycle tests. NuGet support and the frozen portable comparison are unchanged. Hosted evidence remains pending for this exact pin.
 
+## Current ProGPU drawing-identity checkpoint
+
+The development graph advances its exact ProGPU pin to `051503be319348c917d31e075e1061941b849f5d`. Exact `Drawing2D.QualityMode`, `StringUnit`, and `Drawing2D.PenType` identities now compile from the ProGPU `System.Drawing.Common` source, and `Pen.PenType` reports each supported managed brush kind through direct typed matches. `PathGradient` retains its official enum value while `PathGradientBrush` remains explicit debt. The official `Pen.Transform` contract changes the pen tip and ignores translation, so it remains suppressed until ProGPU stroke widening, rendering, and hit testing share a typed anisotropic tip transform; path geometry will not be moved as a false substitute.
+
+Five focused tests cover numeric identity, supported brush mapping, and zero allocation across 4,096 warmed getter reads. The complete drawing suite passes 215/215; ApiCompat reaches 42 missing types, 281 missing members, 47 other diagnostics (`370` total) with no breaks or stale suppressions. Downstream adapter build/tests remain 0 warnings/0 errors and 10/10; canonical `System.Windows.Forms` remains 613 known compatibility warnings/0 errors and 24/24 lifecycle tests. NuGet support and the frozen portable comparison remain unchanged. Hosted evidence is pending for this exact pin.
+
 ## Proposed fixes for the missing-property problem
 
 The permanent fix is not to manually add thousands of properties to the compatibility source. Apply these fixes in order:
