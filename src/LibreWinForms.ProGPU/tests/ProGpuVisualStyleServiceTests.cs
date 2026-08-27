@@ -48,6 +48,8 @@ public sealed class ProGpuVisualStyleServiceTests
         region.IsVisible(0, 0).Should().BeFalse();
         service.GetBackgroundContentRectangle("BUTTON", 1, 1, new Rectangle(0, 0, 20, 12))
             .Should().Be(new Rectangle(3, 3, 14, 6));
+        service.GetBackgroundExtent("BUTTON", 1, 1, new Rectangle(3, 3, 14, 6))
+            .Should().Be(new Rectangle(0, 0, 20, 12));
         service.GetPartSize("BUTTON", 1, 1, null, LibreVisualStyleSizeType.True)
             .Should().Be(new Size(75, 23));
         service.GetPartSize("BUTTON", 3, 1, null, LibreVisualStyleSizeType.True)

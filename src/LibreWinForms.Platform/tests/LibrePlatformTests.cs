@@ -369,6 +369,12 @@ public class LibrePlatformTests
             int state,
             System.Drawing.Rectangle bounds)
             => throw new NotSupportedException();
+        public System.Drawing.Rectangle GetBackgroundExtent(
+            string className,
+            int part,
+            int state,
+            System.Drawing.Rectangle contentBounds)
+            => throw new NotSupportedException();
         public System.Drawing.Size GetPartSize(
             string className,
             int part,

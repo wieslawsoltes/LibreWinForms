@@ -451,6 +451,8 @@ Portable visual-style background hit testing now uses typed, renderer-neutral op
 
 Canonical portable `GetTextMetrics` no longer enters the native device-context/UxTheme path. A complete renderer-neutral metrics record carries every public scalar, character, style, pitch/family, and character-set field; the canonical boundary explicitly reconstructs `System.Windows.Forms.VisualStyles.TextMetrics`. ProGPU calculates its baseline from the real default font's OpenType family metrics, measured glyph widths, and the supplied managed graphics DPI rather than returning a zero-filled compatibility value. Platform 26/26, adapter 18/18, lifecycle 28/28, and canonical ProGPU compilation at 614 reviewed warnings/0 errors pass. Windows retains the upstream `GetThemeTextMetrics` conversion.
 
+Canonical portable `GetBackgroundExtent` no longer calls `GetThemeBackgroundExtent`. It sends exact content bounds through the same typed visual-style service that supplies content rectangles; ProGPU's three-pixel outset is the inverse of its baseline inset, and negative dimensions retain the upstream empty result. Platform 26/26, adapter 18/18, lifecycle 28/28, and the 614-warning/0-error canonical ProGPU build pass. The original native path remains unchanged on Windows.
+
 ## Proposed fixes
 
 ### P0: Add an official API contract gate

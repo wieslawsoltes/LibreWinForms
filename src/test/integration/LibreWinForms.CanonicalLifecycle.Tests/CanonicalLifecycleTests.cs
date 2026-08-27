@@ -360,6 +360,8 @@ public class CanonicalLifecycleTests
             region.IsVisible(0, 0).Should().BeFalse();
             renderer.GetBackgroundContentRectangle(graphics, new Rectangle(0, 0, 20, 12))
                 .Should().Be(new Rectangle(2, 2, 16, 8));
+            renderer.GetBackgroundExtent(graphics, new Rectangle(1, 2, 30, 12))
+                .Should().Be(new Rectangle(8, 9, 40, 22));
             renderer.GetPartSize(graphics, ThemeSizeType.True).Should().Be(new Size(21, 22));
             renderer.DrawEdge(
                 graphics,
@@ -1838,6 +1840,12 @@ public class CanonicalLifecycleTests
 
         public Rectangle GetBackgroundContentRectangle(string className, int part, int state, Rectangle bounds)
             => Rectangle.Inflate(bounds, -2, -2);
+
+        public Rectangle GetBackgroundExtent(string className, int part, int state, Rectangle contentBounds)
+        {
+            contentBounds.Should().Be(new Rectangle(1, 2, 30, 12));
+            return new Rectangle(8, 9, 40, 22);
+        }
 
         public Size GetPartSize(
             string className,

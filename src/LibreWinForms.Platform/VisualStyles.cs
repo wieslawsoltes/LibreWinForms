@@ -261,6 +261,8 @@ public interface ILibreVisualStyleService
 
     Rectangle GetBackgroundContentRectangle(string className, int part, int state, Rectangle bounds);
 
+    Rectangle GetBackgroundExtent(string className, int part, int state, Rectangle contentBounds);
+
     Size GetPartSize(
         string className,
         int part,
@@ -369,6 +371,10 @@ public sealed class UnsupportedLibreVisualStyleService : ILibreVisualStyleServic
     public Rectangle GetBackgroundContentRectangle(string className, int part, int state, Rectangle bounds)
         => throw new PlatformNotSupportedException(
             "This LibreWinForms host does not provide portable visual-style content metrics.");
+
+    public Rectangle GetBackgroundExtent(string className, int part, int state, Rectangle contentBounds)
+        => throw new PlatformNotSupportedException(
+            "This LibreWinForms host does not provide portable visual-style background extents.");
 
     public Size GetPartSize(
         string className,

@@ -544,9 +544,14 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
             return Rectangle.Empty;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.GetBackgroundExtent(Class, Part, State, contentBounds);
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         _lastHResult = PInvoke.GetThemeBackgroundExtent(HTHEME, hdc, Part, State, contentBounds, out RECT extents);
         return extents;
+#endif
     }
 
     /// <summary>

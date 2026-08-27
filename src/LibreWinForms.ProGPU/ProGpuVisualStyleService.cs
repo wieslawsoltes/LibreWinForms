@@ -75,6 +75,12 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
         return Rectangle.Inflate(bounds, -horizontalInset, -verticalInset);
     }
 
+    public Rectangle GetBackgroundExtent(string className, int part, int state, Rectangle contentBounds)
+    {
+        ValidateElement(className, part);
+        return Rectangle.Inflate(contentBounds, 3, 3);
+    }
+
     public Size GetPartSize(
         string className,
         int part,

@@ -790,6 +790,8 @@ The portable `HitTestBackground` paths now distinguish managed and native region
 
 Portable `VisualStyleRenderer.GetTextMetrics` now reconstructs the unchanged public `TextMetrics` value from a renderer-neutral `LibreVisualStyleTextMetrics` record instead of unconditionally acquiring an HDC. Platform-owned character-set and pitch/family enums keep WinForms and Win32 types out of the service interface, and the canonical boundary maps every supported value explicitly. ProGPU derives height, ascent, descent, leading, average/maximum character widths, weight, style, DPI aspect, character markers, pitch, and character set from the actual default font, its typed OpenType family metrics, and managed `Graphics` DPI. The lifecycle host uses distinctive values to prove field and enum transport. Platform 26/26, adapter 18/18, lifecycle 28/28, and canonical ProGPU compilation at 614 reviewed warnings/0 errors pass; Windows retains `GetThemeTextMetrics`.
 
+Portable `GetBackgroundExtent` now completes the typed content/extent metric pair. It preserves the upstream negative-size early return, then delegates exact class, part, state, and content bounds to `ILibreVisualStyleService` without acquiring an HDC. The ProGPU baseline applies the inverse three-pixel outset of its content rectangle, while the lifecycle service returns a distinctive rectangle to prove canonical delegation. Platform 26/26, adapter 18/18, lifecycle 28/28, and canonical ProGPU compilation at 614 reviewed warnings/0 errors pass. Windows retains `GetThemeBackgroundExtent`.
+
 ## Proposed fixes for the missing-property problem
 
 The permanent fix is not to manually add thousands of properties to the compatibility source. Apply these fixes in order:
