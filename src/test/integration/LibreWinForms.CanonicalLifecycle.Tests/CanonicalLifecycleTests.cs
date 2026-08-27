@@ -382,6 +382,8 @@ public class CanonicalLifecycleTests
         renderer.GetInteger(IntegerProperty.ProgressChunkSize).Should().Be(7);
         renderer.GetBoolean(BooleanProperty.BackgroundFill).Should().BeTrue();
         renderer.GetEnumValue(EnumProperty.BackgroundType).Should().Be(1);
+        renderer.GetFilename(FilenameProperty.ImageFile).Should().Be("managed-theme-image");
+        renderer.GetString(StringProperty.Text).Should().Be("managed-theme-text");
         renderer.GetPoint(PointProperty.TextShadowOffset).Should().Be(new Point(2, 3));
         renderer.IsBackgroundPartiallyTransparent().Should().BeFalse();
         platform.VisualStyleDrawCount.Should().Be(1);
@@ -1834,6 +1836,26 @@ public class CanonicalLifecycleTests
         {
             property.Should().Be(LibreVisualStyleEnumProperty.BackgroundType);
             return 1;
+        }
+
+        public string GetFilename(
+            string className,
+            int part,
+            int state,
+            LibreVisualStyleFilenameProperty property)
+        {
+            property.Should().Be(LibreVisualStyleFilenameProperty.ImageFile);
+            return "managed-theme-image";
+        }
+
+        public string GetString(
+            string className,
+            int part,
+            int state,
+            LibreVisualStyleStringProperty property)
+        {
+            property.Should().Be(LibreVisualStyleStringProperty.Text);
+            return "managed-theme-text";
         }
 
         public LibreVisualStyleMargins GetMargins(

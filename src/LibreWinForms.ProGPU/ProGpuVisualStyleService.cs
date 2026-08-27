@@ -174,6 +174,28 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
         };
     }
 
+    public string GetFilename(string className, int part, int state, LibreVisualStyleFilenameProperty property)
+    {
+        ValidateElement(className, part);
+        if (property is < LibreVisualStyleFilenameProperty.ImageFile or > LibreVisualStyleFilenameProperty.GlyphImageFile)
+        {
+            throw new ArgumentOutOfRangeException(nameof(property));
+        }
+
+        return string.Empty;
+    }
+
+    public string GetString(string className, int part, int state, LibreVisualStyleStringProperty property)
+    {
+        ValidateElement(className, part);
+        if (property != LibreVisualStyleStringProperty.Text)
+        {
+            throw new ArgumentOutOfRangeException(nameof(property));
+        }
+
+        return string.Empty;
+    }
+
     public LibreVisualStyleMargins GetMargins(
         string className,
         int part,

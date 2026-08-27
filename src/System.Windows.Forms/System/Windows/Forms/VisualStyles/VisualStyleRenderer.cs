@@ -776,6 +776,29 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
                 $"Portable visual-style enum property '{property}' is not implemented."),
         };
 
+    private static LibreVisualStyleFilenameProperty GetPortableFilenameProperty(FilenameProperty property)
+        => property switch
+        {
+            FilenameProperty.ImageFile => LibreVisualStyleFilenameProperty.ImageFile,
+            FilenameProperty.ImageFile1 => LibreVisualStyleFilenameProperty.ImageFile1,
+            FilenameProperty.ImageFile2 => LibreVisualStyleFilenameProperty.ImageFile2,
+            FilenameProperty.ImageFile3 => LibreVisualStyleFilenameProperty.ImageFile3,
+            FilenameProperty.ImageFile4 => LibreVisualStyleFilenameProperty.ImageFile4,
+            FilenameProperty.ImageFile5 => LibreVisualStyleFilenameProperty.ImageFile5,
+            FilenameProperty.StockImageFile => LibreVisualStyleFilenameProperty.StockImageFile,
+            FilenameProperty.GlyphImageFile => LibreVisualStyleFilenameProperty.GlyphImageFile,
+            _ => throw new PlatformNotSupportedException(
+                $"Portable visual-style filename property '{property}' is not implemented."),
+        };
+
+    private static LibreVisualStyleStringProperty GetPortableStringProperty(StringProperty property)
+        => property switch
+        {
+            StringProperty.Text => LibreVisualStyleStringProperty.Text,
+            _ => throw new PlatformNotSupportedException(
+                $"Portable visual-style string property '{property}' is not implemented."),
+        };
+
     private static LibreVisualStyleMarginProperty GetPortableMarginProperty(MarginProperty property)
         => property switch
         {
@@ -860,6 +883,10 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         // Valid values are 0xbb9 to 0xbc0
         SourceGenerated.EnumValidator.Validate(prop, nameof(prop));
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.GetFilename(Class, Part, State, GetPortableFilenameProperty(prop));
+#else
         Span<char> filename = stackalloc char[512];
         fixed (char* pFilename = filename)
         {
@@ -867,6 +894,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         }
 
         return filename.SliceAtFirstNull().ToString();
+#endif
     }
 
     /// <summary>
@@ -1025,6 +1053,10 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         // Valid values are 0xc81 to 0xc81
         SourceGenerated.EnumValidator.Validate(prop, nameof(prop));
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.GetString(Class, Part, State, GetPortableStringProperty(prop));
+#else
         Span<char> aString = stackalloc char[512];
         fixed (char* pString = aString)
         {
@@ -1032,6 +1064,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         }
 
         return aString.SliceAtFirstNull().ToString();
+#endif
     }
 
     /// <summary>

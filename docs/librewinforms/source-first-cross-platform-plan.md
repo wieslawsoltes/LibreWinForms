@@ -780,6 +780,8 @@ The Boolean-property slice maps every canonical `BooleanProperty` member to `Lib
 
 The enum-property slice similarly maps all fifteen canonical `EnumProperty` members to `LibreVisualStyleEnumProperty`. The service returns the official integer result required by the public API, but selection is typed and never receives a raw UxTheme identifier. The ProGPU baseline declares a stretched border/fill background and stable zero-valued solid, rectangular, leading/top, no-effect, and no-glyph defaults for the remaining families. Focused platform 26/26, adapter 18/18, and lifecycle 28/28 pass with exact `BackgroundType` transport. Windows continues to call `GetThemeEnumValue` unchanged.
 
+The filename/string property slice removes the portable calls to UxTheme's fixed UTF-16 output buffers. All eight canonical `FilenameProperty` selectors and the canonical theme text selector map to platform enums and return owned managed strings. The ProGPU baseline intentionally returns empty values because its renderer uses managed retained primitives rather than external theme bitmap files or theme-authored control text; a richer host theme can return real asset names or text through the same contract. Platform 26/26, adapter 18/18, canonical ProGPU compilation at 614 reviewed warnings/0 errors, and lifecycle 28/28 pass, with the lifecycle host returning nonempty marker strings to prove exact delegation. Windows keeps its original `GetThemeFilename` and `GetThemeString` buffers.
+
 ## Proposed fixes for the missing-property problem
 
 The permanent fix is not to manually add thousands of properties to the compatibility source. Apply these fixes in order:

@@ -64,6 +64,10 @@ public sealed class ProGpuVisualStyleServiceTests
             .Should().Be(1);
         service.GetEnumValue("BUTTON", 1, 1, LibreVisualStyleEnumProperty.FillType)
             .Should().Be(0);
+        service.GetFilename("BUTTON", 1, 1, LibreVisualStyleFilenameProperty.ImageFile)
+            .Should().BeEmpty();
+        service.GetString("BUTTON", 1, 1, LibreVisualStyleStringProperty.Text)
+            .Should().BeEmpty();
         service.GetMargins("BUTTON", 1, 1, LibreVisualStyleMarginProperty.Content)
             .Should().Be(new LibreVisualStyleMargins(3, 3, 3, 3));
         service.GetPoint("BUTTON", 1, 1, LibreVisualStylePointProperty.Offset)

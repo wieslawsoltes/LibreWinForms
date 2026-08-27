@@ -62,6 +62,23 @@ public enum LibreVisualStyleEnumProperty
     TrueSizeScalingType,
 }
 
+public enum LibreVisualStyleFilenameProperty
+{
+    ImageFile,
+    ImageFile1,
+    ImageFile2,
+    ImageFile3,
+    ImageFile4,
+    ImageFile5,
+    StockImageFile,
+    GlyphImageFile,
+}
+
+public enum LibreVisualStyleStringProperty
+{
+    Text,
+}
+
 public enum LibreVisualStyleMarginProperty
 {
     Sizing,
@@ -169,6 +186,10 @@ public interface ILibreVisualStyleService
 
     int GetEnumValue(string className, int part, int state, LibreVisualStyleEnumProperty property);
 
+    string GetFilename(string className, int part, int state, LibreVisualStyleFilenameProperty property);
+
+    string GetString(string className, int part, int state, LibreVisualStyleStringProperty property);
+
     LibreVisualStyleMargins GetMargins(
         string className,
         int part,
@@ -255,6 +276,14 @@ public sealed class UnsupportedLibreVisualStyleService : ILibreVisualStyleServic
     public int GetEnumValue(string className, int part, int state, LibreVisualStyleEnumProperty property)
         => throw new PlatformNotSupportedException(
             "This LibreWinForms host does not provide portable visual-style enum properties.");
+
+    public string GetFilename(string className, int part, int state, LibreVisualStyleFilenameProperty property)
+        => throw new PlatformNotSupportedException(
+            "This LibreWinForms host does not provide portable visual-style filename properties.");
+
+    public string GetString(string className, int part, int state, LibreVisualStyleStringProperty property)
+        => throw new PlatformNotSupportedException(
+            "This LibreWinForms host does not provide portable visual-style string properties.");
 
     public LibreVisualStyleMargins GetMargins(
         string className,

@@ -441,6 +441,8 @@ Canonical portable `GetBoolean` now follows the same rule. All thirteen official
 
 Canonical portable `GetEnumValue` now maps all fifteen official selectors to `LibreVisualStyleEnumProperty`. The platform service returns the integer mandated by the existing public contract, while the property identity stays typed and independent of native `TMT_*` numbers. ProGPU declares a stretched border/fill background plus explicit baseline values for border, fill, alignment, offset, effect, image-layout, glyph, image-selection, and scaling families. Focused platform 26/26, adapter 18/18, and lifecycle 28/28 gates pass with exact `BackgroundType` transport; Windows keeps `GetThemeEnumValue`.
 
+Canonical portable `GetFilename` and `GetString` now return owned managed strings from typed filename/text selectors rather than writing through UxTheme buffers. The ProGPU baseline honestly has no external theme image filename or theme-authored text and returns empty strings; hosts with such assets can replace the service. Platform 26/26, adapter 18/18, canonical ProGPU compilation at 614 reviewed warnings/0 errors, and lifecycle 28/28 pass. The lifecycle provider returns nonempty markers, proving exact transport rather than reliance on the empty baseline. Windows keeps its original native buffer calls and the public surface is unchanged.
+
 ## Proposed fixes
 
 ### P0: Add an official API contract gate
