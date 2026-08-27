@@ -310,11 +310,9 @@ public class ContainerControl : ScrollableControl, IContainerControl
             if (_currentAutoScaleDimensions.IsEmpty)
             {
 #if LIBREWINFORMS_PORTABLE
-                // DPI and disabled autoscaling do not consume an HFONT. Avoid exporting a
-                // Windows GDI handle from a cross-platform System.Drawing implementation.
-                _currentAutoScaleDimensions = AutoScaleMode == AutoScaleMode.Font
-                    ? GetCurrentAutoScaleDimensions(FontHandle)
-                    : GetCurrentAutoScaleDimensions(default);
+                // Portable font autoscaling uses the managed text renderer. Avoid exporting an
+                // HFONT from a cross-platform System.Drawing implementation.
+                _currentAutoScaleDimensions = GetCurrentAutoScaleDimensions(default);
 #else
                 _currentAutoScaleDimensions = GetCurrentAutoScaleDimensions(FontHandle);
 #endif
@@ -330,7 +328,11 @@ public class ContainerControl : ScrollableControl, IContainerControl
         switch (AutoScaleMode)
         {
             case AutoScaleMode.Font:
+#if LIBREWINFORMS_PORTABLE
+                currentAutoScaleDimensions = GetFontAutoScaleDimensions(Font);
+#else
                 currentAutoScaleDimensions = GetFontAutoScaleDimensions(fontHandle);
+#endif
                 break;
 
             case AutoScaleMode.Dpi:
@@ -728,6 +730,22 @@ public class ContainerControl : ScrollableControl, IContainerControl
     /// <summary>
     ///  This method calculates the auto scale dimensions based on the control's current font.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    private static SizeF GetFontAutoScaleDimensions(Font font)
+    {
+        Size textSize = TextRenderer.MeasureText(
+            FontMeasureString,
+            font,
+            TextRenderer.MaxSize,
+            TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
+
+        // Note: intentional integer round off here for Win32 compatibility.
+        float averageCharacterWidth = (int)Math.Round(textSize.Width / (float)FontMeasureString.Length);
+        return new SizeF(averageCharacterWidth, font.Height);
+    }
+#endif
+
+#if !LIBREWINFORMS_PORTABLE
     private unsafe SizeF GetFontAutoScaleDimensions(HFONT fontHandle)
     {
         SizeF retval = SizeF.Empty;
@@ -773,6 +791,7 @@ public class ContainerControl : ScrollableControl, IContainerControl
 
         return retval;
     }
+#endif
 
     /// <summary>
     ///  This method is called when one of the auto scale properties changes, indicating that we

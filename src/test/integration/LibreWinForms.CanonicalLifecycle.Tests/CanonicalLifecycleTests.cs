@@ -544,6 +544,20 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void FontAutoScaleDimensionsUseManagedTextMetricsWithoutHfont()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using var container = new ContainerControl { AutoScaleMode = AutoScaleMode.Font };
+
+        SizeF dimensions = container.CurrentAutoScaleDimensions;
+
+        dimensions.Should().Be(new SizeF(8, container.Font.Height));
+        platform.TextMeasureCount.Should().Be(1);
+        platform.LastTextFormat.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
+        container.IsHandleCreated.Should().BeFalse();
+    }
+
+    [Fact]
     public void CanonicalManagedRenderersUsePortableVisualStylesWithoutComCtl32()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2200,6 +2214,14 @@ public class CanonicalLifecycleTests
             TextMeasureCount++;
             font.Should().NotBeNull();
             LastTextFormat = format;
+            if (text == "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+            {
+                graphics.Should().BeNull();
+                proposedSize.Should().Be(new Size(int.MaxValue, int.MaxValue));
+                format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
+                return new Size(416, font!.Height);
+            }
+
             if (graphics is null)
             {
                 text.Should().Be("headless");
