@@ -55,6 +55,28 @@ public enum LibreVisualStyleEdgeEffects
     Mono = 8,
 }
 
+[Flags]
+public enum LibreVisualStyleTextFormat
+{
+    Default = 0,
+    HorizontalCenter = 1,
+    Right = 2,
+    VerticalCenter = 4,
+    Bottom = 8,
+    SingleLine = 16,
+    WordBreak = 32,
+    EndEllipsis = 64,
+    PathEllipsis = 128,
+    WordEllipsis = 256,
+    RightToLeft = 512,
+    NoClipping = 1024,
+    ExpandTabs = 2048,
+    NoPrefix = 4096,
+    HidePrefix = 8192,
+    NoPadding = 16384,
+    LeftAndRightPadding = 32768,
+}
+
 /// <summary>Renders portable visual-style backgrounds without exposing UxTheme handles or device contexts.</summary>
 public interface ILibreVisualStyleService
 {
@@ -97,6 +119,16 @@ public interface ILibreVisualStyleService
         LibreVisualStyleEdges edges,
         LibreVisualStyleEdgeStyle style,
         LibreVisualStyleEdgeEffects effects);
+
+    void DrawText(
+        Graphics graphics,
+        string className,
+        int part,
+        int state,
+        Rectangle bounds,
+        string text,
+        bool disabled,
+        LibreVisualStyleTextFormat format);
 }
 
 /// <summary>Explicit default for hosts that do not provide portable visual-style rendering.</summary>
@@ -162,4 +194,16 @@ public sealed class UnsupportedLibreVisualStyleService : ILibreVisualStyleServic
         LibreVisualStyleEdgeEffects effects)
         => throw new PlatformNotSupportedException(
             "This LibreWinForms host does not provide portable visual-style edge rendering.");
+
+    public void DrawText(
+        Graphics graphics,
+        string className,
+        int part,
+        int state,
+        Rectangle bounds,
+        string text,
+        bool disabled,
+        LibreVisualStyleTextFormat format)
+        => throw new PlatformNotSupportedException(
+            "This LibreWinForms host does not provide portable visual-style text rendering.");
 }

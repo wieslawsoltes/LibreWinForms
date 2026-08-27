@@ -244,6 +244,101 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
             bounds.Bottom - bottomInset);
     }
 
+    public void DrawText(
+        Graphics graphics,
+        string className,
+        int part,
+        int state,
+        Rectangle bounds,
+        string text,
+        bool disabled,
+        LibreVisualStyleTextFormat format)
+    {
+        ArgumentNullException.ThrowIfNull(graphics);
+        ValidateElement(className, part);
+        ArgumentNullException.ThrowIfNull(text);
+        const LibreVisualStyleTextFormat supported =
+            LibreVisualStyleTextFormat.HorizontalCenter
+            | LibreVisualStyleTextFormat.Right
+            | LibreVisualStyleTextFormat.VerticalCenter
+            | LibreVisualStyleTextFormat.Bottom
+            | LibreVisualStyleTextFormat.SingleLine
+            | LibreVisualStyleTextFormat.WordBreak
+            | LibreVisualStyleTextFormat.EndEllipsis
+            | LibreVisualStyleTextFormat.PathEllipsis
+            | LibreVisualStyleTextFormat.WordEllipsis
+            | LibreVisualStyleTextFormat.RightToLeft
+            | LibreVisualStyleTextFormat.NoClipping
+            | LibreVisualStyleTextFormat.ExpandTabs
+            | LibreVisualStyleTextFormat.NoPrefix
+            | LibreVisualStyleTextFormat.HidePrefix
+            | LibreVisualStyleTextFormat.NoPadding
+            | LibreVisualStyleTextFormat.LeftAndRightPadding;
+        if ((format & ~supported) != 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(format));
+        }
+
+        if (text.Length == 0 || bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            return;
+        }
+
+        using var stringFormat = format.HasFlag(LibreVisualStyleTextFormat.NoPadding)
+            ? new StringFormat(StringFormat.GenericTypographic)
+            : new StringFormat();
+        stringFormat.Alignment = format.HasFlag(LibreVisualStyleTextFormat.Right)
+            ? StringAlignment.Far
+            : format.HasFlag(LibreVisualStyleTextFormat.HorizontalCenter)
+                ? StringAlignment.Center
+                : StringAlignment.Near;
+        stringFormat.LineAlignment = format.HasFlag(LibreVisualStyleTextFormat.Bottom)
+            ? StringAlignment.Far
+            : format.HasFlag(LibreVisualStyleTextFormat.VerticalCenter)
+                ? StringAlignment.Center
+                : StringAlignment.Near;
+        if (format.HasFlag(LibreVisualStyleTextFormat.SingleLine))
+        {
+            stringFormat.FormatFlags |= StringFormatFlags.NoWrap;
+        }
+
+        if (format.HasFlag(LibreVisualStyleTextFormat.NoClipping))
+        {
+            stringFormat.FormatFlags |= StringFormatFlags.NoClip;
+        }
+
+        if (format.HasFlag(LibreVisualStyleTextFormat.RightToLeft))
+        {
+            stringFormat.FormatFlags |= StringFormatFlags.DirectionRightToLeft;
+        }
+
+        stringFormat.Trimming = format switch
+        {
+            _ when format.HasFlag(LibreVisualStyleTextFormat.PathEllipsis) => StringTrimming.EllipsisPath,
+            _ when format.HasFlag(LibreVisualStyleTextFormat.WordEllipsis) => StringTrimming.EllipsisWord,
+            _ when format.HasFlag(LibreVisualStyleTextFormat.EndEllipsis) => StringTrimming.EllipsisCharacter,
+            _ => StringTrimming.None,
+        };
+
+        stringFormat.HotkeyPrefix = format.HasFlag(LibreVisualStyleTextFormat.NoPrefix)
+            ? System.Drawing.Text.HotkeyPrefix.None
+            : format.HasFlag(LibreVisualStyleTextFormat.HidePrefix)
+                ? System.Drawing.Text.HotkeyPrefix.Hide
+                : System.Drawing.Text.HotkeyPrefix.Show;
+
+        Rectangle textBounds = bounds;
+        if (format.HasFlag(LibreVisualStyleTextFormat.LeftAndRightPadding) && textBounds.Width > 2)
+        {
+            textBounds.Inflate(-1, 0);
+        }
+
+        Color textColor = disabled
+            ? Color.FromArgb(255, 109, 109, 109)
+            : GetColor(className, part, state, LibreVisualStyleColorProperty.Text);
+        using var brush = new SolidBrush(textColor);
+        graphics.DrawString(text, SystemFonts.DefaultFont, brush, textBounds, stringFormat);
+    }
+
     private static void ValidateElement(string className, int part)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(className);

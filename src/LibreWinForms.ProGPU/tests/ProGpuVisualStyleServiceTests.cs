@@ -84,4 +84,30 @@ public sealed class ProGpuVisualStyleServiceTests
         target.GetPixel(3, 1).A.Should().BeGreaterThan(0);
         target.GetPixel(3, 3).A.Should().Be(0);
     }
+
+    [Fact]
+    public void DrawTextUsesManagedGraphicsAndTypedFormatting()
+    {
+        var service = new ProGpuVisualStyleService();
+        using var target = new Bitmap(120, 40, PixelFormat.Format32bppArgb);
+        using (Graphics graphics = Graphics.FromImage(target))
+        {
+            graphics.Clear(Color.Transparent);
+            service.DrawText(
+                graphics,
+                "BUTTON",
+                part: 1,
+                state: 1,
+                new Rectangle(0, 0, 120, 40),
+                "Libre",
+                disabled: false,
+                LibreVisualStyleTextFormat.HorizontalCenter
+                    | LibreVisualStyleTextFormat.VerticalCenter
+                    | LibreVisualStyleTextFormat.SingleLine);
+        }
+
+        Enumerable.Range(0, target.Width * target.Height)
+            .Select(index => target.GetPixel(index % target.Width, index / target.Width).A)
+            .Should().Contain(alpha => alpha > 0);
+    }
 }

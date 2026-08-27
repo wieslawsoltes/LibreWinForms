@@ -367,6 +367,12 @@ public class CanonicalLifecycleTests
                 Edges.Left | Edges.Top,
                 EdgeStyle.Raised,
                 EdgeEffects.None).Should().Be(new Rectangle(1, 1, 7, 7));
+            renderer.DrawText(
+                graphics,
+                new Rectangle(0, 0, 8, 8),
+                "text",
+                drawDisabled: false,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         }
 
         target.GetPixel(2, 3).ToArgb().Should().Be(0);
@@ -376,6 +382,7 @@ public class CanonicalLifecycleTests
         renderer.IsBackgroundPartiallyTransparent().Should().BeFalse();
         platform.VisualStyleDrawCount.Should().Be(1);
         platform.VisualStyleEdgeDrawCount.Should().Be(1);
+        platform.VisualStyleTextDrawCount.Should().Be(1);
         Action nativeHandle = () => _ = renderer.Handle;
         nativeHandle.Should().Throw<PlatformNotSupportedException>()
             .WithMessage("*Windows UxTheme adapter*");
@@ -1471,6 +1478,7 @@ public class CanonicalLifecycleTests
             LastWindowIcons = [];
             VisualStyleDrawCount = 0;
             VisualStyleEdgeDrawCount = 0;
+            VisualStyleTextDrawCount = 0;
         }
 
         internal ManagedLibreHandleRegistry Handles { get; }
@@ -1491,6 +1499,7 @@ public class CanonicalLifecycleTests
 
         internal int VisualStyleDrawCount { get; private set; }
         internal int VisualStyleEdgeDrawCount { get; private set; }
+        internal int VisualStyleTextDrawCount { get; private set; }
 
         internal double LastPresentationScale { get; private set; } = 1.0;
 
@@ -1803,6 +1812,22 @@ public class CanonicalLifecycleTests
                 bounds.Top + (edges.HasFlag(LibreVisualStyleEdges.Top) ? 1 : 0),
                 bounds.Right - (edges.HasFlag(LibreVisualStyleEdges.Right) ? 1 : 0),
                 bounds.Bottom - (edges.HasFlag(LibreVisualStyleEdges.Bottom) ? 1 : 0));
+        }
+
+        public void DrawText(
+            Graphics graphics,
+            string className,
+            int part,
+            int state,
+            Rectangle bounds,
+            string text,
+            bool disabled,
+            LibreVisualStyleTextFormat format)
+        {
+            VisualStyleTextDrawCount++;
+            text.Should().Be("text");
+            format.Should().Be(
+                LibreVisualStyleTextFormat.HorizontalCenter | LibreVisualStyleTextFormat.VerticalCenter);
         }
 
         private sealed class HeadlessWindow : ILibreWindow

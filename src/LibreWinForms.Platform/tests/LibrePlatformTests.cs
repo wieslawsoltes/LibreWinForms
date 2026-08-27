@@ -374,6 +374,16 @@ public class LibrePlatformTests
             LibreVisualStyleEdgeStyle style,
             LibreVisualStyleEdgeEffects effects)
             => throw new NotSupportedException();
+        public void DrawText(
+            System.Drawing.Graphics graphics,
+            string className,
+            int part,
+            int state,
+            System.Drawing.Rectangle bounds,
+            string text,
+            bool disabled,
+            LibreVisualStyleTextFormat format)
+            => throw new NotSupportedException();
 
         private sealed class EmptyDisposable : IDisposable
         {

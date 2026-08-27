@@ -455,8 +455,26 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     {
         ArgumentNullException.ThrowIfNull(dc);
 
+#if LIBREWINFORMS_PORTABLE
+        if (bounds.Width < 0 || bounds.Height < 0 || string.IsNullOrEmpty(textToDraw))
+        {
+            return;
+        }
+
+        PortableVisualStyles.DrawText(
+            GetPortableGraphics(dc),
+            Class,
+            Part,
+            State,
+            bounds,
+            textToDraw,
+            drawDisabled,
+            GetPortableTextFormat(flags));
+        _lastHResult = default;
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         DrawText(hdc, bounds, textToDraw, drawDisabled, flags);
+#endif
     }
 
     internal void DrawText(HDC dc, Rectangle bounds, string? textToDraw, bool drawDisabled, TextFormatFlags flags)
@@ -622,6 +640,77 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
             portable |= LibreVisualStyleEdgeEffects.Soft;
         if (effects.HasFlag(EdgeEffects.Mono))
             portable |= LibreVisualStyleEdgeEffects.Mono;
+        return portable;
+    }
+
+    private static LibreVisualStyleTextFormat GetPortableTextFormat(TextFormatFlags flags)
+    {
+#pragma warning disable CS0618 // ModifyString is obsolete and deliberately rejected.
+        const TextFormatFlags unsupported = TextFormatFlags.ExternalLeading
+            | TextFormatFlags.Internal
+            | TextFormatFlags.ModifyString
+            | TextFormatFlags.NoFullWidthCharacterBreak
+            | TextFormatFlags.PrefixOnly
+            | TextFormatFlags.TextBoxControl;
+#pragma warning restore CS0618
+        const TextFormatFlags accepted = TextFormatFlags.Bottom
+            | TextFormatFlags.EndEllipsis
+            | TextFormatFlags.ExpandTabs
+            | TextFormatFlags.HidePrefix
+            | TextFormatFlags.HorizontalCenter
+            | TextFormatFlags.NoClipping
+            | TextFormatFlags.NoPrefix
+            | TextFormatFlags.PathEllipsis
+            | TextFormatFlags.Right
+            | TextFormatFlags.RightToLeft
+            | TextFormatFlags.SingleLine
+            | TextFormatFlags.VerticalCenter
+            | TextFormatFlags.WordBreak
+            | TextFormatFlags.WordEllipsis
+            | TextFormatFlags.PreserveGraphicsClipping
+            | TextFormatFlags.PreserveGraphicsTranslateTransform
+            | TextFormatFlags.NoPadding
+            | TextFormatFlags.LeftAndRightPadding;
+        TextFormatFlags rejected = (flags & unsupported) | (flags & ~accepted);
+        if (rejected != 0)
+        {
+            throw new PlatformNotSupportedException(
+                $"Portable visual-style text flags '{rejected}' are not implemented.");
+        }
+
+        LibreVisualStyleTextFormat portable = LibreVisualStyleTextFormat.Default;
+        if (flags.HasFlag(TextFormatFlags.HorizontalCenter))
+            portable |= LibreVisualStyleTextFormat.HorizontalCenter;
+        if (flags.HasFlag(TextFormatFlags.Right))
+            portable |= LibreVisualStyleTextFormat.Right;
+        if (flags.HasFlag(TextFormatFlags.VerticalCenter))
+            portable |= LibreVisualStyleTextFormat.VerticalCenter;
+        if (flags.HasFlag(TextFormatFlags.Bottom))
+            portable |= LibreVisualStyleTextFormat.Bottom;
+        if (flags.HasFlag(TextFormatFlags.SingleLine))
+            portable |= LibreVisualStyleTextFormat.SingleLine;
+        if (flags.HasFlag(TextFormatFlags.WordBreak))
+            portable |= LibreVisualStyleTextFormat.WordBreak;
+        if (flags.HasFlag(TextFormatFlags.EndEllipsis))
+            portable |= LibreVisualStyleTextFormat.EndEllipsis;
+        if (flags.HasFlag(TextFormatFlags.PathEllipsis))
+            portable |= LibreVisualStyleTextFormat.PathEllipsis;
+        if (flags.HasFlag(TextFormatFlags.WordEllipsis))
+            portable |= LibreVisualStyleTextFormat.WordEllipsis;
+        if (flags.HasFlag(TextFormatFlags.RightToLeft))
+            portable |= LibreVisualStyleTextFormat.RightToLeft;
+        if (flags.HasFlag(TextFormatFlags.NoClipping))
+            portable |= LibreVisualStyleTextFormat.NoClipping;
+        if (flags.HasFlag(TextFormatFlags.ExpandTabs))
+            portable |= LibreVisualStyleTextFormat.ExpandTabs;
+        if (flags.HasFlag(TextFormatFlags.NoPrefix))
+            portable |= LibreVisualStyleTextFormat.NoPrefix;
+        if (flags.HasFlag(TextFormatFlags.HidePrefix))
+            portable |= LibreVisualStyleTextFormat.HidePrefix;
+        if (flags.HasFlag(TextFormatFlags.NoPadding))
+            portable |= LibreVisualStyleTextFormat.NoPadding;
+        if (flags.HasFlag(TextFormatFlags.LeftAndRightPadding))
+            portable |= LibreVisualStyleTextFormat.LeftAndRightPadding;
         return portable;
     }
 
