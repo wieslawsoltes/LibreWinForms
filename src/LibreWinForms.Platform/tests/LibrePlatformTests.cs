@@ -418,6 +418,15 @@ public class LibrePlatformTests
             int state,
             LibreVisualStyleFontProperty property)
             => throw new NotSupportedException();
+        public System.Drawing.Rectangle MeasureText(
+            System.Drawing.Graphics graphics,
+            string className,
+            int part,
+            int state,
+            System.Drawing.Rectangle? bounds,
+            string text,
+            LibreVisualStyleTextFormat format)
+            => throw new NotSupportedException();
         public LibreVisualStyleMargins GetMargins(
             string className,
             int part,

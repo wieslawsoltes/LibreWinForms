@@ -199,6 +199,15 @@ public interface ILibreVisualStyleService
     /// <summary>Returns a caller-owned font, or null when the theme does not define one.</summary>
     Font? GetFont(string className, int part, int state, LibreVisualStyleFontProperty property);
 
+    Rectangle MeasureText(
+        Graphics graphics,
+        string className,
+        int part,
+        int state,
+        Rectangle? bounds,
+        string text,
+        LibreVisualStyleTextFormat format);
+
     LibreVisualStyleMargins GetMargins(
         string className,
         int part,
@@ -297,6 +306,17 @@ public sealed class UnsupportedLibreVisualStyleService : ILibreVisualStyleServic
     public Font? GetFont(string className, int part, int state, LibreVisualStyleFontProperty property)
         => throw new PlatformNotSupportedException(
             "This LibreWinForms host does not provide portable visual-style font properties.");
+
+    public Rectangle MeasureText(
+        Graphics graphics,
+        string className,
+        int part,
+        int state,
+        Rectangle? bounds,
+        string text,
+        LibreVisualStyleTextFormat format)
+        => throw new PlatformNotSupportedException(
+            "This LibreWinForms host does not provide portable visual-style text measurement.");
 
     public LibreVisualStyleMargins GetMargins(
         string className,

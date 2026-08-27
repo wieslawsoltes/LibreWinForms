@@ -784,6 +784,8 @@ The filename/string property slice removes the portable calls to UxTheme's fixed
 
 The font-property slice replaces the portable `GetFont` branch that always returned `null`. `LibreVisualStyleFontProperty` distinguishes text and glyph fonts, and the service returns a caller-owned `Font` or `null` only when the theme truly has no font. ProGPU clones `SystemFonts.DefaultFont`, preserving the shared system object when callers follow the public method's disposal pattern. The lifecycle host returns an owned 10-point marker font and the canonical assertion verifies its value. Platform 26/26, adapter 18/18, and lifecycle 28/28 pass; Windows retains its LOGFONT/UxTheme conversion path.
 
+Both portable `VisualStyleRenderer.GetTextExtent` overloads now use the typed `ILibreVisualStyleService.MeasureText` seam with managed `Graphics`; they no longer acquire an HDC or call UxTheme. The optional layout bounds, exact text, and the same explicitly mapped formatting used by `DrawText` reach the backend. ProGPU measures with the shared default font, honors wrapping, padding, and horizontal/vertical placement, and returns an integer bounding rectangle. The lifecycle host returns a distinctive marker rectangle while recording bounds, text, and format, proving canonical transport independently of the concrete renderer. Platform 26/26, adapter 18/18, lifecycle 28/28, and the canonical ProGPU source build at 614 reviewed warnings/0 errors pass. Windows retains the original `GetThemeTextExtent` path.
+
 ## Proposed fixes for the missing-property problem
 
 The permanent fix is not to manually add thousands of properties to the compatibility source. Apply these fixes in order:

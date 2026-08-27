@@ -207,6 +207,51 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
         return (Font)SystemFonts.DefaultFont.Clone();
     }
 
+    public Rectangle MeasureText(
+        Graphics graphics,
+        string className,
+        int part,
+        int state,
+        Rectangle? bounds,
+        string text,
+        LibreVisualStyleTextFormat format)
+    {
+        ArgumentNullException.ThrowIfNull(graphics);
+        ValidateElement(className, part);
+        ArgumentNullException.ThrowIfNull(text);
+        ValidateTextFormat(format);
+
+        using StringFormat stringFormat = CreateTextFormat(format);
+        Rectangle? textBounds = bounds is Rectangle layoutBounds
+            ? GetTextBounds(layoutBounds, format)
+            : null;
+        SizeF measured = textBounds is Rectangle constrained
+            ? graphics.MeasureString(
+                text,
+                SystemFonts.DefaultFont,
+                new SizeF(Math.Max(0, constrained.Width), Math.Max(0, constrained.Height)),
+                stringFormat)
+            : graphics.MeasureString(text, SystemFonts.DefaultFont, PointF.Empty, stringFormat);
+        int width = Math.Max(0, (int)MathF.Ceiling(measured.Width));
+        int height = Math.Max(0, (int)MathF.Ceiling(measured.Height));
+        if (textBounds is not Rectangle positioned)
+        {
+            return new Rectangle(0, 0, width, height);
+        }
+
+        int x = format.HasFlag(LibreVisualStyleTextFormat.Right)
+            ? positioned.Right - width
+            : format.HasFlag(LibreVisualStyleTextFormat.HorizontalCenter)
+                ? positioned.Left + ((positioned.Width - width) / 2)
+                : positioned.Left;
+        int y = format.HasFlag(LibreVisualStyleTextFormat.Bottom)
+            ? positioned.Bottom - height
+            : format.HasFlag(LibreVisualStyleTextFormat.VerticalCenter)
+                ? positioned.Top + ((positioned.Height - height) / 2)
+                : positioned.Top;
+        return new Rectangle(x, y, width, height);
+    }
+
     public LibreVisualStyleMargins GetMargins(
         string className,
         int part,
@@ -364,34 +409,25 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
         ArgumentNullException.ThrowIfNull(graphics);
         ValidateElement(className, part);
         ArgumentNullException.ThrowIfNull(text);
-        const LibreVisualStyleTextFormat supported =
-            LibreVisualStyleTextFormat.HorizontalCenter
-            | LibreVisualStyleTextFormat.Right
-            | LibreVisualStyleTextFormat.VerticalCenter
-            | LibreVisualStyleTextFormat.Bottom
-            | LibreVisualStyleTextFormat.SingleLine
-            | LibreVisualStyleTextFormat.WordBreak
-            | LibreVisualStyleTextFormat.EndEllipsis
-            | LibreVisualStyleTextFormat.PathEllipsis
-            | LibreVisualStyleTextFormat.WordEllipsis
-            | LibreVisualStyleTextFormat.RightToLeft
-            | LibreVisualStyleTextFormat.NoClipping
-            | LibreVisualStyleTextFormat.ExpandTabs
-            | LibreVisualStyleTextFormat.NoPrefix
-            | LibreVisualStyleTextFormat.HidePrefix
-            | LibreVisualStyleTextFormat.NoPadding
-            | LibreVisualStyleTextFormat.LeftAndRightPadding;
-        if ((format & ~supported) != 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(format));
-        }
+        ValidateTextFormat(format);
 
         if (text.Length == 0 || bounds.Width <= 0 || bounds.Height <= 0)
         {
             return;
         }
 
-        using var stringFormat = format.HasFlag(LibreVisualStyleTextFormat.NoPadding)
+        using StringFormat stringFormat = CreateTextFormat(format);
+        Rectangle textBounds = GetTextBounds(bounds, format);
+        Color textColor = disabled
+            ? Color.FromArgb(255, 109, 109, 109)
+            : GetColor(className, part, state, LibreVisualStyleColorProperty.Text);
+        using var brush = new SolidBrush(textColor);
+        graphics.DrawString(text, SystemFonts.DefaultFont, brush, textBounds, stringFormat);
+    }
+
+    private static StringFormat CreateTextFormat(LibreVisualStyleTextFormat format)
+    {
+        var stringFormat = format.HasFlag(LibreVisualStyleTextFormat.NoPadding)
             ? new StringFormat(StringFormat.GenericTypographic)
             : new StringFormat();
         stringFormat.Alignment = format.HasFlag(LibreVisualStyleTextFormat.Right)
@@ -433,17 +469,43 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
                 ? System.Drawing.Text.HotkeyPrefix.Hide
                 : System.Drawing.Text.HotkeyPrefix.Show;
 
+        return stringFormat;
+    }
+
+    private static Rectangle GetTextBounds(Rectangle bounds, LibreVisualStyleTextFormat format)
+    {
         Rectangle textBounds = bounds;
         if (format.HasFlag(LibreVisualStyleTextFormat.LeftAndRightPadding) && textBounds.Width > 2)
         {
             textBounds.Inflate(-1, 0);
         }
 
-        Color textColor = disabled
-            ? Color.FromArgb(255, 109, 109, 109)
-            : GetColor(className, part, state, LibreVisualStyleColorProperty.Text);
-        using var brush = new SolidBrush(textColor);
-        graphics.DrawString(text, SystemFonts.DefaultFont, brush, textBounds, stringFormat);
+        return textBounds;
+    }
+
+    private static void ValidateTextFormat(LibreVisualStyleTextFormat format)
+    {
+        const LibreVisualStyleTextFormat supported =
+            LibreVisualStyleTextFormat.HorizontalCenter
+            | LibreVisualStyleTextFormat.Right
+            | LibreVisualStyleTextFormat.VerticalCenter
+            | LibreVisualStyleTextFormat.Bottom
+            | LibreVisualStyleTextFormat.SingleLine
+            | LibreVisualStyleTextFormat.WordBreak
+            | LibreVisualStyleTextFormat.EndEllipsis
+            | LibreVisualStyleTextFormat.PathEllipsis
+            | LibreVisualStyleTextFormat.WordEllipsis
+            | LibreVisualStyleTextFormat.RightToLeft
+            | LibreVisualStyleTextFormat.NoClipping
+            | LibreVisualStyleTextFormat.ExpandTabs
+            | LibreVisualStyleTextFormat.NoPrefix
+            | LibreVisualStyleTextFormat.HidePrefix
+            | LibreVisualStyleTextFormat.NoPadding
+            | LibreVisualStyleTextFormat.LeftAndRightPadding;
+        if ((format & ~supported) != 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(format));
+        }
     }
 
     private static void ValidateElement(string className, int part)

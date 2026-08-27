@@ -1083,6 +1083,17 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         ArgumentNullException.ThrowIfNull(dc);
         textToDraw.ThrowIfNullOrEmpty();
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.MeasureText(
+            GetPortableGraphics(dc),
+            Class,
+            Part,
+            State,
+            bounds: null,
+            textToDraw,
+            GetPortableTextFormat(flags));
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         _lastHResult = PInvoke.GetThemeTextExtent(
             HTHEME,
@@ -1096,6 +1107,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
             out RECT rect);
 
         return rect;
+#endif
     }
 
     /// <summary>
@@ -1106,6 +1118,17 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         ArgumentNullException.ThrowIfNull(dc);
         textToDraw.ThrowIfNullOrEmpty();
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.MeasureText(
+            GetPortableGraphics(dc),
+            Class,
+            Part,
+            State,
+            bounds,
+            textToDraw,
+            GetPortableTextFormat(flags));
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         _lastHResult = PInvoke.GetThemeTextExtent(
             HTHEME,
@@ -1119,6 +1142,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
             out RECT rect);
 
         return rect;
+#endif
     }
 
     /// <summary>

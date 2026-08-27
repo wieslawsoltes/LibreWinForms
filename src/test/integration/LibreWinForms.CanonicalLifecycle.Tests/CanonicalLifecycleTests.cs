@@ -377,6 +377,12 @@ public class CanonicalLifecycleTests
             using Font? themeFont = renderer.GetFont(graphics, FontProperty.TextFont);
             themeFont.Should().NotBeNull();
             themeFont!.Size.Should().Be(10f);
+            renderer.GetTextExtent(
+                graphics,
+                new Rectangle(1, 2, 30, 12),
+                "measure",
+                TextFormatFlags.Right | TextFormatFlags.VerticalCenter)
+                .Should().Be(new Rectangle(6, 7, 8, 9));
         }
 
         target.GetPixel(2, 3).ToArgb().Should().Be(0);
@@ -1869,6 +1875,21 @@ public class CanonicalLifecycleTests
         {
             property.Should().Be(LibreVisualStyleFontProperty.Text);
             return new Font(SystemFonts.DefaultFont.FontFamily, 10f);
+        }
+
+        public Rectangle MeasureText(
+            Graphics graphics,
+            string className,
+            int part,
+            int state,
+            Rectangle? bounds,
+            string text,
+            LibreVisualStyleTextFormat format)
+        {
+            bounds.Should().Be(new Rectangle(1, 2, 30, 12));
+            text.Should().Be("measure");
+            format.Should().Be(LibreVisualStyleTextFormat.Right | LibreVisualStyleTextFormat.VerticalCenter);
+            return new Rectangle(6, 7, 8, 9);
         }
 
         public LibreVisualStyleMargins GetMargins(

@@ -131,5 +131,19 @@ public sealed class ProGpuVisualStyleServiceTests
         Enumerable.Range(0, target.Width * target.Height)
             .Select(index => target.GetPixel(index % target.Width, index / target.Width).A)
             .Should().Contain(alpha => alpha > 0);
+
+        using Graphics measureGraphics = Graphics.FromImage(target);
+        Rectangle extent = service.MeasureText(
+            measureGraphics,
+            "BUTTON",
+            part: 1,
+            state: 1,
+            new Rectangle(10, 5, 100, 30),
+            "Libre",
+            LibreVisualStyleTextFormat.HorizontalCenter | LibreVisualStyleTextFormat.VerticalCenter);
+        extent.Width.Should().BeGreaterThan(0);
+        extent.Height.Should().BeGreaterThan(0);
+        extent.Left.Should().BeGreaterThan(10);
+        extent.Top.Should().BeGreaterThanOrEqualTo(5);
     }
 }
