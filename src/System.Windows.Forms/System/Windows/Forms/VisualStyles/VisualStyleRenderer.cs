@@ -733,6 +733,31 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
             _ => throw new PlatformNotSupportedException(
                 $"Portable visual-style integer property '{property}' is not implemented."),
         };
+
+    private static LibreVisualStyleMarginProperty GetPortableMarginProperty(MarginProperty property)
+        => property switch
+        {
+            MarginProperty.SizingMargins => LibreVisualStyleMarginProperty.Sizing,
+            MarginProperty.ContentMargins => LibreVisualStyleMarginProperty.Content,
+            MarginProperty.CaptionMargins => LibreVisualStyleMarginProperty.Caption,
+            _ => throw new PlatformNotSupportedException(
+                $"Portable visual-style margin property '{property}' is not implemented."),
+        };
+
+    private static LibreVisualStylePointProperty GetPortablePointProperty(PointProperty property)
+        => property switch
+        {
+            PointProperty.Offset => LibreVisualStylePointProperty.Offset,
+            PointProperty.TextShadowOffset => LibreVisualStylePointProperty.TextShadowOffset,
+            PointProperty.MinSize => LibreVisualStylePointProperty.MinimumSize,
+            PointProperty.MinSize1 => LibreVisualStylePointProperty.MinimumSize1,
+            PointProperty.MinSize2 => LibreVisualStylePointProperty.MinimumSize2,
+            PointProperty.MinSize3 => LibreVisualStylePointProperty.MinimumSize3,
+            PointProperty.MinSize4 => LibreVisualStylePointProperty.MinimumSize4,
+            PointProperty.MinSize5 => LibreVisualStylePointProperty.MinimumSize5,
+            _ => throw new PlatformNotSupportedException(
+                $"Portable visual-style point property '{property}' is not implemented."),
+        };
 #endif
 
     /// <summary>
@@ -905,8 +930,13 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         // valid values are 0xd49 to 0xd50
         SourceGenerated.EnumValidator.Validate(prop, nameof(prop));
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.GetPoint(Class, Part, State, GetPortablePointProperty(prop));
+#else
         _lastHResult = PInvoke.GetThemePosition(HTHEME, Part, State, (THEME_PROPERTY_SYMBOL_ID)prop, out Point point);
         return point;
+#endif
     }
 
     /// <summary>
@@ -919,10 +949,20 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         // Valid values are 0xe11 to 0xe13
         SourceGenerated.EnumValidator.Validate(prop, nameof(prop));
 
+#if LIBREWINFORMS_PORTABLE
+        LibreVisualStyleMargins margins = PortableVisualStyles.GetMargins(
+            Class,
+            Part,
+            State,
+            GetPortableMarginProperty(prop));
+        _lastHResult = default;
+        return new Padding(margins.Left, margins.Top, margins.Right, margins.Bottom);
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         _lastHResult = PInvoke.GetThemeMargins(HTHEME, hdc, Part, State, (THEME_PROPERTY_SYMBOL_ID)prop, null, out MARGINS margins);
 
         return new Padding(margins.cxLeftWidth, margins.cyTopHeight, margins.cxRightWidth, margins.cyBottomHeight);
+#endif
     }
 
     /// <summary>

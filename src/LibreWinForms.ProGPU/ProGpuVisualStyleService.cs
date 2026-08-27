@@ -138,6 +138,44 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
         };
     }
 
+    public LibreVisualStyleMargins GetMargins(
+        string className,
+        int part,
+        int state,
+        LibreVisualStyleMarginProperty property)
+    {
+        ValidateElement(className, part);
+        if (property is < LibreVisualStyleMarginProperty.Sizing or > LibreVisualStyleMarginProperty.Caption)
+        {
+            throw new ArgumentOutOfRangeException(nameof(property));
+        }
+
+        return property switch
+        {
+            LibreVisualStyleMarginProperty.Sizing => new(3, 3, 3, 3),
+            LibreVisualStyleMarginProperty.Content => new(3, 3, 3, 3),
+            LibreVisualStyleMarginProperty.Caption => new(2, 2, 2, 2),
+            _ => throw new ArgumentOutOfRangeException(nameof(property)),
+        };
+    }
+
+    public Point GetPoint(string className, int part, int state, LibreVisualStylePointProperty property)
+    {
+        ValidateElement(className, part);
+        if (property is < LibreVisualStylePointProperty.Offset or > LibreVisualStylePointProperty.MinimumSize5)
+        {
+            throw new ArgumentOutOfRangeException(nameof(property));
+        }
+
+        if (property is LibreVisualStylePointProperty.Offset or LibreVisualStylePointProperty.TextShadowOffset)
+        {
+            return Point.Empty;
+        }
+
+        Size minimum = GetPartSize(className, part, state, bounds: null, LibreVisualStyleSizeType.Minimum);
+        return new Point(minimum.Width, minimum.Height);
+    }
+
     public bool IsBackgroundPartiallyTransparent(string className, int part, int state)
     {
         ValidateElement(className, part);

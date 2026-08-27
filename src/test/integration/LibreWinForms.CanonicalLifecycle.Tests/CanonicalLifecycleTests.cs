@@ -373,12 +373,14 @@ public class CanonicalLifecycleTests
                 "text",
                 drawDisabled: false,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            renderer.GetMargins(graphics, MarginProperty.ContentMargins).Should().Be(new Padding(4, 5, 6, 7));
         }
 
         target.GetPixel(2, 3).ToArgb().Should().Be(0);
         target.GetPixel(5, 3).ToArgb().Should().Be(Color.Purple.ToArgb());
         renderer.GetColor(ColorProperty.TextColor).ToArgb().Should().Be(Color.Orange.ToArgb());
         renderer.GetInteger(IntegerProperty.ProgressChunkSize).Should().Be(7);
+        renderer.GetPoint(PointProperty.TextShadowOffset).Should().Be(new Point(2, 3));
         renderer.IsBackgroundPartiallyTransparent().Should().BeFalse();
         platform.VisualStyleDrawCount.Should().Be(1);
         platform.VisualStyleEdgeDrawCount.Should().Be(1);
@@ -1811,6 +1813,26 @@ public class CanonicalLifecycleTests
             int state,
             LibreVisualStyleIntegerProperty property)
             => property == LibreVisualStyleIntegerProperty.ProgressChunkSize ? 7 : 3;
+
+        public LibreVisualStyleMargins GetMargins(
+            string className,
+            int part,
+            int state,
+            LibreVisualStyleMarginProperty property)
+        {
+            property.Should().Be(LibreVisualStyleMarginProperty.Content);
+            return new LibreVisualStyleMargins(4, 5, 6, 7);
+        }
+
+        public Point GetPoint(
+            string className,
+            int part,
+            int state,
+            LibreVisualStylePointProperty property)
+        {
+            property.Should().Be(LibreVisualStylePointProperty.TextShadowOffset);
+            return new Point(2, 3);
+        }
 
         public bool IsBackgroundPartiallyTransparent(string className, int part, int state)
             => false;

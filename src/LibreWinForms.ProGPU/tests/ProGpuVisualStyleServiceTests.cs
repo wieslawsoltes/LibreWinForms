@@ -56,6 +56,12 @@ public sealed class ProGpuVisualStyleServiceTests
             .Should().Be(Color.Black.ToArgb());
         service.GetInteger("PROGRESS", 3, 1, LibreVisualStyleIntegerProperty.ProgressChunkSize)
             .Should().Be(6);
+        service.GetMargins("BUTTON", 1, 1, LibreVisualStyleMarginProperty.Content)
+            .Should().Be(new LibreVisualStyleMargins(3, 3, 3, 3));
+        service.GetPoint("BUTTON", 1, 1, LibreVisualStylePointProperty.Offset)
+            .Should().Be(Point.Empty);
+        service.GetPoint("BUTTON", 1, 1, LibreVisualStylePointProperty.MinimumSize)
+            .Should().Be(new Point(75, 23));
         service.IsBackgroundPartiallyTransparent("BUTTON", 1, 1).Should().BeFalse();
     }
 

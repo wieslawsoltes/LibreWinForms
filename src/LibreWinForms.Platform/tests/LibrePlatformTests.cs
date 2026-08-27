@@ -388,6 +388,18 @@ public class LibrePlatformTests
             int state,
             LibreVisualStyleIntegerProperty property)
             => throw new NotSupportedException();
+        public LibreVisualStyleMargins GetMargins(
+            string className,
+            int part,
+            int state,
+            LibreVisualStyleMarginProperty property)
+            => throw new NotSupportedException();
+        public System.Drawing.Point GetPoint(
+            string className,
+            int part,
+            int state,
+            LibreVisualStylePointProperty property)
+            => throw new NotSupportedException();
         public bool IsBackgroundPartiallyTransparent(string className, int part, int state)
             => throw new NotSupportedException();
         public System.Drawing.Rectangle DrawEdge(

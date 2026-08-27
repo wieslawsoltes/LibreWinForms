@@ -26,6 +26,27 @@ public enum LibreVisualStyleIntegerProperty
     ProgressSpaceSize,
 }
 
+public enum LibreVisualStyleMarginProperty
+{
+    Sizing,
+    Content,
+    Caption,
+}
+
+public enum LibreVisualStylePointProperty
+{
+    Offset,
+    TextShadowOffset,
+    MinimumSize,
+    MinimumSize1,
+    MinimumSize2,
+    MinimumSize3,
+    MinimumSize4,
+    MinimumSize5,
+}
+
+public readonly record struct LibreVisualStyleMargins(int Left, int Top, int Right, int Bottom);
+
 [Flags]
 public enum LibreVisualStyleEdges
 {
@@ -108,6 +129,14 @@ public interface ILibreVisualStyleService
 
     int GetInteger(string className, int part, int state, LibreVisualStyleIntegerProperty property);
 
+    LibreVisualStyleMargins GetMargins(
+        string className,
+        int part,
+        int state,
+        LibreVisualStyleMarginProperty property);
+
+    Point GetPoint(string className, int part, int state, LibreVisualStylePointProperty property);
+
     bool IsBackgroundPartiallyTransparent(string className, int part, int state);
 
     Rectangle DrawEdge(
@@ -178,6 +207,18 @@ public sealed class UnsupportedLibreVisualStyleService : ILibreVisualStyleServic
     public int GetInteger(string className, int part, int state, LibreVisualStyleIntegerProperty property)
         => throw new PlatformNotSupportedException(
             "This LibreWinForms host does not provide portable visual-style integer properties.");
+
+    public LibreVisualStyleMargins GetMargins(
+        string className,
+        int part,
+        int state,
+        LibreVisualStyleMarginProperty property)
+        => throw new PlatformNotSupportedException(
+            "This LibreWinForms host does not provide portable visual-style margin properties.");
+
+    public Point GetPoint(string className, int part, int state, LibreVisualStylePointProperty property)
+        => throw new PlatformNotSupportedException(
+            "This LibreWinForms host does not provide portable visual-style point properties.");
 
     public bool IsBackgroundPartiallyTransparent(string className, int part, int state)
         => throw new PlatformNotSupportedException(
