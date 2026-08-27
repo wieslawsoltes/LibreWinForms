@@ -558,6 +558,20 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void EmptyLabelPreferredSizeUsesManagedTextMetricsWithoutHfont()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using var label = new Label();
+
+        Size preferredSize = label.GetPreferredSize(Size.Empty);
+
+        preferredSize.Should().Be(new Size(0, label.Font.Height + 3));
+        platform.TextMeasureCount.Should().Be(1);
+        platform.LastTextFormat.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
+        label.IsHandleCreated.Should().BeFalse();
+    }
+
+    [Fact]
     public void CanonicalManagedRenderersUsePortableVisualStylesWithoutComCtl32()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2220,6 +2234,14 @@ public class CanonicalLifecycleTests
                 proposedSize.Should().Be(new Size(int.MaxValue, int.MaxValue));
                 format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
                 return new Size(416, font!.Height);
+            }
+
+            if (text == "0")
+            {
+                graphics.Should().BeNull();
+                proposedSize.Should().Be(new Size(int.MaxValue, int.MaxValue));
+                format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
+                return new Size(8, font!.Height);
             }
 
             if (graphics is null)
