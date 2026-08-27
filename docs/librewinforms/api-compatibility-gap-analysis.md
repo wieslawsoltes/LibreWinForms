@@ -453,6 +453,8 @@ Canonical portable `GetTextMetrics` no longer enters the native device-context/U
 
 Canonical portable `GetBackgroundExtent` no longer calls `GetThemeBackgroundExtent`. It sends exact content bounds through the same typed visual-style service that supplies content rectangles; ProGPU's three-pixel outset is the inverse of its baseline inset, and negative dimensions retain the upstream empty result. Platform 26/26, adapter 18/18, lifecycle 28/28, and the 614-warning/0-error canonical ProGPU build pass. The original native path remains unchanged on Windows.
 
+Exact source checkpoint `172ad22961ca62ac35d05f8764b8dcc9a711418b` passes the complete local source-first gate after the managed visual-style tranche: default canonical 0 warnings/0 errors; ProGPU canonical 614 reviewed warnings/0 errors; platform 26/26; ProGPU adapter 18/18; canonical lifecycle 28/28; ProGPU drawing 391/391; ApiCompat 0 missing types, 0 missing members, and 13 other reviewed diagnostics with no breaks; and the unchanged Portable comparison at 31 warnings/0 errors. Hosted build `33110675166` and docs `33110675213` are green at the same commit. This is evidence for source-built canonical behavior, not a claim that the frozen compatibility implementation should remain.
+
 ## Proposed fixes
 
 ### P0: Add an official API contract gate

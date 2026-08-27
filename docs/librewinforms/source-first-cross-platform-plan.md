@@ -792,6 +792,8 @@ Portable `VisualStyleRenderer.GetTextMetrics` now reconstructs the unchanged pub
 
 Portable `GetBackgroundExtent` now completes the typed content/extent metric pair. It preserves the upstream negative-size early return, then delegates exact class, part, state, and content bounds to `ILibreVisualStyleService` without acquiring an HDC. The ProGPU baseline applies the inverse three-pixel outset of its content rectangle, while the lifecycle service returns a distinctive rectangle to prove canonical delegation. Platform 26/26, adapter 18/18, lifecycle 28/28, and canonical ProGPU compilation at 614 reviewed warnings/0 errors pass. Windows retains `GetThemeBackgroundExtent`.
 
+Exact source checkpoint `172ad22961ca62ac35d05f8764b8dcc9a711418b` completes the managed `VisualStyleRenderer` tranche and passes the full local `eng/librewinforms-source-first.sh` gate: default canonical 0 warnings/0 errors, ProGPU canonical 614 reviewed warnings/0 errors, platform 26/26, ProGPU adapter 18/18, canonical lifecycle 28/28, ProGPU drawing 391/391, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and the frozen Portable comparison at 31 warnings/0 errors. Hosted build workflow `33110675166` and docs workflow `33110675213` also pass at the exact commit. The only native-only `VisualStyleRenderer` product boundaries left are exporting a real HTHEME and accepting a nonzero HRGN; neither is represented by a fake portable handle.
+
 ## Proposed fixes for the missing-property problem
 
 The permanent fix is not to manually add thousands of properties to the compatibility source. Apply these fixes in order:
