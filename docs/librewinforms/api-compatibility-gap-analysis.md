@@ -467,6 +467,10 @@ Canonical source checkpoint `0ca5f21920c086798664ba3e54333894f9e37c9e` closes th
 
 The exact local gate passes ordinary canonical 0 warnings/0 errors, ProGPU canonical 614 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 30/30, drawing 391/391, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and unchanged Portable comparison 31 warnings/0 errors. This reduces internal dependence on the legacy GDI helper without recreating or expanding any public compatibility API.
 
+Canonical source checkpoint `fe43da56770fe0e91f33bae5bb1fac433a6e8062` fixes the existing `ContainerControl.CurrentAutoScaleDimensions` property in font autoscaling mode. The portable branch no longer enters `Control.FontHandle` and ProGPU's explicit unsupported `Font.ToHfont` boundary. It measures the upstream alphabet sample through `TextRenderer`, rounds its average width exactly as the native algorithm does, and uses managed font line height; the Windows build retains its original GDI device-context calculation. The canonical lifecycle case proves the property works before handle creation and records the typed text-measurement flags.
+
+The exact full local gate passes ordinary canonical 0 warnings/0 errors, ProGPU canonical 614 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 31/31, drawing 391/391, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and unchanged Portable comparison 31 warnings/0 errors. This is the source-first pattern for missing behavior: keep the complete upstream property and replace only its platform-specific implementation seam.
+
 ## Proposed fixes
 
 ### P0: Add an official API contract gate

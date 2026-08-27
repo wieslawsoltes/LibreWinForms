@@ -806,6 +806,10 @@ Exact source checkpoint `0ca5f21920c086798664ba3e54333894f9e37c9e` removes the r
 
 The exact local source-first gate passes default canonical 0 warnings/0 errors, ProGPU canonical 614 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 30/30, ProGPU drawing 391/391, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and frozen Portable comparison 31 warnings/0 errors. This is another canonical implementation fix with no runtime additions to `src/LibreWinForms.Portable`.
 
+Exact source checkpoint `fe43da56770fe0e91f33bae5bb1fac433a6e8062` makes canonical `ContainerControl.CurrentAutoScaleDimensions` work in `AutoScaleMode.Font` without asking ProGPU `Font` to export an `HFONT`. The portable branch measures the same 52-character alphabet through the typed managed `TextRenderer`, preserves the upstream intentional rounded average-character width, and takes height from the real managed font line metrics. Every portable internal call to `GetCurrentAutoScaleDimensions` uses this path; the native build retains the original compatible DC, selected HFONT, `TEXTMETRIC`, and `GetTextExtentPoint32` algorithm. A canonical lifecycle case verifies the returned dimensions, one typed measurement, exact flags, and no control-handle creation.
+
+The exact full local gate passes default canonical 0 warnings/0 errors, ProGPU canonical 614 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 31/31, ProGPU drawing 391/391, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and frozen Portable comparison 31 warnings/0 errors. This fixes a real canonical property behavior that the compatibility implementation could never make source-identical; no Portable runtime source is changed.
+
 ## Proposed fixes for the missing-property problem
 
 The permanent fix is not to manually add thousands of properties to the compatibility source. Apply these fixes in order:
