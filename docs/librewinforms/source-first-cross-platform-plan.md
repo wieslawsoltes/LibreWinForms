@@ -822,6 +822,12 @@ The permanent fix is not to manually add thousands of properties to the compatib
 6. Close missing ProGPU drawing APIs in ProGPU so canonical WinForms code can stay unchanged.
 7. Delete compatibility implementations after their behavioral tests pass against canonical source.
 
+## Current canonical empty-label layout checkpoint
+
+Exact source checkpoint `20f7db7f9b4af19a39cd59f2167ba6665e5a230f` makes the empty-text branch of canonical `Label.GetPreferredSize` portable without exporting an `HFONT` or creating a screen HDC. The portable branch measures the same upstream compatibility character (`"0"`) through canonical `TextRenderer` with `SingleLine | NoPadding`, then preserves the existing WinForms width reset, border calculation, padding, and three-pixel compatible-text-rendering height buffer. The ordinary Windows branch retains the upstream cached HFONT and screen-HDC implementation unchanged.
+
+The canonical lifecycle case exercises the public `Label.GetPreferredSize(Size.Empty)` path and verifies its exact default preferred size, one typed text-service measurement, exact format transport, and no control-handle creation. The complete exact-commit local gate passes default canonical 0 warnings/0 errors, ProGPU canonical 614 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 32/32, ProGPU drawing 391/391, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and frozen Portable comparison 31 warnings/0 errors. Hosted build workflow `33122821484` and docs workflow `33122821464` also pass at the exact implementation commit. No runtime source under `src/LibreWinForms.Portable` changed.
+
 ## Major risks and controls
 
 | Risk | Control |

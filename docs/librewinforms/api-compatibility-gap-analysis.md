@@ -579,6 +579,14 @@ After the portable assembly is predominantly source-built:
 | 4 | Complete managed printing surface plus backend seam in ProGPU | Cross-repository work with a clear public contract and platform boundary. |
 | 5 | Remaining controls and infrastructure, grouped by canonical source subsystem | Converts the package from sample-shaped compatibility to sustained WinForms compatibility. |
 
+## Canonical property implementation follow-up: empty `Label` preferred size
+
+Exact source checkpoint `20f7db7f9b4af19a39cd59f2167ba6665e5a230f` fixes another example of the real missing-property problem: the public property exists because the assembly is built from upstream source, but its layout behavior still crossed a Windows-only measurement path. Empty canonical labels previously reached `GdiCache.GetHFONTScope(Font)` and `GdiCache.GetScreenHdc()` merely to obtain the height of `"0"`; ProGPU correctly refuses to fabricate that native font handle.
+
+The portable branch now uses the same typed managed text service as public `TextRenderer`, while preserving the upstream measurement character and all canonical layout adjustments. A public-path lifecycle test proves the returned default preferred size, exact text flags, one managed measurement, and absence of handle creation. The full local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 614 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 32/32, drawing 391/391, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and the unchanged Portable comparison at 31 warnings/0 errors. Hosted build `33122821484` and docs `33122821464` pass at the same commit.
+
+This reinforces the report's central conclusion: source reuse supplies the property surface automatically, while narrow typed seams make the original managed implementation work cross-platform. Adding another property to `WinFormsCompatTypes.cs` would neither preserve the upstream layout algorithm nor remove the native-handle dependency.
+
 ## Definition of done
 
 For an API group to be considered ported:
