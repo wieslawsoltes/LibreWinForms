@@ -720,11 +720,11 @@ public static class TextRenderer
         };
     }
 
+#if !LIBREWINFORMS_PORTABLE
     /// <summary>
     ///  Returns what <see cref="FontQualityFromTextRenderingHint(IDeviceContext?)"/> would return in an
     ///  unmodified <see cref="Graphics"/> object (i.e. the default).
     /// </summary>
-#if !LIBREWINFORMS_PORTABLE
     private static FONT_QUALITY GetDefaultFontQuality()
     {
         if (!SystemInformation.IsFontSmoothingEnabled)
