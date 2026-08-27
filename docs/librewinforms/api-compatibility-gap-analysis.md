@@ -463,6 +463,10 @@ The exact full source-first gate passes ordinary canonical 0 warnings/0 errors, 
 
 Package `LibreWinForms.System.Windows.Forms 0.1.0-source-first-managed-text-renderer` passes canonical asset inspection and an isolated fresh-cache consumer build with 0 warnings and 0 errors. Its source-built hashes are `8b1392d2d2085f3b86b58cf08e92a07a468e9076b1486c62f29f1f0bbbb383dd` for `System.Windows.Forms.dll` and `8c4ef62bbbb65f97bd66d190611240514cd27d2633c9134c2be0135568893477` for `LibreWinForms.Platform.dll`; the package hash is `f66d746fe02b03afcbbb6bae4c656560047daad95b7e430f7ef36689d993d864`. This verifies that applications can consume the new typed text-rendering seam through the intended canonical package graph without a checkout-local fallback.
 
+Canonical source checkpoint `0ca5f21920c086798664ba3e54333894f9e37c9e` closes the public disabled-text HDC bypass in `ControlPaint.DrawStringDisabled(IDeviceContext, ...)`. Portable canonical code performs the original high-contrast single pass or normal light/dark offset pair through `TextRenderer` and the typed `ILibreTextRendererService`; the Windows source path remains unchanged. A canonical lifecycle case verifies both managed draws, exact bounds and flags, and explicit rejection of a native-only device context without calling `GetHdc`.
+
+The exact local gate passes ordinary canonical 0 warnings/0 errors, ProGPU canonical 614 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 30/30, drawing 391/391, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and unchanged Portable comparison 31 warnings/0 errors. This reduces internal dependence on the legacy GDI helper without recreating or expanding any public compatibility API.
+
 ## Proposed fixes
 
 ### P0: Add an official API contract gate

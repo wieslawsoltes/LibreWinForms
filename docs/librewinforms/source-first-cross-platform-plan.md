@@ -802,6 +802,10 @@ The complete exact-source gate passes ordinary canonical 0 warnings/0 errors, Pr
 
 Canonical package checkpoint `0.1.0-source-first-managed-text-renderer` was built after that implementation and validated from an isolated fresh package cache with consumer warnings treated as errors. The packaged `System.Windows.Forms.dll` SHA-256 is `8b1392d2d2085f3b86b58cf08e92a07a468e9076b1486c62f29f1f0bbbb383dd`, the packaged `LibreWinForms.Platform.dll` SHA-256 is `8c4ef62bbbb65f97bd66d190611240514cd27d2633c9134c2be0135568893477`, and the `.nupkg` SHA-256 is `f66d746fe02b03afcbbb6bae4c656560047daad95b7e430f7ef36689d993d864`. The package continues to use the normal ProGPU dependency graph and contains the canonical source-built WinForms identity rather than the frozen compatibility implementation.
 
+Exact source checkpoint `0ca5f21920c086798664ba3e54333894f9e37c9e` removes the remaining public `ControlPaint.DrawStringDisabled(IDeviceContext, ...)` HDC acquisition from the portable path. Its two-pass light/dark disabled effect now calls the canonical managed `TextRenderer` seam, while high-contrast rendering uses the same service with the canonical system color. Windows retains the upstream font-quality, device-context scope, and HDC helper path unchanged. The lifecycle test proves both managed passes and exact bounds/format transport, and proves that a non-`Graphics` context is rejected without invoking `GetHdc`.
+
+The exact local source-first gate passes default canonical 0 warnings/0 errors, ProGPU canonical 614 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 30/30, ProGPU drawing 391/391, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and frozen Portable comparison 31 warnings/0 errors. This is another canonical implementation fix with no runtime additions to `src/LibreWinForms.Portable`.
+
 ## Proposed fixes for the missing-property problem
 
 The permanent fix is not to manually add thousands of properties to the compatibility source. Apply these fixes in order:
