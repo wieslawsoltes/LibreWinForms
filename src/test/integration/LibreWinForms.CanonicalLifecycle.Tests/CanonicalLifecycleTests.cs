@@ -607,6 +607,36 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void ButtonPreferredSizesUseManagedLayoutSurfacesWithoutScreenHdc()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using var button = new Button { Text = "button", UseCompatibleTextRendering = false };
+        using var checkBox = new CheckBox { Text = "check", UseCompatibleTextRendering = false };
+        using var radioButton = new RadioButton { Text = "radio", UseCompatibleTextRendering = false };
+        using var compatibleButton = new Button
+        {
+            Text = "compatible",
+            UseCompatibleTextRendering = true,
+        };
+
+        Size buttonSize = button.GetPreferredSize(Size.Empty);
+        Size checkBoxSize = checkBox.GetPreferredSize(Size.Empty);
+        Size radioButtonSize = radioButton.GetPreferredSize(Size.Empty);
+        Size compatibleSize = compatibleButton.GetPreferredSize(Size.Empty);
+
+        buttonSize.Should().NotBe(Size.Empty);
+        checkBoxSize.Should().NotBe(Size.Empty);
+        radioButtonSize.Should().NotBe(Size.Empty);
+        compatibleSize.Should().NotBe(Size.Empty);
+        platform.TextMeasureCount.Should().Be(3);
+        platform.LastMeasuredText.Should().Be("radio");
+        button.IsHandleCreated.Should().BeFalse();
+        checkBox.IsHandleCreated.Should().BeFalse();
+        radioButton.IsHandleCreated.Should().BeFalse();
+        compatibleButton.IsHandleCreated.Should().BeFalse();
+    }
+
+    [Fact]
     public void CanonicalManagedRenderersUsePortableVisualStylesWithoutComCtl32()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2296,6 +2326,13 @@ public class CanonicalLifecycleTests
                 proposedSize.Should().Be(new Size(int.MaxValue, int.MaxValue));
                 format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
                 return new Size(72, font!.Height);
+            }
+
+            if (text is "button" or "check" or "radio")
+            {
+                graphics.Should().BeNull();
+                format.Should().HaveFlag(LibreTextFormat.TextBoxControl);
+                return new Size(text.Length * 7, font!.Height);
             }
 
             if (graphics is null)

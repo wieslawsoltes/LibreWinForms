@@ -94,14 +94,7 @@ internal sealed class CheckBoxStandardAdapter : CheckBoxBaseAdapter
         }
         else
         {
-            LayoutOptions? options = default;
-            using (var screen = GdiCache.GetScreenHdc())
-            using (PaintEventArgs pe = new(screen, clipRect: default))
-            {
-                options = Layout(pe);
-            }
-
-            return options.GetPreferredSizeCore(proposedSize);
+            return GetPreferredSizeFromLayout(proposedSize);
         }
     }
 

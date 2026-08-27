@@ -47,16 +47,20 @@ internal abstract partial class ButtonBaseAdapter
     }
 
     internal virtual Size GetPreferredSizeCore(Size proposedSize)
+        => GetPreferredSizeFromLayout(proposedSize);
+
+    protected Size GetPreferredSizeFromLayout(Size proposedSize)
     {
-        LayoutOptions? options = default;
-
-        using (var screen = GdiCache.GetScreenHdc())
-        using (PaintEventArgs e = new(screen, default))
-        {
-            options = Layout(e);
-        }
-
-        return options.GetPreferredSizeCore(proposedSize);
+#if LIBREWINFORMS_PORTABLE
+        using var surface = new Bitmap(1, 1);
+        using Graphics graphics = Graphics.FromImage(surface);
+        using PaintEventArgs e = new(graphics, default);
+        return Layout(e).GetPreferredSizeCore(proposedSize);
+#else
+        using var screen = GdiCache.GetScreenHdc();
+        using PaintEventArgs e = new(screen, default);
+        return Layout(e).GetPreferredSizeCore(proposedSize);
+#endif
     }
 
     protected abstract LayoutOptions Layout(PaintEventArgs e);
