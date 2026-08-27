@@ -101,8 +101,13 @@ public static class ComboBoxRenderer
     /// </summary>
     public static void DrawDropDownButton(Graphics g, Rectangle bounds, ComboBoxState state)
     {
+#if LIBREWINFORMS_PORTABLE
+        InitializeRenderer(s_comboBoxElement, (int)state);
+        t_visualStyleRenderer.DrawBackground(g, bounds);
+#else
         using DeviceContextHdcScope hdc = g.ToHdcScope();
         DrawDropDownButtonForHandle(hdc, bounds, state, HWND.Null);
+#endif
     }
 
     /// <summary>

@@ -12,7 +12,9 @@ using System.Runtime.CompilerServices;
 #endif
 using System.Runtime.InteropServices;
 using Windows.Win32.System.StationsAndDesktops;
+#if !LIBREWINFORMS_PORTABLE
 using Windows.Win32.UI.Accessibility;
+#endif
 using static Windows.Win32.UI.WindowsAndMessaging.SYSTEM_METRICS_INDEX;
 using static Windows.Win32.UI.WindowsAndMessaging.SYSTEM_PARAMETERS_INFO_ACTION;
 
@@ -48,9 +50,14 @@ public static class SystemInformation
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return LibrePlatform.IsRegistered
+                && LibrePlatform.Current.SystemSettings.HighContrast;
+#else
             HIGHCONTRASTW data = default;
             return PInvokeCore.SystemParametersInfo(ref data)
                 && data.dwFlags.HasFlag(HIGHCONTRASTW_FLAGS.HCF_HIGHCONTRASTON);
+#endif
         }
     }
 

@@ -71,7 +71,8 @@ public sealed class LibrePlatformServices : IDisposable
             desktopCapture,
             nativeFonts,
             nativeGraphics,
-            UnsupportedLibreVisualStyleService.Instance)
+            UnsupportedLibreVisualStyleService.Instance,
+            DefaultLibreSystemSettingsService.Instance)
     {
     }
 
@@ -86,6 +87,33 @@ public sealed class LibrePlatformServices : IDisposable
         ILibreNativeFontInteropService nativeFonts,
         ILibreNativeGraphicsInteropService nativeGraphics,
         ILibreVisualStyleService visualStyles)
+        : this(
+            dispatcher,
+            timers,
+            handles,
+            windows,
+            monitors,
+            painting,
+            desktopCapture,
+            nativeFonts,
+            nativeGraphics,
+            visualStyles,
+            DefaultLibreSystemSettingsService.Instance)
+    {
+    }
+
+    public LibrePlatformServices(
+        ILibreDispatcher dispatcher,
+        ILibreTimerService timers,
+        ILibreHandleRegistry handles,
+        ILibreWindowService windows,
+        ILibreMonitorService monitors,
+        ILibrePaintService painting,
+        ILibreDesktopCaptureService desktopCapture,
+        ILibreNativeFontInteropService nativeFonts,
+        ILibreNativeGraphicsInteropService nativeGraphics,
+        ILibreVisualStyleService visualStyles,
+        ILibreSystemSettingsService systemSettings)
     {
         Dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         Timers = timers ?? throw new ArgumentNullException(nameof(timers));
@@ -97,6 +125,7 @@ public sealed class LibrePlatformServices : IDisposable
         NativeFonts = nativeFonts ?? throw new ArgumentNullException(nameof(nativeFonts));
         NativeGraphics = nativeGraphics ?? throw new ArgumentNullException(nameof(nativeGraphics));
         VisualStyles = visualStyles ?? throw new ArgumentNullException(nameof(visualStyles));
+        SystemSettings = systemSettings ?? throw new ArgumentNullException(nameof(systemSettings));
     }
 
     public ILibreDispatcher Dispatcher { get; }
@@ -119,6 +148,8 @@ public sealed class LibrePlatformServices : IDisposable
 
     public ILibreVisualStyleService VisualStyles { get; }
 
+    public ILibreSystemSettingsService SystemSettings { get; }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
@@ -127,6 +158,7 @@ public sealed class LibrePlatformServices : IDisposable
         }
 
         HashSet<IDisposable> disposed = new(ReferenceEqualityComparer.Instance);
+        DisposeService(SystemSettings, disposed);
         DisposeService(VisualStyles, disposed);
         DisposeService(NativeGraphics, disposed);
         DisposeService(NativeFonts, disposed);

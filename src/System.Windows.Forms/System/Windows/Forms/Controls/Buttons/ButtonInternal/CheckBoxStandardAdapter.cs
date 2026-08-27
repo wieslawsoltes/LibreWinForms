@@ -117,6 +117,15 @@ internal sealed class CheckBoxStandardAdapter : CheckBoxBaseAdapter
 
         if (Application.RenderWithVisualStyles)
         {
+#if LIBREWINFORMS_PORTABLE
+            layout.CheckSize = CheckBoxRenderer.GetGlyphSize(
+                e.GraphicsInternal,
+                CheckBoxRenderer.ConvertFromButtonState(
+                    GetState(),
+                    isMixed: true,
+                    Control.MouseIsOver),
+                Control.HWNDInternal).Width;
+#else
             using var screen = GdiCache.GetScreenHdc();
             layout.CheckSize = CheckBoxRenderer.GetGlyphSize(
                 screen,
@@ -125,6 +134,7 @@ internal sealed class CheckBoxStandardAdapter : CheckBoxBaseAdapter
                     isMixed: true,
                     Control.MouseIsOver),
                 Control.HWNDInternal).Width;
+#endif
         }
         else
         {

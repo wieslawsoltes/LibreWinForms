@@ -70,8 +70,16 @@ public static class RadioButtonRenderer
         Rectangle glyphBounds;
         if (RenderWithVisualStyles)
         {
+#if LIBREWINFORMS_PORTABLE
+            InitializeRenderer((int)state);
+            glyphBounds = new Rectangle(
+                glyphLocation,
+                t_visualStyleRenderer.GetPartSize(graphics, ThemeSizeType.Draw));
+            t_visualStyleRenderer.DrawBackground(graphics, glyphBounds);
+#else
             using DeviceContextHdcScope hdc = graphics.ToHdcScope();
             DrawRadioButtonWithVisualStyles(hdc, glyphLocation, state, hwnd);
+#endif
         }
         else
         {
@@ -250,8 +258,18 @@ public static class RadioButtonRenderer
     /// </summary>
     public static Size GetGlyphSize(Graphics g, RadioButtonState state)
     {
+#if LIBREWINFORMS_PORTABLE
+        if (RenderWithVisualStyles)
+        {
+            InitializeRenderer((int)state);
+            return t_visualStyleRenderer.GetPartSize(g, ThemeSizeType.Draw);
+        }
+
+        return new Size(13, 13);
+#else
         using DeviceContextHdcScope hdc = g.ToHdcScope();
         return GetGlyphSize(hdc, state, HWND.Null);
+#endif
     }
 
     internal static Size GetGlyphSize(HDC hdc, RadioButtonState state, HWND hwnd)

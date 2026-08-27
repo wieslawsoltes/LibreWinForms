@@ -203,12 +203,20 @@ internal abstract class RadioButtonBaseAdapter : CheckableControlBaseAdapter
 
         if (Application.RenderWithVisualStyles)
         {
+#if LIBREWINFORMS_PORTABLE
+            RadioButtonRenderer.DrawRadioButton(
+                e.GraphicsInternal,
+                new Point(check.Left, check.Top),
+                RadioButtonRenderer.ConvertFromButtonState(style, Control.MouseIsOver),
+                Control.HWNDInternal);
+#else
             using DeviceContextHdcScope hdc = new(e);
             RadioButtonRenderer.DrawRadioButtonWithVisualStyles(
                 hdc,
                 new Point(check.Left, check.Top),
                 RadioButtonRenderer.ConvertFromButtonState(style, Control.MouseIsOver),
                 Control.HWNDInternal);
+#endif
         }
         else
         {

@@ -105,6 +105,30 @@ public class LibrePlatformTests
     }
 
     [Fact]
+    public void ConstructorPublishesTypedSystemSettingsAndRejectsMissingCapability()
+    {
+        TestServices test = new();
+        using LibrePlatformServices services = new(
+            test,
+            test,
+            test.Handles,
+            test,
+            test,
+            test,
+            test,
+            test,
+            test,
+            test,
+            test);
+
+        services.SystemSettings.Should().BeSameAs(test);
+        services.SystemSettings.HighContrast.Should().BeTrue();
+        Action create = () => new LibrePlatformServices(
+            test, test, test.Handles, test, test, test, test, test, test, test, null!);
+        create.Should().Throw<ArgumentNullException>().WithParameterName("systemSettings");
+    }
+
+    [Fact]
     public void MonitorSelection_PrefersLargestIntersection()
     {
         LibreMonitor[] monitors = CreateMonitorInventory();
@@ -285,7 +309,8 @@ public class LibrePlatformTests
         ILibreDesktopCaptureService,
         ILibreNativeFontInteropService,
         ILibreNativeGraphicsInteropService,
-        ILibreVisualStyleService
+        ILibreVisualStyleService,
+        ILibreSystemSettingsService
     {
         public ManagedLibreHandleRegistry Handles { get; } = new();
 
@@ -322,6 +347,7 @@ public class LibrePlatformTests
             => throw new NotSupportedException();
         public IntPtr CreateHalftonePalette() => IntPtr.Zero;
         public bool IsEnabled => true;
+        public bool HighContrast => true;
         public bool IsElementDefined(string className, int part) => true;
         public void DrawBackground(
             System.Drawing.Graphics graphics,

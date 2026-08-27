@@ -412,6 +412,25 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void CanonicalManagedRenderersUsePortableVisualStylesWithoutComCtl32()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        Application.EnableVisualStyles();
+
+        Application.RenderWithVisualStyles.Should().BeTrue();
+        using var target = new Bitmap(96, 32, PixelFormat.Format32bppArgb);
+        using Graphics graphics = Graphics.FromImage(target);
+        graphics.Clear(Color.Transparent);
+        ButtonRenderer.DrawButton(graphics, new Rectangle(0, 0, 20, 20), PushButtonState.Normal);
+        CheckBoxRenderer.DrawCheckBox(graphics, new Point(22, 3), CheckBoxState.CheckedNormal);
+        RadioButtonRenderer.DrawRadioButton(graphics, new Point(40, 3), RadioButtonState.CheckedNormal);
+        ComboBoxRenderer.DrawDropDownButton(graphics, new Rectangle(58, 0, 20, 20), ComboBoxState.Normal);
+        TrackBarRenderer.DrawHorizontalTrack(graphics, new Rectangle(80, 0, 4, 20));
+
+        platform.VisualStyleDrawCount.Should().BeGreaterThanOrEqualTo(5);
+    }
+
+    [Fact]
     public void ApplicationRun_CanonicalForm_UsesTypedPortableLifecycle()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: true);

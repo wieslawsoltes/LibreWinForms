@@ -535,6 +535,21 @@ public abstract partial class UpDownBase : ContainerControl
                 clipRight.Intersect(clipBounds);
                 clipBottom.Intersect(clipBounds);
 
+#if LIBREWINFORMS_PORTABLE
+                vsr.DrawBackground(e.GraphicsInternal, bounds, clipLeft);
+                vsr.DrawBackground(e.GraphicsInternal, bounds, clipTop);
+                vsr.DrawBackground(e.GraphicsInternal, bounds, clipRight);
+                vsr.DrawBackground(e.GraphicsInternal, bounds, clipBottom);
+
+                // Draw a rectangle around edit control with the background color.
+                Rectangle backRect = editBounds;
+                backRect.X--;
+                backRect.Y--;
+                backRect.Width += 2;
+                backRect.Height += 2;
+                using var pen = new Pen(backColor);
+                e.GraphicsInternal.DrawRectangle(pen, backRect);
+#else
                 using DeviceContextHdcScope hdc = new(e);
                 vsr.DrawBackground(hdc, bounds, clipLeft, HWNDInternal);
                 vsr.DrawBackground(hdc, bounds, clipTop, HWNDInternal);
@@ -549,6 +564,7 @@ public abstract partial class UpDownBase : ContainerControl
                 backRect.Height += 2;
                 using CreatePenScope hpen = new(backColor);
                 hdc.DrawRectangle(backRect, hpen);
+#endif
             }
         }
         else

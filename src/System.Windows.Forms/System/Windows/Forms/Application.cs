@@ -101,8 +101,8 @@ public sealed partial class Application
     private static unsafe bool InitializeComCtlSupportsVisualStyles()
     {
 #if LIBREWINFORMS_PORTABLE
-        // The first portable visual-style tranche covers backgrounds and managed regions, not the
-        // complete comctl32 themed-part metric/property family. Keep controls on their classic paths.
+        // comctl32 capability is a native-control concern. Portable managed visual-style rendering
+        // is exposed separately through RenderWithVisualStyles.
         return false;
 #else
         if (UseVisualStyles)
@@ -599,7 +599,11 @@ public sealed partial class Application
     ///  of the controls in your app.
     /// </summary>
     public static bool RenderWithVisualStyles
+#if LIBREWINFORMS_PORTABLE
+        => VisualStyleRenderer.IsSupported;
+#else
         => ComCtlSupportsVisualStyles && VisualStyleRenderer.IsSupported;
+#endif
 
     /// <summary>
     ///  Gets or sets the format string to apply to top level window captions
