@@ -455,6 +455,8 @@ Canonical portable `GetBackgroundExtent` no longer calls `GetThemeBackgroundExte
 
 Exact source checkpoint `172ad22961ca62ac35d05f8764b8dcc9a711418b` passes the complete local source-first gate after the managed visual-style tranche: default canonical 0 warnings/0 errors; ProGPU canonical 614 reviewed warnings/0 errors; platform 26/26; ProGPU adapter 18/18; canonical lifecycle 28/28; ProGPU drawing 391/391; ApiCompat 0 missing types, 0 missing members, and 13 other reviewed diagnostics with no breaks; and the unchanged Portable comparison at 31 warnings/0 errors. Hosted build `33110675166` and docs `33110675213` are green at the same commit. This is evidence for source-built canonical behavior, not a claim that the frozen compatibility implementation should remain.
 
+Package `LibreWinForms.System.Windows.Forms 0.1.0-source-first-managed-visual-styles-complete` also passes canonical asset inspection and isolated fresh-feed consumption with warnings treated as errors. Its source-built hashes are `ebb1ea4429c602226e2f156fb99dc9e16669427931c5aebccd9e0dab9fd1898f` for `System.Windows.Forms.dll` and `46c11dd658d3c03bb487c27d9cfbc4d276365d892d924e87509a6f710c14edf1` for `LibreWinForms.Platform.dll`; the package hash is `deec04cffea8a793e98b0f91f1fa9ead28955ad4af2105241ed41a8022e3745f`. The package uses the ordinary ProGPU dependency graph and does not embed ProGPU binaries or expand the frozen Portable implementation.
+
 ## Proposed fixes
 
 ### P0: Add an official API contract gate
