@@ -54,10 +54,8 @@
     <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\System.Drawing.Common\System.Drawing.Common.csproj" />
     <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\ProGPU.Backend\ProGPU.Backend.csproj" />
     <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\ProGPU.Scene\ProGPU.Scene.csproj" />
-    <!-- These helpers bridge System.Drawing's private LOGFONT representation to
-         UxTheme. The portable lane supplies theme/font behavior above the HDC
-         boundary instead of manufacturing private System.Drawing.Interop types. -->
-    <Compile Remove="System\Drawing\FontExtensions.cs" />
+    <!-- UxTheme font lookup remains behind the explicit HDC theme adapter. The
+         canonical typed LOGFONT conversion helper is source-reused unchanged. -->
     <Compile Remove="Windows\Win32\PInvoke.GetThemeFont.cs" />
   </ItemGroup>
 

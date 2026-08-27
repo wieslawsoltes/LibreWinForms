@@ -13,12 +13,6 @@ namespace System.Drawing;
 /// </summary>
 internal static class ProGpuDrawingInteropExtensions
 {
-    public static LOGFONTW ToLogicalFont(this Font font) =>
-        throw NativeInteropUnavailable("LOGFONT export");
-
-    public static LOGFONTW ToLogicalFont(this Font font, Graphics graphics) =>
-        throw NativeInteropUnavailable("LOGFONT export");
-
     public static object CreateIPictureRCW(this Image image) =>
         throw NativeInteropUnavailable("OLE IPicture export");
 
