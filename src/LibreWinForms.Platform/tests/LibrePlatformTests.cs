@@ -33,6 +33,31 @@ public class LibrePlatformTests
     }
 
     [Fact]
+    public void ConstructorPublishesTypedDesktopCaptureAndRejectsMissingCapability()
+    {
+        TestServices test = new();
+        using LibrePlatformServices services = new(
+            test,
+            test,
+            test.Handles,
+            test,
+            test,
+            test,
+            test);
+
+        services.DesktopCapture.Should().BeSameAs(test);
+        Action create = () => new LibrePlatformServices(
+            test,
+            test,
+            test.Handles,
+            test,
+            test,
+            test,
+            null!);
+        create.Should().Throw<ArgumentNullException>().WithParameterName("desktopCapture");
+    }
+
+    [Fact]
     public void MonitorSelection_PrefersLargestIntersection()
     {
         LibreMonitor[] monitors = CreateMonitorInventory();
@@ -209,7 +234,8 @@ public class LibrePlatformTests
         ILibreTimerService,
         ILibreWindowService,
         ILibreMonitorService,
-        ILibrePaintService
+        ILibrePaintService,
+        ILibreDesktopCaptureService
     {
         public ManagedLibreHandleRegistry Handles { get; } = new();
 
@@ -236,6 +262,8 @@ public class LibrePlatformTests
         public void Invalidate(LibreHandle target, LibreRectangle dirtyRectangle) { }
         public void InvalidateAll(LibreHandle target) { }
         public void Present(LibreHandle target) { }
+        public void Capture(LibreRectangle sourceRectangle, Span<byte> destinationRgba)
+            => destinationRgba.Clear();
 
         private sealed class EmptyDisposable : IDisposable
         {

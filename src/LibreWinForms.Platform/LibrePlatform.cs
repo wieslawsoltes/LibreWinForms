@@ -15,6 +15,25 @@ public sealed class LibrePlatformServices : IDisposable
         ILibreWindowService windows,
         ILibreMonitorService monitors,
         ILibrePaintService painting)
+        : this(
+            dispatcher,
+            timers,
+            handles,
+            windows,
+            monitors,
+            painting,
+            UnsupportedLibreDesktopCaptureService.Instance)
+    {
+    }
+
+    public LibrePlatformServices(
+        ILibreDispatcher dispatcher,
+        ILibreTimerService timers,
+        ILibreHandleRegistry handles,
+        ILibreWindowService windows,
+        ILibreMonitorService monitors,
+        ILibrePaintService painting,
+        ILibreDesktopCaptureService desktopCapture)
     {
         Dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         Timers = timers ?? throw new ArgumentNullException(nameof(timers));
@@ -22,6 +41,7 @@ public sealed class LibrePlatformServices : IDisposable
         Windows = windows ?? throw new ArgumentNullException(nameof(windows));
         Monitors = monitors ?? throw new ArgumentNullException(nameof(monitors));
         Painting = painting ?? throw new ArgumentNullException(nameof(painting));
+        DesktopCapture = desktopCapture ?? throw new ArgumentNullException(nameof(desktopCapture));
     }
 
     public ILibreDispatcher Dispatcher { get; }
@@ -36,6 +56,8 @@ public sealed class LibrePlatformServices : IDisposable
 
     public ILibrePaintService Painting { get; }
 
+    public ILibreDesktopCaptureService DesktopCapture { get; }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
@@ -44,6 +66,7 @@ public sealed class LibrePlatformServices : IDisposable
         }
 
         HashSet<IDisposable> disposed = new(ReferenceEqualityComparer.Instance);
+        DisposeService(DesktopCapture, disposed);
         DisposeService(Painting, disposed);
         DisposeService(Monitors, disposed);
         DisposeService(Windows, disposed);
