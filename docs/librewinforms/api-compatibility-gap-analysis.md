@@ -461,6 +461,8 @@ Canonical source checkpoint `1eb818bf0394d594bc35d0210f7932f4d758765d` closes th
 
 The exact full source-first gate passes ordinary canonical 0 warnings/0 errors, ProGPU canonical 614 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 29/29, drawing 391/391, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and unchanged Portable comparison 31 warnings/0 errors. This removes runtime HDC assumptions behind an already-complete canonical API rather than adding another WinForms-shaped compatibility declaration; `src/LibreWinForms.Portable` remains frozen.
 
+Package `LibreWinForms.System.Windows.Forms 0.1.0-source-first-managed-text-renderer` passes canonical asset inspection and an isolated fresh-cache consumer build with 0 warnings and 0 errors. Its source-built hashes are `8b1392d2d2085f3b86b58cf08e92a07a468e9076b1486c62f29f1f0bbbb383dd` for `System.Windows.Forms.dll` and `8c4ef62bbbb65f97bd66d190611240514cd27d2633c9134c2be0135568893477` for `LibreWinForms.Platform.dll`; the package hash is `f66d746fe02b03afcbbb6bae4c656560047daad95b7e430f7ef36689d993d864`. This verifies that applications can consume the new typed text-rendering seam through the intended canonical package graph without a checkout-local fallback.
+
 ## Proposed fixes
 
 ### P0: Add an official API contract gate

@@ -800,6 +800,8 @@ Exact source checkpoint `1eb818bf0394d594bc35d0210f7932f4d758765d` moves the pub
 
 The complete exact-source gate passes ordinary canonical 0 warnings/0 errors, ProGPU canonical 614 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 29/29, ProGPU drawing 391/391, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and frozen Portable comparison 31 warnings/0 errors. The new tests cover contract publication and rejection, managed rendering and background color, constrained and headless measurement, canonical flag transport, distinctive results, and the no-HDC native-context boundary. The minimum-count gate is raised to those new platform, adapter, and lifecycle totals; no runtime code is added to `src/LibreWinForms.Portable`.
 
+Canonical package checkpoint `0.1.0-source-first-managed-text-renderer` was built after that implementation and validated from an isolated fresh package cache with consumer warnings treated as errors. The packaged `System.Windows.Forms.dll` SHA-256 is `8b1392d2d2085f3b86b58cf08e92a07a468e9076b1486c62f29f1f0bbbb383dd`, the packaged `LibreWinForms.Platform.dll` SHA-256 is `8c4ef62bbbb65f97bd66d190611240514cd27d2633c9134c2be0135568893477`, and the `.nupkg` SHA-256 is `f66d746fe02b03afcbbb6bae4c656560047daad95b7e430f7ef36689d993d864`. The package continues to use the normal ProGPU dependency graph and contains the canonical source-built WinForms identity rather than the frozen compatibility implementation.
+
 ## Proposed fixes for the missing-property problem
 
 The permanent fix is not to manually add thousands of properties to the compatibility source. Apply these fixes in order:
