@@ -437,6 +437,8 @@ Exact implementation head `577647e1f252e4beeed9404c806df5b0050cd3f7` passes the 
 
 The following geometric-property slice removes the remaining UxTheme/HDC dependency from canonical portable `GetMargins` and the UxTheme dependency from `GetPoint`. Explicit platform enums represent sizing/content/caption margins and offset/shadow/minimum-size points; a platform-owned four-side value is converted to the official `Padding` only at the canonical boundary. ProGPU returns internally consistent baseline metrics, including minimum points derived from typed part sizes, while Windows keeps its original native calls. Focused platform 26/26, adapter 18/18, lifecycle 28/28, and default canonical 0-warning/0-error gates pass with exact property and value assertions. The API surface remains complete and unchanged; this closes behavior debt behind it rather than adding another compatibility declaration.
 
+Canonical portable `GetBoolean` now follows the same rule. All thirteen official `BooleanProperty` values map explicitly to a platform-owned enum, and the ProGPU theme baseline returns declared renderer capabilities rather than invoking UxTheme or passing raw property IDs. Focused platform 26/26, adapter 18/18, and lifecycle 28/28 gates pass with an exact `BackgroundFill` assertion. The default Windows branch remains `GetThemeBool`; no compatibility type, reflection path, fake handle, or public API change is introduced.
+
 ## Proposed fixes
 
 ### P0: Add an official API contract gate

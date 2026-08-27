@@ -138,6 +138,25 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
         };
     }
 
+    public bool GetBoolean(string className, int part, int state, LibreVisualStyleBooleanProperty property)
+    {
+        ValidateElement(className, part);
+        if (property is < LibreVisualStyleBooleanProperty.Transparent or > LibreVisualStyleBooleanProperty.SourceShrink)
+        {
+            throw new ArgumentOutOfRangeException(nameof(property));
+        }
+
+        return property switch
+        {
+            LibreVisualStyleBooleanProperty.BackgroundFill
+                or LibreVisualStyleBooleanProperty.GlyphTransparent
+                or LibreVisualStyleBooleanProperty.UniformSizing
+                or LibreVisualStyleBooleanProperty.SourceGrow
+                or LibreVisualStyleBooleanProperty.SourceShrink => true,
+            _ => false,
+        };
+    }
+
     public LibreVisualStyleMargins GetMargins(
         string className,
         int part,

@@ -734,6 +734,26 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
                 $"Portable visual-style integer property '{property}' is not implemented."),
         };
 
+    private static LibreVisualStyleBooleanProperty GetPortableBooleanProperty(BooleanProperty property)
+        => property switch
+        {
+            BooleanProperty.Transparent => LibreVisualStyleBooleanProperty.Transparent,
+            BooleanProperty.AutoSize => LibreVisualStyleBooleanProperty.AutoSize,
+            BooleanProperty.BorderOnly => LibreVisualStyleBooleanProperty.BorderOnly,
+            BooleanProperty.Composited => LibreVisualStyleBooleanProperty.Composited,
+            BooleanProperty.BackgroundFill => LibreVisualStyleBooleanProperty.BackgroundFill,
+            BooleanProperty.GlyphTransparent => LibreVisualStyleBooleanProperty.GlyphTransparent,
+            BooleanProperty.GlyphOnly => LibreVisualStyleBooleanProperty.GlyphOnly,
+            BooleanProperty.AlwaysShowSizingBar => LibreVisualStyleBooleanProperty.AlwaysShowSizingBar,
+            BooleanProperty.MirrorImage => LibreVisualStyleBooleanProperty.MirrorImage,
+            BooleanProperty.UniformSizing => LibreVisualStyleBooleanProperty.UniformSizing,
+            BooleanProperty.IntegralSizing => LibreVisualStyleBooleanProperty.IntegralSizing,
+            BooleanProperty.SourceGrow => LibreVisualStyleBooleanProperty.SourceGrow,
+            BooleanProperty.SourceShrink => LibreVisualStyleBooleanProperty.SourceShrink,
+            _ => throw new PlatformNotSupportedException(
+                $"Portable visual-style Boolean property '{property}' is not implemented."),
+        };
+
     private static LibreVisualStyleMarginProperty GetPortableMarginProperty(MarginProperty property)
         => property switch
         {
@@ -767,8 +787,13 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     {
         SourceGenerated.EnumValidator.Validate(prop, nameof(prop));
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.GetBoolean(Class, Part, State, GetPortableBooleanProperty(prop));
+#else
         _lastHResult = PInvoke.GetThemeBool(HTHEME, Part, State, (THEME_PROPERTY_SYMBOL_ID)prop, out BOOL value);
         return value;
+#endif
     }
 
     /// <summary>

@@ -380,6 +380,7 @@ public class CanonicalLifecycleTests
         target.GetPixel(5, 3).ToArgb().Should().Be(Color.Purple.ToArgb());
         renderer.GetColor(ColorProperty.TextColor).ToArgb().Should().Be(Color.Orange.ToArgb());
         renderer.GetInteger(IntegerProperty.ProgressChunkSize).Should().Be(7);
+        renderer.GetBoolean(BooleanProperty.BackgroundFill).Should().BeTrue();
         renderer.GetPoint(PointProperty.TextShadowOffset).Should().Be(new Point(2, 3));
         renderer.IsBackgroundPartiallyTransparent().Should().BeFalse();
         platform.VisualStyleDrawCount.Should().Be(1);
@@ -1813,6 +1814,16 @@ public class CanonicalLifecycleTests
             int state,
             LibreVisualStyleIntegerProperty property)
             => property == LibreVisualStyleIntegerProperty.ProgressChunkSize ? 7 : 3;
+
+        public bool GetBoolean(
+            string className,
+            int part,
+            int state,
+            LibreVisualStyleBooleanProperty property)
+        {
+            property.Should().Be(LibreVisualStyleBooleanProperty.BackgroundFill);
+            return true;
+        }
 
         public LibreVisualStyleMargins GetMargins(
             string className,

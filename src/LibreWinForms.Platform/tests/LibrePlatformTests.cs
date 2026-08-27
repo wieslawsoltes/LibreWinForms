@@ -388,6 +388,12 @@ public class LibrePlatformTests
             int state,
             LibreVisualStyleIntegerProperty property)
             => throw new NotSupportedException();
+        public bool GetBoolean(
+            string className,
+            int part,
+            int state,
+            LibreVisualStyleBooleanProperty property)
+            => throw new NotSupportedException();
         public LibreVisualStyleMargins GetMargins(
             string className,
             int part,

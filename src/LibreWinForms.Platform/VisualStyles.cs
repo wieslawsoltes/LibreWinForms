@@ -26,6 +26,23 @@ public enum LibreVisualStyleIntegerProperty
     ProgressSpaceSize,
 }
 
+public enum LibreVisualStyleBooleanProperty
+{
+    Transparent,
+    AutoSize,
+    BorderOnly,
+    Composited,
+    BackgroundFill,
+    GlyphTransparent,
+    GlyphOnly,
+    AlwaysShowSizingBar,
+    MirrorImage,
+    UniformSizing,
+    IntegralSizing,
+    SourceGrow,
+    SourceShrink,
+}
+
 public enum LibreVisualStyleMarginProperty
 {
     Sizing,
@@ -129,6 +146,8 @@ public interface ILibreVisualStyleService
 
     int GetInteger(string className, int part, int state, LibreVisualStyleIntegerProperty property);
 
+    bool GetBoolean(string className, int part, int state, LibreVisualStyleBooleanProperty property);
+
     LibreVisualStyleMargins GetMargins(
         string className,
         int part,
@@ -207,6 +226,10 @@ public sealed class UnsupportedLibreVisualStyleService : ILibreVisualStyleServic
     public int GetInteger(string className, int part, int state, LibreVisualStyleIntegerProperty property)
         => throw new PlatformNotSupportedException(
             "This LibreWinForms host does not provide portable visual-style integer properties.");
+
+    public bool GetBoolean(string className, int part, int state, LibreVisualStyleBooleanProperty property)
+        => throw new PlatformNotSupportedException(
+            "This LibreWinForms host does not provide portable visual-style Boolean properties.");
 
     public LibreVisualStyleMargins GetMargins(
         string className,
