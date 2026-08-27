@@ -58,4 +58,30 @@ public sealed class ProGpuVisualStyleServiceTests
             .Should().Be(6);
         service.IsBackgroundPartiallyTransparent("BUTTON", 1, 1).Should().BeFalse();
     }
+
+    [Fact]
+    public void DrawEdgeUsesManagedGraphicsAndReturnsAdjustedContentBounds()
+    {
+        var service = new ProGpuVisualStyleService();
+        using var target = new Bitmap(8, 8, PixelFormat.Format32bppArgb);
+        Rectangle contentBounds;
+        using (Graphics graphics = Graphics.FromImage(target))
+        {
+            graphics.Clear(Color.Transparent);
+            contentBounds = service.DrawEdge(
+                graphics,
+                "TRACKBAR",
+                part: 1,
+                state: 1,
+                new Rectangle(1, 1, 6, 6),
+                LibreVisualStyleEdges.Left | LibreVisualStyleEdges.Top,
+                LibreVisualStyleEdgeStyle.Raised,
+                LibreVisualStyleEdgeEffects.None);
+        }
+
+        contentBounds.Should().Be(new Rectangle(2, 2, 5, 5));
+        target.GetPixel(1, 3).A.Should().BeGreaterThan(0);
+        target.GetPixel(3, 1).A.Should().BeGreaterThan(0);
+        target.GetPixel(3, 3).A.Should().Be(0);
+    }
 }

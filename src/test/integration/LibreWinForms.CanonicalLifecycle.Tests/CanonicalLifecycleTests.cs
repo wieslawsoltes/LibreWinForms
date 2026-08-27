@@ -361,6 +361,12 @@ public class CanonicalLifecycleTests
             renderer.GetBackgroundContentRectangle(graphics, new Rectangle(0, 0, 20, 12))
                 .Should().Be(new Rectangle(2, 2, 16, 8));
             renderer.GetPartSize(graphics, ThemeSizeType.True).Should().Be(new Size(21, 22));
+            renderer.DrawEdge(
+                graphics,
+                new Rectangle(0, 0, 8, 8),
+                Edges.Left | Edges.Top,
+                EdgeStyle.Raised,
+                EdgeEffects.None).Should().Be(new Rectangle(1, 1, 7, 7));
         }
 
         target.GetPixel(2, 3).ToArgb().Should().Be(0);
@@ -369,6 +375,7 @@ public class CanonicalLifecycleTests
         renderer.GetInteger(IntegerProperty.ProgressChunkSize).Should().Be(7);
         renderer.IsBackgroundPartiallyTransparent().Should().BeFalse();
         platform.VisualStyleDrawCount.Should().Be(1);
+        platform.VisualStyleEdgeDrawCount.Should().Be(1);
         Action nativeHandle = () => _ = renderer.Handle;
         nativeHandle.Should().Throw<PlatformNotSupportedException>()
             .WithMessage("*Windows UxTheme adapter*");
@@ -1420,6 +1427,7 @@ public class CanonicalLifecycleTests
             CursorChangeCount = 0;
             LastWindowIcons = [];
             VisualStyleDrawCount = 0;
+            VisualStyleEdgeDrawCount = 0;
         }
 
         internal ManagedLibreHandleRegistry Handles { get; }
@@ -1439,6 +1447,7 @@ public class CanonicalLifecycleTests
         internal int PresentationInvalidationCount { get; private set; }
 
         internal int VisualStyleDrawCount { get; private set; }
+        internal int VisualStyleEdgeDrawCount { get; private set; }
 
         internal double LastPresentationScale { get; private set; } = 1.0;
 
@@ -1734,6 +1743,24 @@ public class CanonicalLifecycleTests
 
         public bool IsBackgroundPartiallyTransparent(string className, int part, int state)
             => false;
+
+        public Rectangle DrawEdge(
+            Graphics graphics,
+            string className,
+            int part,
+            int state,
+            Rectangle bounds,
+            LibreVisualStyleEdges edges,
+            LibreVisualStyleEdgeStyle style,
+            LibreVisualStyleEdgeEffects effects)
+        {
+            VisualStyleEdgeDrawCount++;
+            return Rectangle.FromLTRB(
+                bounds.Left + (edges.HasFlag(LibreVisualStyleEdges.Left) ? 1 : 0),
+                bounds.Top + (edges.HasFlag(LibreVisualStyleEdges.Top) ? 1 : 0),
+                bounds.Right - (edges.HasFlag(LibreVisualStyleEdges.Right) ? 1 : 0),
+                bounds.Bottom - (edges.HasFlag(LibreVisualStyleEdges.Bottom) ? 1 : 0));
+        }
 
         private sealed class HeadlessWindow : ILibreWindow
         {

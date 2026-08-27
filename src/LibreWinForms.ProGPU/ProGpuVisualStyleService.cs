@@ -144,6 +144,106 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
         return false;
     }
 
+    public Rectangle DrawEdge(
+        Graphics graphics,
+        string className,
+        int part,
+        int state,
+        Rectangle bounds,
+        LibreVisualStyleEdges edges,
+        LibreVisualStyleEdgeStyle style,
+        LibreVisualStyleEdgeEffects effects)
+    {
+        ArgumentNullException.ThrowIfNull(graphics);
+        ValidateElement(className, part);
+        if ((edges & ~(LibreVisualStyleEdges.Left
+            | LibreVisualStyleEdges.Top
+            | LibreVisualStyleEdges.Right
+            | LibreVisualStyleEdges.Bottom
+            | LibreVisualStyleEdges.Diagonal)) != 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(edges));
+        }
+
+        if (style is < LibreVisualStyleEdgeStyle.Raised or > LibreVisualStyleEdgeStyle.Bump)
+        {
+            throw new ArgumentOutOfRangeException(nameof(style));
+        }
+
+        if ((effects & ~(LibreVisualStyleEdgeEffects.FillInterior
+            | LibreVisualStyleEdgeEffects.Flat
+            | LibreVisualStyleEdgeEffects.Soft
+            | LibreVisualStyleEdgeEffects.Mono)) != 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(effects));
+        }
+
+        if (bounds.Width <= 0 || bounds.Height <= 0 || edges == LibreVisualStyleEdges.None)
+        {
+            return bounds;
+        }
+
+        Color light = effects.HasFlag(LibreVisualStyleEdgeEffects.Mono)
+            ? Color.White
+            : Color.FromArgb(255, 255, 255, 255);
+        Color dark = effects.HasFlag(LibreVisualStyleEdgeEffects.Mono)
+            ? Color.Black
+            : Color.FromArgb(255, 105, 105, 105);
+        bool raised = style is LibreVisualStyleEdgeStyle.Raised or LibreVisualStyleEdgeStyle.Bump;
+        Color leading = raised ? light : dark;
+        Color trailing = raised ? dark : light;
+
+        using var leadingPen = new Pen(leading);
+        using var trailingPen = new Pen(trailing);
+        int right = bounds.Right - 1;
+        int bottom = bounds.Bottom - 1;
+
+        if (edges.HasFlag(LibreVisualStyleEdges.Left))
+        {
+            graphics.DrawLine(leadingPen, bounds.Left, bounds.Top, bounds.Left, bottom);
+        }
+
+        if (edges.HasFlag(LibreVisualStyleEdges.Top))
+        {
+            graphics.DrawLine(leadingPen, bounds.Left, bounds.Top, right, bounds.Top);
+        }
+
+        if (edges.HasFlag(LibreVisualStyleEdges.Right))
+        {
+            graphics.DrawLine(trailingPen, right, bounds.Top, right, bottom);
+        }
+
+        if (edges.HasFlag(LibreVisualStyleEdges.Bottom))
+        {
+            graphics.DrawLine(trailingPen, bounds.Left, bottom, right, bottom);
+        }
+
+        if (edges.HasFlag(LibreVisualStyleEdges.Diagonal))
+        {
+            graphics.DrawLine(trailingPen, bounds.Left, bottom, right, bounds.Top);
+        }
+
+        if (effects.HasFlag(LibreVisualStyleEdgeEffects.FillInterior))
+        {
+            Rectangle interior = Rectangle.Inflate(bounds, -1, -1);
+            if (interior.Width > 0 && interior.Height > 0)
+            {
+                using var fill = new SolidBrush(GetColor(className, part, state, LibreVisualStyleColorProperty.Fill));
+                graphics.FillRectangle(fill, interior);
+            }
+        }
+
+        int leftInset = edges.HasFlag(LibreVisualStyleEdges.Left) ? 1 : 0;
+        int topInset = edges.HasFlag(LibreVisualStyleEdges.Top) ? 1 : 0;
+        int rightInset = edges.HasFlag(LibreVisualStyleEdges.Right) ? 1 : 0;
+        int bottomInset = edges.HasFlag(LibreVisualStyleEdges.Bottom) ? 1 : 0;
+        return Rectangle.FromLTRB(
+            bounds.Left + leftInset,
+            bounds.Top + topInset,
+            bounds.Right - rightInset,
+            bounds.Bottom - bottomInset);
+    }
+
     private static void ValidateElement(string className, int part)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(className);

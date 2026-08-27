@@ -364,6 +364,16 @@ public class LibrePlatformTests
             => throw new NotSupportedException();
         public bool IsBackgroundPartiallyTransparent(string className, int part, int state)
             => throw new NotSupportedException();
+        public System.Drawing.Rectangle DrawEdge(
+            System.Drawing.Graphics graphics,
+            string className,
+            int part,
+            int state,
+            System.Drawing.Rectangle bounds,
+            LibreVisualStyleEdges edges,
+            LibreVisualStyleEdgeStyle style,
+            LibreVisualStyleEdgeEffects effects)
+            => throw new NotSupportedException();
 
         private sealed class EmptyDisposable : IDisposable
         {

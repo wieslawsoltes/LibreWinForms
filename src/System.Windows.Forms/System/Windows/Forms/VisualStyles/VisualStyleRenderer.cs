@@ -328,8 +328,26 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     {
         ArgumentNullException.ThrowIfNull(dc);
 
+        SourceGenerated.EnumValidator.Validate(edges, nameof(edges));
+        SourceGenerated.EnumValidator.Validate(style, nameof(style));
+        SourceGenerated.EnumValidator.Validate(effects, nameof(effects));
+
+#if LIBREWINFORMS_PORTABLE
+        Rectangle contentBounds = PortableVisualStyles.DrawEdge(
+            GetPortableGraphics(dc),
+            Class,
+            Part,
+            State,
+            bounds,
+            GetPortableEdges(edges),
+            GetPortableEdgeStyle(style),
+            GetPortableEdgeEffects(effects));
+        _lastHResult = default;
+        return contentBounds;
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         return DrawEdge(hdc, bounds, edges, style, effects);
+#endif
     }
 
     internal unsafe Rectangle DrawEdge(HDC dc, Rectangle bounds, Edges edges, EdgeStyle style, EdgeEffects effects)
@@ -561,6 +579,46 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
             ThemeSizeType.Draw => LibreVisualStyleSizeType.Draw,
             _ => throw new ArgumentOutOfRangeException(nameof(type)),
         };
+
+    private static LibreVisualStyleEdges GetPortableEdges(Edges edges)
+    {
+        LibreVisualStyleEdges portable = LibreVisualStyleEdges.None;
+        if (edges.HasFlag(Edges.Left))
+            portable |= LibreVisualStyleEdges.Left;
+        if (edges.HasFlag(Edges.Top))
+            portable |= LibreVisualStyleEdges.Top;
+        if (edges.HasFlag(Edges.Right))
+            portable |= LibreVisualStyleEdges.Right;
+        if (edges.HasFlag(Edges.Bottom))
+            portable |= LibreVisualStyleEdges.Bottom;
+        if (edges.HasFlag(Edges.Diagonal))
+            portable |= LibreVisualStyleEdges.Diagonal;
+        return portable;
+    }
+
+    private static LibreVisualStyleEdgeStyle GetPortableEdgeStyle(EdgeStyle style)
+        => style switch
+        {
+            EdgeStyle.Raised => LibreVisualStyleEdgeStyle.Raised,
+            EdgeStyle.Sunken => LibreVisualStyleEdgeStyle.Sunken,
+            EdgeStyle.Etched => LibreVisualStyleEdgeStyle.Etched,
+            EdgeStyle.Bump => LibreVisualStyleEdgeStyle.Bump,
+            _ => throw new ArgumentOutOfRangeException(nameof(style)),
+        };
+
+    private static LibreVisualStyleEdgeEffects GetPortableEdgeEffects(EdgeEffects effects)
+    {
+        LibreVisualStyleEdgeEffects portable = LibreVisualStyleEdgeEffects.None;
+        if (effects.HasFlag(EdgeEffects.FillInterior))
+            portable |= LibreVisualStyleEdgeEffects.FillInterior;
+        if (effects.HasFlag(EdgeEffects.Flat))
+            portable |= LibreVisualStyleEdgeEffects.Flat;
+        if (effects.HasFlag(EdgeEffects.Soft))
+            portable |= LibreVisualStyleEdgeEffects.Soft;
+        if (effects.HasFlag(EdgeEffects.Mono))
+            portable |= LibreVisualStyleEdgeEffects.Mono;
+        return portable;
+    }
 
     private static LibreVisualStyleColorProperty GetPortableColorProperty(ColorProperty property)
         => property switch

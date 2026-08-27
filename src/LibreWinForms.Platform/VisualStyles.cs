@@ -26,6 +26,35 @@ public enum LibreVisualStyleIntegerProperty
     ProgressSpaceSize,
 }
 
+[Flags]
+public enum LibreVisualStyleEdges
+{
+    None = 0,
+    Left = 1,
+    Top = 2,
+    Right = 4,
+    Bottom = 8,
+    Diagonal = 16,
+}
+
+public enum LibreVisualStyleEdgeStyle
+{
+    Raised,
+    Sunken,
+    Etched,
+    Bump,
+}
+
+[Flags]
+public enum LibreVisualStyleEdgeEffects
+{
+    None = 0,
+    FillInterior = 1,
+    Flat = 2,
+    Soft = 4,
+    Mono = 8,
+}
+
 /// <summary>Renders portable visual-style backgrounds without exposing UxTheme handles or device contexts.</summary>
 public interface ILibreVisualStyleService
 {
@@ -58,6 +87,16 @@ public interface ILibreVisualStyleService
     int GetInteger(string className, int part, int state, LibreVisualStyleIntegerProperty property);
 
     bool IsBackgroundPartiallyTransparent(string className, int part, int state);
+
+    Rectangle DrawEdge(
+        Graphics graphics,
+        string className,
+        int part,
+        int state,
+        Rectangle bounds,
+        LibreVisualStyleEdges edges,
+        LibreVisualStyleEdgeStyle style,
+        LibreVisualStyleEdgeEffects effects);
 }
 
 /// <summary>Explicit default for hosts that do not provide portable visual-style rendering.</summary>
@@ -111,4 +150,16 @@ public sealed class UnsupportedLibreVisualStyleService : ILibreVisualStyleServic
     public bool IsBackgroundPartiallyTransparent(string className, int part, int state)
         => throw new PlatformNotSupportedException(
             "This LibreWinForms host does not provide portable visual-style transparency properties.");
+
+    public Rectangle DrawEdge(
+        Graphics graphics,
+        string className,
+        int part,
+        int state,
+        Rectangle bounds,
+        LibreVisualStyleEdges edges,
+        LibreVisualStyleEdgeStyle style,
+        LibreVisualStyleEdgeEffects effects)
+        => throw new PlatformNotSupportedException(
+            "This LibreWinForms host does not provide portable visual-style edge rendering.");
 }
