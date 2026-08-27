@@ -22,7 +22,9 @@ public sealed class LibrePlatformServices : IDisposable
             windows,
             monitors,
             painting,
-            UnsupportedLibreDesktopCaptureService.Instance)
+            UnsupportedLibreDesktopCaptureService.Instance,
+            UnsupportedLibreNativeFontInteropService.Instance,
+            UnsupportedLibreNativeGraphicsInteropService.Instance)
     {
     }
 
@@ -34,6 +36,29 @@ public sealed class LibrePlatformServices : IDisposable
         ILibreMonitorService monitors,
         ILibrePaintService painting,
         ILibreDesktopCaptureService desktopCapture)
+        : this(
+            dispatcher,
+            timers,
+            handles,
+            windows,
+            monitors,
+            painting,
+            desktopCapture,
+            UnsupportedLibreNativeFontInteropService.Instance,
+            UnsupportedLibreNativeGraphicsInteropService.Instance)
+    {
+    }
+
+    public LibrePlatformServices(
+        ILibreDispatcher dispatcher,
+        ILibreTimerService timers,
+        ILibreHandleRegistry handles,
+        ILibreWindowService windows,
+        ILibreMonitorService monitors,
+        ILibrePaintService painting,
+        ILibreDesktopCaptureService desktopCapture,
+        ILibreNativeFontInteropService nativeFonts,
+        ILibreNativeGraphicsInteropService nativeGraphics)
     {
         Dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         Timers = timers ?? throw new ArgumentNullException(nameof(timers));
@@ -42,6 +67,8 @@ public sealed class LibrePlatformServices : IDisposable
         Monitors = monitors ?? throw new ArgumentNullException(nameof(monitors));
         Painting = painting ?? throw new ArgumentNullException(nameof(painting));
         DesktopCapture = desktopCapture ?? throw new ArgumentNullException(nameof(desktopCapture));
+        NativeFonts = nativeFonts ?? throw new ArgumentNullException(nameof(nativeFonts));
+        NativeGraphics = nativeGraphics ?? throw new ArgumentNullException(nameof(nativeGraphics));
     }
 
     public ILibreDispatcher Dispatcher { get; }
@@ -58,6 +85,10 @@ public sealed class LibrePlatformServices : IDisposable
 
     public ILibreDesktopCaptureService DesktopCapture { get; }
 
+    public ILibreNativeFontInteropService NativeFonts { get; }
+
+    public ILibreNativeGraphicsInteropService NativeGraphics { get; }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
@@ -66,6 +97,8 @@ public sealed class LibrePlatformServices : IDisposable
         }
 
         HashSet<IDisposable> disposed = new(ReferenceEqualityComparer.Instance);
+        DisposeService(NativeGraphics, disposed);
+        DisposeService(NativeFonts, disposed);
         DisposeService(DesktopCapture, disposed);
         DisposeService(Painting, disposed);
         DisposeService(Monitors, disposed);

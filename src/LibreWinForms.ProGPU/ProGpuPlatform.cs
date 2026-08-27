@@ -9,18 +9,42 @@ namespace LibreWinForms.ProGPU;
 public static class ProGpuPlatform
 {
     public static LibrePlatformServices CreateServices()
-        => CreateServices(UnsupportedLibreDesktopCaptureService.Instance);
+        => CreateServices(
+            UnsupportedLibreDesktopCaptureService.Instance,
+            UnsupportedLibreNativeFontInteropService.Instance,
+            UnsupportedLibreNativeGraphicsInteropService.Instance);
 
     public static LibrePlatformServices CreateServices(
         ILibreDesktopCaptureService desktopCapture)
+        => CreateServices(
+            desktopCapture,
+            UnsupportedLibreNativeFontInteropService.Instance,
+            UnsupportedLibreNativeGraphicsInteropService.Instance);
+
+    public static LibrePlatformServices CreateServices(
+        ILibreDesktopCaptureService desktopCapture,
+        ILibreNativeFontInteropService nativeFonts,
+        ILibreNativeGraphicsInteropService nativeGraphics)
     {
         ArgumentNullException.ThrowIfNull(desktopCapture);
+        ArgumentNullException.ThrowIfNull(nativeFonts);
+        ArgumentNullException.ThrowIfNull(nativeGraphics);
         ProGpuDispatcher dispatcher = new();
         ManagedLibreHandleRegistry handles = new();
         ProGpuTimerService timers = new(dispatcher);
         SilkMonitorService monitors = new();
         SilkWindowService windows = new(dispatcher, handles, monitors);
         ProGpuDesktopCaptureService captureBridge = new(desktopCapture);
+        ProGpuNativeDrawingInteropService nativeBridge;
+        try
+        {
+            nativeBridge = new ProGpuNativeDrawingInteropService(nativeFonts, nativeGraphics);
+        }
+        catch
+        {
+            captureBridge.Dispose();
+            throw;
+        }
 
         return new LibrePlatformServices(
             dispatcher,
@@ -29,11 +53,19 @@ public static class ProGpuPlatform
             windows,
             monitors,
             new ProGpuPaintService(dispatcher, handles),
-            captureBridge);
+            captureBridge,
+            nativeBridge,
+            nativeBridge);
     }
 
     public static void Register() => LibrePlatform.Register(CreateServices());
 
     public static void Register(ILibreDesktopCaptureService desktopCapture)
         => LibrePlatform.Register(CreateServices(desktopCapture));
+
+    public static void Register(
+        ILibreDesktopCaptureService desktopCapture,
+        ILibreNativeFontInteropService nativeFonts,
+        ILibreNativeGraphicsInteropService nativeGraphics)
+        => LibrePlatform.Register(CreateServices(desktopCapture, nativeFonts, nativeGraphics));
 }

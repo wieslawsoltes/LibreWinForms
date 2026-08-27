@@ -58,6 +58,31 @@ public class LibrePlatformTests
     }
 
     [Fact]
+    public void ConstructorPublishesTypedNativeInteropAndRejectsMissingCapabilities()
+    {
+        TestServices test = new();
+        using LibrePlatformServices services = new(
+            test,
+            test,
+            test.Handles,
+            test,
+            test,
+            test,
+            test,
+            test,
+            test);
+
+        services.NativeFonts.Should().BeSameAs(test);
+        services.NativeGraphics.Should().BeSameAs(test);
+        Action missingFonts = () => new LibrePlatformServices(
+            test, test, test.Handles, test, test, test, test, null!, test);
+        Action missingGraphics = () => new LibrePlatformServices(
+            test, test, test.Handles, test, test, test, test, test, null!);
+        missingFonts.Should().Throw<ArgumentNullException>().WithParameterName("nativeFonts");
+        missingGraphics.Should().Throw<ArgumentNullException>().WithParameterName("nativeGraphics");
+    }
+
+    [Fact]
     public void MonitorSelection_PrefersLargestIntersection()
     {
         LibreMonitor[] monitors = CreateMonitorInventory();
@@ -235,7 +260,9 @@ public class LibrePlatformTests
         ILibreWindowService,
         ILibreMonitorService,
         ILibrePaintService,
-        ILibreDesktopCaptureService
+        ILibreDesktopCaptureService,
+        ILibreNativeFontInteropService,
+        ILibreNativeGraphicsInteropService
     {
         public ManagedLibreHandleRegistry Handles { get; } = new();
 
@@ -264,6 +291,13 @@ public class LibrePlatformTests
         public void Present(LibreHandle target) { }
         public void Capture(LibreRectangle sourceRectangle, Span<byte> destinationRgba)
             => destinationRgba.Clear();
+        public System.Drawing.Font ImportFromDeviceContext(IntPtr deviceContext)
+            => throw new NotSupportedException();
+        public System.Drawing.Graphics CreateFromDeviceContext(IntPtr deviceContext, IntPtr device)
+            => throw new NotSupportedException();
+        public System.Drawing.Graphics CreateFromWindow(IntPtr window)
+            => throw new NotSupportedException();
+        public IntPtr CreateHalftonePalette() => IntPtr.Zero;
 
         private sealed class EmptyDisposable : IDisposable
         {
