@@ -420,11 +420,16 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
             return;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        childControl.DrawPortableParentBackground(GetPortableGraphics(dc), bounds);
+        _lastHResult = default;
+#else
         if (childControl.IsHandleCreated)
         {
             using DeviceContextHdcScope hdc = dc.ToHdcScope();
             _lastHResult = PInvoke.DrawThemeParentBackground(childControl.HWND, hdc, bounds);
         }
+#endif
     }
 
     /// <summary>

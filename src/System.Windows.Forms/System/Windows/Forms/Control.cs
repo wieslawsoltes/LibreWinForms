@@ -8629,6 +8629,42 @@ public unsafe partial class Control :
         }
     }
 
+#if LIBREWINFORMS_PORTABLE
+    internal void DrawPortableParentBackground(Graphics graphics, Rectangle bounds)
+    {
+        ArgumentNullException.ThrowIfNull(graphics);
+
+        Control? parent = ParentInternal;
+        if (parent is null || bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            return;
+        }
+
+        Rectangle parentClip = new(
+            checked(bounds.X + Left),
+            checked(bounds.Y + Top),
+            bounds.Width,
+            bounds.Height);
+        System.Drawing.Drawing2D.GraphicsState state = graphics.Save();
+        try
+        {
+            graphics.TranslateTransform(-Left, -Top);
+            graphics.SetClip(parentClip, System.Drawing.Drawing2D.CombineMode.Intersect);
+            using PaintEventArgs parentPaint = new(
+                graphics,
+                parentClip,
+                DrawingEventFlags.SaveState | DrawingEventFlags.GraphicsStateUnclean);
+            InvokePaintBackground(parent, parentPaint);
+            parentPaint.ResetGraphics();
+            InvokePaint(parent, parentPaint);
+        }
+        finally
+        {
+            graphics.Restore(state);
+        }
+    }
+#endif
+
     private void PaintWithErrorHandling(PaintEventArgs e, short layer)
     {
         try

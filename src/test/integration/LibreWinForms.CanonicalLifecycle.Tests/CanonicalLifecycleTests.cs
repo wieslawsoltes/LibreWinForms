@@ -382,6 +382,29 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void VisualStyleParentBackgroundUsesManagedControlPaintingWithoutHandles()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        Application.EnableVisualStyles();
+        var renderer = new VisualStyleRenderer(VisualStyleElement.Button.PushButton.Normal);
+        using var parent = new ParentPaintingControl { Size = new Size(20, 20) };
+        using var child = new Control { Location = new Point(4, 5), Size = new Size(6, 6) };
+        parent.Controls.Add(child);
+        using var target = new Bitmap(6, 6, PixelFormat.Format32bppArgb);
+        using (Graphics graphics = Graphics.FromImage(target))
+        {
+            graphics.Clear(Color.Transparent);
+            renderer.DrawParentBackground(graphics, new Rectangle(0, 0, 6, 6), child);
+        }
+
+        child.IsHandleCreated.Should().BeFalse();
+        parent.BackgroundPaintCount.Should().Be(1);
+        parent.ForegroundPaintCount.Should().Be(1);
+        target.GetPixel(2, 2).ToArgb().Should().Be(Color.Orange.ToArgb());
+        target.GetPixel(3, 3).ToArgb().Should().Be(Color.CornflowerBlue.ToArgb());
+    }
+
+    [Fact]
     public void ApplicationRun_CanonicalForm_UsesTypedPortableLifecycle()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: true);
@@ -1344,6 +1367,26 @@ public class CanonicalLifecycleTests
     private sealed class RecreatingForm : Form
     {
         internal void RecreatePortableHandle() => RecreateHandle();
+    }
+
+    private sealed class ParentPaintingControl : Control
+    {
+        internal int BackgroundPaintCount { get; private set; }
+        internal int ForegroundPaintCount { get; private set; }
+
+        protected override void OnPaintBackground(PaintEventArgs pevent)
+        {
+            BackgroundPaintCount++;
+            using var background = new SolidBrush(Color.CornflowerBlue);
+            using var marker = new SolidBrush(Color.Orange);
+            pevent.Graphics.FillRectangle(background, ClientRectangle);
+            pevent.Graphics.FillRectangle(marker, new Rectangle(6, 7, 1, 1));
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            ForegroundPaintCount++;
+        }
     }
 
     private sealed class HeadlessPlatform :
