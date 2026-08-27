@@ -2043,11 +2043,26 @@ public static unsafe partial class ControlPaint
     {
         ArgumentNullException.ThrowIfNull(dc);
 
+#if LIBREWINFORMS_PORTABLE
+        if (SystemInformation.HighContrast)
+        {
+            TextRenderer.DrawText(dc, s, font, layoutRectangle, SystemColors.GrayText, format);
+        }
+        else
+        {
+            layoutRectangle.Offset(1, 1);
+            TextRenderer.DrawText(dc, s, font, layoutRectangle, LightLight(color), format);
+
+            layoutRectangle.Offset(-1, -1);
+            TextRenderer.DrawText(dc, s, font, layoutRectangle, Dark(color), format);
+        }
+#else
         // This must come before creating the scope.
         FONT_QUALITY quality = TextRenderer.FontQualityFromTextRenderingHint(dc);
 
         using DeviceContextHdcScope hdc = dc.ToHdcScope(TextRenderer.GetApplyStateFlags(dc, format));
         DrawStringDisabled(hdc, s, font, color, layoutRectangle, format, quality);
+#endif
     }
 
     internal static void DrawStringDisabled(

@@ -510,6 +510,40 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void ControlPaintDisabledTextUsesTypedManagedServiceWithoutHdc()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using var target = new Bitmap(80, 30, PixelFormat.Format32bppArgb);
+        using Graphics graphics = Graphics.FromImage(target);
+        graphics.Clear(Color.Transparent);
+
+        ControlPaint.DrawStringDisabled(
+            graphics,
+            "disabled",
+            SystemFonts.DefaultFont,
+            Color.Navy,
+            new Rectangle(4, 5, 60, 18),
+            TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
+
+        platform.TextDrawCount.Should().Be(2);
+        platform.LastTextBounds.Should().Be(new Rectangle(4, 5, 60, 18));
+        platform.LastTextFormat.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
+
+        var nativeContext = new TrackingDeviceContext();
+        Action nativeDraw = () => ControlPaint.DrawStringDisabled(
+            nativeContext,
+            "disabled",
+            SystemFonts.DefaultFont,
+            Color.Navy,
+            new Rectangle(4, 5, 60, 18),
+            TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
+
+        nativeDraw.Should().Throw<PlatformNotSupportedException>()
+            .WithMessage("*managed Graphics*platform adapter*");
+        nativeContext.GetHdcCalled.Should().BeFalse();
+    }
+
+    [Fact]
     public void CanonicalManagedRenderersUsePortableVisualStylesWithoutComCtl32()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2129,17 +2163,27 @@ public class CanonicalLifecycleTests
             LibreTextFormat format)
         {
             TextDrawCount++;
-            text.Should().Be("portable");
             font.Should().NotBeNull();
-            bounds.Should().Be(new Rectangle(4, 5, 60, 18));
-            foreColor.Should().Be(Color.Navy);
-            backColor.Should().Be(Color.Beige);
-            format.Should().Be(
-                LibreTextFormat.HorizontalCenter
-                    | LibreTextFormat.VerticalCenter
-                    | LibreTextFormat.SingleLine
-                    | LibreTextFormat.NoPadding
-                    | LibreTextFormat.TextBoxControl);
+            if (text == "portable")
+            {
+                bounds.Should().Be(new Rectangle(4, 5, 60, 18));
+                foreColor.Should().Be(Color.Navy);
+                backColor.Should().Be(Color.Beige);
+                format.Should().Be(
+                    LibreTextFormat.HorizontalCenter
+                        | LibreTextFormat.VerticalCenter
+                        | LibreTextFormat.SingleLine
+                        | LibreTextFormat.NoPadding
+                        | LibreTextFormat.TextBoxControl);
+            }
+            else
+            {
+                text.Should().Be("disabled");
+                bounds.Should().BeOneOf(new Rectangle(5, 6, 60, 18), new Rectangle(4, 5, 60, 18));
+                backColor.Should().Be(Color.Empty);
+                format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
+            }
+
             LastTextBounds = bounds;
             LastTextFormat = format;
             using var marker = new SolidBrush(foreColor);
