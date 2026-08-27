@@ -111,7 +111,11 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the width and height of a window border in pixels.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static Size BorderSize => GetPortableSize(PortableSystemSettings.BorderSize);
+#else
     public static Size BorderSize => GetSize(SM_CXBORDER, SM_CYBORDER);
+#endif
 
     /// <summary>
     ///  Gets the width and height of a window border in pixels.
@@ -127,7 +131,11 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the thickness in pixels, of the border for a window that has a caption and is not resizable.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static Size FixedFrameBorderSize => GetPortableSize(PortableSystemSettings.FixedFrameBorderSize);
+#else
     public static Size FixedFrameBorderSize => GetSize(SM_CXFIXEDFRAME, SM_CYFIXEDFRAME);
+#endif
 
     /// <summary>
     ///  Gets the height of the scroll box in a vertical scroll bar in pixels.
@@ -333,7 +341,11 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the dimensions in pixels, of a 3-D border.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static Size Border3DSize => GetPortableSize(PortableSystemSettings.Border3DSize);
+#else
     public static Size Border3DSize => GetSize(SM_CXEDGE, SM_CYEDGE);
+#endif
 
     /// <summary>
     ///  Gets the dimensions in pixels, of the grid into which minimized windows will be placed.
@@ -905,6 +917,15 @@ public static class SystemInformation
 
         return false;
     }
+
+#if LIBREWINFORMS_PORTABLE
+    private static ILibreSystemSettingsService PortableSystemSettings
+        => LibrePlatform.IsRegistered
+            ? LibrePlatform.Current.SystemSettings
+            : DefaultLibreSystemSettingsService.Instance;
+
+    private static Size GetPortableSize(LibreSize size) => new(size.Width, size.Height);
+#endif
 
     private static Size GetSize(SYSTEM_METRICS_INDEX x, SYSTEM_METRICS_INDEX y)
         => new(PInvokeCore.GetSystemMetrics(x), PInvokeCore.GetSystemMetrics(y));

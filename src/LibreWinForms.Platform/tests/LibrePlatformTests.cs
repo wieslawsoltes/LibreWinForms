@@ -123,6 +123,9 @@ public class LibrePlatformTests
 
         services.SystemSettings.Should().BeSameAs(test);
         services.SystemSettings.HighContrast.Should().BeTrue();
+        services.SystemSettings.BorderSize.Should().Be(new LibreSize(7, 8));
+        services.SystemSettings.FixedFrameBorderSize.Should().Be(new LibreSize(9, 10));
+        services.SystemSettings.Border3DSize.Should().Be(new LibreSize(11, 12));
         Action create = () => new LibrePlatformServices(
             test, test, test.Handles, test, test, test, test, test, test, test, null!);
         create.Should().Throw<ArgumentNullException>().WithParameterName("systemSettings");
@@ -373,6 +376,9 @@ public class LibrePlatformTests
         public IntPtr CreateHalftonePalette() => IntPtr.Zero;
         public bool IsEnabled => true;
         public bool HighContrast => true;
+        public LibreSize BorderSize => new(7, 8);
+        public LibreSize FixedFrameBorderSize => new(9, 10);
+        public LibreSize Border3DSize => new(11, 12);
         public bool IsElementDefined(string className, int part) => true;
         public void DrawBackground(
             System.Drawing.Graphics graphics,

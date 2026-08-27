@@ -572,6 +572,25 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void ComboBoxPreferredHeightUsesManagedTextMetricsWithoutHfont()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using var comboBox = new ComboBox { FormattingEnabled = true };
+        comboBox.ItemHeight = comboBox.ItemHeight;
+        int measurementsBefore = platform.TextMeasureCount;
+
+        int preferredHeight = comboBox.PreferredHeight;
+
+        preferredHeight.Should().Be(
+            comboBox.Font.Height
+                + SystemInformation.Border3DSize.Height
+                + (2 * SystemInformation.FixedFrameBorderSize.Height));
+        platform.TextMeasureCount.Should().Be(measurementsBefore + 2);
+        platform.LastTextFormat.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
+        comboBox.IsHandleCreated.Should().BeFalse();
+    }
+
+    [Fact]
     public void CanonicalManagedRenderersUsePortableVisualStylesWithoutComCtl32()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2242,6 +2261,14 @@ public class CanonicalLifecycleTests
                 proposedSize.Should().Be(new Size(int.MaxValue, int.MaxValue));
                 format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
                 return new Size(8, font!.Height);
+            }
+
+            if (text == "j^")
+            {
+                graphics.Should().BeNull();
+                proposedSize.Should().Be(new Size(short.MaxValue, (int)(font!.Height * 1.25)));
+                format.Should().Be(LibreTextFormat.SingleLine);
+                return new Size(12, font.Height);
             }
 
             if (graphics is null)

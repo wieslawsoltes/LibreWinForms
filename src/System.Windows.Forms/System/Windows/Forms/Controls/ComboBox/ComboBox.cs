@@ -820,12 +820,21 @@ public partial class ComboBox : ListControl
         // controls to be the same height.
         Size textExtent = Size.Empty;
 
+#if LIBREWINFORMS_PORTABLE
+        // This is the character that Windows uses to determine the extent.
+        textExtent = TextRenderer.MeasureText(
+            "0",
+            Font,
+            TextRenderer.MaxSize,
+            TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
+#else
         using (var hfont = GdiCache.GetHFONTScope(Font))
         using (var screen = GdiCache.GetScreenHdc())
         {
             // this is the character that Windows uses to determine the extent
             textExtent = screen.HDC.GetTextExtent("0", hfont);
         }
+#endif
 
         int dyEdit = textExtent.Height + SystemInformation.Border3DSize.Height;
 
@@ -3604,8 +3613,13 @@ public partial class ComboBox : ListControl
         m.ResultInternal = (LRESULT)1;
     }
 
+#if LIBREWINFORMS_PORTABLE
+    // The managed portable path never enters the native window procedure that consumes this HBRUSH.
+    private static readonly IntPtr s_darkEditBrush = IntPtr.Zero;
+#else
     private static readonly IntPtr s_darkEditBrush
         = PInvokeCore.CreateSolidBrush(ColorTranslator.ToWin32(Color.FromArgb(64, 64, 64)));
+#endif
 
     /// <summary>
     ///  The ComboBox's window procedure. Inheriting classes can override this

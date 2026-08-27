@@ -7,9 +7,15 @@ namespace LibreWinForms.Platform;
 public interface ILibreSystemSettingsService
 {
     bool HighContrast { get; }
+
+    LibreSize BorderSize { get; }
+
+    LibreSize FixedFrameBorderSize { get; }
+
+    LibreSize Border3DSize { get; }
 }
 
-/// <summary>Portable baseline used when a host does not expose OS accessibility settings.</summary>
+/// <summary>Portable baseline used when a host does not expose OS system settings.</summary>
 public sealed class DefaultLibreSystemSettingsService : ILibreSystemSettingsService
 {
     public static DefaultLibreSystemSettingsService Instance { get; } = new();
@@ -19,4 +25,10 @@ public sealed class DefaultLibreSystemSettingsService : ILibreSystemSettingsServ
     }
 
     public bool HighContrast => false;
+
+    public LibreSize BorderSize => new(1, 1);
+
+    public LibreSize FixedFrameBorderSize => new(3, 3);
+
+    public LibreSize Border3DSize => new(2, 2);
 }
