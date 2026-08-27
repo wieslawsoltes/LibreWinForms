@@ -274,6 +274,74 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void ImageList_UsesManagedImagesWithoutHdcOrFakeNativeHandles()
+    {
+        using var images = new ImageList { ImageSize = new Size(4, 4) };
+        using Bitmap red = CreateSolidBitmap(4, 4, Color.Red);
+        using Bitmap strip = new(8, 4, PixelFormat.Format32bppArgb);
+        for (int y = 0; y < strip.Height; y++)
+        {
+            for (int x = 0; x < strip.Width; x++)
+            {
+                strip.SetPixel(x, y, x < 4 ? Color.Blue : Color.Green);
+            }
+        }
+
+        images.Images.Add("red", red);
+        images.Images.AddStrip(strip);
+
+        images.Images.Count.Should().Be(3);
+        images.HandleCreated.Should().BeFalse();
+        Action nativeHandle = () => _ = images.Handle;
+        nativeHandle.Should().Throw<PlatformNotSupportedException>()
+            .WithMessage("*Windows common-controls adapter*");
+
+        using (Image first = images.Images[0])
+        using (Image second = images.Images[1])
+        using (Image third = images.Images[2])
+        {
+            ((Bitmap)first).GetPixel(2, 2).ToArgb().Should().Be(Color.Red.ToArgb());
+            ((Bitmap)second).GetPixel(2, 2).ToArgb().Should().Be(Color.Blue.ToArgb());
+            ((Bitmap)third).GetPixel(2, 2).ToArgb().Should().Be(Color.Green.ToArgb());
+        }
+
+        using var target = new Bitmap(12, 4, PixelFormat.Format32bppArgb);
+        using (Graphics graphics = Graphics.FromImage(target))
+        {
+            graphics.Clear(Color.Transparent);
+            images.Draw(graphics, 0, 0, 0);
+            images.Draw(graphics, 4, 0, 1);
+            images.Draw(graphics, 8, 0, 2);
+        }
+
+        target.GetPixel(2, 2).ToArgb().Should().Be(Color.Red.ToArgb());
+        target.GetPixel(6, 2).ToArgb().Should().Be(Color.Blue.ToArgb());
+        target.GetPixel(10, 2).ToArgb().Should().Be(Color.Green.ToArgb());
+
+        using Bitmap yellow = CreateSolidBitmap(4, 4, Color.Yellow);
+        images.Images[0] = yellow;
+        images.Images.RemoveAt(1);
+        images.Images.Count.Should().Be(2);
+        using (Image replacement = images.Images[0])
+        using (Image remainingStripFrame = images.Images[1])
+        {
+            ((Bitmap)replacement).GetPixel(2, 2).ToArgb().Should().Be(Color.Yellow.ToArgb());
+            ((Bitmap)remainingStripFrame).GetPixel(2, 2).ToArgb().Should().Be(Color.Green.ToArgb());
+        }
+
+        images.Images.Clear();
+        images.Images.Count.Should().Be(0);
+
+        static Bitmap CreateSolidBitmap(int width, int height, Color color)
+        {
+            var bitmap = new Bitmap(width, height, PixelFormat.Format32bppArgb);
+            using Graphics graphics = Graphics.FromImage(bitmap);
+            graphics.Clear(color);
+            return bitmap;
+        }
+    }
+
+    [Fact]
     public void ApplicationRun_CanonicalForm_UsesTypedPortableLifecycle()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: true);
