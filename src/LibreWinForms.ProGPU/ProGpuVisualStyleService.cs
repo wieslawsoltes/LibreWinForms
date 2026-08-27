@@ -196,6 +196,17 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
         return string.Empty;
     }
 
+    public Font? GetFont(string className, int part, int state, LibreVisualStyleFontProperty property)
+    {
+        ValidateElement(className, part);
+        if (property is < LibreVisualStyleFontProperty.Text or > LibreVisualStyleFontProperty.Glyph)
+        {
+            throw new ArgumentOutOfRangeException(nameof(property));
+        }
+
+        return (Font)SystemFonts.DefaultFont.Clone();
+    }
+
     public LibreVisualStyleMargins GetMargins(
         string className,
         int part,

@@ -68,6 +68,10 @@ public sealed class ProGpuVisualStyleServiceTests
             .Should().BeEmpty();
         service.GetString("BUTTON", 1, 1, LibreVisualStyleStringProperty.Text)
             .Should().BeEmpty();
+        using Font? themeFont = service.GetFont("BUTTON", 1, 1, LibreVisualStyleFontProperty.Text);
+        themeFont.Should().NotBeNull();
+        themeFont.Should().NotBeSameAs(SystemFonts.DefaultFont);
+        themeFont!.Name.Should().Be(SystemFonts.DefaultFont.Name);
         service.GetMargins("BUTTON", 1, 1, LibreVisualStyleMarginProperty.Content)
             .Should().Be(new LibreVisualStyleMargins(3, 3, 3, 3));
         service.GetPoint("BUTTON", 1, 1, LibreVisualStylePointProperty.Offset)

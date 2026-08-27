@@ -412,6 +412,12 @@ public class LibrePlatformTests
             int state,
             LibreVisualStyleStringProperty property)
             => throw new NotSupportedException();
+        public System.Drawing.Font? GetFont(
+            string className,
+            int part,
+            int state,
+            LibreVisualStyleFontProperty property)
+            => throw new NotSupportedException();
         public LibreVisualStyleMargins GetMargins(
             string className,
             int part,

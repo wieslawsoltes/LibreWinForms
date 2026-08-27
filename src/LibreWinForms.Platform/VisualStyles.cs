@@ -79,6 +79,12 @@ public enum LibreVisualStyleStringProperty
     Text,
 }
 
+public enum LibreVisualStyleFontProperty
+{
+    Text,
+    Glyph,
+}
+
 public enum LibreVisualStyleMarginProperty
 {
     Sizing,
@@ -190,6 +196,9 @@ public interface ILibreVisualStyleService
 
     string GetString(string className, int part, int state, LibreVisualStyleStringProperty property);
 
+    /// <summary>Returns a caller-owned font, or null when the theme does not define one.</summary>
+    Font? GetFont(string className, int part, int state, LibreVisualStyleFontProperty property);
+
     LibreVisualStyleMargins GetMargins(
         string className,
         int part,
@@ -284,6 +293,10 @@ public sealed class UnsupportedLibreVisualStyleService : ILibreVisualStyleServic
     public string GetString(string className, int part, int state, LibreVisualStyleStringProperty property)
         => throw new PlatformNotSupportedException(
             "This LibreWinForms host does not provide portable visual-style string properties.");
+
+    public Font? GetFont(string className, int part, int state, LibreVisualStyleFontProperty property)
+        => throw new PlatformNotSupportedException(
+            "This LibreWinForms host does not provide portable visual-style font properties.");
 
     public LibreVisualStyleMargins GetMargins(
         string className,

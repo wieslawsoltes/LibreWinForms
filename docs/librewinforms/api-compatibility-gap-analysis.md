@@ -443,6 +443,8 @@ Canonical portable `GetEnumValue` now maps all fifteen official selectors to `Li
 
 Canonical portable `GetFilename` and `GetString` now return owned managed strings from typed filename/text selectors rather than writing through UxTheme buffers. The ProGPU baseline honestly has no external theme image filename or theme-authored text and returns empty strings; hosts with such assets can replace the service. Platform 26/26, adapter 18/18, canonical ProGPU compilation at 614 reviewed warnings/0 errors, and lifecycle 28/28 pass. The lifecycle provider returns nonempty markers, proving exact transport rather than reliance on the empty baseline. Windows keeps its original native buffer calls and the public surface is unchanged.
 
+Canonical portable `GetFont` no longer returns `null` unconditionally. A typed text/glyph selector reaches the theme service, whose result is explicitly caller-owned; ProGPU clones the shared default font so disposing the public result cannot invalidate `SystemFonts.DefaultFont`. Platform 26/26, adapter 18/18, and lifecycle 28/28 pass, including a nondefault 10-point host font returned through the canonical member. Windows keeps the original `GetThemeFont` and LOGFONT conversion behavior.
+
 ## Proposed fixes
 
 ### P0: Add an official API contract gate

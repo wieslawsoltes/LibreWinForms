@@ -782,6 +782,8 @@ The enum-property slice similarly maps all fifteen canonical `EnumProperty` memb
 
 The filename/string property slice removes the portable calls to UxTheme's fixed UTF-16 output buffers. All eight canonical `FilenameProperty` selectors and the canonical theme text selector map to platform enums and return owned managed strings. The ProGPU baseline intentionally returns empty values because its renderer uses managed retained primitives rather than external theme bitmap files or theme-authored control text; a richer host theme can return real asset names or text through the same contract. Platform 26/26, adapter 18/18, canonical ProGPU compilation at 614 reviewed warnings/0 errors, and lifecycle 28/28 pass, with the lifecycle host returning nonempty marker strings to prove exact delegation. Windows keeps its original `GetThemeFilename` and `GetThemeString` buffers.
 
+The font-property slice replaces the portable `GetFont` branch that always returned `null`. `LibreVisualStyleFontProperty` distinguishes text and glyph fonts, and the service returns a caller-owned `Font` or `null` only when the theme truly has no font. ProGPU clones `SystemFonts.DefaultFont`, preserving the shared system object when callers follow the public method's disposal pattern. The lifecycle host returns an owned 10-point marker font and the canonical assertion verifies its value. Platform 26/26, adapter 18/18, and lifecycle 28/28 pass; Windows retains its LOGFONT/UxTheme conversion path.
+
 ## Proposed fixes for the missing-property problem
 
 The permanent fix is not to manually add thousands of properties to the compatibility source. Apply these fixes in order:

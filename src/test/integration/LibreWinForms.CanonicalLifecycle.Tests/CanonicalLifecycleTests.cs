@@ -374,6 +374,9 @@ public class CanonicalLifecycleTests
                 drawDisabled: false,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
             renderer.GetMargins(graphics, MarginProperty.ContentMargins).Should().Be(new Padding(4, 5, 6, 7));
+            using Font? themeFont = renderer.GetFont(graphics, FontProperty.TextFont);
+            themeFont.Should().NotBeNull();
+            themeFont!.Size.Should().Be(10f);
         }
 
         target.GetPixel(2, 3).ToArgb().Should().Be(0);
@@ -1856,6 +1859,16 @@ public class CanonicalLifecycleTests
         {
             property.Should().Be(LibreVisualStyleStringProperty.Text);
             return "managed-theme-text";
+        }
+
+        public Font? GetFont(
+            string className,
+            int part,
+            int state,
+            LibreVisualStyleFontProperty property)
+        {
+            property.Should().Be(LibreVisualStyleFontProperty.Text);
+            return new Font(SystemFonts.DefaultFont.FontFamily, 10f);
         }
 
         public LibreVisualStyleMargins GetMargins(

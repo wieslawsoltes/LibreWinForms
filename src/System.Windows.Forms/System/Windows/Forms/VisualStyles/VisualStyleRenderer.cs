@@ -799,6 +799,15 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
                 $"Portable visual-style string property '{property}' is not implemented."),
         };
 
+    private static LibreVisualStyleFontProperty GetPortableFontProperty(FontProperty property)
+        => property switch
+        {
+            FontProperty.TextFont => LibreVisualStyleFontProperty.Text,
+            FontProperty.GlyphFont => LibreVisualStyleFontProperty.Glyph,
+            _ => throw new PlatformNotSupportedException(
+                $"Portable visual-style font property '{property}' is not implemented."),
+        };
+
     private static LibreVisualStyleMarginProperty GetPortableMarginProperty(MarginProperty property)
         => property switch
         {
@@ -907,10 +916,9 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
 
         SourceGenerated.EnumValidator.Validate(prop, nameof(prop));
 
-#if LIBREWINFORMS_PROGPU_DRAWING
-        // Theme fonts belong to the platform theme service; do not manufacture
-        // a private System.Drawing.Interop.LOGFONT in the portable lane.
-        return null;
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.GetFont(Class, Part, State, GetPortableFontProperty(prop));
 #else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         _lastHResult = PInvoke.GetThemeFont(this, hdc, Part, State, (int)prop, out LOGFONT logfont);
