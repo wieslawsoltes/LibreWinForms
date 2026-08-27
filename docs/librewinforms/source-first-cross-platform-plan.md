@@ -834,6 +834,12 @@ Exact source checkpoint `a939daec8fea2931e61f8ab56069e1a027439827` makes canonic
 
 The public lifecycle case verifies the canonical preferred-height formula, two managed measurements across cache invalidation, exact text constraints and flags, and no control-handle creation. The complete local source-first gate passes default canonical 0 warnings/0 errors, ProGPU canonical 614 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 33/33, ProGPU drawing 391/391, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and the unchanged frozen Portable comparison. Hosted build workflow `33124383204` and docs workflow `33124383210` pass at the exact implementation commit. No runtime source under `src/LibreWinForms.Portable` changed.
 
+## Current canonical `MonthCalendar` default-size checkpoint
+
+Exact source checkpoint `952f2c44c4e523bad8a0887202a390485bba1397` removes the last screen-HDC/HFONT dependency from canonical default control sizing. The portable `MonthCalendar.GetMinReqRect()` path measures the same localized short-date Today string through canonical `TextRenderer` with `SingleLine | NoPadding`, then preserves the upstream comctl32 height constants, row/column arithmetic, default single-month size, and DPI-scaled padding. The Windows branch retains the original GDI measurement and native common-control queries.
+
+The public construction test verifies canonical `MonthCalendar.Size` relative to `SingleMonthSize`, the exact localized managed measurement and flags, and no handle creation. The complete exact-commit local gate passes default canonical 0 warnings/0 errors, ProGPU canonical 614 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 34/34, ProGPU drawing 391/391, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and frozen Portable comparison 31 warnings/0 errors. Hosted build workflow `33125908123` and docs workflow `33125908105` pass at the same implementation commit. No runtime source under `src/LibreWinForms.Portable` changed.
+
 ## Major risks and controls
 
 | Risk | Control |

@@ -597,6 +597,14 @@ The focused public-path test verifies the exact canonical preferred-height formu
 
 This is the proposed source-first repair pattern in concrete form: preserve the full upstream property surface, replace only the Windows-dependent mechanism with narrow typed services, keep native acceleration intact on Windows, and prove behavior through the canonical public API.
 
+## Canonical property implementation follow-up: `MonthCalendar.Size`
+
+Exact source checkpoint `952f2c44c4e523bad8a0887202a390485bba1397` fixes canonical `MonthCalendar` construction and default sizing without a native font handle or screen device context. The public surface, default single-month dimensions, localized Today string, layout constants, DPI padding, and Windows common-control behavior all remain upstream-owned; only the portable text-measurement mechanism moves to the typed managed `TextRenderer` service.
+
+The public-path lifecycle test verifies `Size` against `SingleMonthSize`, one localized short-date measurement with the exact flags, and no control-handle creation. The complete local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 614 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 34/34, drawing 391/391, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors. Hosted build `33125908123` and docs `33125908105` pass at the same commit.
+
+Together with the `Label` and `ComboBox` checkpoints, this closes the direct `GdiCache.GetScreenHdc()` dependencies in ordinary canonical control sizing. Remaining occurrences belong to rendering adapters, accessibility/native text providers, font caches, or explicit native interop boundaries and should be migrated according to their owning subsystem rather than by adding compatibility properties.
+
 ## Definition of done
 
 For an API group to be considered ported:
