@@ -714,6 +714,54 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         return portable;
     }
 
+    private static LibreVisualStyleHitTestOptions GetPortableHitTestOptions(HitTestOptions options)
+    {
+        const HitTestOptions accepted = HitTestOptions.FixedBorder
+            | HitTestOptions.Caption
+            | HitTestOptions.ResizingBorder
+            | HitTestOptions.SizingTemplate
+            | HitTestOptions.SystemSizingMargins;
+        if ((options & ~accepted) != 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options));
+        }
+
+        LibreVisualStyleHitTestOptions portable = LibreVisualStyleHitTestOptions.None;
+        if (options.HasFlag(HitTestOptions.FixedBorder))
+            portable |= LibreVisualStyleHitTestOptions.FixedBorder;
+        if (options.HasFlag(HitTestOptions.Caption))
+            portable |= LibreVisualStyleHitTestOptions.Caption;
+        if (options.HasFlag(HitTestOptions.ResizingBorderLeft))
+            portable |= LibreVisualStyleHitTestOptions.ResizingBorderLeft;
+        if (options.HasFlag(HitTestOptions.ResizingBorderTop))
+            portable |= LibreVisualStyleHitTestOptions.ResizingBorderTop;
+        if (options.HasFlag(HitTestOptions.ResizingBorderRight))
+            portable |= LibreVisualStyleHitTestOptions.ResizingBorderRight;
+        if (options.HasFlag(HitTestOptions.ResizingBorderBottom))
+            portable |= LibreVisualStyleHitTestOptions.ResizingBorderBottom;
+        if (options.HasFlag(HitTestOptions.SizingTemplate))
+            portable |= LibreVisualStyleHitTestOptions.SizingTemplate;
+        if (options.HasFlag(HitTestOptions.SystemSizingMargins))
+            portable |= LibreVisualStyleHitTestOptions.SystemSizingMargins;
+        return portable;
+    }
+
+    private static HitTestCode GetHitTestCode(LibreVisualStyleHitTestCode code)
+        => code switch
+        {
+            LibreVisualStyleHitTestCode.Nowhere => HitTestCode.Nowhere,
+            LibreVisualStyleHitTestCode.Client => HitTestCode.Client,
+            LibreVisualStyleHitTestCode.Left => HitTestCode.Left,
+            LibreVisualStyleHitTestCode.Right => HitTestCode.Right,
+            LibreVisualStyleHitTestCode.Top => HitTestCode.Top,
+            LibreVisualStyleHitTestCode.Bottom => HitTestCode.Bottom,
+            LibreVisualStyleHitTestCode.TopLeft => HitTestCode.TopLeft,
+            LibreVisualStyleHitTestCode.TopRight => HitTestCode.TopRight,
+            LibreVisualStyleHitTestCode.BottomLeft => HitTestCode.BottomLeft,
+            LibreVisualStyleHitTestCode.BottomRight => HitTestCode.BottomRight,
+            _ => throw new ArgumentOutOfRangeException(nameof(code)),
+        };
+
     private static LibreVisualStyleColorProperty GetPortableColorProperty(ColorProperty property)
         => property switch
         {
@@ -1164,6 +1212,18 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     {
         ArgumentNullException.ThrowIfNull(dc);
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return GetHitTestCode(PortableVisualStyles.HitTestBackground(
+            GetPortableGraphics(dc),
+            Class,
+            Part,
+            State,
+            backgroundRectangle,
+            region: null,
+            pt,
+            GetPortableHitTestOptions(options)));
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         _lastHResult = PInvoke.HitTestThemeBackground(
             HTHEME,
@@ -1177,6 +1237,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
             out ushort code);
 
         return (HitTestCode)code;
+#endif
     }
 
     /// <summary>
@@ -1187,8 +1248,21 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         ArgumentNullException.ThrowIfNull(g);
         ArgumentNullException.ThrowIfNull(region);
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return GetHitTestCode(PortableVisualStyles.HitTestBackground(
+            g,
+            Class,
+            Part,
+            State,
+            backgroundRectangle,
+            region,
+            pt,
+            GetPortableHitTestOptions(options)));
+#else
         IntPtr hRgn = region.GetHrgn(g);
         return HitTestBackground(g, backgroundRectangle, hRgn, pt, options);
+#endif
     }
 
     /// <summary>
@@ -1198,6 +1272,24 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     {
         ArgumentNullException.ThrowIfNull(dc);
 
+#if LIBREWINFORMS_PORTABLE
+        if (hRgn != IntPtr.Zero)
+        {
+            throw new PlatformNotSupportedException(
+                "Portable visual-style hit testing does not accept a native HRGN. Use the managed Region overload.");
+        }
+
+        _lastHResult = default;
+        return GetHitTestCode(PortableVisualStyles.HitTestBackground(
+            GetPortableGraphics(dc),
+            Class,
+            Part,
+            State,
+            backgroundRectangle,
+            region: null,
+            pt,
+            GetPortableHitTestOptions(options)));
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         _lastHResult = PInvoke.HitTestThemeBackground(
             HTHEME,
@@ -1211,6 +1303,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
             out ushort code);
 
         return (HitTestCode)code;
+#endif
     }
 
     /// <summary>

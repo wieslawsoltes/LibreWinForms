@@ -85,6 +85,35 @@ public enum LibreVisualStyleFontProperty
     Glyph,
 }
 
+[Flags]
+public enum LibreVisualStyleHitTestOptions
+{
+    None = 0,
+    FixedBorder = 1,
+    Caption = 2,
+    ResizingBorderLeft = 4,
+    ResizingBorderTop = 8,
+    ResizingBorderRight = 16,
+    ResizingBorderBottom = 32,
+    ResizingBorder = ResizingBorderLeft | ResizingBorderTop | ResizingBorderRight | ResizingBorderBottom,
+    SizingTemplate = 64,
+    SystemSizingMargins = 128,
+}
+
+public enum LibreVisualStyleHitTestCode
+{
+    Nowhere,
+    Client,
+    Left,
+    Right,
+    Top,
+    Bottom,
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+}
+
 public enum LibreVisualStyleMarginProperty
 {
     Sizing,
@@ -208,6 +237,16 @@ public interface ILibreVisualStyleService
         string text,
         LibreVisualStyleTextFormat format);
 
+    LibreVisualStyleHitTestCode HitTestBackground(
+        Graphics graphics,
+        string className,
+        int part,
+        int state,
+        Rectangle bounds,
+        Region? region,
+        Point point,
+        LibreVisualStyleHitTestOptions options);
+
     LibreVisualStyleMargins GetMargins(
         string className,
         int part,
@@ -317,6 +356,18 @@ public sealed class UnsupportedLibreVisualStyleService : ILibreVisualStyleServic
         LibreVisualStyleTextFormat format)
         => throw new PlatformNotSupportedException(
             "This LibreWinForms host does not provide portable visual-style text measurement.");
+
+    public LibreVisualStyleHitTestCode HitTestBackground(
+        Graphics graphics,
+        string className,
+        int part,
+        int state,
+        Rectangle bounds,
+        Region? region,
+        Point point,
+        LibreVisualStyleHitTestOptions options)
+        => throw new PlatformNotSupportedException(
+            "This LibreWinForms host does not provide portable visual-style background hit testing.");
 
     public LibreVisualStyleMargins GetMargins(
         string className,

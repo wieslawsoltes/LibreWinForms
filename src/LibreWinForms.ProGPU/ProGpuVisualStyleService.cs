@@ -252,6 +252,64 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
         return new Rectangle(x, y, width, height);
     }
 
+    public LibreVisualStyleHitTestCode HitTestBackground(
+        Graphics graphics,
+        string className,
+        int part,
+        int state,
+        Rectangle bounds,
+        Region? region,
+        Point point,
+        LibreVisualStyleHitTestOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(graphics);
+        ValidateElement(className, part);
+        const LibreVisualStyleHitTestOptions supported = LibreVisualStyleHitTestOptions.FixedBorder
+            | LibreVisualStyleHitTestOptions.Caption
+            | LibreVisualStyleHitTestOptions.ResizingBorder
+            | LibreVisualStyleHitTestOptions.SizingTemplate
+            | LibreVisualStyleHitTestOptions.SystemSizingMargins;
+        if ((options & ~supported) != 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options));
+        }
+
+        if (!bounds.Contains(point) || (region is not null && !region.IsVisible(point, graphics)))
+        {
+            return LibreVisualStyleHitTestCode.Nowhere;
+        }
+
+        int horizontalBorder = Math.Min(3, Math.Max(1, (bounds.Width + 1) / 2));
+        int verticalBorder = Math.Min(3, Math.Max(1, (bounds.Height + 1) / 2));
+        bool left = options.HasFlag(LibreVisualStyleHitTestOptions.ResizingBorderLeft)
+            && point.X < bounds.Left + horizontalBorder;
+        bool right = options.HasFlag(LibreVisualStyleHitTestOptions.ResizingBorderRight)
+            && point.X >= bounds.Right - horizontalBorder;
+        bool top = options.HasFlag(LibreVisualStyleHitTestOptions.ResizingBorderTop)
+            && point.Y < bounds.Top + verticalBorder;
+        bool bottom = options.HasFlag(LibreVisualStyleHitTestOptions.ResizingBorderBottom)
+            && point.Y >= bounds.Bottom - verticalBorder;
+
+        if (top && left)
+            return LibreVisualStyleHitTestCode.TopLeft;
+        if (top && right)
+            return LibreVisualStyleHitTestCode.TopRight;
+        if (bottom && left)
+            return LibreVisualStyleHitTestCode.BottomLeft;
+        if (bottom && right)
+            return LibreVisualStyleHitTestCode.BottomRight;
+        if (left)
+            return LibreVisualStyleHitTestCode.Left;
+        if (right)
+            return LibreVisualStyleHitTestCode.Right;
+        if (top)
+            return LibreVisualStyleHitTestCode.Top;
+        if (bottom)
+            return LibreVisualStyleHitTestCode.Bottom;
+
+        return LibreVisualStyleHitTestCode.Client;
+    }
+
     public LibreVisualStyleMargins GetMargins(
         string className,
         int part,

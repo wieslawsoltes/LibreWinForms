@@ -145,5 +145,38 @@ public sealed class ProGpuVisualStyleServiceTests
         extent.Height.Should().BeGreaterThan(0);
         extent.Left.Should().BeGreaterThan(10);
         extent.Top.Should().BeGreaterThanOrEqualTo(5);
+
+        Rectangle hitBounds = new(10, 10, 40, 20);
+        service.HitTestBackground(
+            measureGraphics,
+            "BUTTON",
+            part: 1,
+            state: 1,
+            hitBounds,
+            region: null,
+            new Point(10, 10),
+            LibreVisualStyleHitTestOptions.ResizingBorder)
+            .Should().Be(LibreVisualStyleHitTestCode.TopLeft);
+        service.HitTestBackground(
+            measureGraphics,
+            "BUTTON",
+            part: 1,
+            state: 1,
+            hitBounds,
+            region: null,
+            new Point(30, 20),
+            LibreVisualStyleHitTestOptions.ResizingBorder)
+            .Should().Be(LibreVisualStyleHitTestCode.Client);
+        using var hitRegion = new Region(new Rectangle(20, 15, 10, 10));
+        service.HitTestBackground(
+            measureGraphics,
+            "BUTTON",
+            part: 1,
+            state: 1,
+            hitBounds,
+            hitRegion,
+            new Point(12, 12),
+            LibreVisualStyleHitTestOptions.ResizingBorder)
+            .Should().Be(LibreVisualStyleHitTestCode.Nowhere);
     }
 }

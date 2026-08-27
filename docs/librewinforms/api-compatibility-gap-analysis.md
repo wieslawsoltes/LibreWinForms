@@ -447,6 +447,8 @@ Canonical portable `GetFont` no longer returns `null` unconditionally. A typed t
 
 Canonical portable `GetTextExtent` is also functional through source-built `System.Windows.Forms`. Both public overloads pass managed `Graphics`, optional bounds, exact text, and explicitly mapped alignment, wrapping, ellipsis, mnemonic, RTL, clipping, and padding options to `ILibreVisualStyleService.MeasureText`; no portable HDC or raw `DT_*` value crosses the seam. ProGPU measures with the same managed text-format construction used for visual-style drawing and returns the positioned integer extent. Platform 26/26, adapter 18/18, lifecycle 28/28, and canonical ProGPU compilation at 614 reviewed warnings/0 errors pass. The Windows implementation remains the upstream `GetThemeTextExtent` path.
 
+Portable visual-style background hit testing now uses typed, renderer-neutral option and result enums. The canonical no-region overload and the managed `Graphics`/`Region` overload pass exact bounds, point, options, and the real managed region to `ILibreVisualStyleService`; ProGPU performs bounds/region visibility checks and classifies requested resizing edges and corners. The raw `IntPtr` overload accepts zero as no region but explicitly rejects a nonzero HRGN, because importing an opaque native region belongs in a future local-OS adapter rather than the cross-platform ProGPU service. Windows retains its original native call. Platform 26/26, adapter 18/18, lifecycle 28/28, and the 614-warning/0-error canonical ProGPU build pass.
+
 ## Proposed fixes
 
 ### P0: Add an official API contract gate

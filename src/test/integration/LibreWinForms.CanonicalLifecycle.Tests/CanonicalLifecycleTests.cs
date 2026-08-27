@@ -383,6 +383,27 @@ public class CanonicalLifecycleTests
                 "measure",
                 TextFormatFlags.Right | TextFormatFlags.VerticalCenter)
                 .Should().Be(new Rectangle(6, 7, 8, 9));
+            renderer.HitTestBackground(
+                graphics,
+                new Rectangle(1, 2, 30, 12),
+                new Point(2, 3),
+                HitTestOptions.ResizingBorderLeft)
+                .Should().Be(HitTestCode.Left);
+            using var hitRegion = new Region(new Rectangle(1, 2, 4, 4));
+            renderer.HitTestBackground(
+                graphics,
+                new Rectangle(1, 2, 30, 12),
+                hitRegion,
+                new Point(2, 3),
+                HitTestOptions.ResizingBorderRight)
+                .Should().Be(HitTestCode.Right);
+            Action nativeRegionHitTest = () => renderer.HitTestBackground(
+                graphics,
+                new Rectangle(1, 2, 30, 12),
+                new IntPtr(1),
+                new Point(2, 3),
+                HitTestOptions.BackgroundSegment);
+            nativeRegionHitTest.Should().Throw<PlatformNotSupportedException>();
         }
 
         target.GetPixel(2, 3).ToArgb().Should().Be(0);
@@ -1890,6 +1911,29 @@ public class CanonicalLifecycleTests
             text.Should().Be("measure");
             format.Should().Be(LibreVisualStyleTextFormat.Right | LibreVisualStyleTextFormat.VerticalCenter);
             return new Rectangle(6, 7, 8, 9);
+        }
+
+        public LibreVisualStyleHitTestCode HitTestBackground(
+            Graphics graphics,
+            string className,
+            int part,
+            int state,
+            Rectangle bounds,
+            Region? region,
+            Point point,
+            LibreVisualStyleHitTestOptions options)
+        {
+            bounds.Should().Be(new Rectangle(1, 2, 30, 12));
+            point.Should().Be(new Point(2, 3));
+            if (region is null)
+            {
+                options.Should().Be(LibreVisualStyleHitTestOptions.ResizingBorderLeft);
+                return LibreVisualStyleHitTestCode.Left;
+            }
+
+            options.Should().Be(LibreVisualStyleHitTestOptions.ResizingBorderRight);
+            region.IsVisible(point, graphics).Should().BeTrue();
+            return LibreVisualStyleHitTestCode.Right;
         }
 
         public LibreVisualStyleMargins GetMargins(
