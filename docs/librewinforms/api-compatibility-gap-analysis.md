@@ -587,6 +587,16 @@ The portable branch now uses the same typed managed text service as public `Text
 
 This reinforces the report's central conclusion: source reuse supplies the property surface automatically, while narrow typed seams make the original managed implementation work cross-platform. Adding another property to `WinFormsCompatTypes.cs` would neither preserve the upstream layout algorithm nor remove the native-handle dependency.
 
+## Canonical property implementation follow-up: `ComboBox.PreferredHeight`
+
+Exact source checkpoint `a939daec8fea2931e61f8ab56069e1a027439827` demonstrates the next layer of the same issue. The canonical property and its metadata were already present, but evaluating its layout crossed three Windows-only assumptions: USER32 system-border metrics, GDI screen-HDC/HFONT text measurement, and a GDI brush created during `ComboBox` type initialization. The issue was therefore missing portable behavior, not a missing public declaration.
+
+The portable source now measures the upstream `"0"` sample through the typed managed `TextRenderer`; obtains `BorderSize`, `FixedFrameBorderSize`, and `Border3DSize` through `ILibreSystemSettingsService`; and avoids creating the native-only edit HBRUSH on a path that never enters the native window procedure. Windows keeps the upstream native implementations. Stable default metrics preserve headless construction, while registered hosts can publish real local-OS values through the same typed contract. No reflection, native-handle fabrication, compatibility object, or Portable runtime implementation is involved.
+
+The focused public-path test verifies the exact canonical preferred-height formula, cache invalidation, managed measurement arguments, and absence of handle creation. The complete local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 614 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 33/33, drawing 391/391, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and the unchanged frozen Portable comparison. Hosted build `33124383204` and docs `33124383210` pass at the same implementation commit.
+
+This is the proposed source-first repair pattern in concrete form: preserve the full upstream property surface, replace only the Windows-dependent mechanism with narrow typed services, keep native acceleration intact on Windows, and prove behavior through the canonical public API.
+
 ## Definition of done
 
 For an API group to be considered ported:

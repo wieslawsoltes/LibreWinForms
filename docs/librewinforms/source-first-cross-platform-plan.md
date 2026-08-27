@@ -828,6 +828,12 @@ Exact source checkpoint `20f7db7f9b4af19a39cd59f2167ba6665e5a230f` makes the emp
 
 The canonical lifecycle case exercises the public `Label.GetPreferredSize(Size.Empty)` path and verifies its exact default preferred size, one typed text-service measurement, exact format transport, and no control-handle creation. The complete exact-commit local gate passes default canonical 0 warnings/0 errors, ProGPU canonical 614 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 32/32, ProGPU drawing 391/391, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and frozen Portable comparison 31 warnings/0 errors. Hosted build workflow `33122821484` and docs workflow `33122821464` also pass at the exact implementation commit. No runtime source under `src/LibreWinForms.Portable` changed.
 
+## Current canonical `ComboBox.PreferredHeight` checkpoint
+
+Exact source checkpoint `a939daec8fea2931e61f8ab56069e1a027439827` makes canonical `ComboBox.PreferredHeight` usable without USER32 or GDI handles. The portable `GetComboHeight()` branch measures the same upstream compatibility character (`"0"`) through canonical `TextRenderer` with `SingleLine | NoPadding`; the Windows branch retains the original cached-HFONT and screen-HDC calculation. `SystemInformation.BorderSize`, `FixedFrameBorderSize`, and `Border3DSize` now read a narrow typed `ILibreSystemSettingsService` on portable builds, with stable WinForms-compatible baseline values when no host is registered. Portable static initialization also leaves the native dark-edit HBRUSH empty because only the native window procedure consumes it; it does not invent a fake handle.
+
+The public lifecycle case verifies the canonical preferred-height formula, two managed measurements across cache invalidation, exact text constraints and flags, and no control-handle creation. The complete local source-first gate passes default canonical 0 warnings/0 errors, ProGPU canonical 614 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 33/33, ProGPU drawing 391/391, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and the unchanged frozen Portable comparison. Hosted build workflow `33124383204` and docs workflow `33124383210` pass at the exact implementation commit. No runtime source under `src/LibreWinForms.Portable` changed.
+
 ## Major risks and controls
 
 | Risk | Control |
