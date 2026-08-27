@@ -463,6 +463,53 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void TextRendererUsesTypedManagedServiceWithoutHdc()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using var target = new Bitmap(80, 30, PixelFormat.Format32bppArgb);
+        using Graphics graphics = Graphics.FromImage(target);
+        graphics.Clear(Color.Transparent);
+
+        TextRenderer.DrawText(
+            graphics,
+            "portable",
+            SystemFonts.DefaultFont,
+            new Rectangle(4, 5, 60, 18),
+            Color.Navy,
+            Color.Beige,
+            TextFormatFlags.HorizontalCenter
+                | TextFormatFlags.VerticalCenter
+                | TextFormatFlags.SingleLine
+                | TextFormatFlags.NoPadding
+                | TextFormatFlags.TextBoxControl);
+        Size headless = TextRenderer.MeasureText(
+            "headless",
+            SystemFonts.DefaultFont,
+            new Size(70, 30),
+            TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
+        Size managed = TextRenderer.MeasureText(
+            graphics,
+            "managed",
+            SystemFonts.DefaultFont,
+            new Size(80, 40),
+            TextFormatFlags.WordBreak | TextFormatFlags.LeftAndRightPadding);
+        var nativeContext = new TrackingDeviceContext();
+        Action nativeMeasure = () => TextRenderer.MeasureText(nativeContext, "native", SystemFonts.DefaultFont);
+
+        platform.TextDrawCount.Should().Be(1);
+        platform.TextMeasureCount.Should().Be(2);
+        platform.LastTextBounds.Should().Be(new Rectangle(4, 5, 60, 18));
+        platform.LastTextFormat.Should().Be(
+            LibreTextFormat.WordBreak | LibreTextFormat.LeftAndRightPadding);
+        target.GetPixel(4, 5).ToArgb().Should().Be(Color.Navy.ToArgb());
+        headless.Should().Be(new Size(31, 17));
+        managed.Should().Be(new Size(37, 19));
+        nativeMeasure.Should().Throw<PlatformNotSupportedException>()
+            .WithMessage("*managed Graphics*platform adapter*");
+        nativeContext.GetHdcCalled.Should().BeFalse();
+    }
+
+    [Fact]
     public void CanonicalManagedRenderersUsePortableVisualStylesWithoutComCtl32()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -1446,6 +1493,25 @@ public class CanonicalLifecycleTests
         internal void RecreatePortableHandle() => RecreateHandle();
     }
 
+    private sealed class TrackingDeviceContext : IDeviceContext
+    {
+        internal bool GetHdcCalled { get; private set; }
+
+        public IntPtr GetHdc()
+        {
+            GetHdcCalled = true;
+            throw new InvalidOperationException("Portable canonical text must not acquire this HDC.");
+        }
+
+        public void ReleaseHdc()
+        {
+        }
+
+        public void Dispose()
+        {
+        }
+    }
+
     private sealed class ParentPaintingControl : Control
     {
         internal int BackgroundPaintCount { get; private set; }
@@ -1472,7 +1538,8 @@ public class CanonicalLifecycleTests
         ILibreWindowService,
         ILibreMonitorService,
         ILibrePaintService,
-        ILibreVisualStyleService
+        ILibreVisualStyleService,
+        ILibreTextRendererService
     {
         private readonly ConcurrentQueue<Action> _queue = new();
         private bool _autoCloseWindows;
@@ -1497,6 +1564,8 @@ public class CanonicalLifecycleTests
                 UnsupportedLibreDesktopCaptureService.Instance,
                 UnsupportedLibreNativeFontInteropService.Instance,
                 UnsupportedLibreNativeGraphicsInteropService.Instance,
+                this,
+                DefaultLibreSystemSettingsService.Instance,
                 this);
         }
 
@@ -1549,6 +1618,10 @@ public class CanonicalLifecycleTests
             VisualStyleDrawCount = 0;
             VisualStyleEdgeDrawCount = 0;
             VisualStyleTextDrawCount = 0;
+            TextDrawCount = 0;
+            TextMeasureCount = 0;
+            LastTextBounds = default;
+            LastTextFormat = default;
         }
 
         internal ManagedLibreHandleRegistry Handles { get; }
@@ -1570,6 +1643,10 @@ public class CanonicalLifecycleTests
         internal int VisualStyleDrawCount { get; private set; }
         internal int VisualStyleEdgeDrawCount { get; private set; }
         internal int VisualStyleTextDrawCount { get; private set; }
+        internal int TextDrawCount { get; private set; }
+        internal int TextMeasureCount { get; private set; }
+        internal Rectangle LastTextBounds { get; private set; }
+        internal LibreTextFormat LastTextFormat { get; private set; }
 
         internal double LastPresentationScale { get; private set; } = 1.0;
 
@@ -2040,6 +2117,57 @@ public class CanonicalLifecycleTests
             text.Should().Be("text");
             format.Should().Be(
                 LibreVisualStyleTextFormat.HorizontalCenter | LibreVisualStyleTextFormat.VerticalCenter);
+        }
+
+        public void DrawText(
+            Graphics graphics,
+            string text,
+            Font? font,
+            Rectangle bounds,
+            Color foreColor,
+            Color backColor,
+            LibreTextFormat format)
+        {
+            TextDrawCount++;
+            text.Should().Be("portable");
+            font.Should().NotBeNull();
+            bounds.Should().Be(new Rectangle(4, 5, 60, 18));
+            foreColor.Should().Be(Color.Navy);
+            backColor.Should().Be(Color.Beige);
+            format.Should().Be(
+                LibreTextFormat.HorizontalCenter
+                    | LibreTextFormat.VerticalCenter
+                    | LibreTextFormat.SingleLine
+                    | LibreTextFormat.NoPadding
+                    | LibreTextFormat.TextBoxControl);
+            LastTextBounds = bounds;
+            LastTextFormat = format;
+            using var marker = new SolidBrush(foreColor);
+            graphics.FillRectangle(marker, bounds.X, bounds.Y, 1, 1);
+        }
+
+        public Size MeasureText(
+            Graphics? graphics,
+            string text,
+            Font? font,
+            Size proposedSize,
+            LibreTextFormat format)
+        {
+            TextMeasureCount++;
+            font.Should().NotBeNull();
+            LastTextFormat = format;
+            if (graphics is null)
+            {
+                text.Should().Be("headless");
+                proposedSize.Should().Be(new Size(70, 30));
+                format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
+                return new Size(31, 17);
+            }
+
+            text.Should().Be("managed");
+            proposedSize.Should().Be(new Size(80, 40));
+            format.Should().Be(LibreTextFormat.WordBreak | LibreTextFormat.LeftAndRightPadding);
+            return new Size(37, 19);
         }
 
         private sealed class HeadlessWindow : ILibreWindow

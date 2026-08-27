@@ -129,6 +129,30 @@ public class LibrePlatformTests
     }
 
     [Fact]
+    public void ConstructorPublishesTypedTextRendererAndRejectsMissingCapability()
+    {
+        TestServices test = new();
+        using LibrePlatformServices services = new(
+            test,
+            test,
+            test.Handles,
+            test,
+            test,
+            test,
+            test,
+            test,
+            test,
+            test,
+            test,
+            test);
+
+        services.TextRenderer.Should().BeSameAs(test);
+        Action create = () => new LibrePlatformServices(
+            test, test, test.Handles, test, test, test, test, test, test, test, test, null!);
+        create.Should().Throw<ArgumentNullException>().WithParameterName("textRenderer");
+    }
+
+    [Fact]
     public void MonitorSelection_PrefersLargestIntersection()
     {
         LibreMonitor[] monitors = CreateMonitorInventory();
@@ -310,7 +334,8 @@ public class LibrePlatformTests
         ILibreNativeFontInteropService,
         ILibreNativeGraphicsInteropService,
         ILibreVisualStyleService,
-        ILibreSystemSettingsService
+        ILibreSystemSettingsService,
+        ILibreTextRendererService
     {
         public ManagedLibreHandleRegistry Handles { get; } = new();
 
@@ -482,6 +507,22 @@ public class LibrePlatformTests
             string text,
             bool disabled,
             LibreVisualStyleTextFormat format)
+            => throw new NotSupportedException();
+        public void DrawText(
+            System.Drawing.Graphics graphics,
+            string text,
+            System.Drawing.Font? font,
+            System.Drawing.Rectangle bounds,
+            System.Drawing.Color foreColor,
+            System.Drawing.Color backColor,
+            LibreTextFormat format)
+            => throw new NotSupportedException();
+        public System.Drawing.Size MeasureText(
+            System.Drawing.Graphics? graphics,
+            string text,
+            System.Drawing.Font? font,
+            System.Drawing.Size proposedSize,
+            LibreTextFormat format)
             => throw new NotSupportedException();
 
         private sealed class EmptyDisposable : IDisposable

@@ -3,6 +3,9 @@
 
 using System.Drawing;
 using System.Drawing.Text;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -11,6 +14,13 @@ namespace System.Windows.Forms;
 /// </summary>
 public static class TextRenderer
 {
+#if LIBREWINFORMS_PORTABLE
+    private static ILibreTextRendererService PortableTextRenderer
+        => LibrePlatform.IsRegistered
+            ? LibrePlatform.Current.TextRenderer
+            : UnsupportedLibreTextRendererService.Instance;
+#endif
+
 #if DEBUG
     // In various cases the DC may have already been modified, and we don't pass TextFormatFlags.PreserveGraphicsClipping
     // or TextFormatFlags.PreserveGraphicsTranslateTransform flags, that set off the asserts in GetApplyStateFlags
@@ -18,7 +28,12 @@ public static class TextRenderer
     internal const TextFormatFlags SkipAssertFlag = (TextFormatFlags)0x4000_0000;
 #endif
 
-    internal static FONT_QUALITY DefaultQuality { get; } = GetDefaultFontQuality();
+    internal static FONT_QUALITY DefaultQuality { get; } =
+#if LIBREWINFORMS_PORTABLE
+        FONT_QUALITY.DEFAULT_QUALITY;
+#else
+        GetDefaultFontQuality();
+#endif
 
     internal static Size MaxSize { get; } = new(int.MaxValue, int.MaxValue);
 
@@ -301,12 +316,23 @@ public static class TextRenderer
         if (text.IsEmpty || foreColor == Color.Transparent)
             return;
 
+#if LIBREWINFORMS_PORTABLE
+        PortableTextRenderer.DrawText(
+            GetPortableGraphics(dc),
+            text.ToString(),
+            font,
+            bounds,
+            foreColor,
+            backColor,
+            GetPortableTextFormat(flags));
+#else
         // This MUST come before retrieving the HDC, which locks the Graphics object
         FONT_QUALITY quality = FontQualityFromTextRenderingHint(dc);
 
         using DeviceContextHdcScope hdc = dc.ToHdcScope(GetApplyStateFlags(dc, flags));
 
         DrawTextInternal(hdc, text, font, bounds, foreColor, quality, backColor, flags);
+#endif
     }
 
     internal static void DrawTextInternal(
@@ -327,6 +353,21 @@ public static class TextRenderer
         Color backColor,
         TextFormatFlags flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter)
     {
+#if LIBREWINFORMS_PORTABLE
+        if (string.IsNullOrEmpty(text) || foreColor == Color.Transparent)
+        {
+            return;
+        }
+
+        PortableTextRenderer.DrawText(
+            e.GraphicsInternal,
+            text,
+            font,
+            bounds,
+            foreColor,
+            backColor,
+            GetPortableTextFormat(flags));
+#else
         HDC hdc = e.HDC;
         if (hdc.IsNull)
         {
@@ -340,6 +381,7 @@ public static class TextRenderer
         {
             DrawTextInternal(hdc, text, font, bounds, foreColor, DefaultQuality, backColor, flags);
         }
+#endif
     }
 
     internal static void DrawTextInternal(
@@ -517,10 +559,19 @@ public static class TextRenderer
         if (text.IsEmpty)
             return Size.Empty;
 
+#if LIBREWINFORMS_PORTABLE
+        return PortableTextRenderer.MeasureText(
+            graphics: null,
+            text.ToString(),
+            font,
+            proposedSize,
+            GetPortableTextFormat(flags));
+#else
         using var screen = GdiCache.GetScreenHdc();
         using var hfont = GetFontOrHdcHFONT(font, FONT_QUALITY.DEFAULT_QUALITY, screen);
 
         return screen.HDC.MeasureText(text, hfont, proposedSize, flags);
+#endif
     }
 
     private static Size MeasureTextInternal(
@@ -535,6 +586,14 @@ public static class TextRenderer
         if (text.IsEmpty)
             return Size.Empty;
 
+#if LIBREWINFORMS_PORTABLE
+        return PortableTextRenderer.MeasureText(
+            GetPortableGraphics(dc),
+            text.ToString(),
+            font,
+            proposedSize,
+            GetPortableTextFormat(flags));
+#else
         // This MUST come before retrieving the HDC, which locks the Graphics object
         FONT_QUALITY quality = FontQualityFromTextRenderingHint(dc);
 
@@ -543,7 +602,88 @@ public static class TextRenderer
         using DeviceContextHdcScope hdc = dc.ToHdcScope(GetApplyStateFlags(dc, flags));
         using var hfont = GetFontOrHdcHFONT(font, quality, hdc);
         return hdc.HDC.MeasureText(text, hfont, proposedSize, flags);
+#endif
     }
+
+#if LIBREWINFORMS_PORTABLE
+    private static Graphics GetPortableGraphics(IDeviceContext deviceContext)
+        => deviceContext as Graphics
+            ?? throw new PlatformNotSupportedException(
+                "Portable TextRenderer requires a managed Graphics device context. Native HDC-backed contexts require a platform adapter.");
+
+    private static LibreTextFormat GetPortableTextFormat(TextFormatFlags flags)
+    {
+#pragma warning disable CS0618 // ModifyString is obsolete and deliberately rejected.
+        const TextFormatFlags unsupported = TextFormatFlags.ExternalLeading
+            | TextFormatFlags.Internal
+            | TextFormatFlags.ModifyString
+            | TextFormatFlags.NoFullWidthCharacterBreak
+            | TextFormatFlags.PrefixOnly;
+#pragma warning restore CS0618
+        const TextFormatFlags accepted = TextFormatFlags.Bottom
+            | TextFormatFlags.EndEllipsis
+            | TextFormatFlags.ExpandTabs
+            | TextFormatFlags.HidePrefix
+            | TextFormatFlags.HorizontalCenter
+            | TextFormatFlags.NoClipping
+            | TextFormatFlags.NoPrefix
+            | TextFormatFlags.PathEllipsis
+            | TextFormatFlags.Right
+            | TextFormatFlags.RightToLeft
+            | TextFormatFlags.SingleLine
+            | TextFormatFlags.VerticalCenter
+            | TextFormatFlags.WordBreak
+            | TextFormatFlags.WordEllipsis
+            | TextFormatFlags.PreserveGraphicsClipping
+            | TextFormatFlags.PreserveGraphicsTranslateTransform
+            | TextFormatFlags.NoPadding
+            | TextFormatFlags.LeftAndRightPadding
+            | TextFormatFlags.TextBoxControl;
+        TextFormatFlags rejected = (flags & unsupported) | (flags & ~accepted);
+        if (rejected != 0)
+        {
+            throw new PlatformNotSupportedException(
+                $"Portable TextRenderer flags '{rejected}' are not implemented.");
+        }
+
+        LibreTextFormat portable = LibreTextFormat.Default;
+        if (flags.HasFlag(TextFormatFlags.HorizontalCenter))
+            portable |= LibreTextFormat.HorizontalCenter;
+        if (flags.HasFlag(TextFormatFlags.Right))
+            portable |= LibreTextFormat.Right;
+        if (flags.HasFlag(TextFormatFlags.VerticalCenter))
+            portable |= LibreTextFormat.VerticalCenter;
+        if (flags.HasFlag(TextFormatFlags.Bottom))
+            portable |= LibreTextFormat.Bottom;
+        if (flags.HasFlag(TextFormatFlags.SingleLine))
+            portable |= LibreTextFormat.SingleLine;
+        if (flags.HasFlag(TextFormatFlags.WordBreak))
+            portable |= LibreTextFormat.WordBreak;
+        if (flags.HasFlag(TextFormatFlags.EndEllipsis))
+            portable |= LibreTextFormat.EndEllipsis;
+        if (flags.HasFlag(TextFormatFlags.PathEllipsis))
+            portable |= LibreTextFormat.PathEllipsis;
+        if (flags.HasFlag(TextFormatFlags.WordEllipsis))
+            portable |= LibreTextFormat.WordEllipsis;
+        if (flags.HasFlag(TextFormatFlags.RightToLeft))
+            portable |= LibreTextFormat.RightToLeft;
+        if (flags.HasFlag(TextFormatFlags.NoClipping))
+            portable |= LibreTextFormat.NoClipping;
+        if (flags.HasFlag(TextFormatFlags.ExpandTabs))
+            portable |= LibreTextFormat.ExpandTabs;
+        if (flags.HasFlag(TextFormatFlags.NoPrefix))
+            portable |= LibreTextFormat.NoPrefix;
+        if (flags.HasFlag(TextFormatFlags.HidePrefix))
+            portable |= LibreTextFormat.HidePrefix;
+        if (flags.HasFlag(TextFormatFlags.NoPadding))
+            portable |= LibreTextFormat.NoPadding;
+        if (flags.HasFlag(TextFormatFlags.LeftAndRightPadding))
+            portable |= LibreTextFormat.LeftAndRightPadding;
+        if (flags.HasFlag(TextFormatFlags.TextBoxControl))
+            portable |= LibreTextFormat.TextBoxControl;
+        return portable;
+    }
+#endif
 
     internal static Color DisabledTextColor(Color backColor)
     {
@@ -584,6 +724,7 @@ public static class TextRenderer
     ///  Returns what <see cref="FontQualityFromTextRenderingHint(IDeviceContext?)"/> would return in an
     ///  unmodified <see cref="Graphics"/> object (i.e. the default).
     /// </summary>
+#if !LIBREWINFORMS_PORTABLE
     private static FONT_QUALITY GetDefaultFontQuality()
     {
         if (!SystemInformation.IsFontSmoothingEnabled)
@@ -595,6 +736,7 @@ public static class TextRenderer
         return SystemInformation.FontSmoothingType == 0x0002
             ? FONT_QUALITY.CLEARTYPE_QUALITY : FONT_QUALITY.ANTIALIASED_QUALITY;
     }
+#endif
 
     /// <summary>
     ///  Gets the proper <see cref="ApplyGraphicsProperties"/> flags for the given <paramref name="textFormatFlags"/>.

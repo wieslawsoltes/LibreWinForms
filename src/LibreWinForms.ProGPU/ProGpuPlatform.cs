@@ -57,7 +57,8 @@ public static class ProGpuPlatform
             nativeBridge,
             nativeBridge,
             new ProGpuVisualStyleService(),
-            DefaultLibreSystemSettingsService.Instance);
+            DefaultLibreSystemSettingsService.Instance,
+            new ProGpuTextRendererService());
     }
 
     public static void Register() => LibrePlatform.Register(CreateServices());
