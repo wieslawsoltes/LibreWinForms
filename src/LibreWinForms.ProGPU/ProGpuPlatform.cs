@@ -55,7 +55,8 @@ public static class ProGpuPlatform
             new ProGpuPaintService(dispatcher, handles),
             captureBridge,
             nativeBridge,
-            nativeBridge);
+            nativeBridge,
+            new ProGpuVisualStyleService());
     }
 
     public static void Register() => LibrePlatform.Register(CreateServices());

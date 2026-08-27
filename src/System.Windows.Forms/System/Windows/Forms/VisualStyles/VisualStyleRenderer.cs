@@ -5,7 +5,12 @@ using System.Drawing;
 #if !LIBREWINFORMS_PROGPU_DRAWING
 using System.Drawing.Interop;
 #endif
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#endif
+#if !LIBREWINFORMS_PORTABLE
 using Microsoft.Win32;
+#endif
 
 namespace System.Windows.Forms.VisualStyles;
 
@@ -15,6 +20,7 @@ namespace System.Windows.Forms.VisualStyles;
 public sealed class VisualStyleRenderer : IHandle<HTHEME>
 {
     private HRESULT _lastHResult;
+#if !LIBREWINFORMS_PORTABLE
     private const int NumberOfPossibleClasses = VisualStyleElement.Count; // used as size for themeHandles
 
     [ThreadStatic]
@@ -24,10 +30,13 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     private static long t_threadCacheVersion;
 
     private static long s_globalCacheVersion;
+#endif
 
     static VisualStyleRenderer()
     {
+#if !LIBREWINFORMS_PORTABLE
         SystemEvents.UserPreferenceChanging += OnUserPreferenceChanging;
+#endif
     }
 
     /// <summary>
@@ -37,10 +46,23 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return Application.UseVisualStyles
+                && PortableVisualStyles.IsEnabled
+                && (Application.VisualStyleState & VisualStyleState.ClientAreaEnabled) == VisualStyleState.ClientAreaEnabled;
+#else
             return (VisualStyleInformation.IsEnabledByUser &&
                ((Application.VisualStyleState & VisualStyleState.ClientAreaEnabled) == VisualStyleState.ClientAreaEnabled));
+#endif
         }
     }
+
+#if LIBREWINFORMS_PORTABLE
+    private static ILibreVisualStyleService PortableVisualStyles
+        => LibrePlatform.IsRegistered
+            ? LibrePlatform.Current.VisualStyles
+            : UnsupportedLibreVisualStyleService.Instance;
+#endif
 
     /// <summary>
     ///  Returns true if visual styles are 1) supported by the OS 2) enabled in the client area
@@ -54,6 +76,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         {
             bool supported = AreClientAreaVisualStylesSupported;
 
+#if !LIBREWINFORMS_PORTABLE
             if (supported)
             {
                 // In some cases, this check isn't enough, since the theme handle creation
@@ -62,6 +85,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
                 IntPtr hTheme = GetHandle("BUTTON", false); // Button is an arbitrary choice.
                 supported = hTheme != IntPtr.Zero;
             }
+#endif
 
             return supported;
         }
@@ -84,6 +108,14 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
 
     internal static bool IsCombinationDefined(string className, int part)
     {
+#if LIBREWINFORMS_PORTABLE
+        if (!IsSupported)
+        {
+            throw new InvalidOperationException(SR.VisualStyleNotActive);
+        }
+
+        return PortableVisualStyles.IsElementDefined(className, part);
+#else
         bool result = false;
 
         if (!IsSupported)
@@ -120,6 +152,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         }
 
         return result;
+#endif
     }
 
     /// <summary>
@@ -172,11 +205,16 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     ///  </para>
     /// </remarks>
     public IntPtr Handle
+#if LIBREWINFORMS_PORTABLE
+        => throw new PlatformNotSupportedException(
+            "HTHEME export requires the explicit Windows UxTheme adapter.");
+#else
         => !IsSupported
             ? throw new InvalidOperationException(VisualStyleInformation.IsEnabledByUser
                 ? SR.VisualStylesDisabledInClientArea
                 : SR.VisualStyleNotActive)
             : (nint)GetHandle(Class);
+#endif
 
     HTHEME IHandle<HTHEME>.Handle => (HTHEME)Handle;
 
@@ -214,8 +252,18 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     {
         ArgumentNullException.ThrowIfNull(dc);
 
+#if LIBREWINFORMS_PORTABLE
+        if (bounds.Width < 0 || bounds.Height < 0)
+        {
+            return;
+        }
+
+        PortableVisualStyles.DrawBackground(GetPortableGraphics(dc), Class, Part, State, bounds, null);
+        _lastHResult = default;
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         DrawBackground(hdc, bounds, HWND.Null);
+#endif
     }
 
     internal unsafe void DrawBackground(HDC dc, Rectangle bounds, HWND hwnd = default)
@@ -243,8 +291,18 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     {
         ArgumentNullException.ThrowIfNull(dc);
 
+#if LIBREWINFORMS_PORTABLE
+        if (bounds.Width < 0 || bounds.Height < 0 || clipRectangle.Width < 0 || clipRectangle.Height < 0)
+        {
+            return;
+        }
+
+        PortableVisualStyles.DrawBackground(GetPortableGraphics(dc), Class, Part, State, bounds, clipRectangle);
+        _lastHResult = default;
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         DrawBackground(hdc, bounds, clipRectangle, HWND.Null);
+#endif
     }
 
     internal unsafe void DrawBackground(HDC dc, Rectangle bounds, Rectangle clipRectangle, HWND hwnd)
@@ -454,6 +512,11 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
             return null;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        Region? region = PortableVisualStyles.GetBackgroundRegion(Class, Part, State, bounds);
+        _lastHResult = default;
+        return region;
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         HRGN hrgn;
         _lastHResult = PInvoke.GetThemeBackgroundRegion(HTHEME, hdc, Part, State, bounds, out hrgn);
@@ -471,7 +534,15 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         Region region = Region.FromHrgn(hrgn);
         PInvokeCore.DeleteObject(hrgn);
         return region;
+#endif
     }
+
+#if LIBREWINFORMS_PORTABLE
+    private static Graphics GetPortableGraphics(IDeviceContext deviceContext)
+        => deviceContext as Graphics
+            ?? throw new PlatformNotSupportedException(
+                "Portable visual-style drawing requires a managed System.Drawing.Graphics recorder.");
+#endif
 
     /// <summary>
     ///  [See win32 equivalent.]
@@ -788,6 +859,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     /// </summary>
     public int LastHResult => (int)_lastHResult;
 
+#if !LIBREWINFORMS_PORTABLE
     /// <summary>
     ///  Handles the ThemeChanged event. Basically, we need to ensure all per-thread theme handle
     ///  caches are refreshed.
@@ -869,6 +941,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
 
         return themeHandle.Handle;
     }
+#endif
 
     private static PInvoke.OpenThemeDataScope OpenThemeData(HWND hwnd, string classList)
     {
@@ -876,6 +949,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         return htheme.IsNull ? throw new InvalidOperationException(SR.VisualStyleHandleCreationFailed) : htheme;
     }
 
+#if !LIBREWINFORMS_PORTABLE
     // This wrapper class is needed for safely cleaning up TLS cache of handles.
     private class ThemeHandle : IDisposable, IHandle<HTHEME>
     {
@@ -914,4 +988,5 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
 
         ~ThemeHandle() => Dispose();
     }
+#endif
 }

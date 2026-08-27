@@ -7,6 +7,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Numerics;
 using System.Windows.Forms;
+using System.Windows.Forms.VisualStyles;
 using FluentAssertions;
 using LibreWinForms.Platform;
 using ProGPU.Scene;
@@ -339,6 +340,32 @@ public class CanonicalLifecycleTests
             graphics.Clear(color);
             return bitmap;
         }
+    }
+
+    [Fact]
+    public void VisualStyleBackgroundAndRegionUseTypedManagedService()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        Application.EnableVisualStyles();
+        VisualStyleRenderer.IsSupported.Should().BeTrue();
+        var renderer = new VisualStyleRenderer(VisualStyleElement.Button.PushButton.Normal);
+        using var target = new Bitmap(8, 8, PixelFormat.Format32bppArgb);
+        using (Graphics graphics = Graphics.FromImage(target))
+        {
+            graphics.Clear(Color.Transparent);
+            renderer.DrawBackground(graphics, new Rectangle(1, 1, 6, 6), new Rectangle(4, 0, 4, 8));
+            using Region? region = renderer.GetBackgroundRegion(graphics, new Rectangle(1, 2, 4, 5));
+            region.Should().NotBeNull();
+            region!.IsVisible(2, 3).Should().BeTrue();
+            region.IsVisible(0, 0).Should().BeFalse();
+        }
+
+        target.GetPixel(2, 3).ToArgb().Should().Be(0);
+        target.GetPixel(5, 3).ToArgb().Should().Be(Color.Purple.ToArgb());
+        platform.VisualStyleDrawCount.Should().Be(1);
+        Action nativeHandle = () => _ = renderer.Handle;
+        nativeHandle.Should().Throw<PlatformNotSupportedException>()
+            .WithMessage("*Windows UxTheme adapter*");
     }
 
     [Fact]
@@ -1311,7 +1338,8 @@ public class CanonicalLifecycleTests
         ILibreTimerService,
         ILibreWindowService,
         ILibreMonitorService,
-        ILibrePaintService
+        ILibrePaintService,
+        ILibreVisualStyleService
     {
         private readonly ConcurrentQueue<Action> _queue = new();
         private bool _autoCloseWindows;
@@ -1326,7 +1354,17 @@ public class CanonicalLifecycleTests
         {
             _autoCloseWindows = autoCloseWindows;
             Handles = new ManagedLibreHandleRegistry();
-            Services = new LibrePlatformServices(this, this, Handles, this, this, this);
+            Services = new LibrePlatformServices(
+                this,
+                this,
+                Handles,
+                this,
+                this,
+                this,
+                UnsupportedLibreDesktopCaptureService.Instance,
+                UnsupportedLibreNativeFontInteropService.Instance,
+                UnsupportedLibreNativeGraphicsInteropService.Instance,
+                this);
         }
 
         internal void Reset(bool autoCloseWindows)
@@ -1375,6 +1413,7 @@ public class CanonicalLifecycleTests
             LastCursorShape = null;
             CursorChangeCount = 0;
             LastWindowIcons = [];
+            VisualStyleDrawCount = 0;
         }
 
         internal ManagedLibreHandleRegistry Handles { get; }
@@ -1392,6 +1431,8 @@ public class CanonicalLifecycleTests
         internal int PresentCount { get; private set; }
 
         internal int PresentationInvalidationCount { get; private set; }
+
+        internal int VisualStyleDrawCount { get; private set; }
 
         internal double LastPresentationScale { get; private set; } = 1.0;
 
@@ -1625,6 +1666,40 @@ public class CanonicalLifecycleTests
             PresentCount++;
             window!.PresentPendingPaint();
         }
+
+        public bool IsEnabled => true;
+
+        public bool IsElementDefined(string className, int part)
+            => !string.IsNullOrWhiteSpace(className) && part >= 0;
+
+        public void DrawBackground(
+            Graphics graphics,
+            string className,
+            int part,
+            int state,
+            Rectangle bounds,
+            Rectangle? clipRectangle)
+        {
+            VisualStyleDrawCount++;
+            GraphicsState saved = graphics.Save();
+            try
+            {
+                if (clipRectangle is Rectangle clip)
+                {
+                    graphics.SetClip(clip, CombineMode.Intersect);
+                }
+
+                using var brush = new SolidBrush(Color.Purple);
+                graphics.FillRectangle(brush, bounds);
+            }
+            finally
+            {
+                graphics.Restore(saved);
+            }
+        }
+
+        public Region? GetBackgroundRegion(string className, int part, int state, Rectangle bounds)
+            => new(bounds);
 
         private sealed class HeadlessWindow : ILibreWindow
         {

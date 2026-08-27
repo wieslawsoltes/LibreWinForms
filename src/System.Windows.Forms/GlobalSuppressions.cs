@@ -165,8 +165,10 @@
 [assembly: SuppressMessage("Style", "IDE1006:Naming Styles", Justification = "Thread local", Scope = "member", Target = "~F:System.Windows.Forms.ButtonInternal.CheckBoxBaseAdapter.t_checkImageIndeterminateBackColor")]
 [assembly: SuppressMessage("Style", "IDE1006:Naming Styles", Justification = "Thread local", Scope = "member", Target = "~F:System.Windows.Forms.ButtonRenderer.t_visualStyleRenderer")]
 [assembly: SuppressMessage("Style", "IDE1006:Naming Styles", Justification = "Thread local", Scope = "member", Target = "~F:System.Windows.Forms.CheckBoxRenderer.t_visualStyleRenderer")]
+#if !LIBREWINFORMS_PORTABLE
 [assembly: SuppressMessage("Style", "IDE1006:Naming Styles", Justification = "Thread local", Scope = "member", Target = "~F:System.Windows.Forms.VisualStyles.VisualStyleRenderer.t_themeHandles")]
 [assembly: SuppressMessage("Style", "IDE1006:Naming Styles", Justification = "Thread local", Scope = "member", Target = "~F:System.Windows.Forms.VisualStyles.VisualStyleRenderer.t_threadCacheVersion")]
+#endif
 [assembly: SuppressMessage("Style", "IDE1006:Naming Styles", Justification = "Thread local", Scope = "member", Target = "~F:System.Windows.Forms.RadioButtonRenderer.t_visualStyleRenderer")]
 [assembly: SuppressMessage("Style", "IDE1006:Naming Styles", Justification = "Thread local", Scope = "member", Target = "~F:System.Windows.Forms.DataGridViewComboBoxCell.DataGridViewComboBoxCellRenderer.t_visualStyleRenderer")]
 [assembly: SuppressMessage("Style", "IDE1006:Naming Styles", Justification = "Thread local", Scope = "member", Target = "~F:System.Windows.Forms.Control.t_inCrossThreadSafeCall")]

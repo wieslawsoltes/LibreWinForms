@@ -83,6 +83,28 @@ public class LibrePlatformTests
     }
 
     [Fact]
+    public void ConstructorPublishesTypedVisualStylesAndRejectsMissingCapability()
+    {
+        TestServices test = new();
+        using LibrePlatformServices services = new(
+            test,
+            test,
+            test.Handles,
+            test,
+            test,
+            test,
+            test,
+            test,
+            test,
+            test);
+
+        services.VisualStyles.Should().BeSameAs(test);
+        Action create = () => new LibrePlatformServices(
+            test, test, test.Handles, test, test, test, test, test, test, null!);
+        create.Should().Throw<ArgumentNullException>().WithParameterName("visualStyles");
+    }
+
+    [Fact]
     public void MonitorSelection_PrefersLargestIntersection()
     {
         LibreMonitor[] monitors = CreateMonitorInventory();
@@ -262,7 +284,8 @@ public class LibrePlatformTests
         ILibrePaintService,
         ILibreDesktopCaptureService,
         ILibreNativeFontInteropService,
-        ILibreNativeGraphicsInteropService
+        ILibreNativeGraphicsInteropService,
+        ILibreVisualStyleService
     {
         public ManagedLibreHandleRegistry Handles { get; } = new();
 
@@ -298,6 +321,22 @@ public class LibrePlatformTests
         public System.Drawing.Graphics CreateFromWindow(IntPtr window)
             => throw new NotSupportedException();
         public IntPtr CreateHalftonePalette() => IntPtr.Zero;
+        public bool IsEnabled => true;
+        public bool IsElementDefined(string className, int part) => true;
+        public void DrawBackground(
+            System.Drawing.Graphics graphics,
+            string className,
+            int part,
+            int state,
+            System.Drawing.Rectangle bounds,
+            System.Drawing.Rectangle? clipRectangle)
+            => throw new NotSupportedException();
+        public System.Drawing.Region? GetBackgroundRegion(
+            string className,
+            int part,
+            int state,
+            System.Drawing.Rectangle bounds)
+            => throw new NotSupportedException();
 
         private sealed class EmptyDisposable : IDisposable
         {
