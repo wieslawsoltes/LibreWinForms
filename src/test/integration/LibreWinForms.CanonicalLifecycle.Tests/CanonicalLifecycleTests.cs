@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.Globalization;
 using System.Numerics;
 using System.Windows.Forms;
 using System.Windows.Forms.VisualStyles;
@@ -588,6 +589,21 @@ public class CanonicalLifecycleTests
         platform.TextMeasureCount.Should().Be(measurementsBefore + 2);
         platform.LastTextFormat.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
         comboBox.IsHandleCreated.Should().BeFalse();
+    }
+
+    [Fact]
+    public void MonthCalendarDefaultSizeUsesManagedTextMetricsWithoutHfont()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        string todayText = DateTime.Now.ToShortDateString();
+
+        using var calendar = new MonthCalendar();
+
+        calendar.Size.Should().Be(calendar.SingleMonthSize + new Size(2, 2));
+        platform.TextMeasureCount.Should().Be(1);
+        platform.LastMeasuredText.Should().Be(todayText);
+        platform.LastTextFormat.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
+        calendar.IsHandleCreated.Should().BeFalse();
     }
 
     [Fact]
@@ -1703,6 +1719,7 @@ public class CanonicalLifecycleTests
             TextMeasureCount = 0;
             LastTextBounds = default;
             LastTextFormat = default;
+            LastMeasuredText = string.Empty;
         }
 
         internal ManagedLibreHandleRegistry Handles { get; }
@@ -1728,6 +1745,7 @@ public class CanonicalLifecycleTests
         internal int TextMeasureCount { get; private set; }
         internal Rectangle LastTextBounds { get; private set; }
         internal LibreTextFormat LastTextFormat { get; private set; }
+        internal string LastMeasuredText { get; private set; } = string.Empty;
 
         internal double LastPresentationScale { get; private set; } = 1.0;
 
@@ -2247,6 +2265,7 @@ public class CanonicalLifecycleTests
             TextMeasureCount++;
             font.Should().NotBeNull();
             LastTextFormat = format;
+            LastMeasuredText = text;
             if (text == "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
             {
                 graphics.Should().BeNull();
@@ -2269,6 +2288,14 @@ public class CanonicalLifecycleTests
                 proposedSize.Should().Be(new Size(short.MaxValue, (int)(font!.Height * 1.25)));
                 format.Should().Be(LibreTextFormat.SingleLine);
                 return new Size(12, font.Height);
+            }
+
+            if (DateTime.TryParse(text, CultureInfo.CurrentCulture, DateTimeStyles.None, out _))
+            {
+                graphics.Should().BeNull();
+                proposedSize.Should().Be(new Size(int.MaxValue, int.MaxValue));
+                format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
+                return new Size(72, font!.Height);
             }
 
             if (graphics is null)
