@@ -466,8 +466,18 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     {
         ArgumentNullException.ThrowIfNull(dc);
 
+#if LIBREWINFORMS_PORTABLE
+        if (bounds.Width < 0 || bounds.Height < 0)
+        {
+            return Rectangle.Empty;
+        }
+
+        _lastHResult = default;
+        return PortableVisualStyles.GetBackgroundContentRectangle(Class, Part, State, bounds);
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         return GetBackgroundContentRectangle(hdc, bounds);
+#endif
     }
 
     internal Rectangle GetBackgroundContentRectangle(HDC dc, Rectangle bounds)
@@ -542,6 +552,35 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         => deviceContext as Graphics
             ?? throw new PlatformNotSupportedException(
                 "Portable visual-style drawing requires a managed System.Drawing.Graphics recorder.");
+
+    private static LibreVisualStyleSizeType GetPortableSizeType(ThemeSizeType type)
+        => type switch
+        {
+            ThemeSizeType.Minimum => LibreVisualStyleSizeType.Minimum,
+            ThemeSizeType.True => LibreVisualStyleSizeType.True,
+            ThemeSizeType.Draw => LibreVisualStyleSizeType.Draw,
+            _ => throw new ArgumentOutOfRangeException(nameof(type)),
+        };
+
+    private static LibreVisualStyleColorProperty GetPortableColorProperty(ColorProperty property)
+        => property switch
+        {
+            ColorProperty.BorderColor => LibreVisualStyleColorProperty.Border,
+            ColorProperty.FillColor => LibreVisualStyleColorProperty.Fill,
+            ColorProperty.TextColor => LibreVisualStyleColorProperty.Text,
+            ColorProperty.AccentColorHint => LibreVisualStyleColorProperty.Accent,
+            _ => throw new PlatformNotSupportedException(
+                $"Portable visual-style color property '{property}' is not implemented."),
+        };
+
+    private static LibreVisualStyleIntegerProperty GetPortableIntegerProperty(IntegerProperty property)
+        => property switch
+        {
+            IntegerProperty.ProgressChunkSize => LibreVisualStyleIntegerProperty.ProgressChunkSize,
+            IntegerProperty.ProgressSpaceSize => LibreVisualStyleIntegerProperty.ProgressSpaceSize,
+            _ => throw new PlatformNotSupportedException(
+                $"Portable visual-style integer property '{property}' is not implemented."),
+        };
 #endif
 
     /// <summary>
@@ -563,8 +602,13 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         // Valid values are 0xed9 to 0xeef
         SourceGenerated.EnumValidator.Validate(prop, nameof(prop));
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.GetColor(Class, Part, State, GetPortableColorProperty(prop));
+#else
         _lastHResult = PInvoke.GetThemeColor(HTHEME, Part, State, (THEME_PROPERTY_SYMBOL_ID)prop, out COLORREF color);
         return color;
+#endif
     }
 
     /// <summary>
@@ -640,8 +684,13 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         // Valid values are 0x961 to 0x978
         SourceGenerated.EnumValidator.Validate(prop, nameof(prop));
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.GetInteger(Class, Part, State, GetPortableIntegerProperty(prop));
+#else
         _lastHResult = PInvoke.GetThemeInt(HTHEME, Part, State, (THEME_PROPERTY_SYMBOL_ID)prop, out int value);
         return value;
+#endif
     }
 
     /// <summary>
@@ -651,8 +700,13 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     {
         ArgumentNullException.ThrowIfNull(dc);
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.GetPartSize(Class, Part, State, null, GetPortableSizeType(type));
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         return GetPartSize(hdc, type, HWND.Null);
+#endif
     }
 
     internal unsafe Size GetPartSize(HDC dc, ThemeSizeType type, HWND hwnd = default)
@@ -681,9 +735,14 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         // Valid values are 0x0 to 0x2
         SourceGenerated.EnumValidator.Validate(type, nameof(type));
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.GetPartSize(Class, Part, State, bounds, GetPortableSizeType(type));
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         _lastHResult = PInvoke.GetThemePartSize(HTHEME, hdc, Part, State, bounds, (THEMESIZE)type, out SIZE size);
         return size;
+#endif
     }
 
     /// <summary>
@@ -850,7 +909,12 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     /// </summary>
     public bool IsBackgroundPartiallyTransparent()
     {
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.IsBackgroundPartiallyTransparent(Class, Part, State);
+#else
         return PInvoke.IsThemeBackgroundPartiallyTransparent(HTHEME, Part, State);
+#endif
     }
 
     /// <summary>

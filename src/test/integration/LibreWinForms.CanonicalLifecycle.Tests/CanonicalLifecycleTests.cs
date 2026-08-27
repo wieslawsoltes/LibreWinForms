@@ -358,10 +358,16 @@ public class CanonicalLifecycleTests
             region.Should().NotBeNull();
             region!.IsVisible(2, 3).Should().BeTrue();
             region.IsVisible(0, 0).Should().BeFalse();
+            renderer.GetBackgroundContentRectangle(graphics, new Rectangle(0, 0, 20, 12))
+                .Should().Be(new Rectangle(2, 2, 16, 8));
+            renderer.GetPartSize(graphics, ThemeSizeType.True).Should().Be(new Size(21, 22));
         }
 
         target.GetPixel(2, 3).ToArgb().Should().Be(0);
         target.GetPixel(5, 3).ToArgb().Should().Be(Color.Purple.ToArgb());
+        renderer.GetColor(ColorProperty.TextColor).ToArgb().Should().Be(Color.Orange.ToArgb());
+        renderer.GetInteger(IntegerProperty.ProgressChunkSize).Should().Be(7);
+        renderer.IsBackgroundPartiallyTransparent().Should().BeFalse();
         platform.VisualStyleDrawCount.Should().Be(1);
         Action nativeHandle = () => _ = renderer.Handle;
         nativeHandle.Should().Throw<PlatformNotSupportedException>()
@@ -1700,6 +1706,34 @@ public class CanonicalLifecycleTests
 
         public Region? GetBackgroundRegion(string className, int part, int state, Rectangle bounds)
             => new(bounds);
+
+        public Rectangle GetBackgroundContentRectangle(string className, int part, int state, Rectangle bounds)
+            => Rectangle.Inflate(bounds, -2, -2);
+
+        public Size GetPartSize(
+            string className,
+            int part,
+            int state,
+            Rectangle? bounds,
+            LibreVisualStyleSizeType type)
+            => new(21, 22);
+
+        public Color GetColor(
+            string className,
+            int part,
+            int state,
+            LibreVisualStyleColorProperty property)
+            => Color.Orange;
+
+        public int GetInteger(
+            string className,
+            int part,
+            int state,
+            LibreVisualStyleIntegerProperty property)
+            => property == LibreVisualStyleIntegerProperty.ProgressChunkSize ? 7 : 3;
+
+        public bool IsBackgroundPartiallyTransparent(string className, int part, int state)
+            => false;
 
         private sealed class HeadlessWindow : ILibreWindow
         {

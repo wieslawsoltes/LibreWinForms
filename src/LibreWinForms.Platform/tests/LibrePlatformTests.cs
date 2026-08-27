@@ -337,6 +337,33 @@ public class LibrePlatformTests
             int state,
             System.Drawing.Rectangle bounds)
             => throw new NotSupportedException();
+        public System.Drawing.Rectangle GetBackgroundContentRectangle(
+            string className,
+            int part,
+            int state,
+            System.Drawing.Rectangle bounds)
+            => throw new NotSupportedException();
+        public System.Drawing.Size GetPartSize(
+            string className,
+            int part,
+            int state,
+            System.Drawing.Rectangle? bounds,
+            LibreVisualStyleSizeType type)
+            => throw new NotSupportedException();
+        public System.Drawing.Color GetColor(
+            string className,
+            int part,
+            int state,
+            LibreVisualStyleColorProperty property)
+            => throw new NotSupportedException();
+        public int GetInteger(
+            string className,
+            int part,
+            int state,
+            LibreVisualStyleIntegerProperty property)
+            => throw new NotSupportedException();
+        public bool IsBackgroundPartiallyTransparent(string className, int part, int state)
+            => throw new NotSupportedException();
 
         private sealed class EmptyDisposable : IDisposable
         {

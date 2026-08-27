@@ -5,6 +5,27 @@ using System.Drawing;
 
 namespace LibreWinForms.Platform;
 
+public enum LibreVisualStyleSizeType
+{
+    Minimum,
+    True,
+    Draw,
+}
+
+public enum LibreVisualStyleColorProperty
+{
+    Border,
+    Fill,
+    Text,
+    Accent,
+}
+
+public enum LibreVisualStyleIntegerProperty
+{
+    ProgressChunkSize,
+    ProgressSpaceSize,
+}
+
 /// <summary>Renders portable visual-style backgrounds without exposing UxTheme handles or device contexts.</summary>
 public interface ILibreVisualStyleService
 {
@@ -22,6 +43,21 @@ public interface ILibreVisualStyleService
 
     /// <summary>Returns a caller-owned managed region, or null when the element has no drawable background.</summary>
     Region? GetBackgroundRegion(string className, int part, int state, Rectangle bounds);
+
+    Rectangle GetBackgroundContentRectangle(string className, int part, int state, Rectangle bounds);
+
+    Size GetPartSize(
+        string className,
+        int part,
+        int state,
+        Rectangle? bounds,
+        LibreVisualStyleSizeType type);
+
+    Color GetColor(string className, int part, int state, LibreVisualStyleColorProperty property);
+
+    int GetInteger(string className, int part, int state, LibreVisualStyleIntegerProperty property);
+
+    bool IsBackgroundPartiallyTransparent(string className, int part, int state);
 }
 
 /// <summary>Explicit default for hosts that do not provide portable visual-style rendering.</summary>
@@ -50,4 +86,29 @@ public sealed class UnsupportedLibreVisualStyleService : ILibreVisualStyleServic
     public Region? GetBackgroundRegion(string className, int part, int state, Rectangle bounds)
         => throw new PlatformNotSupportedException(
             "This LibreWinForms host does not provide portable visual-style background regions.");
+
+    public Rectangle GetBackgroundContentRectangle(string className, int part, int state, Rectangle bounds)
+        => throw new PlatformNotSupportedException(
+            "This LibreWinForms host does not provide portable visual-style content metrics.");
+
+    public Size GetPartSize(
+        string className,
+        int part,
+        int state,
+        Rectangle? bounds,
+        LibreVisualStyleSizeType type)
+        => throw new PlatformNotSupportedException(
+            "This LibreWinForms host does not provide portable visual-style part metrics.");
+
+    public Color GetColor(string className, int part, int state, LibreVisualStyleColorProperty property)
+        => throw new PlatformNotSupportedException(
+            "This LibreWinForms host does not provide portable visual-style colors.");
+
+    public int GetInteger(string className, int part, int state, LibreVisualStyleIntegerProperty property)
+        => throw new PlatformNotSupportedException(
+            "This LibreWinForms host does not provide portable visual-style integer properties.");
+
+    public bool IsBackgroundPartiallyTransparent(string className, int part, int state)
+        => throw new PlatformNotSupportedException(
+            "This LibreWinForms host does not provide portable visual-style transparency properties.");
 }

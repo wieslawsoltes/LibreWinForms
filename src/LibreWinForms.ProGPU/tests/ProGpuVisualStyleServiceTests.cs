@@ -4,6 +4,7 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using FluentAssertions;
+using LibreWinForms.Platform;
 using Xunit;
 
 namespace LibreWinForms.ProGPU.Tests;
@@ -45,5 +46,16 @@ public sealed class ProGpuVisualStyleServiceTests
         region.Should().NotBeNull();
         region!.IsVisible(2, 3).Should().BeTrue();
         region.IsVisible(0, 0).Should().BeFalse();
+        service.GetBackgroundContentRectangle("BUTTON", 1, 1, new Rectangle(0, 0, 20, 12))
+            .Should().Be(new Rectangle(3, 3, 14, 6));
+        service.GetPartSize("BUTTON", 1, 1, null, LibreVisualStyleSizeType.True)
+            .Should().Be(new Size(75, 23));
+        service.GetPartSize("BUTTON", 3, 1, null, LibreVisualStyleSizeType.True)
+            .Should().Be(new Size(13, 13));
+        service.GetColor("BUTTON", 1, 1, LibreVisualStyleColorProperty.Text).ToArgb()
+            .Should().Be(Color.Black.ToArgb());
+        service.GetInteger("PROGRESS", 3, 1, LibreVisualStyleIntegerProperty.ProgressChunkSize)
+            .Should().Be(6);
+        service.IsBackgroundPartiallyTransparent("BUTTON", 1, 1).Should().BeFalse();
     }
 }
