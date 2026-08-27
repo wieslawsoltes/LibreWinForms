@@ -754,6 +754,28 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
                 $"Portable visual-style Boolean property '{property}' is not implemented."),
         };
 
+    private static LibreVisualStyleEnumProperty GetPortableEnumProperty(EnumProperty property)
+        => property switch
+        {
+            EnumProperty.BackgroundType => LibreVisualStyleEnumProperty.BackgroundType,
+            EnumProperty.BorderType => LibreVisualStyleEnumProperty.BorderType,
+            EnumProperty.FillType => LibreVisualStyleEnumProperty.FillType,
+            EnumProperty.SizingType => LibreVisualStyleEnumProperty.SizingType,
+            EnumProperty.HorizontalAlignment => LibreVisualStyleEnumProperty.HorizontalAlignment,
+            EnumProperty.ContentAlignment => LibreVisualStyleEnumProperty.ContentAlignment,
+            EnumProperty.VerticalAlignment => LibreVisualStyleEnumProperty.VerticalAlignment,
+            EnumProperty.OffsetType => LibreVisualStyleEnumProperty.OffsetType,
+            EnumProperty.IconEffect => LibreVisualStyleEnumProperty.IconEffect,
+            EnumProperty.TextShadowType => LibreVisualStyleEnumProperty.TextShadowType,
+            EnumProperty.ImageLayout => LibreVisualStyleEnumProperty.ImageLayout,
+            EnumProperty.GlyphType => LibreVisualStyleEnumProperty.GlyphType,
+            EnumProperty.ImageSelectType => LibreVisualStyleEnumProperty.ImageSelectType,
+            EnumProperty.GlyphFontSizingType => LibreVisualStyleEnumProperty.GlyphFontSizingType,
+            EnumProperty.TrueSizeScalingType => LibreVisualStyleEnumProperty.TrueSizeScalingType,
+            _ => throw new PlatformNotSupportedException(
+                $"Portable visual-style enum property '{property}' is not implemented."),
+        };
+
     private static LibreVisualStyleMarginProperty GetPortableMarginProperty(MarginProperty property)
         => property switch
         {
@@ -821,8 +843,13 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         // Valid values are 0xfa1 to 0xfaf
         SourceGenerated.EnumValidator.Validate(prop, nameof(prop));
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.GetEnumValue(Class, Part, State, GetPortableEnumProperty(prop));
+#else
         _lastHResult = PInvoke.GetThemeEnumValue(HTHEME, Part, State, (THEME_PROPERTY_SYMBOL_ID)prop, out int value);
         return value;
+#endif
     }
 
     /// <summary>

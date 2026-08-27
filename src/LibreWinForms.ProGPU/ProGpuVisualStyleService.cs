@@ -157,6 +157,23 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
         };
     }
 
+    public int GetEnumValue(string className, int part, int state, LibreVisualStyleEnumProperty property)
+    {
+        ValidateElement(className, part);
+        if (property is < LibreVisualStyleEnumProperty.BackgroundType or > LibreVisualStyleEnumProperty.TrueSizeScalingType)
+        {
+            throw new ArgumentOutOfRangeException(nameof(property));
+        }
+
+        return property switch
+        {
+            // The baseline renderer paints a stretched border/fill background.
+            LibreVisualStyleEnumProperty.BackgroundType => 1,
+            LibreVisualStyleEnumProperty.SizingType => 1,
+            _ => 0,
+        };
+    }
+
     public LibreVisualStyleMargins GetMargins(
         string className,
         int part,

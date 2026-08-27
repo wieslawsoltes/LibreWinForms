@@ -381,6 +381,7 @@ public class CanonicalLifecycleTests
         renderer.GetColor(ColorProperty.TextColor).ToArgb().Should().Be(Color.Orange.ToArgb());
         renderer.GetInteger(IntegerProperty.ProgressChunkSize).Should().Be(7);
         renderer.GetBoolean(BooleanProperty.BackgroundFill).Should().BeTrue();
+        renderer.GetEnumValue(EnumProperty.BackgroundType).Should().Be(1);
         renderer.GetPoint(PointProperty.TextShadowOffset).Should().Be(new Point(2, 3));
         renderer.IsBackgroundPartiallyTransparent().Should().BeFalse();
         platform.VisualStyleDrawCount.Should().Be(1);
@@ -1823,6 +1824,16 @@ public class CanonicalLifecycleTests
         {
             property.Should().Be(LibreVisualStyleBooleanProperty.BackgroundFill);
             return true;
+        }
+
+        public int GetEnumValue(
+            string className,
+            int part,
+            int state,
+            LibreVisualStyleEnumProperty property)
+        {
+            property.Should().Be(LibreVisualStyleEnumProperty.BackgroundType);
+            return 1;
         }
 
         public LibreVisualStyleMargins GetMargins(

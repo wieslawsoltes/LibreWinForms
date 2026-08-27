@@ -43,6 +43,25 @@ public enum LibreVisualStyleBooleanProperty
     SourceShrink,
 }
 
+public enum LibreVisualStyleEnumProperty
+{
+    BackgroundType,
+    BorderType,
+    FillType,
+    SizingType,
+    HorizontalAlignment,
+    ContentAlignment,
+    VerticalAlignment,
+    OffsetType,
+    IconEffect,
+    TextShadowType,
+    ImageLayout,
+    GlyphType,
+    ImageSelectType,
+    GlyphFontSizingType,
+    TrueSizeScalingType,
+}
+
 public enum LibreVisualStyleMarginProperty
 {
     Sizing,
@@ -148,6 +167,8 @@ public interface ILibreVisualStyleService
 
     bool GetBoolean(string className, int part, int state, LibreVisualStyleBooleanProperty property);
 
+    int GetEnumValue(string className, int part, int state, LibreVisualStyleEnumProperty property);
+
     LibreVisualStyleMargins GetMargins(
         string className,
         int part,
@@ -230,6 +251,10 @@ public sealed class UnsupportedLibreVisualStyleService : ILibreVisualStyleServic
     public bool GetBoolean(string className, int part, int state, LibreVisualStyleBooleanProperty property)
         => throw new PlatformNotSupportedException(
             "This LibreWinForms host does not provide portable visual-style Boolean properties.");
+
+    public int GetEnumValue(string className, int part, int state, LibreVisualStyleEnumProperty property)
+        => throw new PlatformNotSupportedException(
+            "This LibreWinForms host does not provide portable visual-style enum properties.");
 
     public LibreVisualStyleMargins GetMargins(
         string className,

@@ -439,6 +439,8 @@ The following geometric-property slice removes the remaining UxTheme/HDC depende
 
 Canonical portable `GetBoolean` now follows the same rule. All thirteen official `BooleanProperty` values map explicitly to a platform-owned enum, and the ProGPU theme baseline returns declared renderer capabilities rather than invoking UxTheme or passing raw property IDs. Focused platform 26/26, adapter 18/18, and lifecycle 28/28 gates pass with an exact `BackgroundFill` assertion. The default Windows branch remains `GetThemeBool`; no compatibility type, reflection path, fake handle, or public API change is introduced.
 
+Canonical portable `GetEnumValue` now maps all fifteen official selectors to `LibreVisualStyleEnumProperty`. The platform service returns the integer mandated by the existing public contract, while the property identity stays typed and independent of native `TMT_*` numbers. ProGPU declares a stretched border/fill background plus explicit baseline values for border, fill, alignment, offset, effect, image-layout, glyph, image-selection, and scaling families. Focused platform 26/26, adapter 18/18, and lifecycle 28/28 gates pass with exact `BackgroundType` transport; Windows keeps `GetThemeEnumValue`.
+
 ## Proposed fixes
 
 ### P0: Add an official API contract gate

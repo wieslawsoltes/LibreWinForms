@@ -394,6 +394,12 @@ public class LibrePlatformTests
             int state,
             LibreVisualStyleBooleanProperty property)
             => throw new NotSupportedException();
+        public int GetEnumValue(
+            string className,
+            int part,
+            int state,
+            LibreVisualStyleEnumProperty property)
+            => throw new NotSupportedException();
         public LibreVisualStyleMargins GetMargins(
             string className,
             int part,
