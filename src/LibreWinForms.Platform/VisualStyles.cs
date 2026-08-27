@@ -114,6 +114,61 @@ public enum LibreVisualStyleHitTestCode
     BottomRight,
 }
 
+public enum LibreVisualStyleTextCharacterSet
+{
+    Ansi = 0,
+    Default = 1,
+    Symbol = 2,
+    Mac = 77,
+    ShiftJis = 128,
+    Hangul = 129,
+    Johab = 130,
+    Gb2312 = 134,
+    ChineseBig5 = 136,
+    Greek = 161,
+    Turkish = 162,
+    Vietnamese = 163,
+    Hebrew = 177,
+    Arabic = 178,
+    Baltic = 186,
+    Russian = 204,
+    Thai = 222,
+    EastEurope = 238,
+    Oem = 255,
+}
+
+[Flags]
+public enum LibreVisualStyleTextPitchAndFamily
+{
+    None = 0,
+    FixedPitch = 1,
+    Vector = 2,
+    TrueType = 4,
+    Device = 8,
+}
+
+public readonly record struct LibreVisualStyleTextMetrics(
+    int Height,
+    int Ascent,
+    int Descent,
+    int InternalLeading,
+    int ExternalLeading,
+    int AverageCharWidth,
+    int MaxCharWidth,
+    int Weight,
+    int Overhang,
+    int DigitizedAspectX,
+    int DigitizedAspectY,
+    char FirstChar,
+    char LastChar,
+    char DefaultChar,
+    char BreakChar,
+    bool Italic,
+    bool Underlined,
+    bool StruckOut,
+    LibreVisualStyleTextPitchAndFamily PitchAndFamily,
+    LibreVisualStyleTextCharacterSet CharacterSet);
+
 public enum LibreVisualStyleMarginProperty
 {
     Sizing,
@@ -247,6 +302,12 @@ public interface ILibreVisualStyleService
         Point point,
         LibreVisualStyleHitTestOptions options);
 
+    LibreVisualStyleTextMetrics GetTextMetrics(
+        Graphics graphics,
+        string className,
+        int part,
+        int state);
+
     LibreVisualStyleMargins GetMargins(
         string className,
         int part,
@@ -368,6 +429,14 @@ public sealed class UnsupportedLibreVisualStyleService : ILibreVisualStyleServic
         LibreVisualStyleHitTestOptions options)
         => throw new PlatformNotSupportedException(
             "This LibreWinForms host does not provide portable visual-style background hit testing.");
+
+    public LibreVisualStyleTextMetrics GetTextMetrics(
+        Graphics graphics,
+        string className,
+        int part,
+        int state)
+        => throw new PlatformNotSupportedException(
+            "This LibreWinForms host does not provide portable visual-style text metrics.");
 
     public LibreVisualStyleMargins GetMargins(
         string className,

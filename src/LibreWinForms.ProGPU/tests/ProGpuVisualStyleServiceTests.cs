@@ -178,5 +178,20 @@ public sealed class ProGpuVisualStyleServiceTests
             new Point(12, 12),
             LibreVisualStyleHitTestOptions.ResizingBorder)
             .Should().Be(LibreVisualStyleHitTestCode.Nowhere);
+
+        LibreVisualStyleTextMetrics metrics = service.GetTextMetrics(
+            measureGraphics,
+            "BUTTON",
+            part: 1,
+            state: 1);
+        metrics.Height.Should().BeGreaterThan(0);
+        metrics.Ascent.Should().BeGreaterThan(0);
+        metrics.Descent.Should().BeGreaterThanOrEqualTo(0);
+        metrics.AverageCharWidth.Should().BeGreaterThan(0);
+        metrics.MaxCharWidth.Should().BeGreaterThanOrEqualTo(metrics.AverageCharWidth);
+        metrics.Weight.Should().BeOneOf(400, 700);
+        metrics.DigitizedAspectX.Should().BeGreaterThan(0);
+        metrics.DigitizedAspectY.Should().BeGreaterThan(0);
+        metrics.PitchAndFamily.Should().NotBe(LibreVisualStyleTextPitchAndFamily.None);
     }
 }

@@ -437,6 +437,12 @@ public class LibrePlatformTests
             System.Drawing.Point point,
             LibreVisualStyleHitTestOptions options)
             => throw new NotSupportedException();
+        public LibreVisualStyleTextMetrics GetTextMetrics(
+            System.Drawing.Graphics graphics,
+            string className,
+            int part,
+            int state)
+            => throw new NotSupportedException();
         public LibreVisualStyleMargins GetMargins(
             string className,
             int part,

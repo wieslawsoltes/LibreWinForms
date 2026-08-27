@@ -310,6 +310,58 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
         return LibreVisualStyleHitTestCode.Client;
     }
 
+    public LibreVisualStyleTextMetrics GetTextMetrics(
+        Graphics graphics,
+        string className,
+        int part,
+        int state)
+    {
+        ArgumentNullException.ThrowIfNull(graphics);
+        ValidateElement(className, part);
+
+        Font font = SystemFonts.DefaultFont;
+        FontStyle style = font.Style;
+        int emHeight = font.FontFamily.GetEmHeight(style);
+        int lineSpacing = font.FontFamily.GetLineSpacing(style);
+        float lineHeight = font.GetHeight(graphics);
+        float unitScale = lineSpacing == 0 ? 0f : lineHeight / lineSpacing;
+        int height = Math.Max(0, (int)MathF.Ceiling(lineHeight));
+        int ascent = Math.Max(0, (int)MathF.Ceiling(font.FontFamily.GetCellAscent(style) * unitScale));
+        int descent = Math.Max(0, (int)MathF.Ceiling(font.FontFamily.GetCellDescent(style) * unitScale));
+        int externalLeading = Math.Max(0, height - ascent - descent);
+
+        using StringFormat format = CreateTextFormat(LibreVisualStyleTextFormat.NoPadding | LibreVisualStyleTextFormat.SingleLine);
+        float alphabetWidth = graphics.MeasureString("abcdefghijklmnopqrstuvwxyz", font, PointF.Empty, format).Width;
+        int averageWidth = Math.Max(0, (int)MathF.Ceiling(alphabetWidth / 26f));
+        int maxWidth = Math.Max(
+            averageWidth,
+            (int)MathF.Ceiling(graphics.MeasureString("W", font, PointF.Empty, format).Width));
+
+        return new LibreVisualStyleTextMetrics(
+            Height: height,
+            Ascent: ascent,
+            Descent: descent,
+            InternalLeading: 0,
+            ExternalLeading: externalLeading,
+            AverageCharWidth: averageWidth,
+            MaxCharWidth: maxWidth,
+            Weight: font.Bold ? 700 : 400,
+            Overhang: 0,
+            DigitizedAspectX: Math.Max(0, (int)MathF.Round(graphics.DpiX)),
+            DigitizedAspectY: Math.Max(0, (int)MathF.Round(graphics.DpiY)),
+            FirstChar: ' ',
+            LastChar: '\uFFFF',
+            DefaultChar: '\uFFFD',
+            BreakChar: ' ',
+            Italic: font.Italic,
+            Underlined: font.Underline,
+            StruckOut: font.Strikeout,
+            PitchAndFamily: emHeight > 0
+                ? LibreVisualStyleTextPitchAndFamily.TrueType
+                : LibreVisualStyleTextPitchAndFamily.Vector,
+            CharacterSet: GetTextCharacterSet(font.GdiCharSet));
+    }
+
     public LibreVisualStyleMargins GetMargins(
         string className,
         int part,
@@ -565,6 +617,31 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
             throw new ArgumentOutOfRangeException(nameof(format));
         }
     }
+
+    private static LibreVisualStyleTextCharacterSet GetTextCharacterSet(byte characterSet)
+        => characterSet switch
+        {
+            0 => LibreVisualStyleTextCharacterSet.Ansi,
+            1 => LibreVisualStyleTextCharacterSet.Default,
+            2 => LibreVisualStyleTextCharacterSet.Symbol,
+            77 => LibreVisualStyleTextCharacterSet.Mac,
+            128 => LibreVisualStyleTextCharacterSet.ShiftJis,
+            129 => LibreVisualStyleTextCharacterSet.Hangul,
+            130 => LibreVisualStyleTextCharacterSet.Johab,
+            134 => LibreVisualStyleTextCharacterSet.Gb2312,
+            136 => LibreVisualStyleTextCharacterSet.ChineseBig5,
+            161 => LibreVisualStyleTextCharacterSet.Greek,
+            162 => LibreVisualStyleTextCharacterSet.Turkish,
+            163 => LibreVisualStyleTextCharacterSet.Vietnamese,
+            177 => LibreVisualStyleTextCharacterSet.Hebrew,
+            178 => LibreVisualStyleTextCharacterSet.Arabic,
+            186 => LibreVisualStyleTextCharacterSet.Baltic,
+            204 => LibreVisualStyleTextCharacterSet.Russian,
+            222 => LibreVisualStyleTextCharacterSet.Thai,
+            238 => LibreVisualStyleTextCharacterSet.EastEurope,
+            255 => LibreVisualStyleTextCharacterSet.Oem,
+            _ => LibreVisualStyleTextCharacterSet.Default,
+        };
 
     private static void ValidateElement(string className, int part)
     {

@@ -449,6 +449,8 @@ Canonical portable `GetTextExtent` is also functional through source-built `Syst
 
 Portable visual-style background hit testing now uses typed, renderer-neutral option and result enums. The canonical no-region overload and the managed `Graphics`/`Region` overload pass exact bounds, point, options, and the real managed region to `ILibreVisualStyleService`; ProGPU performs bounds/region visibility checks and classifies requested resizing edges and corners. The raw `IntPtr` overload accepts zero as no region but explicitly rejects a nonzero HRGN, because importing an opaque native region belongs in a future local-OS adapter rather than the cross-platform ProGPU service. Windows retains its original native call. Platform 26/26, adapter 18/18, lifecycle 28/28, and the 614-warning/0-error canonical ProGPU build pass.
 
+Canonical portable `GetTextMetrics` no longer enters the native device-context/UxTheme path. A complete renderer-neutral metrics record carries every public scalar, character, style, pitch/family, and character-set field; the canonical boundary explicitly reconstructs `System.Windows.Forms.VisualStyles.TextMetrics`. ProGPU calculates its baseline from the real default font's OpenType family metrics, measured glyph widths, and the supplied managed graphics DPI rather than returning a zero-filled compatibility value. Platform 26/26, adapter 18/18, lifecycle 28/28, and canonical ProGPU compilation at 614 reviewed warnings/0 errors pass. Windows retains the upstream `GetThemeTextMetrics` conversion.
+
 ## Proposed fixes
 
 ### P0: Add an official API contract gate

@@ -762,6 +762,79 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
             _ => throw new ArgumentOutOfRangeException(nameof(code)),
         };
 
+    private static TextMetrics GetTextMetrics(LibreVisualStyleTextMetrics metrics) => new()
+    {
+        Height = metrics.Height,
+        Ascent = metrics.Ascent,
+        Descent = metrics.Descent,
+        InternalLeading = metrics.InternalLeading,
+        ExternalLeading = metrics.ExternalLeading,
+        AverageCharWidth = metrics.AverageCharWidth,
+        MaxCharWidth = metrics.MaxCharWidth,
+        Weight = metrics.Weight,
+        Overhang = metrics.Overhang,
+        DigitizedAspectX = metrics.DigitizedAspectX,
+        DigitizedAspectY = metrics.DigitizedAspectY,
+        FirstChar = metrics.FirstChar,
+        LastChar = metrics.LastChar,
+        DefaultChar = metrics.DefaultChar,
+        BreakChar = metrics.BreakChar,
+        Italic = metrics.Italic,
+        Underlined = metrics.Underlined,
+        StruckOut = metrics.StruckOut,
+        PitchAndFamily = GetTextPitchAndFamily(metrics.PitchAndFamily),
+        CharSet = GetTextCharacterSet(metrics.CharacterSet),
+    };
+
+    private static TextMetricsPitchAndFamilyValues GetTextPitchAndFamily(
+        LibreVisualStyleTextPitchAndFamily value)
+    {
+        const LibreVisualStyleTextPitchAndFamily accepted = LibreVisualStyleTextPitchAndFamily.FixedPitch
+            | LibreVisualStyleTextPitchAndFamily.Vector
+            | LibreVisualStyleTextPitchAndFamily.TrueType
+            | LibreVisualStyleTextPitchAndFamily.Device;
+        if ((value & ~accepted) != 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(value));
+        }
+
+        TextMetricsPitchAndFamilyValues result = default;
+        if (value.HasFlag(LibreVisualStyleTextPitchAndFamily.FixedPitch))
+            result |= TextMetricsPitchAndFamilyValues.FixedPitch;
+        if (value.HasFlag(LibreVisualStyleTextPitchAndFamily.Vector))
+            result |= TextMetricsPitchAndFamilyValues.Vector;
+        if (value.HasFlag(LibreVisualStyleTextPitchAndFamily.TrueType))
+            result |= TextMetricsPitchAndFamilyValues.TrueType;
+        if (value.HasFlag(LibreVisualStyleTextPitchAndFamily.Device))
+            result |= TextMetricsPitchAndFamilyValues.Device;
+        return result;
+    }
+
+    private static TextMetricsCharacterSet GetTextCharacterSet(LibreVisualStyleTextCharacterSet value)
+        => value switch
+        {
+            LibreVisualStyleTextCharacterSet.Ansi => TextMetricsCharacterSet.Ansi,
+            LibreVisualStyleTextCharacterSet.Default => TextMetricsCharacterSet.Default,
+            LibreVisualStyleTextCharacterSet.Symbol => TextMetricsCharacterSet.Symbol,
+            LibreVisualStyleTextCharacterSet.Mac => TextMetricsCharacterSet.Mac,
+            LibreVisualStyleTextCharacterSet.ShiftJis => TextMetricsCharacterSet.ShiftJis,
+            LibreVisualStyleTextCharacterSet.Hangul => TextMetricsCharacterSet.Hangul,
+            LibreVisualStyleTextCharacterSet.Johab => TextMetricsCharacterSet.Johab,
+            LibreVisualStyleTextCharacterSet.Gb2312 => TextMetricsCharacterSet.Gb2312,
+            LibreVisualStyleTextCharacterSet.ChineseBig5 => TextMetricsCharacterSet.ChineseBig5,
+            LibreVisualStyleTextCharacterSet.Greek => TextMetricsCharacterSet.Greek,
+            LibreVisualStyleTextCharacterSet.Turkish => TextMetricsCharacterSet.Turkish,
+            LibreVisualStyleTextCharacterSet.Vietnamese => TextMetricsCharacterSet.Vietnamese,
+            LibreVisualStyleTextCharacterSet.Hebrew => TextMetricsCharacterSet.Hebrew,
+            LibreVisualStyleTextCharacterSet.Arabic => TextMetricsCharacterSet.Arabic,
+            LibreVisualStyleTextCharacterSet.Baltic => TextMetricsCharacterSet.Baltic,
+            LibreVisualStyleTextCharacterSet.Russian => TextMetricsCharacterSet.Russian,
+            LibreVisualStyleTextCharacterSet.Thai => TextMetricsCharacterSet.Thai,
+            LibreVisualStyleTextCharacterSet.EastEurope => TextMetricsCharacterSet.EastEurope,
+            LibreVisualStyleTextCharacterSet.Oem => TextMetricsCharacterSet.Oem,
+            _ => throw new ArgumentOutOfRangeException(nameof(value)),
+        };
+
     private static LibreVisualStyleColorProperty GetPortableColorProperty(ColorProperty property)
         => property switch
         {
@@ -1200,9 +1273,14 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     {
         ArgumentNullException.ThrowIfNull(dc);
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return GetTextMetrics(PortableVisualStyles.GetTextMetrics(GetPortableGraphics(dc), Class, Part, State));
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         _lastHResult = PInvoke.GetThemeTextMetrics(HTHEME, hdc, Part, State, out TEXTMETRICW tm);
         return TextMetrics.FromTEXTMETRICW(tm);
+#endif
     }
 
     /// <summary>

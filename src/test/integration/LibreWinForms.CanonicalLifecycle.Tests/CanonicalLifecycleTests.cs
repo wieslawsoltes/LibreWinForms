@@ -404,6 +404,19 @@ public class CanonicalLifecycleTests
                 new Point(2, 3),
                 HitTestOptions.BackgroundSegment);
             nativeRegionHitTest.Should().Throw<PlatformNotSupportedException>();
+            TextMetrics metrics = renderer.GetTextMetrics(graphics);
+            metrics.Height.Should().Be(20);
+            metrics.Ascent.Should().Be(14);
+            metrics.Descent.Should().Be(4);
+            metrics.AverageCharWidth.Should().Be(7);
+            metrics.MaxCharWidth.Should().Be(12);
+            metrics.Weight.Should().Be(600);
+            metrics.Italic.Should().BeTrue();
+            metrics.Underlined.Should().BeTrue();
+            metrics.StruckOut.Should().BeFalse();
+            metrics.PitchAndFamily.Should().Be(
+                TextMetricsPitchAndFamilyValues.FixedPitch | TextMetricsPitchAndFamilyValues.TrueType);
+            metrics.CharSet.Should().Be(TextMetricsCharacterSet.Baltic);
         }
 
         target.GetPixel(2, 3).ToArgb().Should().Be(0);
@@ -1935,6 +1948,34 @@ public class CanonicalLifecycleTests
             region.IsVisible(point, graphics).Should().BeTrue();
             return LibreVisualStyleHitTestCode.Right;
         }
+
+        public LibreVisualStyleTextMetrics GetTextMetrics(
+            Graphics graphics,
+            string className,
+            int part,
+            int state)
+            => new(
+                Height: 20,
+                Ascent: 14,
+                Descent: 4,
+                InternalLeading: 1,
+                ExternalLeading: 1,
+                AverageCharWidth: 7,
+                MaxCharWidth: 12,
+                Weight: 600,
+                Overhang: 0,
+                DigitizedAspectX: 96,
+                DigitizedAspectY: 96,
+                FirstChar: ' ',
+                LastChar: '~',
+                DefaultChar: '?',
+                BreakChar: ' ',
+                Italic: true,
+                Underlined: true,
+                StruckOut: false,
+                PitchAndFamily: LibreVisualStyleTextPitchAndFamily.FixedPitch
+                    | LibreVisualStyleTextPitchAndFamily.TrueType,
+                CharacterSet: LibreVisualStyleTextCharacterSet.Baltic);
 
         public LibreVisualStyleMargins GetMargins(
             string className,
