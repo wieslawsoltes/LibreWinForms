@@ -988,6 +988,16 @@ The first full run exposed two order-dependent ProGPU allocation gates whose sin
 
 The next bounded settings group should cover the remaining portable capability and arrangement metrics, including minimized-window arrangement, menu alignment, legacy input/locale flags, network/session/boot state, show-sounds, and menu-check size. These remain implementation seams behind complete upstream declarations, not reasons to add compatibility properties.
 
+## Current canonical capability metrics checkpoint
+
+Exact source checkpoint `50958946f0494d3aaa782d42af4e0c61fbb2123b` routes twelve remaining `SystemInformation` values through `ILibreSystemSettingsService`: `KanjiWindowHeight`, `DebugOS`, `RightAlignedMenus`, `PenWindows`, `DbcsEnabled`, `Secure`, `Network`, `TerminalServerSession`, `BootMode`, `ShowSounds`, `MenuCheckSize`, and `MidEastEnabled`. `LibreBootMode` keeps the platform contract independent of the WinForms enum and is mapped explicitly at the canonical boundary. Every native Windows metric branch remains unchanged.
+
+Contract and public-path tests verify all twelve host values, including a false network value and `FailSafeWithNetwork`, and prove the reads create neither a platform window nor a logical handle. Porting the last portable size getter also allows the shared `GetSize` helper to be compiled only for native Windows, preserving the ProGPU canonical warning baseline. The complete local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 53/53, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors.
+
+Hosted workflow `33155019264` passes canonical source validation, canonical package production and isolated consumption in job `98795627342`, plus independent package job `98795627028`. Documentation workflow `33155019249` and job `98795627012` also pass. No runtime source under `src/LibreWinForms.Portable` changed.
+
+The remaining direct `SM_ARRANGE` reads should be replaced next with a backend-neutral minimized-window arrangement value and explicit mapping to canonical `ArrangeStartingPosition` and `ArrangeDirection`.
+
 ## Major risks and controls
 
 | Risk | Control |

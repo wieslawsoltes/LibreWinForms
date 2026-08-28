@@ -741,6 +741,14 @@ The first full pass also found two ProGPU performance tests whose one-call warm-
 
 The next grouped repair should route the remaining capability, minimized-window arrangement, session/boot, accessibility-sound, and menu-check metrics through the same typed host rather than allowing portable getters to call USER32.
 
+## Canonical property implementation follow-up: capability metrics
+
+Exact source checkpoint `50958946f0494d3aaa782d42af4e0c61fbb2123b` ports `SystemInformation.KanjiWindowHeight`, `DebugOS`, `RightAlignedMenus`, `PenWindows`, `DbcsEnabled`, `Secure`, `Network`, `TerminalServerSession`, `BootMode`, `ShowSounds`, `MenuCheckSize`, and `MidEastEnabled` through `ILibreSystemSettingsService`. A backend-owned `LibreBootMode` is mapped explicitly to the unchanged canonical `BootMode`; native Windows keeps every upstream `GetSystemMetrics` implementation.
+
+The platform and public lifecycle tests verify all twelve values and remain window- and handle-free. The complete local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 53/53, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors.
+
+Hosted workflow `33155019264` passes canonical source validation, canonical package production and isolated consumption in job `98795627342`, and independent package job `98795627028`; docs workflow `33155019249` and job `98795627012` also pass. No compatibility declaration or runtime file under `src/LibreWinForms.Portable` changed. The remaining direct minimized-window arrangement read should become a backend-neutral typed value with explicit canonical enum mapping.
+
 ## Definition of done
 
 For an API group to be considered ported:
