@@ -898,6 +898,16 @@ The complete exact-commit local gate passes default canonical 0 warnings/0 error
 
 The next bounded SPI family is menu and UI-effect policy: alignment, delay, animation, fade, hot tracking, smooth scrolling, selection/tool-tip effects, and the global UI-effects switch. Moving that group together will make both the public properties and their canonical control consumers portable while retaining the upstream Windows calls.
 
+## Current canonical UI-effects settings checkpoint
+
+Exact source checkpoint `2ae2a9629e2ac120fbbf6b2d38c241aa4fe644b6` completes that grouped policy tranche. `ILibreSystemSettingsService` now publishes full-window drag, drop-shadow and flat-menu policy, popup alignment and delay, menu/combo/minimize animations, title-bar gradients, hot tracking, list-box smooth scrolling, selection and tool-tip effects, and the master UI-effects switch. Portable canonical `SystemInformation` reads all 15 values from the typed host service; every Windows property retains its original `SystemParametersInfo` branch and semantics.
+
+The default service provides deterministic desktop-style baselines without inventing native settings handles. The public lifecycle test injects a deliberately mixed policy through the headless host and verifies `DragFullWindows`, `IsDropShadowEnabled`, `IsFlatMenuEnabled`, `PopupMenuAlignment`, `IsMenuFadeEnabled`, `MenuShowDelay`, `IsComboBoxAnimationEnabled`, `IsTitleBarGradientEnabled`, `IsHotTrackingEnabled`, `IsListBoxSmoothScrollingEnabled`, `IsMenuAnimationEnabled`, `IsSelectionFadeEnabled`, `IsToolTipAnimationEnabled`, `UIEffectsEnabled`, and `IsMinimizeRestoreAnimationEnabled`. It also proves that reading the complete group creates no platform window or managed handle.
+
+The complete exact-commit local gate passes default canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 44/44, ProGPU drawing 392/392, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and frozen Portable comparison 31 warnings/0 errors. Exact hosted build workflow `33140114976` and docs workflow `33140114968` pass at the implementation commit. No runtime source under `src/LibreWinForms.Portable` changed.
+
+The next bounded SPI group is desktop rendering and icon layout: font smoothing enabled/contrast/type, icon grid spacing, and icon-title wrapping. It should follow the same source-first rule, with canonical public properties and consumers backed by typed host data while Windows retains its upstream native queries.
+
 ## Major risks and controls
 
 | Risk | Control |

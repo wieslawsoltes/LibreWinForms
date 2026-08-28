@@ -661,6 +661,14 @@ The canonical public properties retain their names, documentation, assembly iden
 
 The exact local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 43/43, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors. Exact hosted build workflow `33139007022` and docs workflow `33139007037` pass at the implementation commit. The public API gap remains closed by source reuse, and no runtime source under `src/LibreWinForms.Portable` changed.
 
+## Canonical property implementation follow-up: UI effects
+
+Exact source checkpoint `2ae2a9629e2ac120fbbf6b2d38c241aa4fe644b6` ports the related desktop UI-policy family instead of adding 15 compatibility properties. The canonical source already contains `DragFullWindows`, drop-shadow and flat-menu state, popup alignment and delay, menu/combo/minimize animation state, title gradients, hot tracking, list-box smooth scrolling, selection/tool-tip effects, and the global UI-effects switch. Portable reads now flow through `ILibreSystemSettingsService`; native Windows reads remain the original `SystemParametersInfo` calls.
+
+The headless public-path test publishes mixed values so every mapping—including popup alignment and the independent master UI-effects switch—is observable, then proves that the getters allocate no platform window or logical handle. Platform contract tests cover the same typed values and the default service supplies deterministic baselines. This is shared canonical behavior made runnable by one backend seam, not a second WinForms-shaped implementation.
+
+The exact local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 44/44, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors. Exact hosted build workflow `33140114976` and docs workflow `33140114968` pass at the implementation commit. No runtime source under `src/LibreWinForms.Portable` changed.
+
 ## Definition of done
 
 For an API group to be considered ported:
