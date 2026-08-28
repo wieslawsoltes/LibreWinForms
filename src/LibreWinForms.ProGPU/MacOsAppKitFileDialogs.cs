@@ -298,6 +298,33 @@ internal sealed unsafe class AppKitMacOsFileDialogNative : IMacOsFileDialogNativ
         }
     }
 
+    internal static void VerifyRuntimeBindings()
+    {
+        if (!OperatingSystem.IsMacOS())
+        {
+            throw new PlatformNotSupportedException("The AppKit binding check requires macOS.");
+        }
+
+        EnsureFrameworksLoaded();
+        nint openPanel = ObjectiveC.GetClass("NSOpenPanel");
+        nint savePanel = ObjectiveC.GetClass("NSSavePanel");
+        nint uniformType = ObjectiveC.GetClass("UTType");
+        if (openPanel == 0 || savePanel == 0 || uniformType == 0)
+        {
+            throw new InvalidOperationException("Required AppKit or Uniform Type Identifiers classes are unavailable.");
+        }
+
+        if (!ObjectiveC.HasClassMethod(openPanel, Selectors.OpenPanel)
+            || !ObjectiveC.HasClassMethod(savePanel, Selectors.SavePanel)
+            || !ObjectiveC.HasClassMethod(uniformType, Selectors.TypeWithFilenameExtension)
+            || !ObjectiveC.HasInstanceMethod(savePanel, Selectors.SetAllowedContentTypes)
+            || !ObjectiveC.HasInstanceMethod(savePanel, Selectors.BeginSheetModalForWindow)
+            || !ObjectiveC.HasInstanceMethod(savePanel, Selectors.RunModal))
+        {
+            throw new InvalidOperationException("Required modern AppKit file-panel selectors are unavailable.");
+        }
+    }
+
     private static void Configure(nint panel, in MacOsFileDialogNativeRequest request)
     {
         if (request.Title.Length > 0)
@@ -554,6 +581,12 @@ internal static unsafe partial class ObjectiveC
 
     internal static nint GetSelector(string name) => SelRegisterName(name);
 
+    internal static bool HasClassMethod(nint classObject, nint selector)
+        => ClassGetClassMethod(classObject, selector) != 0;
+
+    internal static bool HasInstanceMethod(nint classObject, nint selector)
+        => ClassGetInstanceMethod(classObject, selector) != 0;
+
     internal static nint CreateString(string value)
         => Send(ObjectiveC.GetClass("NSString"), s_stringWithUtf8, value);
 
@@ -618,6 +651,12 @@ internal static unsafe partial class ObjectiveC
 
     [LibraryImport(Library, EntryPoint = "sel_registerName", StringMarshalling = StringMarshalling.Utf8)]
     private static partial nint SelRegisterName(string name);
+
+    [LibraryImport(Library, EntryPoint = "class_getClassMethod")]
+    private static partial nint ClassGetClassMethod(nint classObject, nint selector);
+
+    [LibraryImport(Library, EntryPoint = "class_getInstanceMethod")]
+    private static partial nint ClassGetInstanceMethod(nint classObject, nint selector);
 
     [LibraryImport(Library, EntryPoint = "objc_msgSend")]
     private static partial nint ObjcMsgSend(nint receiver, nint selector);

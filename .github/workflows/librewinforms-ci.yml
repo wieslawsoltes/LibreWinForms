@@ -85,7 +85,7 @@ jobs:
             --project src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj \
             --configuration Release \
             -- \
-            --minimum-expected-tests 5 \
+            --minimum-expected-tests 6 \
             --filter-class '*MacOsAppKitFileDialogTests*'
 
   packages:

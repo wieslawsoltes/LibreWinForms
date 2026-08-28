@@ -9,6 +9,16 @@ namespace LibreWinForms.ProGPU.Tests;
 
 public sealed class MacOsAppKitFileDialogTests
 {
+    public static bool IsMacOs => OperatingSystem.IsMacOS();
+
+    [Fact(
+        Skip = "Requires the real AppKit and Uniform Type Identifiers frameworks.",
+        SkipUnless = nameof(IsMacOs))]
+    public void NativeBindings_ResolveModernAppKitContractsOnMacOs()
+    {
+        AppKitMacOsFileDialogNative.VerifyRuntimeBindings();
+    }
+
     [Fact]
     public void Show_MapsOpenPanelStateAndReturnsOwnedSelection()
     {
