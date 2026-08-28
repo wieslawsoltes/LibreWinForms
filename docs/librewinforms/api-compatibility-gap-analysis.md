@@ -707,6 +707,14 @@ The headless public-path case injects distinctive values, verifies every getter 
 
 This group closes portable Win32 reads used by real ToolStrip, DataGridView, and PropertyGrid behavior without recreating the properties in the compatibility tree. No compatibility declaration or runtime file under `src/LibreWinForms.Portable` changed. The next grouped repair should cover `CaptionHeight`, `MenuHeight`, and `MinWindowTrackSize`, which have canonical ComponentEditorForm, ToolStripDropDownMenu, and Form consumers.
 
+## Canonical property implementation follow-up: non-client metrics
+
+Exact source checkpoint `14e88f41e826fb0d7fe0512407beca56a7777634` ports `SystemInformation.CaptionHeight`, `MenuHeight`, and `MinWindowTrackSize` through `ILibreSystemSettingsService`. These are existing upstream public properties with canonical consumers in ComponentEditorForm, ToolStripDropDownMenu, and Form; only their portable Win32 reads changed. Native Windows retains its original `GetSystemMetrics` paths, and the default portable host supplies stable desktop-style baselines.
+
+The public lifecycle case verifies all three getters and constructs the real canonical `System.Windows.Forms.Design.ComponentEditorForm`. Raising the injected caption height changes only the editor form's autoscaled height, proving upstream layout consumption, while neither instance creates a managed handle or platform window. The complete local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 49/49, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors.
+
+Hosted build workflow `33148414902` passes canonical source validation, canonical package production and isolated consumption in job `98774542995`, and package job `98774542737`; docs workflow `33148414794` and job `98774542536` also pass. No compatibility declaration or runtime file under `src/LibreWinForms.Portable` changed. The next grouped repair should route `CursorSize`, `IconSize`, and `SmallIconSize` through the typed host because canonical Cursor and MDI paths already consume those dimensions.
+
 ## Definition of done
 
 For an API group to be considered ported:

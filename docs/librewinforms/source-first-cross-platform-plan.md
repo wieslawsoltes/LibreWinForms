@@ -948,6 +948,16 @@ Hosted build workflow `33146782554` passes canonical source/ProGPU validation, c
 
 The next bounded non-client metric group should route `CaptionHeight`, `MenuHeight`, and `MinWindowTrackSize` through the same typed service. ComponentEditorForm, ToolStripDropDownMenu, and Form already consume those canonical properties, so portable hosts need real values while Windows keeps its upstream system-metric calls.
 
+## Current canonical non-client metrics checkpoint
+
+Exact source checkpoint `14e88f41e826fb0d7fe0512407beca56a7777634` routes `SystemInformation.CaptionHeight`, `MenuHeight`, and `MinWindowTrackSize` through `ILibreSystemSettingsService` on portable builds. Native Windows keeps the original `GetSystemMetrics` branches. The default host supplies deterministic desktop-style baselines of 23 pixels, 19 pixels, and 112×27 pixels respectively.
+
+The lifecycle case verifies all three public canonical getters, then constructs the real public `System.Windows.Forms.Design.ComponentEditorForm`. Changing the headless host caption height from 29 to 39 leaves the form width unchanged and increases its autoscaled height, proving that upstream design-time layout consumes the typed metric. Both editor forms remain handle-free and create no platform windows. The complete exact-commit local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 49/49, ProGPU drawing 392/392, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and frozen Portable comparison 31 warnings/0 errors.
+
+Hosted build workflow `33148414902` passes canonical source/ProGPU validation, canonical package production and isolated consumption in job `98774542995`, and independent package job `98774542737`; documentation workflow `33148414794` and job `98774542536` also pass. No runtime source under `src/LibreWinForms.Portable` changed.
+
+The next bounded size-metric family should cover `CursorSize`, `IconSize`, and `SmallIconSize`. Canonical `Cursor.Size` and MDI icon rendering already consume two of these values, so typed host dimensions remove another common portable `GetSystemMetrics` dependency while preserving native branches.
+
 ## Major risks and controls
 
 | Risk | Control |
