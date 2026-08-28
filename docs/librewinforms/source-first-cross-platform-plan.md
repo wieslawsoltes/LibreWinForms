@@ -876,6 +876,18 @@ Exact source checkpoint `1e2ad2c319c76795db03ceac7e655694da935e6b` completes the
 
 The canonical lifecycle case reads every public property through the registered headless service after `Application.EnableVisualStyles()`. The complete exact-commit local gate passes default canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 41/41, ProGPU drawing 392/392, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and frozen Portable comparison 31 warnings/0 errors. The remaining work in this tranche is the grouped `SystemEvents` consumer migration; no runtime source under `src/LibreWinForms.Portable` changed.
 
+## Current categorized system-settings notification checkpoint
+
+Exact source checkpoint `24b6fc861ae3670a6839c5895f2ccb8c94935ee5` completes the portable `SystemEvents` consumer migration without changing the native subscriptions. `ILibreSystemSettingsService.SettingsChanged` now carries `LibreSystemSettingsChangedEventArgs` with explicit accessibility, color, general, locale, visual-style, window, and display categories. The contract rejects empty or unknown categories, supports combined flags, and keeps notification policy renderer- and operating-system-neutral.
+
+Canonical portable consumers subscribe only to the categories that affect their upstream behavior. `ProgressBar` and `RichTextBox` invalidate for accessibility/color/visual-style changes; `DateTimePicker`, `MonthCalendar`, and `UpDownBase` refresh locale-dependent state; `ToolStrip`, `ToolStripTextBox`, and `ToolStripManager` react to window/font changes; `DataGridView` retains its upstream auto-size/editing-control response for the relevant color, locale, general, window, and visual-style families; and `PropertyGridView`, `ProfessionalColors`, and `DisplayInformation` invalidate only their applicable caches. `Screen` and `VisualStyleRenderer` occurrences remain confined to native branches or separate native-only behavior, so the source text still contains `SystemEvents` while the portable consumer paths do not depend on it.
+
+The lifecycle audit also exposed two nested USER32 reads. Portable `SystemInformation.MenuAccessKeysUnderlined` now reads the typed settings service, and portable `WindowsFormsUtils.LastCursorPoint` uses the existing canonical `Control.MousePosition` path instead of `GetMessagePos`; their native branches remain unchanged. A public `ToolStrip` lifecycle case proves that color changes do not reset the font, window changes do, and destroying/unhooking the control stops notifications.
+
+The complete exact-commit local gate passes default canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 42/42, ProGPU drawing 392/392, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and frozen Portable comparison 31 warnings/0 errors. No runtime source under `src/LibreWinForms.Portable` changed; it remains a frozen comparison lane pending replacement by the source-built package graph.
+
+The next bounded system-settings tranche should migrate a coherent family of remaining `SystemInformation` SPI-backed values—rather than isolated properties—through the same typed contract, with public canonical consumers driving tests. This preserves upstream declarations and Windows behavior while reducing portable USER32 assumptions at a reusable boundary.
+
 ## Major risks and controls
 
 | Risk | Control |

@@ -643,6 +643,16 @@ Exact source checkpoint `1e2ad2c319c76795db03ceac7e655694da935e6b` closes the la
 
 The complete exact-commit local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 41/41, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors. This is another direct answer to the reported missing-property symptoms: the property surface comes from upstream source, and the real implementation becomes cross-platform by replacing only its native data source. No compatibility property or Portable runtime type was added.
 
+## Canonical behavior follow-up: categorized system-settings notifications
+
+Exact source checkpoint `24b6fc861ae3670a6839c5895f2ccb8c94935ee5` replaces the remaining portable control-level `SystemEvents` subscriptions with one typed, categorized host notification contract. The canonical controls and properties remain those from the upstream `System.Windows.Forms` source; only their non-Windows notification source changes. Accessibility, color, general, locale, visual-style, window, and display flags let each consumer retain the scope of its original response instead of treating every host change as an undifferentiated global refresh.
+
+The migrated public/control paths cover `ProgressBar`, `DateTimePicker`, `MonthCalendar`, `RichTextBox`, `ToolStrip`, `ToolStripTextBox`, `UpDownBase`, `DataGridView`, and `PropertyGridView`, plus the existing `ProfessionalColors`, `ToolStripManager`, and `DisplayInformation` static consumers. Native builds still subscribe to `Microsoft.Win32.SystemEvents`; remaining textual occurrences in `Screen`, `VisualStyleRenderer`, and `#else` branches are not portable dependencies. The audit additionally routes portable `SystemInformation.MenuAccessKeysUnderlined` through the typed service and replaces portable `GetMessagePos` use with canonical `Control.MousePosition`.
+
+The focused lifecycle test exercises a real canonical `ToolStrip`: a color notification leaves its font alone, a window notification refreshes it, and an unhooked control no longer receives either. Contract tests validate category flags and event delivery. The exact local source-first gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 42/42, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors.
+
+This is further evidence that the properties reported missing in issue #9 should not be reconstructed in `src/LibreWinForms.Portable`: upstream source already supplies the correct public surface and shared managed behavior. Portable work belongs at typed platform boundaries, while the compatibility tree remains frozen until the canonical package graph can replace and remove it.
+
 ## Definition of done
 
 For an API group to be considered ported:
