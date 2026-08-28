@@ -928,6 +928,16 @@ That full gate exposed a tiered-compilation order dependency in ProGPU's existin
 
 No runtime source under `src/LibreWinForms.Portable` changed. The next coherent metric family is horizontal/vertical focus-border thickness and horizontal/vertical resize-border thickness. Those four canonical getters should use the same typed service on portable builds while native `GetSystemMetrics` behavior remains unchanged.
 
+## Current canonical focus and resize metrics checkpoint
+
+Exact source checkpoint `f2746afbb4648aaf6c3ea0e9abb2a05b7753d46f` routes `SystemInformation.VerticalFocusThickness`, `HorizontalFocusThickness`, `VerticalResizeBorderThickness`, and `HorizontalResizeBorderThickness` through `ILibreSystemSettingsService` on portable builds. The public declarations and their upstream `System.Windows.Forms` identity remain unchanged, and Windows retains the original `GetSystemMetrics` branches. Unregistered hosts receive deterministic focus thicknesses of one pixel and resize-border thicknesses of eight pixels.
+
+The lifecycle case injects distinctive values for all four public getters and constructs the real canonical `PrintPreviewControl`. Its upstream private horizontal and vertical scrollbar subclasses consume the supplied focus offsets, proving that this is control behavior rather than an isolated property facade. The case also proves that neither the getters nor preview construction create a platform window or managed handle. The complete exact-commit local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 47/47, ProGPU drawing 392/392, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and frozen Portable comparison 31 warnings/0 errors.
+
+Hosted build workflow `33145334373` passes canonical source/ProGPU validation, canonical package production and isolated consumption in job `98764966765`, and the independent package lane in job `98764966605`; documentation workflow `33145334383` and job `98764966754` also pass. ProGPU workflow `33143260638` is green after isolated macOS rerun job `98765013122` passed on attempt 2; its System.Drawing API, quality, allocation, and benchmark job `98758654734` had already passed on the first attempt. No runtime source under `src/LibreWinForms.Portable` changed.
+
+The next coherent settings boundary is pointer/caret timing and capability: double-click size and time, mouse presence, button count and swap state, wheel presence, and caret blink time. These canonical values have real ToolStrip, DataGridView, and PropertyGrid consumers and should be host-supplied without changing their public API or the native Windows branches.
+
 ## Major risks and controls
 
 | Risk | Control |

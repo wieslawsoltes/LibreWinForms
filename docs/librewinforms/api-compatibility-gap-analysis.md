@@ -689,6 +689,16 @@ The first full local execution also caught a pre-existing under-warm ProGPU matr
 
 No compatibility declaration or runtime file under `src/LibreWinForms.Portable` changed. The next grouped repair should route the four focus- and resize-border thickness properties through this same seam, preserving the original `System.Windows.Forms` identities and native metric calls.
 
+## Canonical property implementation follow-up: focus and resize metrics
+
+Exact source checkpoint `f2746afbb4648aaf6c3ea0e9abb2a05b7753d46f` ports `SystemInformation.VerticalFocusThickness`, `HorizontalFocusThickness`, `VerticalResizeBorderThickness`, and `HorizontalResizeBorderThickness` through `ILibreSystemSettingsService`. These public declarations already exist in the upstream canonical source; the repair replaces only their portable Win32 metric reads. Native Windows retains the original `GetSystemMetrics` paths, while unregistered portable hosts receive stable one-pixel focus and eight-pixel resize-border defaults.
+
+The public lifecycle test injects four distinctive values and constructs a real canonical `PrintPreviewControl`. Its upstream scrollbar subclasses consume the horizontal and vertical focus offsets, proving behavior in a canonical control while all four public values remain directly observable. The test also proves no platform window or logical handle is created. The complete local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 47/47, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors.
+
+Hosted build workflow `33145334373` passes canonical source/ProGPU validation, canonical package production and isolated consumption in job `98764966765`, and package job `98764966605`; docs workflow `33145334383` and job `98764966754` also pass. The separate ProGPU workflow `33143260638` is green after its isolated macOS rerun job `98765013122` passed on attempt 2, while System.Drawing API/quality job `98758654734` passed on the first attempt. No compatibility declaration or runtime file under `src/LibreWinForms.Portable` changed.
+
+The next grouped repair should cover pointer/caret timing and capability: double-click size/time, mouse presence, button count and swap state, wheel presence, and caret blink time. ToolStrip, DataGridView, and PropertyGrid already consume the canonical double-click properties, so this is another typed behavior seam rather than a reason to add members to the compatibility implementation.
+
 ## Definition of done
 
 For an API group to be considered ported:
