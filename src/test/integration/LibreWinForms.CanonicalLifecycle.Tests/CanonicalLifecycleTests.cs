@@ -1278,6 +1278,30 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void UserControlMouseDown_PreservesFocusedDescendantWithoutUser32FocusQuery()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { Bounds = new Rectangle(20, 30, 240, 160) };
+        using MouseDownProbeUserControl userControl = new() { Bounds = new Rectangle(10, 12, 120, 80) };
+        using InputProbeControl child = new() { Bounds = new Rectangle(5, 6, 40, 24) };
+        userControl.Controls.Add(child);
+        form.Controls.Add(userControl);
+        form.Show();
+        platform.SendInput(LibreInputEventKind.FocusGained);
+        child.Focus().Should().BeTrue();
+        child.Focused.Should().BeTrue();
+        userControl.ContainsFocus.Should().BeTrue();
+
+        int userControlGotFocus = 0;
+        userControl.GotFocus += (_, _) => userControlGotFocus++;
+        userControl.RaiseMouseDown(new MouseEventArgs(MouseButtons.Left, 1, 3, 4, 0));
+
+        child.Focused.Should().BeTrue();
+        userControl.Focused.Should().BeFalse();
+        userControlGotFocus.Should().Be(0);
+    }
+
+    [Fact]
     public void ControlCreateGraphics_UsesAncestorClipWithoutNativeHwndGraphics()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2029,6 +2053,11 @@ public class CanonicalLifecycleTests
     {
         internal InputProbeControl()
             => SetStyle(ControlStyles.Selectable | ControlStyles.StandardClick | ControlStyles.UserPaint, true);
+    }
+
+    private sealed class MouseDownProbeUserControl : UserControl
+    {
+        internal void RaiseMouseDown(MouseEventArgs e) => OnMouseDown(e);
     }
 
     private sealed class CenteringForm : Form
