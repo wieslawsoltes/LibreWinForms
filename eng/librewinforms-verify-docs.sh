@@ -67,6 +67,8 @@ require_text packaging/LibreWinForms.ProGPU/LibreWinForms.ProGPU.Package.csproj 
 require_text packaging/LibreWinForms.ProGPU/LibreWinForms.ProGPU.Package.csproj '<PackageVersion Include="ProGPU.System.Drawing.Common" Version="$(LibreWinFormsProGpuPackageVersion)" />'
 require_text packaging/LibreWinForms.ProGPU/LibreWinForms.ProGPU.Package.csproj '<PackageReference Include="ProGPU.System.Drawing.Common" />'
 require_text packaging/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj 'System.Private.Windows.GdiPlus.dll'
+require_text Directory.Build.props '<LibreWinFormsPortableNetCoreAppRefVersion Condition="'\''$(LibreWinFormsPortableNetCoreAppRefVersion)'\'' == '\'''\''">10.0.5</LibreWinFormsPortableNetCoreAppRefVersion>'
+require_text Directory.Build.props '<LibreWinFormsPortableSupportPackageVersion Condition="'\''$(LibreWinFormsPortableSupportPackageVersion)'\'' == '\'''\''">10.0.10</LibreWinFormsPortableSupportPackageVersion>'
 require_text eng/librewinforms-pack-source-first.sh 'PROGPU_PACKAGE_GROUP=drawing-runtime'
 require_text docs/librewinforms/api-compatibility-gap-analysis.md 'exact source-package closure'
 require_text docs/librewinforms/source-first-cross-platform-plan.md 'Exact package-mode checkpoint'
