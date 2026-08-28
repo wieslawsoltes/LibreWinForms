@@ -244,6 +244,43 @@ public sealed class LibrePlatformServices : IDisposable
         ILibrePowerStatusService powerStatus,
         ILibreMessageBoxService messageBoxes,
         ILibreColorDialogService colorDialogs)
+        : this(
+            dispatcher,
+            timers,
+            handles,
+            windows,
+            monitors,
+            painting,
+            desktopCapture,
+            nativeFonts,
+            nativeGraphics,
+            visualStyles,
+            systemSettings,
+            textRenderer,
+            powerStatus,
+            messageBoxes,
+            colorDialogs,
+            UnsupportedLibreFontDialogService.Instance)
+    {
+    }
+
+    public LibrePlatformServices(
+        ILibreDispatcher dispatcher,
+        ILibreTimerService timers,
+        ILibreHandleRegistry handles,
+        ILibreWindowService windows,
+        ILibreMonitorService monitors,
+        ILibrePaintService painting,
+        ILibreDesktopCaptureService desktopCapture,
+        ILibreNativeFontInteropService nativeFonts,
+        ILibreNativeGraphicsInteropService nativeGraphics,
+        ILibreVisualStyleService visualStyles,
+        ILibreSystemSettingsService systemSettings,
+        ILibreTextRendererService textRenderer,
+        ILibrePowerStatusService powerStatus,
+        ILibreMessageBoxService messageBoxes,
+        ILibreColorDialogService colorDialogs,
+        ILibreFontDialogService fontDialogs)
     {
         Dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         Timers = timers ?? throw new ArgumentNullException(nameof(timers));
@@ -260,6 +297,7 @@ public sealed class LibrePlatformServices : IDisposable
         PowerStatus = powerStatus ?? throw new ArgumentNullException(nameof(powerStatus));
         MessageBoxes = messageBoxes ?? throw new ArgumentNullException(nameof(messageBoxes));
         ColorDialogs = colorDialogs ?? throw new ArgumentNullException(nameof(colorDialogs));
+        FontDialogs = fontDialogs ?? throw new ArgumentNullException(nameof(fontDialogs));
     }
 
     public ILibreDispatcher Dispatcher { get; }
@@ -292,6 +330,8 @@ public sealed class LibrePlatformServices : IDisposable
 
     public ILibreColorDialogService ColorDialogs { get; }
 
+    public ILibreFontDialogService FontDialogs { get; }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
@@ -300,6 +340,7 @@ public sealed class LibrePlatformServices : IDisposable
         }
 
         HashSet<IDisposable> disposed = new(ReferenceEqualityComparer.Instance);
+        DisposeService(FontDialogs, disposed);
         DisposeService(ColorDialogs, disposed);
         DisposeService(MessageBoxes, disposed);
         DisposeService(PowerStatus, disposed);

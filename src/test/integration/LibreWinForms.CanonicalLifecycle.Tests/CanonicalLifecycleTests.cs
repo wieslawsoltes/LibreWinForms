@@ -1415,6 +1415,136 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void FontDialog_UsesTypedCommonDialogPathWithApplyHelpOwnerAndFinalResult()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { Text = "Owner", Bounds = new Rectangle(40, 50, 320, 220) };
+        form.Show();
+        nint ownerHandle = form.Handle;
+        using Font initialFont = new(FontFamily.GenericSansSerif, 12, FontStyle.Regular, GraphicsUnit.Point);
+        LibreFontDialogSelection applied = new(
+            FontFamily.GenericSerif.Name,
+            14,
+            FontStyle.Bold | FontStyle.Underline,
+            1,
+            false,
+            Color.DarkCyan);
+        LibreFontDialogSelection selected = new(
+            FontFamily.GenericMonospace.Name,
+            18,
+            FontStyle.Italic | FontStyle.Strikeout,
+            1,
+            false,
+            Color.MediumPurple);
+        platform.AppliedFontDialogSelection = applied;
+        platform.NextFontDialogResult = new LibreFontDialogResult(true, selected);
+        platform.InvokeFontDialogApply = true;
+        platform.InvokeFontDialogHelp = true;
+        int applyRequests = 0;
+        int helpRequests = 0;
+        using var dialog = new FontDialog
+        {
+            Font = initialFont,
+            Color = Color.Orange,
+            MinSize = 9,
+            MaxSize = 28,
+            AllowSimulations = false,
+            AllowVectorFonts = true,
+            AllowVerticalFonts = false,
+            AllowScriptChange = false,
+            FixedPitchOnly = true,
+            FontMustExist = true,
+            ScriptsOnly = true,
+            ShowApply = true,
+            ShowColor = true,
+            ShowEffects = true,
+            ShowHelp = true,
+        };
+        dialog.Apply += (_, _) =>
+        {
+            applyRequests++;
+            dialog.Font.Name.Should().Be(applied.FamilyName);
+            dialog.Font.Style.Should().Be(applied.Style);
+            dialog.Color.ToArgb().Should().Be(applied.Color.ToArgb());
+        };
+        dialog.HelpRequest += (_, _) => helpRequests++;
+
+        DialogResult result = dialog.ShowDialog(form);
+
+        result.Should().Be(DialogResult.OK);
+        platform.FontDialogShowCount.Should().Be(1);
+        platform.LastFontDialogRequest.Should().NotBeNull();
+        LibreFontDialogRequest request = platform.LastFontDialogRequest!.Value;
+        request.Selection.FamilyName.Should().Be(initialFont.Name);
+        request.Selection.SizeInPoints.Should().Be(12);
+        request.Selection.Style.Should().Be(FontStyle.Regular);
+        request.Selection.Color.ToArgb().Should().Be(Color.Orange.ToArgb());
+        request.MinimumSize.Should().Be(9);
+        request.MaximumSize.Should().Be(28);
+        request.Options.Should().Be(
+            LibreFontDialogOptions.AllowVectorFonts
+            | LibreFontDialogOptions.FixedPitchOnly
+            | LibreFontDialogOptions.FontMustExist
+            | LibreFontDialogOptions.ScriptsOnly
+            | LibreFontDialogOptions.ShowApply
+            | LibreFontDialogOptions.ShowColor
+            | LibreFontDialogOptions.ShowEffects
+            | LibreFontDialogOptions.ShowHelp);
+        request.Owner.Should().Be(new LibreHandle(ownerHandle, LibreHandleKind.Window));
+        platform.FontDialogOwnerDisabledDuringShow.Should().BeTrue();
+        applyRequests.Should().Be(1);
+        helpRequests.Should().Be(1);
+        dialog.Font.Name.Should().Be(selected.FamilyName);
+        dialog.Font.SizeInPoints.Should().Be(18);
+        dialog.Font.Style.Should().Be(selected.Style);
+        dialog.Color.ToArgb().Should().Be(selected.Color.ToArgb());
+        form.Enabled.Should().BeTrue();
+        form.Handle.Should().Be(ownerHandle);
+        platform.WindowsCreated.Should().Be(1);
+    }
+
+    [Fact]
+    public void FontDialog_CancelKeepsLastAppliedStateAndCreatesNoFallbackOwnerWindow()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Font initialFont = new(FontFamily.GenericSansSerif, 11, FontStyle.Regular, GraphicsUnit.Point);
+        LibreFontDialogSelection applied = new(
+            FontFamily.GenericMonospace.Name,
+            16,
+            FontStyle.Bold | FontStyle.Italic,
+            1,
+            false,
+            Color.Teal);
+        platform.AppliedFontDialogSelection = applied;
+        platform.NextFontDialogResult = new LibreFontDialogResult(
+            false,
+            new(FontFamily.GenericSerif.Name, 20, FontStyle.Regular, 1, false, Color.Red));
+        platform.InvokeFontDialogApply = true;
+        int applyRequests = 0;
+        using var dialog = new FontDialog
+        {
+            Font = initialFont,
+            Color = Color.Black,
+            ShowApply = true,
+        };
+        dialog.Apply += (_, _) => applyRequests++;
+
+        DialogResult result = dialog.ShowDialog();
+
+        result.Should().Be(DialogResult.Cancel);
+        platform.FontDialogShowCount.Should().Be(1);
+        platform.LastFontDialogRequest.Should().NotBeNull();
+        platform.LastFontDialogRequest!.Value.Owner.Should().Be(default(LibreHandle));
+        applyRequests.Should().Be(1);
+        dialog.Font.Name.Should().Be(applied.FamilyName);
+        dialog.Font.SizeInPoints.Should().Be(16);
+        dialog.Font.Style.Should().Be(applied.Style);
+        dialog.Color.ToArgb().Should().Be(applied.Color.ToArgb());
+        platform.WindowsCreated.Should().Be(0);
+        platform.Handles.Count.Should().Be(0);
+    }
+
+    [Fact]
     public void ControlCreateGraphics_UsesAncestorClipWithoutNativeHwndGraphics()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2272,7 +2402,8 @@ public class CanonicalLifecycleTests
         ILibreTextRendererService,
         ILibrePowerStatusService,
         ILibreMessageBoxService,
-        ILibreColorDialogService
+        ILibreColorDialogService,
+        ILibreFontDialogService
     {
         private readonly ConcurrentQueue<Action> _queue = new();
         private bool _autoCloseWindows;
@@ -2299,6 +2430,7 @@ public class CanonicalLifecycleTests
                 UnsupportedLibreDesktopCaptureService.Instance,
                 UnsupportedLibreNativeFontInteropService.Instance,
                 UnsupportedLibreNativeGraphicsInteropService.Instance,
+                this,
                 this,
                 this,
                 this,
@@ -2377,6 +2509,15 @@ public class CanonicalLifecycleTests
             ColorDialogShowCount = 0;
             ColorDialogOwnerDisabledDuringShow = false;
             InvokeColorDialogHelp = false;
+            NextFontDialogResult = new LibreFontDialogResult(
+                true,
+                new(FontFamily.GenericSansSerif.Name, 9, FontStyle.Regular, 1, false, Color.Black));
+            AppliedFontDialogSelection = null;
+            LastFontDialogRequest = null;
+            FontDialogShowCount = 0;
+            FontDialogOwnerDisabledDuringShow = false;
+            InvokeFontDialogApply = false;
+            InvokeFontDialogHelp = false;
         }
 
         internal ManagedLibreHandleRegistry Handles { get; }
@@ -2428,6 +2569,20 @@ public class CanonicalLifecycleTests
         internal bool ColorDialogOwnerDisabledDuringShow { get; private set; }
 
         internal bool InvokeColorDialogHelp { get; set; }
+
+        internal LibreFontDialogResult NextFontDialogResult { get; set; }
+
+        internal LibreFontDialogSelection? AppliedFontDialogSelection { get; set; }
+
+        internal LibreFontDialogRequest? LastFontDialogRequest { get; private set; }
+
+        internal int FontDialogShowCount { get; private set; }
+
+        internal bool FontDialogOwnerDisabledDuringShow { get; private set; }
+
+        internal bool InvokeFontDialogApply { get; set; }
+
+        internal bool InvokeFontDialogHelp { get; set; }
 
         internal int PresentationInvalidationCount { get; private set; }
 
@@ -2514,6 +2669,25 @@ public class CanonicalLifecycleTests
             }
 
             return NextColorDialogResult;
+        }
+
+        public LibreFontDialogResult Show(in LibreFontDialogRequest request)
+        {
+            LastFontDialogRequest = request;
+            FontDialogShowCount++;
+            FontDialogOwnerDisabledDuringShow = request.Owner.IsNull
+                || (Handles.TryGet(request.Owner, out ILibreWindow? owner) && !owner.Enabled);
+            if (InvokeFontDialogApply && AppliedFontDialogSelection is { } selection)
+            {
+                request.ApplyRequested?.Invoke(selection);
+            }
+
+            if (InvokeFontDialogHelp)
+            {
+                request.HelpRequested?.Invoke();
+            }
+
+            return NextFontDialogResult;
         }
 
         public int VerticalScrollBarArrowHeight => 17;

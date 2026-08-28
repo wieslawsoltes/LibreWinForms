@@ -75,7 +75,15 @@ public static class ProGpuPlatform
                 windows,
                 monitors,
                 painting,
-                textRenderer));
+                textRenderer),
+            new ManagedLibreFontDialogService(
+                dispatcher,
+                handles,
+                windows,
+                monitors,
+                painting,
+                textRenderer,
+                new ProGpuFontCatalog()));
     }
 
     public static void Register() => LibrePlatform.Register(CreateServices());

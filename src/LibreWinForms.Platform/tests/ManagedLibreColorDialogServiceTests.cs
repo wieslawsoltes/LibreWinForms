@@ -156,7 +156,7 @@ public class ManagedLibreColorDialogServiceTests
         host.WindowCreateCount.Should().Be(0);
     }
 
-    private sealed class ColorDialogHost :
+    internal sealed class ColorDialogHost :
         ILibreDispatcher,
         ILibreWindowService,
         ILibreMonitorService,

@@ -3,6 +3,9 @@
 
 using System.ComponentModel;
 using System.Drawing;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#endif
 #if !LIBREWINFORMS_PROGPU_DRAWING
 using System.Drawing.Interop;
 using System.Runtime.CompilerServices;
@@ -383,9 +386,49 @@ public class FontDialog : CommonDialog
 
     protected override unsafe bool RunDialog(IntPtr hWndOwner)
     {
-#if LIBREWINFORMS_PROGPU_DRAWING
-        throw new PlatformNotSupportedException(
-            "The Win32 ChooseFont dialog requires the Windows drawing/dialog adapter.");
+#if LIBREWINFORMS_PORTABLE
+        Font current = Font;
+        LibreFontDialogOptions options = LibreFontDialogOptions.None;
+        if (AllowSimulations) options |= LibreFontDialogOptions.AllowSimulations;
+        if (AllowVectorFonts) options |= LibreFontDialogOptions.AllowVectorFonts;
+        if (AllowVerticalFonts) options |= LibreFontDialogOptions.AllowVerticalFonts;
+        if (AllowScriptChange) options |= LibreFontDialogOptions.AllowScriptChange;
+        if (FixedPitchOnly) options |= LibreFontDialogOptions.FixedPitchOnly;
+        if (FontMustExist) options |= LibreFontDialogOptions.FontMustExist;
+        if (ScriptsOnly) options |= LibreFontDialogOptions.ScriptsOnly;
+        if (ShowApply) options |= LibreFontDialogOptions.ShowApply;
+        if (ShowColor) options |= LibreFontDialogOptions.ShowColor;
+        if (ShowEffects) options |= LibreFontDialogOptions.ShowEffects;
+        if (ShowHelp) options |= LibreFontDialogOptions.ShowHelp;
+
+        LibreFontDialogSelection initial = new(
+            current.Name,
+            current.SizeInPoints,
+            current.Style,
+            current.GdiCharSet,
+            current.GdiVerticalFont,
+            Color);
+        LibreFontDialogResult result = LibrePlatform.Current.FontDialogs.Show(new LibreFontDialogRequest(
+            initial,
+            _minSize,
+            _maxSize,
+            options,
+            ShowApply
+                ? selection =>
+                {
+                    UpdatePortableSelection(selection);
+                    OnApply(EventArgs.Empty);
+                }
+                : null,
+            ShowHelp ? () => OnHelpRequest(EventArgs.Empty) : null,
+            hWndOwner == 0 ? default : new LibreHandle(hWndOwner, LibreHandleKind.Window)));
+        if (!result.Accepted)
+        {
+            return false;
+        }
+
+        UpdatePortableSelection(result.Selection);
+        return true;
 #else
         using var dc = GetDcScope.ScreenDC;
         using Graphics graphics = Graphics.FromHdcInternal(dc);
@@ -437,6 +480,27 @@ public class FontDialog : CommonDialog
         return true;
 #endif
     }
+
+#if LIBREWINFORMS_PORTABLE
+    private void UpdatePortableSelection(in LibreFontDialogSelection selection)
+    {
+        if (string.IsNullOrWhiteSpace(selection.FamilyName)
+            || !float.IsFinite(selection.SizeInPoints)
+            || selection.SizeInPoints <= 0)
+        {
+            throw new InvalidOperationException("The font-dialog service returned an invalid font selection.");
+        }
+
+        _font = new Font(
+            selection.FamilyName,
+            selection.SizeInPoints,
+            selection.Style,
+            GraphicsUnit.Point,
+            selection.GdiCharSet,
+            selection.GdiVerticalFont);
+        UpdateColor(selection.Color.IsEmpty ? SystemColors.ControlText : selection.Color);
+    }
+#endif
 
     /// <summary>
     ///  Sets the given option to the given boolean value.

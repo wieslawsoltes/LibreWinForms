@@ -23,8 +23,21 @@ public class ProGpuDispatcherTests
         services.Painting.Should().BeOfType<ProGpuPaintService>();
         services.MessageBoxes.Should().BeOfType<ManagedLibreMessageBoxService>();
         services.ColorDialogs.Should().BeOfType<ManagedLibreColorDialogService>();
+        services.FontDialogs.Should().BeOfType<ManagedLibreFontDialogService>();
 
         services.Dispose();
+    }
+
+    [Fact]
+    public void FontCatalog_ProjectsRealProGpuFamiliesAndMetadata()
+    {
+        IReadOnlyList<LibreFontFamilyInfo> families = new ProGpuFontCatalog().GetFamilies();
+
+        families.Should().NotBeEmpty();
+        families.Select(static family => family.Name).Should().OnlyHaveUniqueItems();
+        families.Should().Contain(static family => family.IsVector);
+        families.Should().OnlyContain(static family =>
+            family.HasRegular || family.HasBold || family.HasItalic || family.HasBoldItalic);
     }
 
     [Fact]

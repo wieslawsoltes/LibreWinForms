@@ -328,6 +328,28 @@ public class LibrePlatformTests
     }
 
     [Fact]
+    public void ConstructorPublishesTypedFontDialogsAndRejectsMissingCapability()
+    {
+        TestServices test = new();
+        using LibrePlatformServices services = new(
+            test, test, test.Handles, test, test, test, test, test, test, test, test, test, test, test, test, test);
+
+        services.FontDialogs.Should().BeSameAs(test);
+        LibreFontDialogSelection selection = new("Test", 12, FontStyle.Regular, 1, false, Color.Black);
+        services.FontDialogs.Show(new LibreFontDialogRequest(
+            selection,
+            0,
+            0,
+            LibreFontDialogOptions.AllowVectorFonts,
+            null,
+            null,
+            default)).Should().Be(new LibreFontDialogResult(true, selection));
+        Action create = () => new LibrePlatformServices(
+            test, test, test.Handles, test, test, test, test, test, test, test, test, test, test, test, test, null!);
+        create.Should().Throw<ArgumentNullException>().WithParameterName("fontDialogs");
+    }
+
+    [Fact]
     public void MonitorSelection_PrefersLargestIntersection()
     {
         LibreMonitor[] monitors = CreateMonitorInventory();
@@ -513,7 +535,8 @@ public class LibrePlatformTests
         ILibreTextRendererService,
         ILibrePowerStatusService,
         ILibreMessageBoxService,
-        ILibreColorDialogService
+        ILibreColorDialogService,
+        ILibreFontDialogService
     {
         public event EventHandler<LibreSystemSettingsChangedEventArgs>? SettingsChanged;
 
@@ -538,6 +561,9 @@ public class LibrePlatformTests
 
         public LibreColorDialogResult Show(in LibreColorDialogRequest request)
             => new(true, request.Color, request.CustomColors.ToArray());
+
+        public LibreFontDialogResult Show(in LibreFontDialogRequest request)
+            => new(true, request.Selection);
 
         public LibrePlatformServices Create() => new(this, this, Handles, this, this, this);
 
