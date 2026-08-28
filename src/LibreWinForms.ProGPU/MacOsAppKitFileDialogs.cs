@@ -243,6 +243,7 @@ internal sealed unsafe class AppKitMacOsFileDialogNative : IMacOsFileDialogNativ
     private const nint NSModalResponseOk = 1;
     private static readonly Lock s_frameworkLock = new();
     private static nint s_appKit;
+    private static nint s_uniformTypeIdentifiers;
     private static nint s_blockIsa;
 
     internal static AppKitMacOsFileDialogNative Instance { get; } = new();
@@ -334,8 +335,8 @@ internal sealed unsafe class AppKitMacOsFileDialogNative : IMacOsFileDialogNativ
         {
             ObjectiveC.SendVoid(
                 panel,
-                Selectors.SetAllowedFileTypes,
-                ObjectiveC.CreateStringArray(request.AllowedExtensions));
+                Selectors.SetAllowedContentTypes,
+                CreateContentTypes(request.AllowedExtensions));
         }
 
         if (request.Kind != LibreFileDialogKind.SaveFile)
@@ -371,6 +372,32 @@ internal sealed unsafe class AppKitMacOsFileDialogNative : IMacOsFileDialogNativ
         {
             handle.Free();
         }
+    }
+
+    private static nint CreateContentTypes(IReadOnlyList<string> extensions)
+    {
+        nint typeClass = ObjectiveC.GetClass("UTType");
+        if (typeClass == 0)
+        {
+            throw new PlatformNotSupportedException(
+                "The AppKit file-dialog adapter requires Uniform Type Identifiers support.");
+        }
+
+        nint[] types = new nint[extensions.Count];
+        for (int index = 0; index < extensions.Count; index++)
+        {
+            types[index] = ObjectiveC.Send(
+                typeClass,
+                Selectors.TypeWithFilenameExtension,
+                ObjectiveC.CreateString(extensions[index]));
+            if (types[index] == 0)
+            {
+                throw new InvalidOperationException(
+                    $"Uniform Type Identifiers rejected the filename extension '{extensions[index]}'.");
+            }
+        }
+
+        return ObjectiveC.CreateObjectArray(types);
     }
 
     [UnmanagedCallersOnly]
@@ -415,6 +442,8 @@ internal sealed unsafe class AppKitMacOsFileDialogNative : IMacOsFileDialogNativ
             if (s_appKit == 0)
             {
                 s_appKit = NativeLibrary.Load("/System/Library/Frameworks/AppKit.framework/AppKit");
+                s_uniformTypeIdentifiers = NativeLibrary.Load(
+                    "/System/Library/Frameworks/UniformTypeIdentifiers.framework/UniformTypeIdentifiers");
                 nint system = NativeLibrary.Load("/usr/lib/libSystem.B.dylib");
                 s_blockIsa = NativeLibrary.GetExport(system, "_NSConcreteStackBlock");
             }
@@ -491,7 +520,8 @@ internal sealed unsafe class AppKitMacOsFileDialogNative : IMacOsFileDialogNativ
         internal static readonly nint SetMessage = ObjectiveC.GetSelector("setMessage:");
         internal static readonly nint SetDirectoryUrl = ObjectiveC.GetSelector("setDirectoryURL:");
         internal static readonly nint SetNameFieldStringValue = ObjectiveC.GetSelector("setNameFieldStringValue:");
-        internal static readonly nint SetAllowedFileTypes = ObjectiveC.GetSelector("setAllowedFileTypes:");
+        internal static readonly nint SetAllowedContentTypes = ObjectiveC.GetSelector("setAllowedContentTypes:");
+        internal static readonly nint TypeWithFilenameExtension = ObjectiveC.GetSelector("typeWithFilenameExtension:");
         internal static readonly nint SetCanChooseFiles = ObjectiveC.GetSelector("setCanChooseFiles:");
         internal static readonly nint SetCanChooseDirectories = ObjectiveC.GetSelector("setCanChooseDirectories:");
         internal static readonly nint SetAllowsMultipleSelection = ObjectiveC.GetSelector("setAllowsMultipleSelection:");
@@ -527,12 +557,12 @@ internal static unsafe partial class ObjectiveC
     internal static nint CreateString(string value)
         => Send(ObjectiveC.GetClass("NSString"), s_stringWithUtf8, value);
 
-    internal static nint CreateStringArray(IReadOnlyList<string> values)
+    internal static nint CreateObjectArray(IReadOnlyList<nint> values)
     {
         nint* objects = stackalloc nint[values.Count];
         for (int index = 0; index < values.Count; index++)
         {
-            objects[index] = CreateString(values[index]);
+            objects[index] = values[index];
         }
 
         return Send(ObjectiveC.GetClass("NSArray"), s_arrayWithObjectsCount, objects, (nuint)values.Count);
