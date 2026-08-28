@@ -1,0 +1,9 @@
+<Project>
+  <Import Project="..\..\eng\LibreWinForms.ProGPU.props" />
+
+  <PropertyGroup>
+    <LangVersion>preview</LangVersion>
+    <Nullable>enable</Nullable>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+</Project>

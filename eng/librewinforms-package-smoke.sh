@@ -63,7 +63,7 @@ cat >"${project_dir}/LibreWinForms.PackageSmoke.csproj" <<EOF
     <ProGpuPackageVersion>${progpu_version}</ProGpuPackageVersion>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="${repo_root}/src/LibreWinForms.Portable/LibreWinForms.SdkSmoke/Program.cs" Link="Program.cs" />
+    <Compile Include="${repo_root}/packaging/LibreWinForms.Sdk.CompatibilitySmoke/Program.cs" Link="Program.cs" />
   </ItemGroup>
 </Project>
 EOF

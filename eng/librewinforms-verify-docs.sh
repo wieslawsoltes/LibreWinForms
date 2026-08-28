@@ -57,8 +57,13 @@ require_text src/LibreWinForms.Portable/LibreWinForms.WindowsFormsIntegration/Li
 require_text src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj "<PackageReadmeFile>README.md</PackageReadmeFile>"
 require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets "global::LibreWinForms.ProGPU.ProGpuPlatform.Register()"
 require_text packaging/LibreWinForms.Sdk.SourceFirstSmoke/LibreWinForms.Sdk.SourceFirstSmoke.csproj '<Project Sdk="LibreWinForms.Sdk/0.1.0-source-first-sdk">'
+require_text packaging/LibreWinForms.Sdk.CompatibilitySmoke/Program.cs "namespace LibreWinForms.SdkSmoke;"
 if [[ -e src/LibreWinForms.Portable/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj ]]; then
   echo "LibreWinForms.Sdk project must remain outside the frozen Portable source tree." >&2
+  exit 1
+fi
+if [[ -e src/LibreWinForms.Portable/LibreWinForms.SdkSmoke/Program.cs ]]; then
+  echo "LibreWinForms SDK compatibility smoke must remain outside the frozen Portable source tree." >&2
   exit 1
 fi
 require_text .github/workflows/librewinforms-ci.yml "LibreWinForms Build"

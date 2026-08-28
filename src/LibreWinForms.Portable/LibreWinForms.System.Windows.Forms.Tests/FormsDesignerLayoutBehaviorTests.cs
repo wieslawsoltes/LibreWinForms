@@ -1151,7 +1151,7 @@ internal static class FormsDesignerLayoutBehaviorTests
     private static void RenderResourcesStayBoundedAndReusable()
     {
         string hostSource = File.ReadAllText(FindSourceFile("WindowsFormsHost.cs"));
-        string smokeSource = File.ReadAllText(FindSourceFile("Program.cs", "LibreWinForms.SdkSmoke"));
+        string smokeSource = File.ReadAllText(FindSourceFile("Program.cs", "LibreWinForms.Sdk.CompatibilitySmoke"));
 
         Assert(hostSource.Contains("PortableColorBrushCacheLimit = 256", StringComparison.Ordinal)
             && hostSource.Contains("PortableFormattedTextCacheLimit = 512", StringComparison.Ordinal),
@@ -1211,7 +1211,7 @@ internal static class FormsDesignerLayoutBehaviorTests
     private static void HostedLayoutAllocationsStayMeasured()
     {
         string hostSource = File.ReadAllText(FindSourceFile("WindowsFormsHost.cs"));
-        string smokeSource = File.ReadAllText(FindSourceFile("Program.cs", "LibreWinForms.SdkSmoke"));
+        string smokeSource = File.ReadAllText(FindSourceFile("Program.cs", "LibreWinForms.Sdk.CompatibilitySmoke"));
 
         Assert(hostSource.Contains("Forms.Control.ControlCollection children = control.Controls;", StringComparison.Ordinal)
             && hostSource.Contains("for (int index = 0; index < children.Count; index++)", StringComparison.Ordinal)
@@ -1232,6 +1232,14 @@ internal static class FormsDesignerLayoutBehaviorTests
         while (directory is not null)
         {
             string candidate = Path.Combine(
+                directory.FullName,
+                "packaging",
+                projectName,
+                fileName);
+            if (File.Exists(candidate))
+                return candidate;
+
+            candidate = Path.Combine(
                 directory.FullName,
                 "src",
                 "LibreWinForms.Portable",
