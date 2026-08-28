@@ -259,6 +259,26 @@ public class LibrePlatformTests
     }
 
     [Fact]
+    public void ConstructorPublishesTypedPowerStatusAndRejectsMissingCapability()
+    {
+        TestServices test = new();
+        using LibrePlatformServices services = new(
+            test, test, test.Handles, test, test, test, test, test, test, test, test, test, test);
+
+        services.PowerStatus.Should().BeSameAs(test);
+        services.PowerStatus.GetCurrentStatus().Should().Be(
+            new LibrePowerStatusSnapshot(
+                LibrePowerLineStatus.Online,
+                LibreBatteryChargeStatus.Low | LibreBatteryChargeStatus.Charging,
+                7200,
+                0.42f,
+                1800));
+        Action create = () => new LibrePlatformServices(
+            test, test, test.Handles, test, test, test, test, test, test, test, test, test, null!);
+        create.Should().Throw<ArgumentNullException>().WithParameterName("powerStatus");
+    }
+
+    [Fact]
     public void MonitorSelection_PrefersLargestIntersection()
     {
         LibreMonitor[] monitors = CreateMonitorInventory();
@@ -441,7 +461,8 @@ public class LibrePlatformTests
         ILibreNativeGraphicsInteropService,
         ILibreVisualStyleService,
         ILibreSystemSettingsService,
-        ILibreTextRendererService
+        ILibreTextRendererService,
+        ILibrePowerStatusService
     {
         public event EventHandler<LibreSystemSettingsChangedEventArgs>? SettingsChanged;
 
@@ -449,6 +470,14 @@ public class LibrePlatformTests
             => SettingsChanged?.Invoke(this, new(kind));
 
         public ManagedLibreHandleRegistry Handles { get; } = new();
+
+        public LibrePowerStatusSnapshot GetCurrentStatus()
+            => new(
+                LibrePowerLineStatus.Online,
+                LibreBatteryChargeStatus.Low | LibreBatteryChargeStatus.Charging,
+                7200,
+                0.42f,
+                1800);
 
         public LibrePlatformServices Create() => new(this, this, Handles, this, this, this);
 

@@ -145,6 +145,37 @@ public sealed class LibrePlatformServices : IDisposable
         ILibreVisualStyleService visualStyles,
         ILibreSystemSettingsService systemSettings,
         ILibreTextRendererService textRenderer)
+        : this(
+            dispatcher,
+            timers,
+            handles,
+            windows,
+            monitors,
+            painting,
+            desktopCapture,
+            nativeFonts,
+            nativeGraphics,
+            visualStyles,
+            systemSettings,
+            textRenderer,
+            DefaultLibrePowerStatusService.Instance)
+    {
+    }
+
+    public LibrePlatformServices(
+        ILibreDispatcher dispatcher,
+        ILibreTimerService timers,
+        ILibreHandleRegistry handles,
+        ILibreWindowService windows,
+        ILibreMonitorService monitors,
+        ILibrePaintService painting,
+        ILibreDesktopCaptureService desktopCapture,
+        ILibreNativeFontInteropService nativeFonts,
+        ILibreNativeGraphicsInteropService nativeGraphics,
+        ILibreVisualStyleService visualStyles,
+        ILibreSystemSettingsService systemSettings,
+        ILibreTextRendererService textRenderer,
+        ILibrePowerStatusService powerStatus)
     {
         Dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         Timers = timers ?? throw new ArgumentNullException(nameof(timers));
@@ -158,6 +189,7 @@ public sealed class LibrePlatformServices : IDisposable
         VisualStyles = visualStyles ?? throw new ArgumentNullException(nameof(visualStyles));
         SystemSettings = systemSettings ?? throw new ArgumentNullException(nameof(systemSettings));
         TextRenderer = textRenderer ?? throw new ArgumentNullException(nameof(textRenderer));
+        PowerStatus = powerStatus ?? throw new ArgumentNullException(nameof(powerStatus));
     }
 
     public ILibreDispatcher Dispatcher { get; }
@@ -184,6 +216,8 @@ public sealed class LibrePlatformServices : IDisposable
 
     public ILibreTextRendererService TextRenderer { get; }
 
+    public ILibrePowerStatusService PowerStatus { get; }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
@@ -192,6 +226,7 @@ public sealed class LibrePlatformServices : IDisposable
         }
 
         HashSet<IDisposable> disposed = new(ReferenceEqualityComparer.Instance);
+        DisposeService(PowerStatus, disposed);
         DisposeService(TextRenderer, disposed);
         DisposeService(SystemSettings, disposed);
         DisposeService(VisualStyles, disposed);

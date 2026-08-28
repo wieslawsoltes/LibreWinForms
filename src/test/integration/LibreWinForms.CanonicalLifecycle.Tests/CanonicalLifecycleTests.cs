@@ -957,6 +957,21 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void PowerStatusUsesTypedPortableService()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        PowerStatus power = SystemInformation.PowerStatus;
+
+        power.PowerLineStatus.Should().Be(PowerLineStatus.Online);
+        power.BatteryChargeStatus.Should().Be(BatteryChargeStatus.Low | BatteryChargeStatus.Charging);
+        power.BatteryFullLifetime.Should().Be(7200);
+        power.BatteryLifePercent.Should().Be(0.42f);
+        power.BatteryLifeRemaining.Should().Be(1800);
+        platform.WindowsCreated.Should().Be(0);
+        platform.Handles.Count.Should().Be(0);
+    }
+
+    [Fact]
     public void GroupBoxAndDisabledLinkLabelPaintWithoutNativeDeviceContexts()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2068,7 +2083,8 @@ public class CanonicalLifecycleTests
         ILibrePaintService,
         ILibreVisualStyleService,
         ILibreSystemSettingsService,
-        ILibreTextRendererService
+        ILibreTextRendererService,
+        ILibrePowerStatusService
     {
         private readonly ConcurrentQueue<Action> _queue = new();
         private bool _autoCloseWindows;
@@ -2093,6 +2109,7 @@ public class CanonicalLifecycleTests
                 UnsupportedLibreDesktopCaptureService.Instance,
                 UnsupportedLibreNativeFontInteropService.Instance,
                 UnsupportedLibreNativeGraphicsInteropService.Instance,
+                this,
                 this,
                 this,
                 this);
@@ -2230,6 +2247,13 @@ public class CanonicalLifecycleTests
         public LibreSize SmallCaptionButtonSize => new(31, 33);
         public LibreSize MenuBarButtonSize => new(35, 37);
         public bool LockedTerminalSession => true;
+        public LibrePowerStatusSnapshot GetCurrentStatus()
+            => new(
+                LibrePowerLineStatus.Online,
+                LibreBatteryChargeStatus.Low | LibreBatteryChargeStatus.Charging,
+                7200,
+                0.42f,
+                1800);
         public int VerticalScrollBarArrowHeight => 17;
         public int HorizontalScrollBarArrowWidth => 17;
         public int VerticalScrollBarThumbHeight => 17;
