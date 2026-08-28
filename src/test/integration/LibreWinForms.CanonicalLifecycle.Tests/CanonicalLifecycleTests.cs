@@ -1545,6 +1545,230 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void OpenFileDialog_UsesTypedDesktopPathWithOwnerHelpFiltersAndOptions()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        string directory = Directory.CreateTempSubdirectory("librewinforms-open-").FullName;
+        string first = Path.Join(directory, "first.txt");
+        string second = Path.Join(directory, "second.txt");
+        File.WriteAllText(first, "first");
+        File.WriteAllText(second, "second");
+        try
+        {
+            using Form owner = new() { Text = "Owner" };
+            owner.Show();
+            nint ownerHandle = owner.Handle;
+            platform.QueueFileDialogResult(new(true, [first, second], 1, true));
+            platform.InvokeFileDialogHelp = true;
+            int fileOk = 0;
+            int help = 0;
+            Guid clientGuid = Guid.NewGuid();
+            Guid knownFolder = Guid.NewGuid();
+            using var dialog = new OpenFileDialog
+            {
+                AddToRecent = false,
+                AutoUpgradeEnabled = false,
+                ClientGuid = clientGuid,
+                DefaultExt = ".txt",
+                DereferenceLinks = false,
+                FileName = "seed.txt",
+                Filter = "Text files|*.txt|All files|*.*",
+                FilterIndex = 2,
+                InitialDirectory = directory,
+                Multiselect = true,
+                OkRequiresInteraction = true,
+                ReadOnlyChecked = true,
+                RestoreDirectory = true,
+                SelectReadOnly = false,
+                ShowHelp = true,
+                ShowHiddenFiles = true,
+                ShowPinnedPlaces = false,
+                ShowPreview = true,
+                ShowReadOnly = true,
+                SupportMultiDottedExtensions = true,
+                Title = "Choose source files",
+            };
+            dialog.CustomPlaces.Add(new FileDialogCustomPlace(directory));
+            dialog.CustomPlaces.Add(new FileDialogCustomPlace(knownFolder));
+            dialog.FileOk += (_, _) => fileOk++;
+            dialog.HelpRequest += (_, _) => help++;
+
+            DialogResult result = dialog.ShowDialog(owner);
+
+            result.Should().Be(DialogResult.OK);
+            platform.FileDialogShowCount.Should().Be(1);
+            platform.LastFileDialogRequest.Should().NotBeNull();
+            LibreFileDialogRequest request = platform.LastFileDialogRequest!.Value;
+            request.Kind.Should().Be(LibreFileDialogKind.OpenFile);
+            request.Title.Should().Be("Choose source files");
+            request.InitialDirectory.Should().Be(directory);
+            request.SelectedPaths.Should().Equal("seed.txt");
+            request.DefaultExtension.Should().Be("txt");
+            request.FilterIndex.Should().Be(2);
+            request.Filters.Should().HaveCount(2);
+            request.Filters[0].Name.Should().Be("Text files");
+            request.Filters[0].Patterns.Should().Equal("*.txt");
+            request.Options.Should().Be(
+                LibreFileDialogOptions.AddExtension
+                | LibreFileDialogOptions.CheckFileExists
+                | LibreFileDialogOptions.CheckPathExists
+                | LibreFileDialogOptions.RestoreDirectory
+                | LibreFileDialogOptions.ShowHelp
+                | LibreFileDialogOptions.ShowHiddenFiles
+                | LibreFileDialogOptions.SupportMultiDottedExtensions
+                | LibreFileDialogOptions.ValidateNames
+                | LibreFileDialogOptions.MultiSelect
+                | LibreFileDialogOptions.ReadOnlyChecked
+                | LibreFileDialogOptions.ShowPreview
+                | LibreFileDialogOptions.ShowReadOnly
+                | LibreFileDialogOptions.OkRequiresInteraction);
+            request.ClientGuid.Should().Be(clientGuid);
+            request.CustomPlaces.Should().Equal(
+                new LibreFileDialogPlace(directory, null),
+                new LibreFileDialogPlace(string.Empty, knownFolder));
+            request.Owner.Should().Be(new LibreHandle(ownerHandle, LibreHandleKind.Window));
+            platform.FileDialogOwnerDisabledDuringShow.Should().BeTrue();
+            fileOk.Should().Be(1);
+            help.Should().Be(1);
+            dialog.FileNames.Should().Equal(first, second);
+            dialog.FilterIndex.Should().Be(1);
+            dialog.ReadOnlyChecked.Should().BeTrue();
+            owner.Enabled.Should().BeTrue();
+            owner.Handle.Should().Be(ownerHandle);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void OpenFileDialog_CancelledFileOkReopensAndCommitsOnlyAcceptedCandidate()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        string first = Path.GetTempFileName();
+        string second = Path.GetTempFileName();
+        try
+        {
+            platform.QueueFileDialogResult(new(true, [first], 0, false));
+            platform.QueueFileDialogResult(new(true, [second], 0, false));
+            using var dialog = new OpenFileDialog { FilterIndex = 0 };
+            int notifications = 0;
+            dialog.FileOk += (_, e) =>
+            {
+                notifications++;
+                e.Cancel = notifications == 1;
+            };
+
+            DialogResult result = dialog.ShowDialog();
+
+            result.Should().Be(DialogResult.OK);
+            platform.FileDialogShowCount.Should().Be(2);
+            notifications.Should().Be(2);
+            platform.LastFileDialogRequest!.Value.SelectedPaths.Should().Equal(first);
+            dialog.FileName.Should().Be(second);
+            platform.WindowsCreated.Should().Be(0);
+        }
+        finally
+        {
+            File.Delete(first);
+            File.Delete(second);
+        }
+    }
+
+    [Fact]
+    public void SaveFileDialog_UsesCanonicalExtensionAndPreservesStateOnCancel()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        string directory = Directory.CreateTempSubdirectory("librewinforms-save-").FullName;
+        string candidate = Path.Join(directory, "document");
+        try
+        {
+            platform.QueueFileDialogResult(new(true, [candidate], 1, false));
+            using var dialog = new SaveFileDialog
+            {
+                DefaultExt = "txt",
+                Filter = "Text files|*.txt",
+                InitialDirectory = directory,
+                Title = "Save document",
+            };
+            string? fileOkName = null;
+            dialog.FileOk += (_, _) => fileOkName = dialog.FileName;
+
+            dialog.ShowDialog().Should().Be(DialogResult.OK);
+
+            dialog.FileName.Should().Be(candidate + ".txt");
+            fileOkName.Should().Be(candidate + ".txt");
+            LibreFileDialogRequest request = platform.LastFileDialogRequest!.Value;
+            request.Kind.Should().Be(LibreFileDialogKind.SaveFile);
+            request.Options.Should().HaveFlag(LibreFileDialogOptions.CheckWriteAccess);
+            request.Options.Should().HaveFlag(LibreFileDialogOptions.ExpandedMode);
+            request.Options.Should().HaveFlag(LibreFileDialogOptions.OverwritePrompt);
+
+            platform.QueueFileDialogResult(new(false, [Path.Join(directory, "ignored.txt")], 1, false));
+            dialog.ShowDialog().Should().Be(DialogResult.Cancel);
+            dialog.FileName.Should().Be(candidate + ".txt");
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void FolderBrowserDialog_UsesTypedDesktopPathAndRetainsSelectionOnCancel()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        string first = Directory.CreateTempSubdirectory("librewinforms-folder-a-").FullName;
+        string second = Directory.CreateTempSubdirectory("librewinforms-folder-b-").FullName;
+        try
+        {
+            using Form owner = new();
+            owner.Show();
+            platform.QueueFileDialogResult(new(true, [first, second], 0, false));
+            using var dialog = new FolderBrowserDialog
+            {
+                AddToRecent = false,
+                AutoUpgradeEnabled = false,
+                Description = "Choose output folders",
+                InitialDirectory = first,
+                Multiselect = true,
+                OkRequiresInteraction = true,
+                SelectedPath = first,
+                ShowHiddenFiles = true,
+                ShowNewFolderButton = false,
+                ShowPinnedPlaces = false,
+                UseDescriptionForTitle = true,
+            };
+
+            dialog.ShowDialog(owner).Should().Be(DialogResult.OK);
+
+            dialog.SelectedPaths.Should().Equal(first, second);
+            LibreFileDialogRequest request = platform.LastFileDialogRequest!.Value;
+            request.Kind.Should().Be(LibreFileDialogKind.SelectFolder);
+            request.Title.Should().Be("Choose output folders");
+            request.Description.Should().Be("Choose output folders");
+            request.InitialDirectory.Should().Be(first);
+            request.Options.Should().Be(
+                LibreFileDialogOptions.MultiSelect
+                | LibreFileDialogOptions.OkRequiresInteraction
+                | LibreFileDialogOptions.ShowHiddenFiles
+                | LibreFileDialogOptions.UseDescriptionForTitle);
+            request.Owner.IsNull.Should().BeFalse();
+            platform.FileDialogOwnerDisabledDuringShow.Should().BeTrue();
+
+            platform.QueueFileDialogResult(new(false, [first], 0, false));
+            dialog.ShowDialog().Should().Be(DialogResult.Cancel);
+            dialog.SelectedPaths.Should().Equal(first, second);
+        }
+        finally
+        {
+            Directory.Delete(first, recursive: true);
+            Directory.Delete(second, recursive: true);
+        }
+    }
+
+    [Fact]
     public void ControlCreateGraphics_UsesAncestorClipWithoutNativeHwndGraphics()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2403,7 +2627,8 @@ public class CanonicalLifecycleTests
         ILibrePowerStatusService,
         ILibreMessageBoxService,
         ILibreColorDialogService,
-        ILibreFontDialogService
+        ILibreFontDialogService,
+        ILibreFileDialogService
     {
         private readonly ConcurrentQueue<Action> _queue = new();
         private bool _autoCloseWindows;
@@ -2430,6 +2655,7 @@ public class CanonicalLifecycleTests
                 UnsupportedLibreDesktopCaptureService.Instance,
                 UnsupportedLibreNativeFontInteropService.Instance,
                 UnsupportedLibreNativeGraphicsInteropService.Instance,
+                this,
                 this,
                 this,
                 this,
@@ -2518,6 +2744,11 @@ public class CanonicalLifecycleTests
             FontDialogOwnerDisabledDuringShow = false;
             InvokeFontDialogApply = false;
             InvokeFontDialogHelp = false;
+            _fileDialogResults.Clear();
+            LastFileDialogRequest = null;
+            FileDialogShowCount = 0;
+            FileDialogOwnerDisabledDuringShow = false;
+            InvokeFileDialogHelp = false;
         }
 
         internal ManagedLibreHandleRegistry Handles { get; }
@@ -2583,6 +2814,19 @@ public class CanonicalLifecycleTests
         internal bool InvokeFontDialogApply { get; set; }
 
         internal bool InvokeFontDialogHelp { get; set; }
+
+        private readonly Queue<LibreFileDialogResult> _fileDialogResults = new();
+
+        internal LibreFileDialogRequest? LastFileDialogRequest { get; private set; }
+
+        internal int FileDialogShowCount { get; private set; }
+
+        internal bool FileDialogOwnerDisabledDuringShow { get; private set; }
+
+        internal bool InvokeFileDialogHelp { get; set; }
+
+        internal void QueueFileDialogResult(LibreFileDialogResult result)
+            => _fileDialogResults.Enqueue(result);
 
         internal int PresentationInvalidationCount { get; private set; }
 
@@ -2688,6 +2932,22 @@ public class CanonicalLifecycleTests
             }
 
             return NextFontDialogResult;
+        }
+
+        public LibreFileDialogResult Show(in LibreFileDialogRequest request)
+        {
+            LastFileDialogRequest = request;
+            FileDialogShowCount++;
+            FileDialogOwnerDisabledDuringShow = request.Owner.IsNull
+                || (Handles.TryGet(request.Owner, out ILibreWindow? owner) && !owner.Enabled);
+            if (InvokeFileDialogHelp)
+            {
+                request.HelpRequested?.Invoke();
+            }
+
+            return _fileDialogResults.Count == 0
+                ? new LibreFileDialogResult(false, request.SelectedPaths.ToArray(), request.FilterIndex, false)
+                : _fileDialogResults.Dequeue();
         }
 
         public int VerticalScrollBarArrowHeight => 17;

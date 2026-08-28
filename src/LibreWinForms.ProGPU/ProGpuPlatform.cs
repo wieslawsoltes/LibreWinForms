@@ -36,6 +36,9 @@ public static class ProGpuPlatform
         SilkWindowService windows = new(dispatcher, handles, monitors);
         ProGpuPaintService painting = new(dispatcher, handles);
         ProGpuTextRendererService textRenderer = new();
+        ILibreFileDialogService fileDialogs = OperatingSystem.IsLinux()
+            ? new ZenityLibreFileDialogService(dispatcher)
+            : UnsupportedLibreFileDialogService.Instance;
         ProGpuDesktopCaptureService captureBridge = new(desktopCapture);
         ProGpuNativeDrawingInteropService nativeBridge;
         try
@@ -83,7 +86,8 @@ public static class ProGpuPlatform
                 monitors,
                 painting,
                 textRenderer,
-                new ProGpuFontCatalog()));
+                new ProGpuFontCatalog()),
+            fileDialogs);
     }
 
     public static void Register() => LibrePlatform.Register(CreateServices());

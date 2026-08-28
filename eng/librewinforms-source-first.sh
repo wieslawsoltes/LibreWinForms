@@ -47,15 +47,15 @@ echo "Building canonical System.Windows.Forms against source-built ProGPU System
 echo "Testing typed platform contracts and the ProGPU/Silk.NET loop foundation."
 run_test_project \
   "${repo_root}/src/LibreWinForms.Platform/tests/LibreWinForms.Platform.Tests.csproj" \
-  43
+  44
 run_test_project \
   "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
-  21
+  25
 
 echo "Testing unchanged canonical Application.Run(Form) against a typed headless backend."
 run_test_project \
   "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
-  64 \
+  68 \
   -p:LibreWinFormsUseProGpuSystemDrawing=true \
   -p:LibreWinFormsReferenceMode=Project
 

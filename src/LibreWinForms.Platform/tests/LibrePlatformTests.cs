@@ -350,6 +350,34 @@ public class LibrePlatformTests
     }
 
     [Fact]
+    public void ConstructorPublishesTypedFileDialogsAndRejectsMissingCapability()
+    {
+        TestServices test = new();
+        using LibrePlatformServices services = new(
+            test, test, test.Handles, test, test, test, test, test, test, test, test, test, test, test, test, test, test);
+
+        services.FileDialogs.Should().BeSameAs(test);
+        LibreFileDialogRequest request = new(
+            LibreFileDialogKind.OpenFile,
+            "Open",
+            string.Empty,
+            "/tmp",
+            [],
+            string.Empty,
+            [],
+            0,
+            LibreFileDialogOptions.MultiSelect,
+            null,
+            [],
+            null,
+            default);
+        services.FileDialogs.Show(request).Should().Be(new LibreFileDialogResult(false, [], 0, false));
+        Action create = () => new LibrePlatformServices(
+            test, test, test.Handles, test, test, test, test, test, test, test, test, test, test, test, test, test, null!);
+        create.Should().Throw<ArgumentNullException>().WithParameterName("fileDialogs");
+    }
+
+    [Fact]
     public void MonitorSelection_PrefersLargestIntersection()
     {
         LibreMonitor[] monitors = CreateMonitorInventory();
@@ -536,7 +564,8 @@ public class LibrePlatformTests
         ILibrePowerStatusService,
         ILibreMessageBoxService,
         ILibreColorDialogService,
-        ILibreFontDialogService
+        ILibreFontDialogService,
+        ILibreFileDialogService
     {
         public event EventHandler<LibreSystemSettingsChangedEventArgs>? SettingsChanged;
 
@@ -564,6 +593,9 @@ public class LibrePlatformTests
 
         public LibreFontDialogResult Show(in LibreFontDialogRequest request)
             => new(true, request.Selection);
+
+        public LibreFileDialogResult Show(in LibreFileDialogRequest request)
+            => new(false, request.SelectedPaths.ToArray(), request.FilterIndex, false);
 
         public LibrePlatformServices Create() => new(this, this, Handles, this, this, this);
 
