@@ -637,6 +637,27 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void ScrollBarDefaultSizesUseTypedPortableSystemMetrics()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var vertical = new VScrollBar();
+        using var horizontal = new HScrollBar();
+
+        SystemInformation.VerticalScrollBarWidth.Should().Be(17);
+        SystemInformation.HorizontalScrollBarHeight.Should().Be(17);
+        SystemInformation.VerticalScrollBarArrowHeight.Should().Be(17);
+        SystemInformation.HorizontalScrollBarArrowWidth.Should().Be(17);
+        SystemInformation.GetVerticalScrollBarWidthForDpi(192).Should().Be(34);
+        SystemInformation.GetHorizontalScrollBarHeightForDpi(192).Should().Be(34);
+        SystemInformation.VerticalScrollBarArrowHeightForDpi(192).Should().Be(34);
+        SystemInformation.GetHorizontalScrollBarArrowWidthForDpi(192).Should().Be(34);
+        vertical.Size.Should().Be(new Size(17, 80));
+        horizontal.Size.Should().Be(new Size(80, 17));
+        vertical.IsHandleCreated.Should().BeFalse();
+        horizontal.IsHandleCreated.Should().BeFalse();
+    }
+
+    [Fact]
     public void CanonicalManagedRenderersUsePortableVisualStylesWithoutComCtl32()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);

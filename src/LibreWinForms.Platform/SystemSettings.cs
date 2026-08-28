@@ -13,6 +13,14 @@ public interface ILibreSystemSettingsService
     LibreSize FixedFrameBorderSize { get; }
 
     LibreSize Border3DSize { get; }
+
+    int VerticalScrollBarWidth { get; }
+
+    int HorizontalScrollBarHeight { get; }
+
+    int VerticalScrollBarArrowHeight { get; }
+
+    int HorizontalScrollBarArrowWidth { get; }
 }
 
 /// <summary>Portable baseline used when a host does not expose OS system settings.</summary>
@@ -31,4 +39,12 @@ public sealed class DefaultLibreSystemSettingsService : ILibreSystemSettingsServ
     public LibreSize FixedFrameBorderSize => new(3, 3);
 
     public LibreSize Border3DSize => new(2, 2);
+
+    public int VerticalScrollBarWidth => 17;
+
+    public int HorizontalScrollBarHeight => 17;
+
+    public int VerticalScrollBarArrowHeight => 17;
+
+    public int HorizontalScrollBarArrowWidth => 17;
 }

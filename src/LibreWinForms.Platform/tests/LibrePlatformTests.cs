@@ -126,6 +126,10 @@ public class LibrePlatformTests
         services.SystemSettings.BorderSize.Should().Be(new LibreSize(7, 8));
         services.SystemSettings.FixedFrameBorderSize.Should().Be(new LibreSize(9, 10));
         services.SystemSettings.Border3DSize.Should().Be(new LibreSize(11, 12));
+        services.SystemSettings.VerticalScrollBarWidth.Should().Be(13);
+        services.SystemSettings.HorizontalScrollBarHeight.Should().Be(14);
+        services.SystemSettings.VerticalScrollBarArrowHeight.Should().Be(15);
+        services.SystemSettings.HorizontalScrollBarArrowWidth.Should().Be(16);
         Action create = () => new LibrePlatformServices(
             test, test, test.Handles, test, test, test, test, test, test, test, null!);
         create.Should().Throw<ArgumentNullException>().WithParameterName("systemSettings");
@@ -379,6 +383,10 @@ public class LibrePlatformTests
         public LibreSize BorderSize => new(7, 8);
         public LibreSize FixedFrameBorderSize => new(9, 10);
         public LibreSize Border3DSize => new(11, 12);
+        public int VerticalScrollBarWidth => 13;
+        public int HorizontalScrollBarHeight => 14;
+        public int VerticalScrollBarArrowHeight => 15;
+        public int HorizontalScrollBarArrowWidth => 16;
         public bool IsElementDefined(string className, int part) => true;
         public void DrawBackground(
             System.Drawing.Graphics graphics,

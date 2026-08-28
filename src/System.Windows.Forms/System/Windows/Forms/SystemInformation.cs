@@ -80,28 +80,44 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the width of the vertical scroll bar in pixels.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int VerticalScrollBarWidth => PortableSystemSettings.VerticalScrollBarWidth;
+#else
     public static int VerticalScrollBarWidth => PInvokeCore.GetSystemMetrics(SM_CXVSCROLL);
+#endif
 
     /// <summary>
     ///  Gets the width of the vertical scroll bar in pixels.
     /// </summary>
     public static int GetVerticalScrollBarWidthForDpi(int dpi)
+#if LIBREWINFORMS_PORTABLE
+        => ScaleHelper.ScaleToDpi(PortableSystemSettings.VerticalScrollBarWidth, dpi);
+#else
         => ScaleHelper.IsThreadPerMonitorV2Aware
             ? PInvoke.GetCurrentSystemMetrics(SM_CXVSCROLL, (uint)dpi)
             : PInvokeCore.GetSystemMetrics(SM_CXVSCROLL);
+#endif
 
     /// <summary>
     ///  Gets the height of the horizontal scroll bar in pixels.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int HorizontalScrollBarHeight => PortableSystemSettings.HorizontalScrollBarHeight;
+#else
     public static int HorizontalScrollBarHeight => PInvokeCore.GetSystemMetrics(SM_CYHSCROLL);
+#endif
 
     /// <summary>
     ///  Gets the height of the horizontal scroll bar in pixels.
     /// </summary>
     public static int GetHorizontalScrollBarHeightForDpi(int dpi)
+#if LIBREWINFORMS_PORTABLE
+        => ScaleHelper.ScaleToDpi(PortableSystemSettings.HorizontalScrollBarHeight, dpi);
+#else
         => ScaleHelper.IsThreadPerMonitorV2Aware
             ? PInvoke.GetCurrentSystemMetrics(SM_CYHSCROLL, (uint)dpi)
             : PInvokeCore.GetSystemMetrics(SM_CYHSCROLL);
+#endif
 
     /// <summary>
     ///  Gets the height of the normal caption area of a window in pixels.
@@ -242,26 +258,42 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the height in pixels, of the arrow bitmap on the vertical scroll bar.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int VerticalScrollBarArrowHeight => PortableSystemSettings.VerticalScrollBarArrowHeight;
+#else
     public static int VerticalScrollBarArrowHeight => PInvokeCore.GetSystemMetrics(SM_CYVSCROLL);
+#endif
 
     /// <summary>
     ///  Gets the height of the vertical scroll bar arrow bitmap in pixels.
     /// </summary>
     public static int VerticalScrollBarArrowHeightForDpi(int dpi)
+#if LIBREWINFORMS_PORTABLE
+        => ScaleHelper.ScaleToDpi(PortableSystemSettings.VerticalScrollBarArrowHeight, dpi);
+#else
         => PInvoke.GetCurrentSystemMetrics(SM_CYVSCROLL, (uint)dpi);
+#endif
 
     /// <summary>
     ///  Gets the width, in pixels, of the arrow bitmap on the horizontal scrollbar.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int HorizontalScrollBarArrowWidth => PortableSystemSettings.HorizontalScrollBarArrowWidth;
+#else
     public static int HorizontalScrollBarArrowWidth => PInvokeCore.GetSystemMetrics(SM_CXHSCROLL);
+#endif
 
     /// <summary>
     ///  Gets the width of the horizontal scroll bar arrow bitmap in pixels.
     /// </summary>
     public static int GetHorizontalScrollBarArrowWidthForDpi(int dpi)
+#if LIBREWINFORMS_PORTABLE
+        => ScaleHelper.ScaleToDpi(PortableSystemSettings.HorizontalScrollBarArrowWidth, dpi);
+#else
         => ScaleHelper.IsThreadPerMonitorV2Aware
             ? PInvoke.GetCurrentSystemMetrics(SM_CXHSCROLL, (uint)dpi)
             : PInvokeCore.GetSystemMetrics(SM_CXHSCROLL);
+#endif
 
     /// <summary>
     ///  Gets a value indicating whether this is a debug version of the operating system.
