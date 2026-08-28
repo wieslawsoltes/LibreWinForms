@@ -3,11 +3,44 @@
 
 namespace LibreWinForms.Platform;
 
+/// <summary>Identifies the host setting families affected by a settings notification.</summary>
+[Flags]
+public enum LibreSystemSettingsChangeKind
+{
+    None = 0,
+    Accessibility = 1 << 0,
+    Color = 1 << 1,
+    General = 1 << 2,
+    Locale = 1 << 3,
+    VisualStyle = 1 << 4,
+    Window = 1 << 5,
+    Display = 1 << 6,
+    All = Accessibility | Color | General | Locale | VisualStyle | Window | Display,
+}
+
+/// <summary>Describes a typed host settings change without exposing Microsoft.Win32 event arguments.</summary>
+public sealed class LibreSystemSettingsChangedEventArgs : EventArgs
+{
+    public LibreSystemSettingsChangedEventArgs(LibreSystemSettingsChangeKind kind)
+    {
+        if (kind == LibreSystemSettingsChangeKind.None || (kind & ~LibreSystemSettingsChangeKind.All) != 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(kind));
+        }
+
+        Kind = kind;
+    }
+
+    public LibreSystemSettingsChangeKind Kind { get; }
+
+    public bool Includes(LibreSystemSettingsChangeKind kind) => (Kind & kind) != 0;
+}
+
 /// <summary>Supplies host system settings used by canonical managed controls.</summary>
 public interface ILibreSystemSettingsService
 {
     /// <summary>Raised when host appearance or metric settings have changed.</summary>
-    event EventHandler? SettingsChanged;
+    event EventHandler<LibreSystemSettingsChangedEventArgs>? SettingsChanged;
 
     bool HighContrast { get; }
 
@@ -30,6 +63,8 @@ public interface ILibreSystemSettingsService
     int HorizontalScrollBarThumbWidth { get; }
 
     LibreSize DragSize { get; }
+
+    bool MenuAccessKeysUnderlined { get; }
 }
 
 /// <summary>Portable baseline used when a host does not expose OS system settings.</summary>
@@ -41,7 +76,7 @@ public sealed class DefaultLibreSystemSettingsService : ILibreSystemSettingsServ
     {
     }
 
-    public event EventHandler? SettingsChanged
+    public event EventHandler<LibreSystemSettingsChangedEventArgs>? SettingsChanged
     {
         add { }
         remove { }
@@ -68,4 +103,6 @@ public sealed class DefaultLibreSystemSettingsService : ILibreSystemSettingsServ
     public int HorizontalScrollBarThumbWidth => 17;
 
     public LibreSize DragSize => new(4, 4);
+
+    public bool MenuAccessKeysUnderlined => false;
 }

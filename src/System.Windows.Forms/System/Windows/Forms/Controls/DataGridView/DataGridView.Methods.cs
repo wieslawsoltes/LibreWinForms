@@ -10,7 +10,11 @@ using System.Text;
 using System.Windows.Forms.Automation;
 using System.Windows.Forms.Layout;
 using System.Windows.Forms.VisualStyles;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#else
 using Microsoft.Win32;
+#endif
 using Windows.Win32.UI.Accessibility;
 
 namespace System.Windows.Forms;
@@ -15242,12 +15246,20 @@ public partial class DataGridView
             OnGlobalAutoSize();
         }
 
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.SystemSettings.SettingsChanged += OnSystemSettingsChanged;
+#else
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
+#endif
     }
 
     protected override void OnHandleDestroyed(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.SystemSettings.SettingsChanged -= OnSystemSettingsChanged;
+#else
         SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+#endif
         base.OnHandleDestroyed(e);
     }
 
@@ -19006,6 +19018,20 @@ public partial class DataGridView
     protected virtual void OnUserDeletingRow(DataGridViewRowCancelEventArgs e) =>
         GetEvent<DataGridViewRowCancelEventHandler>(s_userDeletingRowEvent)?.Invoke(this, e);
 
+#if LIBREWINFORMS_PORTABLE
+    private void OnSystemSettingsChanged(object? sender, LibreSystemSettingsChangedEventArgs e)
+    {
+        if (e.Includes(
+            LibreSystemSettingsChangeKind.Color
+            | LibreSystemSettingsChangeKind.Locale
+            | LibreSystemSettingsChangeKind.General
+            | LibreSystemSettingsChangeKind.Window
+            | LibreSystemSettingsChangeKind.VisualStyle))
+        {
+            OnSystemSettingsChangedCore(e.Includes(LibreSystemSettingsChangeKind.Window));
+        }
+    }
+#else
     private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
     {
         if (e.Category is UserPreferenceCategory.Color
@@ -19014,25 +19040,33 @@ public partial class DataGridView
             or UserPreferenceCategory.Window
             or UserPreferenceCategory.VisualStyle)
         {
-            OnGlobalAutoSize();
-            if (e.Category == UserPreferenceCategory.Window)
-            {
-                _cachedEditingControl = null;
-                if (EditingControl is not null)
-                {
-                    // The editing control may not adapt well to the new system rendering,
-                    // so instead of caching it into the this.cachedEditingControl variable
-                    // next time editing mode is exited, simply discard the control.
-                    _dataGridViewState2[State2_DiscardEditingControl] = true;
-                }
-
-                PerformLayoutPrivate(
-                    useRowShortcut: false,
-                    computeVisibleRows: false,
-                    invalidInAdjustFillingColumns: false,
-                    repositionEditingControl: true);
-            }
+            OnSystemSettingsChangedCore(e.Category == UserPreferenceCategory.Window);
         }
+    }
+#endif
+
+    private void OnSystemSettingsChangedCore(bool windowChanged)
+    {
+        OnGlobalAutoSize();
+        if (!windowChanged)
+        {
+            return;
+        }
+
+        _cachedEditingControl = null;
+        if (EditingControl is not null)
+        {
+            // The editing control may not adapt well to the new system rendering,
+            // so instead of caching it into the this.cachedEditingControl variable
+            // next time editing mode is exited, simply discard the control.
+            _dataGridViewState2[State2_DiscardEditingControl] = true;
+        }
+
+        PerformLayoutPrivate(
+            useRowShortcut: false,
+            computeVisibleRows: false,
+            invalidInAdjustFillingColumns: false,
+            repositionEditingControl: true);
     }
 
     protected override void OnValidating(CancelEventArgs e)

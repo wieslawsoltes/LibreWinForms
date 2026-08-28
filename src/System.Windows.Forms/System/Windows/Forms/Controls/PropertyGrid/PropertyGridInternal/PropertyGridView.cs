@@ -8,7 +8,11 @@ using System.Drawing.Design;
 using System.Globalization;
 using System.Windows.Forms.Design;
 using System.Windows.Forms.VisualStyles;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#else
 using Microsoft.Win32;
+#endif
 using Windows.Win32.System.Variant;
 using Windows.Win32.UI.Accessibility;
 using static System.Windows.Forms.ControlPaint;
@@ -2241,12 +2245,20 @@ internal sealed partial class PropertyGridView :
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.SystemSettings.SettingsChanged += OnSystemSettingsChanged;
+#else
         SystemEvents.UserPreferenceChanged += OnSysColorChange;
+#endif
     }
 
     protected override void OnHandleDestroyed(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.SystemSettings.SettingsChanged -= OnSystemSettingsChanged;
+#else
         SystemEvents.UserPreferenceChanged -= OnSysColorChange;
+#endif
 
         // We can leak this if we aren't disposed.
         if (_toolTip is not null && !RecreatingHandle)
@@ -3683,6 +3695,15 @@ internal sealed partial class PropertyGridView :
         }
     }
 
+#if LIBREWINFORMS_PORTABLE
+    private void OnSystemSettingsChanged(object? sender, LibreSystemSettingsChangedEventArgs e)
+    {
+        if (e.Includes(LibreSystemSettingsChangeKind.Color | LibreSystemSettingsChangeKind.Accessibility))
+        {
+            SetFlag(Flags.NeedUpdateUIBasedOnFont, true);
+        }
+    }
+#else
     private void OnSysColorChange(object sender, UserPreferenceChangedEventArgs e)
     {
         if (e.Category is UserPreferenceCategory.Color or UserPreferenceCategory.Accessibility)
@@ -3690,6 +3711,7 @@ internal sealed partial class PropertyGridView :
             SetFlag(Flags.NeedUpdateUIBasedOnFont, true);
         }
     }
+#endif
 
     /// <summary>
     ///  Displays the appropriate editor for the given <paramref name="row"/>.

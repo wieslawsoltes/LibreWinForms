@@ -718,7 +718,12 @@ public static class SystemInformation
     /// <summary>
     ///  Gets whether menu access keys are underlined.
     /// </summary>
-    public static bool MenuAccessKeysUnderlined => PInvokeCore.SystemParametersInfoBool(SPI_GETKEYBOARDCUES);
+    public static bool MenuAccessKeysUnderlined
+#if LIBREWINFORMS_PORTABLE
+        => PortableSystemSettings.MenuAccessKeysUnderlined;
+#else
+        => PInvokeCore.SystemParametersInfoBool(SPI_GETKEYBOARDCUES);
+#endif
 
     /// <summary>
     ///  Retrieves the Keyboard repeat delay setting, which is a value in the range

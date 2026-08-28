@@ -214,10 +214,13 @@ public static class ProfessionalColors
     public static Color OverflowButtonGradientEnd => ColorTable.OverflowButtonGradientEnd;
 
 #if LIBREWINFORMS_PORTABLE
-    private static void OnSystemSettingsChanged(object? sender, EventArgs e)
+    private static void OnSystemSettingsChanged(object? sender, LibreSystemSettingsChangedEventArgs e)
     {
         SetScheme();
-        t_colorFreshnessKey = new object();
+        if (e.Includes(LibreSystemSettingsChangeKind.Color))
+        {
+            t_colorFreshnessKey = new object();
+        }
     }
 #else
     private static void OnUserPreferenceChanged(object? sender, UserPreferenceChangedEventArgs e)

@@ -5,7 +5,11 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms.VisualStyles;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#else
 using Microsoft.Win32;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -494,7 +498,11 @@ public abstract partial class UpDownBase : ContainerControl
     {
         base.OnHandleCreated(e);
         PositionControls();
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.SystemSettings.SettingsChanged += SystemSettingsChanged;
+#else
         SystemEvents.UserPreferenceChanged += UserPreferenceChanged;
+#endif
     }
 
     /// <summary>
@@ -502,7 +510,11 @@ public abstract partial class UpDownBase : ContainerControl
     /// </summary>
     protected override void OnHandleDestroyed(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.SystemSettings.SettingsChanged -= SystemSettingsChanged;
+#else
         SystemEvents.UserPreferenceChanged -= UserPreferenceChanged;
+#endif
         base.OnHandleDestroyed(e);
     }
 
@@ -935,6 +947,15 @@ public abstract partial class UpDownBase : ContainerControl
     /// </summary>
     protected abstract void UpdateEditText();
 
+#if LIBREWINFORMS_PORTABLE
+    private void SystemSettingsChanged(object? sender, LibreSystemSettingsChangedEventArgs e)
+    {
+        if (e.Includes(LibreSystemSettingsChangeKind.Locale))
+        {
+            UpdateEditText();
+        }
+    }
+#else
     private void UserPreferenceChanged(object sender, UserPreferenceChangedEventArgs pref)
     {
         if (pref.Category == UserPreferenceCategory.Locale)
@@ -942,6 +963,7 @@ public abstract partial class UpDownBase : ContainerControl
             UpdateEditText();
         }
     }
+#endif
 
     /// <summary>
     ///  When overridden in a derived class, validates the text displayed in the up-down control.

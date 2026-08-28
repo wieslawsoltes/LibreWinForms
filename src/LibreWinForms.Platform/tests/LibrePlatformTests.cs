@@ -139,6 +139,16 @@ public class LibrePlatformTests
         services.SystemSettings.VerticalScrollBarThumbHeight.Should().Be(17);
         services.SystemSettings.HorizontalScrollBarThumbWidth.Should().Be(18);
         services.SystemSettings.DragSize.Should().Be(new LibreSize(19, 20));
+        services.SystemSettings.MenuAccessKeysUnderlined.Should().BeTrue();
+        LibreSystemSettingsChangedEventArgs? change = null;
+        services.SystemSettings.SettingsChanged += (_, e) => change = e;
+        test.RaiseSettingsChanged(LibreSystemSettingsChangeKind.Color | LibreSystemSettingsChangeKind.VisualStyle);
+        change.Should().NotBeNull();
+        change!.Includes(LibreSystemSettingsChangeKind.Color).Should().BeTrue();
+        change.Includes(LibreSystemSettingsChangeKind.VisualStyle).Should().BeTrue();
+        change.Includes(LibreSystemSettingsChangeKind.Locale).Should().BeFalse();
+        Action invalidChange = () => new LibreSystemSettingsChangedEventArgs(LibreSystemSettingsChangeKind.None);
+        invalidChange.Should().Throw<ArgumentOutOfRangeException>();
         Action create = () => new LibrePlatformServices(
             test, test, test.Handles, test, test, test, test, test, test, test, null!);
         create.Should().Throw<ArgumentNullException>().WithParameterName("systemSettings");
@@ -353,11 +363,10 @@ public class LibrePlatformTests
         ILibreSystemSettingsService,
         ILibreTextRendererService
     {
-        public event EventHandler? SettingsChanged
-        {
-            add { }
-            remove { }
-        }
+        public event EventHandler<LibreSystemSettingsChangedEventArgs>? SettingsChanged;
+
+        public void RaiseSettingsChanged(LibreSystemSettingsChangeKind kind)
+            => SettingsChanged?.Invoke(this, new(kind));
 
         public ManagedLibreHandleRegistry Handles { get; } = new();
 
@@ -417,6 +426,7 @@ public class LibrePlatformTests
         public int VerticalScrollBarThumbHeight => 17;
         public int HorizontalScrollBarThumbWidth => 18;
         public LibreSize DragSize => new(19, 20);
+        public bool MenuAccessKeysUnderlined => true;
         public bool IsElementDefined(string className, int part) => true;
         public void DrawBackground(
             System.Drawing.Graphics graphics,

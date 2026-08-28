@@ -8,7 +8,11 @@ using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Windows.Forms.Layout;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#else
 using Microsoft.Win32;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -2480,7 +2484,11 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
                 try
                 {
                     ToolStripManager.RendererChanged += OnDefaultRendererChanged;
+#if LIBREWINFORMS_PORTABLE
+                    LibrePlatform.Current.SystemSettings.SettingsChanged += OnSystemSettingsChanged;
+#else
                     SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
+#endif
                 }
                 finally
                 {
@@ -2493,7 +2501,11 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
             try
             {
                 ToolStripManager.RendererChanged -= OnDefaultRendererChanged;
+#if LIBREWINFORMS_PORTABLE
+                LibrePlatform.Current.SystemSettings.SettingsChanged -= OnSystemSettingsChanged;
+#else
                 SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+#endif
             }
             finally
             {
@@ -3693,6 +3705,20 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
         base.OnScroll(se);
     }
 
+#if LIBREWINFORMS_PORTABLE
+    private void OnSystemSettingsChanged(object? sender, LibreSystemSettingsChangedEventArgs e)
+    {
+        if (e.Includes(LibreSystemSettingsChangeKind.Window))
+        {
+            OnDefaultFontChanged();
+        }
+
+        if (e.Includes(LibreSystemSettingsChangeKind.General))
+        {
+            InvalidateTextItems();
+        }
+    }
+#else
     private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
     {
         switch (e.Category)
@@ -3705,6 +3731,7 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
                 break;
         }
     }
+#endif
 
     protected override void OnTabStopChanged(EventArgs e)
     {

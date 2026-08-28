@@ -121,13 +121,16 @@ internal static class DisplayInformation
     }
 
 #if LIBREWINFORMS_PORTABLE
-    private static void SystemSettingsChanged(object? sender, EventArgs e)
+    private static void SystemSettingsChanged(object? sender, LibreSystemSettingsChangedEventArgs e)
     {
         s_highContrastSettingValid = false;
         s_lowResSettingValid = false;
         s_dropShadowSettingValid = false;
-        s_menuAccessKeysUnderlinedValid = false;
         s_bitsPerPixel = 0;
+        if (e.Includes(LibreSystemSettingsChangeKind.General | LibreSystemSettingsChangeKind.Display))
+        {
+            s_menuAccessKeysUnderlinedValid = false;
+        }
     }
 #else
     /// <summary>

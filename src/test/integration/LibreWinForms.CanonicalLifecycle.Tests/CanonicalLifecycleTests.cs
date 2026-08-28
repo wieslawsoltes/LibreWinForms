@@ -720,6 +720,26 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void ToolStripUsesCategorizedPortableSystemSettingsNotifications()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using var toolStrip = new SettingsAwareToolStrip();
+        toolStrip.Visible = false;
+        toolStrip.Visible = true;
+        int initialFontChanges = toolStrip.FontChangeCount;
+
+        platform.RaiseSettingsChanged(LibreSystemSettingsChangeKind.Color);
+        toolStrip.FontChangeCount.Should().Be(initialFontChanges);
+
+        platform.RaiseSettingsChanged(LibreSystemSettingsChangeKind.Window);
+        toolStrip.FontChangeCount.Should().Be(initialFontChanges + 1);
+
+        toolStrip.Visible = false;
+        platform.RaiseSettingsChanged(LibreSystemSettingsChangeKind.Window);
+        toolStrip.FontChangeCount.Should().Be(initialFontChanges + 1);
+    }
+
+    [Fact]
     public void GroupBoxAndDisabledLinkLabelPaintWithoutNativeDeviceContexts()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -1764,6 +1784,17 @@ public class CanonicalLifecycleTests
         }
     }
 
+    private sealed class SettingsAwareToolStrip : ToolStrip
+    {
+        internal int FontChangeCount { get; private set; }
+
+        protected override void OnFontChanged(EventArgs e)
+        {
+            base.OnFontChanged(e);
+            FontChangeCount++;
+        }
+    }
+
     private sealed class PaintingLinkLabel : LinkLabel
     {
         internal void PaintTo(Graphics graphics)
@@ -1908,11 +1939,10 @@ public class CanonicalLifecycleTests
 
         internal ManagedLibreHandleRegistry Handles { get; }
 
-        public event EventHandler? SettingsChanged
-        {
-            add { }
-            remove { }
-        }
+        public event EventHandler<LibreSystemSettingsChangedEventArgs>? SettingsChanged;
+
+        internal void RaiseSettingsChanged(LibreSystemSettingsChangeKind kind)
+            => SettingsChanged?.Invoke(this, new(kind));
 
         internal LibrePlatformServices Services { get; }
 
@@ -1948,6 +1978,7 @@ public class CanonicalLifecycleTests
         public int VerticalScrollBarThumbHeight => 17;
         public int HorizontalScrollBarThumbWidth => 17;
         public LibreSize DragSize => new(4, 4);
+        public bool MenuAccessKeysUnderlined => false;
 
         public string ThemeFilename => "managed.theme";
         public string ColorScheme => "ManagedColor";

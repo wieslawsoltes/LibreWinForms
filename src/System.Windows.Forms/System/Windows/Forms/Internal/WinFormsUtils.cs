@@ -25,8 +25,12 @@ internal sealed partial class WindowsFormsUtils
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return Control.MousePosition;
+#else
             int lastXY = (int)PInvoke.GetMessagePos();
             return new Point(PARAM.SignedLOWORD(lastXY), PARAM.SignedHIWORD(lastXY));
+#endif
         }
     }
 

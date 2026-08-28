@@ -275,7 +275,13 @@ public static partial class ToolStripManager
         => t_activeToolStrips is not null && t_activeToolStrips.Count > 0;
 
 #if LIBREWINFORMS_PORTABLE
-    private static void OnSystemSettingsChanged(object? sender, EventArgs e) => ClearDefaultFontCache();
+    private static void OnSystemSettingsChanged(object? sender, LibreSystemSettingsChangedEventArgs e)
+    {
+        if (e.Includes(LibreSystemSettingsChangeKind.Window))
+        {
+            ClearDefaultFontCache();
+        }
+    }
 #else
     private static void OnUserPreferenceChanging(object sender, UserPreferenceChangingEventArgs e)
     {
