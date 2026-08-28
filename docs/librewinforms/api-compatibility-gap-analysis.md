@@ -731,6 +731,16 @@ Contract and public lifecycle tests inject distinct values for all five metrics,
 
 Hosted build workflow `33150870155` passes canonical source validation, canonical package production and isolated consumption in job `98782286494`, and package job `98782286686`; docs workflow `33150870098` and job `98782286396` also pass. No compatibility declaration or runtime file under `src/LibreWinForms.Portable` changed. The next grouped repair should cover the remaining menu, tool-window, and minimized-window sizes through the same typed host seam.
 
+## Canonical property implementation follow-up: window chrome and minimized metrics
+
+Exact source checkpoint `39b6cee37b93c8e5033e2e3fe76854df7b166a7f` ports `SystemInformation.ToolWindowCaptionHeight`, `ToolWindowCaptionButtonSize`, `MenuButtonSize`, `MinimizedWindowSpacingSize`, and `MinimizedWindowSize` through `ILibreSystemSettingsService`. The five upstream public declarations and native metric branches remain intact. Contract and lifecycle tests verify distinctive typed values and prove the reads remain window- and handle-free.
+
+The complete local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 52/52, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors. This repairs portable behavior without adding another compatibility declaration or changing runtime source under `src/LibreWinForms.Portable`.
+
+The first full pass also found two ProGPU performance tests whose one-call warm-ups could leave tiered-JIT allocation inside their measured regions. ProGPU checkpoints `d1cff9a194f7eb5d2472f05b8f099635b82757c0` and `f779258271df016ab70c462041ba38c81aef1e51` increase only the warm-up count; the 10,000-call measured loops and exact zero-allocation requirements are unchanged. Both focused gates pass five isolated local processes. ProGPU workflow `33153209564` passes System.Drawing quality job `98789900926` and Ubuntu full-test job `98789900944`. LibreWinForms pin checkpoint `097ab252e76a5dd448c1de8bb6409398f35693cb` passes exact canonical job `98789876496` in workflow `33153225556`; docs workflow `33153225574` and job `98789875703` pass, while macOS package job `98789876464` remains queued for a runner at the time of this update.
+
+The next grouped repair should route the remaining capability, minimized-window arrangement, session/boot, accessibility-sound, and menu-check metrics through the same typed host rather than allowing portable getters to call USER32.
+
 ## Definition of done
 
 For an API group to be considered ported:

@@ -978,6 +978,16 @@ Hosted build workflow `33150870155` passes canonical source/ProGPU validation, c
 
 The next bounded geometry group should cover the remaining menu, tool-window, and minimized-window dimensions: `ToolWindowCaptionHeight`, `ToolWindowCaptionButtonSize`, `MenuButtonSize`, `MinimizedWindowSpacingSize`, and `MinimizedWindowSize`. This keeps the work on one typed settings seam while preserving all native Windows metric calls.
 
+## Current canonical window chrome and minimized metrics checkpoint
+
+Exact source checkpoint `39b6cee37b93c8e5033e2e3fe76854df7b166a7f` routes `SystemInformation.ToolWindowCaptionHeight`, `ToolWindowCaptionButtonSize`, `MenuButtonSize`, `MinimizedWindowSpacingSize`, and `MinimizedWindowSize` through `ILibreSystemSettingsService` on portable builds. Native Windows retains the original `GetSystemMetrics` branches. Contract and public-path tests inject five distinct values and prove that the unchanged canonical getters create neither a platform window nor a logical handle.
+
+The complete exact-commit local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 52/52, ProGPU drawing 392/392, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and frozen Portable comparison 31 warnings/0 errors. No runtime source under `src/LibreWinForms.Portable` changed.
+
+The first full run exposed two order-dependent ProGPU allocation gates whose single warm-up call did not consistently complete tiered JIT work before measurement. ProGPU checkpoints `d1cff9a194f7eb5d2472f05b8f099635b82757c0` and `f779258271df016ab70c462041ba38c81aef1e51` replace only those warm-ups with 1,024 iterations; both 10,000-call measured regions and their zero-byte assertions are unchanged. The focused tests pass in five separate local processes, the drawing suite passes 392/392, and ProGPU workflow `33153209564` passes System.Drawing job `98789900926` plus the 3,751-test Ubuntu job `98789900944`. LibreWinForms pin checkpoint `097ab252e76a5dd448c1de8bb6409398f35693cb` passes canonical source validation and canonical package consumption in job `98789876496` of workflow `33153225556`; documentation workflow `33153225574` and job `98789875703` also pass. Independent macOS package job `98789876464` is queued for a runner at the time of this update.
+
+The next bounded settings group should cover the remaining portable capability and arrangement metrics, including minimized-window arrangement, menu alignment, legacy input/locale flags, network/session/boot state, show-sounds, and menu-check size. These remain implementation seams behind complete upstream declarations, not reasons to add compatibility properties.
+
 ## Major risks and controls
 
 | Risk | Control |
