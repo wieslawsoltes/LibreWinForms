@@ -21,9 +21,9 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseCanonicalRuntime)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Project' And '$(LibreWinFormsSourceRoot)' != ''">
-    <ProjectReference Include="$(LibreWinFormsSourceRoot)src\System.Windows.Forms\System.Windows.Forms.csproj"
+    <ProjectReference Include="$(LibreWinFormsSourceRoot)src/System.Windows.Forms/System.Windows.Forms.csproj"
                       AdditionalProperties="LibreWinFormsReferenceMode=Project;LibreWinFormsUseProGpuSystemDrawing=true;MicrosoftNETCoreAppRefPackageVersion=" />
-    <ProjectReference Include="$(LibreWinFormsSourceRoot)src\LibreWinForms.ProGPU\LibreWinForms.ProGPU.csproj"
+    <ProjectReference Include="$(LibreWinFormsSourceRoot)src/LibreWinForms.ProGPU/LibreWinForms.ProGPU.csproj"
                       AdditionalProperties="LibreWinFormsReferenceMode=Project;LibreWinFormsUseProGpuSystemDrawing=true;MicrosoftNETCoreAppRefPackageVersion=" />
   </ItemGroup>
 
