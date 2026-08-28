@@ -1,6 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>$(NetCurrent)</TargetFramework>
     <PackageId>LibreWinForms.Sdk</PackageId>
     <Title>LibreWinForms SDK</Title>
     <Description>SDK package for cross-platform WinForms applications running on canonical WinForms source, Silk.NET, and ProGPU.</Description>

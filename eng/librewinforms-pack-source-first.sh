@@ -12,7 +12,7 @@ export DOTNET_ROLL_FORWARD_TO_PRERELEASE="${DOTNET_ROLL_FORWARD_TO_PRERELEASE:-1
 
 configuration="${LIBREWINFORMS_CONFIGURATION:-Release}"
 package_version="${LIBREWINFORMS_SOURCE_FIRST_PACKAGE_VERSION:-0.1.0-source-first}"
-sdk_package_version="${LIBREWINFORMS_SOURCE_FIRST_SDK_PACKAGE_VERSION:-0.1.0-source-first-sdk}"
+sdk_package_version="0.1.0-source-first-sdk"
 progpu_package_version="${LIBREWINFORMS_PROGPU_PACKAGE_VERSION:-0.1.0-preview.62}"
 package_output="${LIBREWINFORMS_SOURCE_FIRST_PACKAGE_OUTPUT:-${repo_root}/artifacts/packages/source-first}"
 package_file="${package_output}/LibreWinForms.System.Windows.Forms.${package_version}.nupkg"
@@ -118,15 +118,21 @@ NUGET_PACKAGES="${smoke_root}/packages" "${dotnet}" build \
   --no-restore \
   -p:SourceFirstPackageVersion="${package_version}"
 
-sdk_smoke_project="${repo_root}/packaging/LibreWinForms.Sdk.SourceFirstSmoke/LibreWinForms.Sdk.SourceFirstSmoke.csproj"
-sdk_smoke_config="${smoke_root}/sdk-NuGet.config"
+sdk_smoke_source="${repo_root}/packaging/LibreWinForms.Sdk.SourceFirstSmoke"
+sdk_smoke_root="${smoke_root}/sdk-project"
+sdk_smoke_project="${sdk_smoke_root}/LibreWinForms.Sdk.SourceFirstSmoke.csproj"
+sdk_smoke_config="${sdk_smoke_root}/NuGet.config"
 sdk_smoke_properties=(
+  -p:LibreWinFormsSourceRoot="${repo_root}/"
   -p:LibreWinFormsUseCanonicalRuntime=true
   -p:LibreWinFormsUseProGpuSystemDrawing=true
   -p:LibreWinFormsReferenceMode=Project
   -p:MicrosoftNETCoreAppRefPackageVersion=
 )
 
+mkdir -p "${sdk_smoke_root}"
+cp "${sdk_smoke_source}/LibreWinForms.Sdk.SourceFirstSmoke.csproj" "${sdk_smoke_root}/"
+cp "${sdk_smoke_source}/Program.cs" "${sdk_smoke_root}/"
 cp "${repo_root}/NuGet.config" "${sdk_smoke_config}"
 "${dotnet}" nuget add source "${package_output}" \
   --name LibreWinFormsSourceFirstSdk \
@@ -145,10 +151,21 @@ NUGET_PACKAGES="${smoke_root}/sdk-packages" "${dotnet}" build \
   --no-restore \
   "${sdk_smoke_properties[@]}"
 
-sdk_smoke_output="${repo_root}/artifacts/bin/LibreWinForms.Sdk.SourceFirstSmoke/${configuration}/net11.0"
+sdk_smoke_output="${sdk_smoke_root}/bin/${configuration}/net11.0"
 sdk_smoke_deps="${sdk_smoke_output}/LibreWinForms.Sdk.SourceFirstSmoke.deps.json"
 sdk_smoke_drawing="${sdk_smoke_output}/System.Drawing.Common.dll"
+sdk_smoke_bootstrap="${sdk_smoke_root}/obj/${configuration}/net11.0/LibreWinForms.ApplicationBootstrap.g.cs"
 source_drawing="${repo_root}/external/ProGPU/src/System.Drawing.Common/bin/${configuration}/net10.0/System.Drawing.Common.dll"
+
+if [[ ! -f "${sdk_smoke_bootstrap}" ]] || ! grep -Fq 'LibreWinForms.ProGPU.ProGpuPlatform.Register()' "${sdk_smoke_bootstrap}"; then
+  echo "Source-first SDK smoke did not generate the canonical ProGPU bootstrap." >&2
+  exit 1
+fi
+
+if grep -Fq 'WindowsFormsHost.EnableWindowsFormsInterop()' "${sdk_smoke_bootstrap}"; then
+  echo "Source-first SDK smoke generated the compatibility WindowsFormsIntegration bootstrap." >&2
+  exit 1
+fi
 
 if [[ ! -f "${sdk_smoke_deps}" ]] || ! grep -Fq '"System.Drawing.Common": "10.0.0.0"' "${sdk_smoke_deps}"; then
   echo "Source-first SDK smoke dependency manifest does not select ProGPU System.Drawing.Common." >&2
