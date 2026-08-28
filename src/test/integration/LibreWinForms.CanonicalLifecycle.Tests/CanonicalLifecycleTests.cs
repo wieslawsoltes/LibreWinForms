@@ -782,6 +782,22 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void SystemInformationUsesTypedPortableRenderingAndIconSettings()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+
+        SystemInformation.IsFontSmoothingEnabled.Should().BeFalse();
+        SystemInformation.FontSmoothingContrast.Should().Be(1700);
+        SystemInformation.FontSmoothingType.Should().Be(1);
+        SystemInformation.IconHorizontalSpacing.Should().Be(81);
+        SystemInformation.IconVerticalSpacing.Should().Be(83);
+        SystemInformation.IconSpacingSize.Should().Be(new Size(81, 83));
+        SystemInformation.IsIconTitleWrappingEnabled.Should().BeFalse();
+        platform.WindowsCreated.Should().Be(0);
+        platform.Handles.Count.Should().Be(0);
+    }
+
+    [Fact]
     public void GroupBoxAndDisabledLinkLabelPaintWithoutNativeDeviceContexts()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2044,6 +2060,12 @@ public class CanonicalLifecycleTests
         public bool ToolTipAnimationEnabled => true;
         public bool UIEffectsEnabled => false;
         public bool MinimizeRestoreAnimationEnabled => true;
+        public bool FontSmoothingEnabled => false;
+        public int FontSmoothingContrast => 1700;
+        public int FontSmoothingType => 1;
+        public int IconHorizontalSpacing => 81;
+        public int IconVerticalSpacing => 83;
+        public bool IconTitleWrappingEnabled => false;
 
         public string ThemeFilename => "managed.theme";
         public string ColorScheme => "ManagedColor";

@@ -357,7 +357,12 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the dimensions in pixels, of the grid used to arrange icons in a large icon view.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static Size IconSpacingSize
+        => new(PortableSystemSettings.IconHorizontalSpacing, PortableSystemSettings.IconVerticalSpacing);
+#else
     public static Size IconSpacingSize => GetSize(SM_CXICONSPACING, SM_CYICONSPACING);
+#endif
 
     /// <summary>
     ///  Gets a value indicating whether drop down menus should be right-aligned with the corresponding menu
@@ -704,32 +709,56 @@ public static class SystemInformation
     /// <summary>
     ///  Gets whether font smoothing is enabled.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool IsFontSmoothingEnabled => PortableSystemSettings.FontSmoothingEnabled;
+#else
     public static bool IsFontSmoothingEnabled => PInvokeCore.SystemParametersInfoBool(SPI_GETFONTSMOOTHING);
+#endif
 
     /// <summary>
     ///  Returns the ClearType smoothing contrast value.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int FontSmoothingContrast => PortableSystemSettings.FontSmoothingContrast;
+#else
     public static int FontSmoothingContrast => PInvokeCore.SystemParametersInfoInt(SPI_GETFONTSMOOTHINGCONTRAST);
+#endif
 
     /// <summary>
     ///  Returns a type of Font smoothing.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int FontSmoothingType => PortableSystemSettings.FontSmoothingType;
+#else
     public static int FontSmoothingType => PInvokeCore.SystemParametersInfoInt(SPI_GETFONTSMOOTHINGTYPE);
+#endif
 
     /// <summary>
     ///  Retrieves the width in pixels of an icon cell.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int IconHorizontalSpacing => PortableSystemSettings.IconHorizontalSpacing;
+#else
     public static int IconHorizontalSpacing => PInvokeCore.SystemParametersInfoInt(SPI_ICONHORIZONTALSPACING);
+#endif
 
     /// <summary>
     ///  Retrieves the height in pixels of an icon cell.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int IconVerticalSpacing => PortableSystemSettings.IconVerticalSpacing;
+#else
     public static int IconVerticalSpacing => PInvokeCore.SystemParametersInfoInt(SPI_ICONVERTICALSPACING);
+#endif
 
     /// <summary>
     ///  Gets whether icon title wrapping is enabled.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool IsIconTitleWrappingEnabled => PortableSystemSettings.IconTitleWrappingEnabled;
+#else
     public static bool IsIconTitleWrappingEnabled => PInvokeCore.SystemParametersInfoBool(SPI_GETICONTITLEWRAP);
+#endif
 
     /// <summary>
     ///  Gets whether menu access keys are underlined.

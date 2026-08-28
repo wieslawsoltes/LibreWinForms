@@ -111,6 +111,18 @@ public interface ILibreSystemSettingsService
     bool UIEffectsEnabled { get; }
 
     bool MinimizeRestoreAnimationEnabled { get; }
+
+    bool FontSmoothingEnabled { get; }
+
+    int FontSmoothingContrast { get; }
+
+    int FontSmoothingType { get; }
+
+    int IconHorizontalSpacing { get; }
+
+    int IconVerticalSpacing { get; }
+
+    bool IconTitleWrappingEnabled { get; }
 }
 
 /// <summary>Portable baseline used when a host does not expose OS system settings.</summary>
@@ -197,4 +209,16 @@ public sealed class DefaultLibreSystemSettingsService : ILibreSystemSettingsServ
     public bool UIEffectsEnabled => true;
 
     public bool MinimizeRestoreAnimationEnabled => true;
+
+    public bool FontSmoothingEnabled => true;
+
+    public int FontSmoothingContrast => 1400;
+
+    public int FontSmoothingType => 2;
+
+    public int IconHorizontalSpacing => 75;
+
+    public int IconVerticalSpacing => 75;
+
+    public bool IconTitleWrappingEnabled => true;
 }

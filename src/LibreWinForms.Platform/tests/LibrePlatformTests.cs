@@ -163,6 +163,12 @@ public class LibrePlatformTests
         services.SystemSettings.ToolTipAnimationEnabled.Should().BeTrue();
         services.SystemSettings.UIEffectsEnabled.Should().BeFalse();
         services.SystemSettings.MinimizeRestoreAnimationEnabled.Should().BeTrue();
+        services.SystemSettings.FontSmoothingEnabled.Should().BeFalse();
+        services.SystemSettings.FontSmoothingContrast.Should().Be(1700);
+        services.SystemSettings.FontSmoothingType.Should().Be(1);
+        services.SystemSettings.IconHorizontalSpacing.Should().Be(81);
+        services.SystemSettings.IconVerticalSpacing.Should().Be(83);
+        services.SystemSettings.IconTitleWrappingEnabled.Should().BeFalse();
         LibreSystemSettingsChangedEventArgs? change = null;
         services.SystemSettings.SettingsChanged += (_, e) => change = e;
         test.RaiseSettingsChanged(LibreSystemSettingsChangeKind.Color | LibreSystemSettingsChangeKind.VisualStyle);
@@ -473,6 +479,12 @@ public class LibrePlatformTests
         public bool ToolTipAnimationEnabled => true;
         public bool UIEffectsEnabled => false;
         public bool MinimizeRestoreAnimationEnabled => true;
+        public bool FontSmoothingEnabled => false;
+        public int FontSmoothingContrast => 1700;
+        public int FontSmoothingType => 1;
+        public int IconHorizontalSpacing => 81;
+        public int IconVerticalSpacing => 83;
+        public bool IconTitleWrappingEnabled => false;
         public bool IsElementDefined(string className, int part) => true;
         public void DrawBackground(
             System.Drawing.Graphics graphics,
