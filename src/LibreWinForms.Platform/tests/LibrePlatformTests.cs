@@ -148,6 +148,21 @@ public class LibrePlatformTests
         services.SystemSettings.MouseHoverTime.Should().Be(640);
         services.SystemSettings.MouseSpeed.Should().Be(14);
         services.SystemSettings.SnapToDefaultButton.Should().BeTrue();
+        services.SystemSettings.DragFullWindows.Should().BeFalse();
+        services.SystemSettings.DropShadowEnabled.Should().BeFalse();
+        services.SystemSettings.FlatMenuEnabled.Should().BeTrue();
+        services.SystemSettings.PopupMenusLeftAligned.Should().BeFalse();
+        services.SystemSettings.MenuFadeEnabled.Should().BeFalse();
+        services.SystemSettings.MenuShowDelay.Should().Be(275);
+        services.SystemSettings.ComboBoxAnimationEnabled.Should().BeTrue();
+        services.SystemSettings.TitleBarGradientEnabled.Should().BeFalse();
+        services.SystemSettings.HotTrackingEnabled.Should().BeTrue();
+        services.SystemSettings.ListBoxSmoothScrollingEnabled.Should().BeFalse();
+        services.SystemSettings.MenuAnimationEnabled.Should().BeTrue();
+        services.SystemSettings.SelectionFadeEnabled.Should().BeFalse();
+        services.SystemSettings.ToolTipAnimationEnabled.Should().BeTrue();
+        services.SystemSettings.UIEffectsEnabled.Should().BeFalse();
+        services.SystemSettings.MinimizeRestoreAnimationEnabled.Should().BeTrue();
         LibreSystemSettingsChangedEventArgs? change = null;
         services.SystemSettings.SettingsChanged += (_, e) => change = e;
         test.RaiseSettingsChanged(LibreSystemSettingsChangeKind.Color | LibreSystemSettingsChangeKind.VisualStyle);
@@ -443,6 +458,21 @@ public class LibrePlatformTests
         public int MouseHoverTime => 640;
         public int MouseSpeed => 14;
         public bool SnapToDefaultButton => true;
+        public bool DragFullWindows => false;
+        public bool DropShadowEnabled => false;
+        public bool FlatMenuEnabled => true;
+        public bool PopupMenusLeftAligned => false;
+        public bool MenuFadeEnabled => false;
+        public int MenuShowDelay => 275;
+        public bool ComboBoxAnimationEnabled => true;
+        public bool TitleBarGradientEnabled => false;
+        public bool HotTrackingEnabled => true;
+        public bool ListBoxSmoothScrollingEnabled => false;
+        public bool MenuAnimationEnabled => true;
+        public bool SelectionFadeEnabled => false;
+        public bool ToolTipAnimationEnabled => true;
+        public bool UIEffectsEnabled => false;
+        public bool MinimizeRestoreAnimationEnabled => true;
         public bool IsElementDefined(string className, int part) => true;
         public void DrawBackground(
             System.Drawing.Graphics graphics,

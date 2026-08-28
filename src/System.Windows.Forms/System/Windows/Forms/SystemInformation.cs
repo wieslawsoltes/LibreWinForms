@@ -40,8 +40,12 @@ public static class SystemInformation
     /// <summary>
     ///  Gets a value indicating whether the user has enabled full window drag.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool DragFullWindows => PortableSystemSettings.DragFullWindows;
+#else
     public static bool DragFullWindows
         => PInvokeCore.SystemParametersInfoBool(SPI_GETDRAGFULLWINDOWS);
+#endif
 
     /// <summary>
     ///  Gets a value indicating whether the user has selected to run in high contrast.
@@ -682,12 +686,20 @@ public static class SystemInformation
     /// <summary>
     ///  Gets whether the drop shadow effect in enabled.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool IsDropShadowEnabled => PortableSystemSettings.DropShadowEnabled;
+#else
     public static bool IsDropShadowEnabled => PInvokeCore.SystemParametersInfoBool(SPI_GETDROPSHADOW);
+#endif
 
     /// <summary>
     ///  Gets whether the native user menus have a flat menu appearance.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool IsFlatMenuEnabled => PortableSystemSettings.FlatMenuEnabled;
+#else
     public static bool IsFlatMenuEnabled => PInvokeCore.SystemParametersInfoBool(SPI_GETFLATMENU);
+#endif
 
     /// <summary>
     ///  Gets whether font smoothing is enabled.
@@ -803,60 +815,106 @@ public static class SystemInformation
     /// <summary>
     ///  Determines whether the popup menus are left aligned or right aligned.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static LeftRightAlignment PopupMenuAlignment
+        => PortableSystemSettings.PopupMenusLeftAligned
+            ? LeftRightAlignment.Left : LeftRightAlignment.Right;
+#else
     public static LeftRightAlignment PopupMenuAlignment
         => PInvokeCore.SystemParametersInfoBool(SPI_GETMENUDROPALIGNMENT)
             ? LeftRightAlignment.Left : LeftRightAlignment.Right;
+#endif
 
     /// <summary>
     ///  Determines whether the menu fade animation feature is enabled.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool IsMenuFadeEnabled => PortableSystemSettings.MenuFadeEnabled;
+#else
     public static bool IsMenuFadeEnabled => PInvokeCore.SystemParametersInfoBool(SPI_GETMENUFADE);
+#endif
 
     /// <summary>
     ///  Indicates the time, in milliseconds, that the system waits before displaying
     ///  a shortcut menu.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int MenuShowDelay => PortableSystemSettings.MenuShowDelay;
+#else
     public static int MenuShowDelay => PInvokeCore.SystemParametersInfoInt(SPI_GETMENUSHOWDELAY);
+#endif
 
     /// <summary>
     ///  Indicates whether the slide open effect for combo boxes is enabled.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool IsComboBoxAnimationEnabled => PortableSystemSettings.ComboBoxAnimationEnabled;
+#else
     public static bool IsComboBoxAnimationEnabled => PInvokeCore.SystemParametersInfoBool(SPI_GETCOMBOBOXANIMATION);
+#endif
 
     /// <summary>
     ///  Indicates whether the gradient effect for windows title bars is enabled.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool IsTitleBarGradientEnabled => PortableSystemSettings.TitleBarGradientEnabled;
+#else
     public static bool IsTitleBarGradientEnabled => PInvokeCore.SystemParametersInfoBool(SPI_GETGRADIENTCAPTIONS);
+#endif
 
     /// <summary>
     ///  Indicates whether the hot tracking of user interface elements is enabled.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool IsHotTrackingEnabled => PortableSystemSettings.HotTrackingEnabled;
+#else
     public static bool IsHotTrackingEnabled => PInvokeCore.SystemParametersInfoBool(SPI_GETHOTTRACKING);
+#endif
 
     /// <summary>
     ///  Indicates whether the smooth scrolling effect for listbox is enabled.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool IsListBoxSmoothScrollingEnabled => PortableSystemSettings.ListBoxSmoothScrollingEnabled;
+#else
     public static bool IsListBoxSmoothScrollingEnabled => PInvokeCore.SystemParametersInfoBool(SPI_GETLISTBOXSMOOTHSCROLLING);
+#endif
 
     /// <summary>
     ///  Indicates whether the menu animation feature is enabled.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool IsMenuAnimationEnabled => PortableSystemSettings.MenuAnimationEnabled;
+#else
     public static bool IsMenuAnimationEnabled => PInvokeCore.SystemParametersInfoBool(SPI_GETMENUANIMATION);
+#endif
 
     /// <summary>
     ///  Indicates whether the selection fade effect is enabled.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool IsSelectionFadeEnabled => PortableSystemSettings.SelectionFadeEnabled;
+#else
     public static bool IsSelectionFadeEnabled => PInvokeCore.SystemParametersInfoBool(SPI_GETSELECTIONFADE);
+#endif
 
     /// <summary>
     ///  Indicates whether tool tip animation is enabled.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool IsToolTipAnimationEnabled => PortableSystemSettings.ToolTipAnimationEnabled;
+#else
     public static bool IsToolTipAnimationEnabled => PInvokeCore.SystemParametersInfoBool(SPI_GETTOOLTIPANIMATION);
+#endif
 
     /// <summary>
     ///  Indicates whether UI effects are enabled.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool UIEffectsEnabled => PortableSystemSettings.UIEffectsEnabled;
+#else
     public static bool UIEffectsEnabled => PInvokeCore.SystemParametersInfoBool(SPI_GETUIEFFECTS);
+#endif
 
     /// <summary>
     ///  Indicates whether the windows tracking (activating the window the mouse in on) is ON or OFF.
@@ -871,7 +929,12 @@ public static class SystemInformation
     /// <summary>
     ///  Indicates whether windows minimize/restore animation is enabled.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool IsMinimizeRestoreAnimationEnabled
+        => PortableSystemSettings.MinimizeRestoreAnimationEnabled;
+#else
     public static bool IsMinimizeRestoreAnimationEnabled => PInvokeCore.SystemParametersInfoBool(SPI_GETANIMATION);
+#endif
 
     /// <summary>
     ///  Retrieves the border multiplier factor that determines the width of a window's sizing border.

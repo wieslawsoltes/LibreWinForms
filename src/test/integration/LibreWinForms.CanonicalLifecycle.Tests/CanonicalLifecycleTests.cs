@@ -758,6 +758,30 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void SystemInformationUsesTypedPortableUiEffectSettings()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+
+        SystemInformation.DragFullWindows.Should().BeFalse();
+        SystemInformation.IsDropShadowEnabled.Should().BeFalse();
+        SystemInformation.IsFlatMenuEnabled.Should().BeTrue();
+        SystemInformation.PopupMenuAlignment.Should().Be(LeftRightAlignment.Right);
+        SystemInformation.IsMenuFadeEnabled.Should().BeFalse();
+        SystemInformation.MenuShowDelay.Should().Be(275);
+        SystemInformation.IsComboBoxAnimationEnabled.Should().BeTrue();
+        SystemInformation.IsTitleBarGradientEnabled.Should().BeFalse();
+        SystemInformation.IsHotTrackingEnabled.Should().BeTrue();
+        SystemInformation.IsListBoxSmoothScrollingEnabled.Should().BeFalse();
+        SystemInformation.IsMenuAnimationEnabled.Should().BeTrue();
+        SystemInformation.IsSelectionFadeEnabled.Should().BeFalse();
+        SystemInformation.IsToolTipAnimationEnabled.Should().BeTrue();
+        SystemInformation.UIEffectsEnabled.Should().BeFalse();
+        SystemInformation.IsMinimizeRestoreAnimationEnabled.Should().BeTrue();
+        platform.WindowsCreated.Should().Be(0);
+        platform.Handles.Count.Should().Be(0);
+    }
+
+    [Fact]
     public void GroupBoxAndDisabledLinkLabelPaintWithoutNativeDeviceContexts()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2005,6 +2029,21 @@ public class CanonicalLifecycleTests
         public int MouseHoverTime => 640;
         public int MouseSpeed => 14;
         public bool SnapToDefaultButton => true;
+        public bool DragFullWindows => false;
+        public bool DropShadowEnabled => false;
+        public bool FlatMenuEnabled => true;
+        public bool PopupMenusLeftAligned => false;
+        public bool MenuFadeEnabled => false;
+        public int MenuShowDelay => 275;
+        public bool ComboBoxAnimationEnabled => true;
+        public bool TitleBarGradientEnabled => false;
+        public bool HotTrackingEnabled => true;
+        public bool ListBoxSmoothScrollingEnabled => false;
+        public bool MenuAnimationEnabled => true;
+        public bool SelectionFadeEnabled => false;
+        public bool ToolTipAnimationEnabled => true;
+        public bool UIEffectsEnabled => false;
+        public bool MinimizeRestoreAnimationEnabled => true;
 
         public string ThemeFilename => "managed.theme";
         public string ColorScheme => "ManagedColor";

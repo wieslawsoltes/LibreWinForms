@@ -81,6 +81,36 @@ public interface ILibreSystemSettingsService
     int MouseSpeed { get; }
 
     bool SnapToDefaultButton { get; }
+
+    bool DragFullWindows { get; }
+
+    bool DropShadowEnabled { get; }
+
+    bool FlatMenuEnabled { get; }
+
+    bool PopupMenusLeftAligned { get; }
+
+    bool MenuFadeEnabled { get; }
+
+    int MenuShowDelay { get; }
+
+    bool ComboBoxAnimationEnabled { get; }
+
+    bool TitleBarGradientEnabled { get; }
+
+    bool HotTrackingEnabled { get; }
+
+    bool ListBoxSmoothScrollingEnabled { get; }
+
+    bool MenuAnimationEnabled { get; }
+
+    bool SelectionFadeEnabled { get; }
+
+    bool ToolTipAnimationEnabled { get; }
+
+    bool UIEffectsEnabled { get; }
+
+    bool MinimizeRestoreAnimationEnabled { get; }
 }
 
 /// <summary>Portable baseline used when a host does not expose OS system settings.</summary>
@@ -137,4 +167,34 @@ public sealed class DefaultLibreSystemSettingsService : ILibreSystemSettingsServ
     public int MouseSpeed => 10;
 
     public bool SnapToDefaultButton => false;
+
+    public bool DragFullWindows => true;
+
+    public bool DropShadowEnabled => true;
+
+    public bool FlatMenuEnabled => true;
+
+    public bool PopupMenusLeftAligned => true;
+
+    public bool MenuFadeEnabled => true;
+
+    public int MenuShowDelay => 400;
+
+    public bool ComboBoxAnimationEnabled => true;
+
+    public bool TitleBarGradientEnabled => true;
+
+    public bool HotTrackingEnabled => true;
+
+    public bool ListBoxSmoothScrollingEnabled => true;
+
+    public bool MenuAnimationEnabled => true;
+
+    public bool SelectionFadeEnabled => true;
+
+    public bool ToolTipAnimationEnabled => true;
+
+    public bool UIEffectsEnabled => true;
+
+    public bool MinimizeRestoreAnimationEnabled => true;
 }
