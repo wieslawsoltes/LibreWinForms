@@ -76,6 +76,16 @@ public interface ILibreSystemSettingsService
 
     LibreSize PrimaryMonitorMaximizedWindowSize { get; }
 
+    LibreSize MinimizedWindowSpacingSize { get; }
+
+    int ToolWindowCaptionHeight { get; }
+
+    LibreSize ToolWindowCaptionButtonSize { get; }
+
+    LibreSize MenuButtonSize { get; }
+
+    LibreSize MinimizedWindowSize { get; }
+
     int VerticalScrollBarArrowHeight { get; }
 
     int HorizontalScrollBarArrowWidth { get; }
@@ -225,6 +235,16 @@ public sealed class DefaultLibreSystemSettingsService : ILibreSystemSettingsServ
     public LibreSize MaxWindowTrackSize => new(1936, 1056);
 
     public LibreSize PrimaryMonitorMaximizedWindowSize => new(1936, 1056);
+
+    public LibreSize MinimizedWindowSpacingSize => new(160, 28);
+
+    public int ToolWindowCaptionHeight => 19;
+
+    public LibreSize ToolWindowCaptionButtonSize => new(18, 18);
+
+    public LibreSize MenuButtonSize => new(18, 18);
+
+    public LibreSize MinimizedWindowSize => new(160, 28);
 
     public int VerticalScrollBarArrowHeight => 17;
 

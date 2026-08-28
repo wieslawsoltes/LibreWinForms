@@ -145,6 +145,11 @@ public class LibrePlatformTests
         services.SystemSettings.FrameBorderSize.Should().Be(new LibreSize(7, 8));
         services.SystemSettings.MaxWindowTrackSize.Should().Be(new LibreSize(1600, 1200));
         services.SystemSettings.PrimaryMonitorMaximizedWindowSize.Should().Be(new LibreSize(1500, 1100));
+        services.SystemSettings.MinimizedWindowSpacingSize.Should().Be(new LibreSize(201, 202));
+        services.SystemSettings.ToolWindowCaptionHeight.Should().Be(43);
+        services.SystemSettings.ToolWindowCaptionButtonSize.Should().Be(new LibreSize(45, 46));
+        services.SystemSettings.MenuButtonSize.Should().Be(new LibreSize(47, 48));
+        services.SystemSettings.MinimizedWindowSize.Should().Be(new LibreSize(203, 204));
         services.SystemSettings.VerticalScrollBarArrowHeight.Should().Be(15);
         services.SystemSettings.HorizontalScrollBarArrowWidth.Should().Be(16);
         services.SystemSettings.VerticalScrollBarThumbHeight.Should().Be(17);
@@ -487,6 +492,11 @@ public class LibrePlatformTests
         public LibreSize FrameBorderSize => new(7, 8);
         public LibreSize MaxWindowTrackSize => new(1600, 1200);
         public LibreSize PrimaryMonitorMaximizedWindowSize => new(1500, 1100);
+        public LibreSize MinimizedWindowSpacingSize => new(201, 202);
+        public int ToolWindowCaptionHeight => 43;
+        public LibreSize ToolWindowCaptionButtonSize => new(45, 46);
+        public LibreSize MenuButtonSize => new(47, 48);
+        public LibreSize MinimizedWindowSize => new(203, 204);
         public int VerticalScrollBarArrowHeight => 15;
         public int HorizontalScrollBarArrowWidth => 16;
         public int VerticalScrollBarThumbHeight => 17;

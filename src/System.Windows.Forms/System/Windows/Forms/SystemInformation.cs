@@ -457,7 +457,12 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the dimensions in pixels, of the grid into which minimized windows will be placed.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static Size MinimizedWindowSpacingSize
+        => GetPortableSize(PortableSystemSettings.MinimizedWindowSpacingSize);
+#else
     public static Size MinimizedWindowSpacingSize => GetSize(SM_CXMINSPACING, SM_CYMINSPACING);
+#endif
 
     /// <summary>
     ///  Gets the recommended dimensions of a small icon in pixels.
@@ -471,17 +476,30 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the height of a small caption in pixels.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int ToolWindowCaptionHeight => PortableSystemSettings.ToolWindowCaptionHeight;
+#else
     public static int ToolWindowCaptionHeight => PInvokeCore.GetSystemMetrics(SM_CYSMCAPTION);
+#endif
 
     /// <summary>
     ///  Gets the dimensions of small caption buttons in pixels.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static Size ToolWindowCaptionButtonSize
+        => GetPortableSize(PortableSystemSettings.ToolWindowCaptionButtonSize);
+#else
     public static Size ToolWindowCaptionButtonSize => GetSize(SM_CXSMSIZE, SM_CYSMSIZE);
+#endif
 
     /// <summary>
     ///  Gets the dimensions in pixels, of menu bar buttons.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static Size MenuButtonSize => GetPortableSize(PortableSystemSettings.MenuButtonSize);
+#else
     public static Size MenuButtonSize => GetSize(SM_CXMENUSIZE, SM_CYMENUSIZE);
+#endif
 
     /// <summary>
     ///  Gets flags specifying how the system arranges minimized windows.
@@ -517,7 +535,11 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the dimensions in pixels, of a normal minimized window.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static Size MinimizedWindowSize => GetPortableSize(PortableSystemSettings.MinimizedWindowSize);
+#else
     public static Size MinimizedWindowSize => GetSize(SM_CXMINIMIZED, SM_CYMINIMIZED);
+#endif
 
     /// <summary>
     ///  Gets the default maximum dimensions in pixels, of a window that has a
