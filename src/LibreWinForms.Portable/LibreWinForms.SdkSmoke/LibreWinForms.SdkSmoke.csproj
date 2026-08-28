@@ -11,7 +11,7 @@
     <LibreWinFormsGenerateApplicationBootstrap>true</LibreWinFormsGenerateApplicationBootstrap>
   </PropertyGroup>
 
-  <Import Project="..\LibreWinForms.Sdk\Sdk\Sdk.props" />
+  <Import Project="..\..\LibreWinForms.Sdk\Sdk\Sdk.props" />
 
   <ItemGroup>
     <Reference Include="WindowsBase" HintPath="..\..\..\..\..\artifacts\bin\WindowsBase\$(Configuration)\$(TargetFramework)\WindowsBase.dll" Private="true" />
@@ -33,5 +33,5 @@
                       AdditionalProperties="LibreWinFormsReferenceMode=Project" />
   </ItemGroup>
 
-  <Import Project="..\LibreWinForms.Sdk\Sdk\Sdk.targets" />
+  <Import Project="..\..\LibreWinForms.Sdk\Sdk\Sdk.targets" />
 </Project>

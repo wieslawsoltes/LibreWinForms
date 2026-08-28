@@ -2,5 +2,7 @@
   <PropertyGroup>
     <LibreWinFormsPlatform Condition="'$(LibreWinFormsPlatform)' == ''">SilkNet</LibreWinFormsPlatform>
     <LibreWinFormsRenderingBackend Condition="'$(LibreWinFormsRenderingBackend)' == ''">ProGPU</LibreWinFormsRenderingBackend>
+    <LibreWinFormsSourceRoot
+      Condition="'$(LibreWinFormsSourceRoot)' == '' And Exists('$(MSBuildThisFileDirectory)..\..\..\src\System.Windows.Forms\System.Windows.Forms.csproj')">$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..\..\..'))</LibreWinFormsSourceRoot>
   </PropertyGroup>
 </Project>

@@ -1,5 +1,10 @@
 <Project>
   <PropertyGroup>
+    <!-- The SDK's public canonical-runtime switch propagates as a global
+         property to referenced projects. Normalize it here, during props
+         evaluation, before NuGet constructs the transitive restore graph. -->
+    <LibreWinFormsUseProGpuSystemDrawing
+      Condition="'$(LibreWinFormsUseCanonicalRuntime)' == 'true'">true</LibreWinFormsUseProGpuSystemDrawing>
     <!--
       Source-first development uses the repository-owned ProGPU submodule. Consumers
       continue to use LibreWinFormsReferenceMode=Package unless they opt into Project.

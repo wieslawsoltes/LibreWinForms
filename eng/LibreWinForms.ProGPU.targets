@@ -17,18 +17,26 @@
   <Target Name="PreferProGpuSystemDrawingCompilerReference"
           AfterTargets="ResolveAssemblyReferences"
           BeforeTargets="CoreCompile"
-          Condition="'$(LibreWinFormsUseProGpuSystemDrawing)' == 'true' And ('$(MSBuildProjectName)' == 'System.Windows.Forms' Or '$(MSBuildProjectName)' == 'System.Windows.Forms.Primitives')">
+          Condition="'$(LibreWinFormsUseProGpuSystemDrawing)' == 'true' And ('$(MSBuildProjectName)' == 'System.Windows.Forms' Or '$(MSBuildProjectName)' == 'System.Windows.Forms.Primitives' Or '$(MSBuildProjectFullPath)' == '$(LibreWinFormsSdkConsumerProject)')">
     <ItemGroup>
       <_LibreWinFormsProGpuSystemDrawing Include="$(LibreWinFormsProGpuSourceRoot)src\System.Drawing.Common\bin\$(Configuration)\net10.0\System.Drawing.Common.dll"
           Condition="Exists('$(LibreWinFormsProGpuSourceRoot)src\System.Drawing.Common\bin\$(Configuration)\net10.0\System.Drawing.Common.dll')" />
       <_LibreWinFormsExistingProGpuSystemDrawingCopy Include="@(ReferenceCopyLocalPaths)"
           Condition="'%(ReferenceCopyLocalPaths.Filename)' == 'System.Drawing.Common' And $([System.String]::Copy('%(ReferenceCopyLocalPaths.FusionName)').Contains('PublicKeyToken=c29c9752855ee183'))" />
+      <_LibreWinFormsExistingProGpuSystemDrawingReference Include="@(ReferencePath)"
+          Condition="'%(ReferencePath.Filename)' == 'System.Drawing.Common' And $([System.String]::Copy('%(ReferencePath.FusionName)').Contains('PublicKeyToken=c29c9752855ee183'))" />
       <ReferencePath Remove="@(ReferencePath)"
                      Condition="'%(ReferencePath.Filename)' == 'System.Drawing.Common' And $([System.String]::Copy('%(ReferencePath.FusionName)').Contains('PublicKeyToken=cc7b13ffcd2ddd51'))" />
       <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)"
           Condition="'%(ReferenceCopyLocalPaths.Filename)' == 'System.Drawing.Common' And $([System.String]::Copy('%(ReferenceCopyLocalPaths.FusionName)').Contains('PublicKeyToken=cc7b13ffcd2ddd51'))" />
       <ReferenceCopyLocalPaths Include="@(_LibreWinFormsProGpuSystemDrawing)"
           Condition="'@(_LibreWinFormsExistingProGpuSystemDrawingCopy)' == ''" />
+      <ReferencePath Include="@(_LibreWinFormsProGpuSystemDrawing)"
+          Condition="'@(_LibreWinFormsExistingProGpuSystemDrawingReference)' == ''">
+        <CopyLocal>true</CopyLocal>
+        <ReferenceSourceTarget>ResolveAssemblyReference</ReferenceSourceTarget>
+        <ResolvedFrom>{HintPathFromItem}</ResolvedFrom>
+      </ReferencePath>
     </ItemGroup>
     <Error Condition="'@(_LibreWinFormsProGpuSystemDrawing)' == ''"
            Text="The source-built ProGPU System.Drawing.Common runtime assembly was not found for configuration $(Configuration)." />
@@ -36,7 +44,7 @@
 
   <Target Name="ValidateProGpuSystemDrawingRuntimePayload"
           AfterTargets="CopyFilesToOutputDirectory"
-          Condition="'$(LibreWinFormsUseProGpuSystemDrawing)' == 'true' And '$(IsCrossTargetingBuild)' != 'true' And ('$(MSBuildProjectName)' == 'System.Windows.Forms' Or '$(MSBuildProjectName)' == 'System.Windows.Forms.Primitives')">
+          Condition="'$(LibreWinFormsUseProGpuSystemDrawing)' == 'true' And '$(IsCrossTargetingBuild)' != 'true' And ('$(MSBuildProjectName)' == 'System.Windows.Forms' Or '$(MSBuildProjectName)' == 'System.Windows.Forms.Primitives' Or '$(MSBuildProjectFullPath)' == '$(LibreWinFormsSdkConsumerProject)')">
     <!-- ReferenceCopyLocalPaths is incremental and can retain an older build of
          the same strong-named assembly. In source/project mode the submodule
          output is the selected runtime payload, so copy that exact file before

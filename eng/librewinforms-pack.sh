@@ -166,7 +166,7 @@ clean_restore_cache
 
 pack_project "src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj" "LibreWinForms.System.Windows.Forms"
 pack_project "src/LibreWinForms.Portable/LibreWinForms.WindowsFormsIntegration/LibreWinForms.WindowsFormsIntegration.csproj" "LibreWinForms.WindowsFormsIntegration"
-pack_project "src/LibreWinForms.Portable/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj" "LibreWinForms.Sdk"
+pack_project "src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj" "LibreWinForms.Sdk"
 
 verify_package_outputs
 "${repo_root}/eng/librewinforms-verify-docs.sh"

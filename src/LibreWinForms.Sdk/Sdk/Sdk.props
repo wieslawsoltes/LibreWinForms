@@ -1,7 +1,12 @@
 <Project>
   <PropertyGroup>
     <_LibreWinFormsSdkImported>true</_LibreWinFormsSdkImported>
+    <LibreWinFormsRequestedUseWindowsForms Condition="'$(LibreWinFormsRequestedUseWindowsForms)' == ''">$(UseWindowsForms)</LibreWinFormsRequestedUseWindowsForms>
+    <LibreWinFormsSdkConsumerProject Condition="'$(LibreWinFormsSdkConsumerProject)' == ''">$(MSBuildProjectFullPath)</LibreWinFormsSdkConsumerProject>
     <LibreWinFormsUsePortableFrameworkReferences Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == ''">true</LibreWinFormsUsePortableFrameworkReferences>
+    <LibreWinFormsUseCanonicalRuntime Condition="'$(LibreWinFormsUseCanonicalRuntime)' == ''">false</LibreWinFormsUseCanonicalRuntime>
+    <LibreWinFormsUseProGpuSystemDrawing Condition="'$(LibreWinFormsUseCanonicalRuntime)' == 'true'">true</LibreWinFormsUseProGpuSystemDrawing>
+    <MicrosoftNETCoreAppRefPackageVersion Condition="'$(LibreWinFormsUseCanonicalRuntime)' == 'true'"></MicrosoftNETCoreAppRefPackageVersion>
     <UseWindowsForms Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true'">false</UseWindowsForms>
     <EnableWindowsTargeting Condition="'$(EnableWindowsTargeting)' == ''">true</EnableWindowsTargeting>
     <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == ''">0.1.0-preview.45</LibreWinFormsVersion>

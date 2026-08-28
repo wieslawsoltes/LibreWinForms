@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>$(NetCurrent)</TargetFramework>
+    <PackageId>LibreWinForms.Sdk</PackageId>
+    <Title>LibreWinForms SDK</Title>
+    <Description>SDK package for cross-platform WinForms applications running on canonical WinForms source, Silk.NET, and ProGPU.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>librewinforms;winforms;sdk;progpu;silk.net;cross-platform;source-built</PackageTags>
+    <PackageType>MSBuildSdk</PackageType>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <IsPackable>true</IsPackable>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="Sdk\**\*" Pack="true" PackagePath="Sdk\" />
+    <None Include="targets\**\*" Pack="true" PackagePath="targets\" />
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+</Project>

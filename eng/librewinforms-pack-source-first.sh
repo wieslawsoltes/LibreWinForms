@@ -12,9 +12,11 @@ export DOTNET_ROLL_FORWARD_TO_PRERELEASE="${DOTNET_ROLL_FORWARD_TO_PRERELEASE:-1
 
 configuration="${LIBREWINFORMS_CONFIGURATION:-Release}"
 package_version="${LIBREWINFORMS_SOURCE_FIRST_PACKAGE_VERSION:-0.1.0-source-first}"
-progpu_package_version="${LIBREWINFORMS_PROGPU_PACKAGE_VERSION:-0.1.0-preview.56}"
+sdk_package_version="${LIBREWINFORMS_SOURCE_FIRST_SDK_PACKAGE_VERSION:-0.1.0-source-first-sdk}"
+progpu_package_version="${LIBREWINFORMS_PROGPU_PACKAGE_VERSION:-0.1.0-preview.62}"
 package_output="${LIBREWINFORMS_SOURCE_FIRST_PACKAGE_OUTPUT:-${repo_root}/artifacts/packages/source-first}"
 package_file="${package_output}/LibreWinForms.System.Windows.Forms.${package_version}.nupkg"
+sdk_package_file="${package_output}/LibreWinForms.Sdk.${sdk_package_version}.nupkg"
 smoke_root="$(mktemp -d -t librewinforms-source-package-smoke.XXXXXXXX)"
 trap 'rm -rf "${smoke_root}"' EXIT
 
@@ -31,8 +33,21 @@ mkdir -p "${package_output}"
   -p:LibreWinFormsProGpuPackageVersion="${progpu_package_version}" \
   -p:ContinuousIntegrationBuild=true
 
+"${dotnet}" pack \
+  "${repo_root}/src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj" \
+  --configuration "${configuration}" \
+  --output "${package_output}" \
+  -p:PackageVersion="${sdk_package_version}" \
+  -p:Version="${sdk_package_version}" \
+  -p:ContinuousIntegrationBuild=true
+
 if [[ ! -f "${package_file}" ]]; then
   echo "Canonical source-first package was not produced: ${package_file}" >&2
+  exit 1
+fi
+
+if [[ ! -f "${sdk_package_file}" ]]; then
+  echo "Source-first SDK package was not produced: ${sdk_package_file}" >&2
   exit 1
 fi
 
@@ -103,7 +118,66 @@ NUGET_PACKAGES="${smoke_root}/packages" "${dotnet}" build \
   --no-restore \
   -p:SourceFirstPackageVersion="${package_version}"
 
+sdk_smoke_project="${repo_root}/packaging/LibreWinForms.Sdk.SourceFirstSmoke/LibreWinForms.Sdk.SourceFirstSmoke.csproj"
+sdk_smoke_config="${smoke_root}/sdk-NuGet.config"
+sdk_smoke_properties=(
+  -p:LibreWinFormsUseCanonicalRuntime=true
+  -p:LibreWinFormsUseProGpuSystemDrawing=true
+  -p:LibreWinFormsReferenceMode=Project
+  -p:MicrosoftNETCoreAppRefPackageVersion=
+)
+
+cp "${repo_root}/NuGet.config" "${sdk_smoke_config}"
+"${dotnet}" nuget add source "${package_output}" \
+  --name LibreWinFormsSourceFirstSdk \
+  --configfile "${sdk_smoke_config}"
+
+NUGET_PACKAGES="${smoke_root}/sdk-packages" "${dotnet}" restore \
+  "${sdk_smoke_project}" \
+  --configfile "${sdk_smoke_config}" \
+  --force \
+  --no-cache \
+  "${sdk_smoke_properties[@]}"
+
+NUGET_PACKAGES="${smoke_root}/sdk-packages" "${dotnet}" build \
+  "${sdk_smoke_project}" \
+  --configuration "${configuration}" \
+  --no-restore \
+  "${sdk_smoke_properties[@]}"
+
+sdk_smoke_output="${repo_root}/artifacts/bin/LibreWinForms.Sdk.SourceFirstSmoke/${configuration}/net11.0"
+sdk_smoke_deps="${sdk_smoke_output}/LibreWinForms.Sdk.SourceFirstSmoke.deps.json"
+sdk_smoke_drawing="${sdk_smoke_output}/System.Drawing.Common.dll"
+source_drawing="${repo_root}/external/ProGPU/src/System.Drawing.Common/bin/${configuration}/net10.0/System.Drawing.Common.dll"
+
+if [[ ! -f "${sdk_smoke_deps}" ]] || ! grep -Fq '"System.Drawing.Common": "10.0.0.0"' "${sdk_smoke_deps}"; then
+  echo "Source-first SDK smoke dependency manifest does not select ProGPU System.Drawing.Common." >&2
+  exit 1
+fi
+
+if grep -Fq '"System.Drawing.Common/11.0.0-dev"' "${sdk_smoke_deps}"; then
+  echo "Source-first SDK smoke dependency manifest retains the official Windows drawing project." >&2
+  exit 1
+fi
+
+sdk_smoke_drawing_hash="$(sha256sum "${sdk_smoke_drawing}" | cut -d' ' -f1)"
+source_drawing_hash="$(sha256sum "${source_drawing}" | cut -d' ' -f1)"
+if [[ "${sdk_smoke_drawing_hash}" != "${source_drawing_hash}" ]]; then
+  echo "Source-first SDK smoke output does not contain the exact ProGPU submodule drawing assembly." >&2
+  exit 1
+fi
+
+NUGET_PACKAGES="${smoke_root}/sdk-packages" "${dotnet}" run \
+  --project "${sdk_smoke_project}" \
+  --configuration "${configuration}" \
+  --no-build \
+  --no-restore \
+  "${sdk_smoke_properties[@]}"
+
 echo "Canonical source-first package validated: ${package_file}"
+echo "Source-first SDK package validated: ${sdk_package_file}"
 echo "System.Windows.Forms SHA-256: ${implementation_hash}"
 echo "LibreWinForms.Platform SHA-256: ${platform_implementation_hash}"
+echo "SDK smoke System.Drawing.Common SHA-256: ${sdk_smoke_drawing_hash}"
 echo "Fresh-cache canonical package consumer validated with warnings treated as errors."
+echo "Fresh-cache source-first SDK project-mode consumer built and ran with the ProGPU bootstrap."
