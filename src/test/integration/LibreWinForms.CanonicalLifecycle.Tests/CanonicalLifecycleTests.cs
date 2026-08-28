@@ -740,6 +740,24 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void SystemInformationUsesTypedPortableInputSettings()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+
+        SystemInformation.MouseWheelScrollLines.Should().Be(7);
+        SystemInformation.MenuAccessKeysUnderlined.Should().BeTrue();
+        SystemInformation.KeyboardDelay.Should().Be(2);
+        SystemInformation.IsKeyboardPreferred.Should().BeTrue();
+        SystemInformation.KeyboardSpeed.Should().Be(23);
+        SystemInformation.MouseHoverSize.Should().Be(new Size(13, 15));
+        SystemInformation.MouseHoverTime.Should().Be(640);
+        SystemInformation.MouseSpeed.Should().Be(14);
+        SystemInformation.IsSnapToDefaultEnabled.Should().BeTrue();
+        platform.WindowsCreated.Should().Be(0);
+        platform.Handles.Count.Should().Be(0);
+    }
+
+    [Fact]
     public void GroupBoxAndDisabledLinkLabelPaintWithoutNativeDeviceContexts()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -1978,7 +1996,15 @@ public class CanonicalLifecycleTests
         public int VerticalScrollBarThumbHeight => 17;
         public int HorizontalScrollBarThumbWidth => 17;
         public LibreSize DragSize => new(4, 4);
-        public bool MenuAccessKeysUnderlined => false;
+        public int MouseWheelScrollLines => 7;
+        public bool MenuAccessKeysUnderlined => true;
+        public int KeyboardDelay => 2;
+        public bool KeyboardPreferred => true;
+        public int KeyboardSpeed => 23;
+        public LibreSize MouseHoverSize => new(13, 15);
+        public int MouseHoverTime => 640;
+        public int MouseSpeed => 14;
+        public bool SnapToDefaultButton => true;
 
         public string ThemeFilename => "managed.theme";
         public string ColorScheme => "ManagedColor";

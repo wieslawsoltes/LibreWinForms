@@ -64,8 +64,12 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the number of lines to scroll when the mouse wheel is rotated.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int MouseWheelScrollLines => PortableSystemSettings.MouseWheelScrollLines;
+#else
     public static int MouseWheelScrollLines
         => PInvokeCore.SystemParametersInfoInt(SPI_GETWHEELSCROLLLINES);
+#endif
 
     /// <summary>
     ///  Gets the dimensions of the primary display monitor in pixels.
@@ -730,43 +734,71 @@ public static class SystemInformation
     ///  from 0 through 3. The actual delay associated with each value may vary
     ///  depending on the hardware.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int KeyboardDelay => PortableSystemSettings.KeyboardDelay;
+#else
     public static int KeyboardDelay => PInvokeCore.SystemParametersInfoInt(SPI_GETKEYBOARDDELAY);
+#endif
 
     /// <summary>
     ///  Gets whether the user relies on keyboard instead of mouse and wants
     ///  applications to display keyboard interfaces that would be otherwise hidden.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool IsKeyboardPreferred => PortableSystemSettings.KeyboardPreferred;
+#else
     public static bool IsKeyboardPreferred => PInvokeCore.SystemParametersInfoBool(SPI_GETKEYBOARDPREF);
+#endif
 
     /// <summary>
     ///  Retrieves the Keyboard repeat speed setting, which is a value in the range
     ///  from 0 through 31. The actual rate may vary depending on the hardware.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int KeyboardSpeed => PortableSystemSettings.KeyboardSpeed;
+#else
     public static int KeyboardSpeed => PInvokeCore.SystemParametersInfoInt(SPI_GETKEYBOARDSPEED);
+#endif
 
     /// <summary>
     ///  Gets the <see cref="Size"/> in pixels of the rectangle within which the mouse
     ///  pointer has to stay to be considered hovering.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static Size MouseHoverSize => GetPortableSize(PortableSystemSettings.MouseHoverSize);
+#else
     public static Size MouseHoverSize
         => new(PInvokeCore.SystemParametersInfoInt(SPI_GETMOUSEHOVERWIDTH),
             PInvokeCore.SystemParametersInfoInt(SPI_GETMOUSEHOVERHEIGHT));
+#endif
 
     /// <summary>
     ///  Gets the time, in milliseconds, that the mouse pointer has to stay in the hover
     ///  rectangle to be considered hovering.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int MouseHoverTime => PortableSystemSettings.MouseHoverTime;
+#else
     public static int MouseHoverTime => PInvokeCore.SystemParametersInfoInt(SPI_GETMOUSEHOVERTIME);
+#endif
 
     /// <summary>
     ///  Gets the current mouse speed.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int MouseSpeed => PortableSystemSettings.MouseSpeed;
+#else
     public static int MouseSpeed => PInvokeCore.SystemParametersInfoInt(SPI_GETMOUSESPEED);
+#endif
 
     /// <summary>
     ///  Determines whether the snap-to-default-button feature is enabled.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool IsSnapToDefaultEnabled => PortableSystemSettings.SnapToDefaultButton;
+#else
     public static bool IsSnapToDefaultEnabled => PInvokeCore.SystemParametersInfoBool(SPI_GETSNAPTODEFBUTTON);
+#endif
 
     /// <summary>
     ///  Determines whether the popup menus are left aligned or right aligned.

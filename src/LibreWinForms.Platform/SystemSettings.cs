@@ -64,7 +64,23 @@ public interface ILibreSystemSettingsService
 
     LibreSize DragSize { get; }
 
+    int MouseWheelScrollLines { get; }
+
     bool MenuAccessKeysUnderlined { get; }
+
+    int KeyboardDelay { get; }
+
+    bool KeyboardPreferred { get; }
+
+    int KeyboardSpeed { get; }
+
+    LibreSize MouseHoverSize { get; }
+
+    int MouseHoverTime { get; }
+
+    int MouseSpeed { get; }
+
+    bool SnapToDefaultButton { get; }
 }
 
 /// <summary>Portable baseline used when a host does not expose OS system settings.</summary>
@@ -104,5 +120,21 @@ public sealed class DefaultLibreSystemSettingsService : ILibreSystemSettingsServ
 
     public LibreSize DragSize => new(4, 4);
 
+    public int MouseWheelScrollLines => 3;
+
     public bool MenuAccessKeysUnderlined => false;
+
+    public int KeyboardDelay => 1;
+
+    public bool KeyboardPreferred => false;
+
+    public int KeyboardSpeed => 31;
+
+    public LibreSize MouseHoverSize => new(4, 4);
+
+    public int MouseHoverTime => 400;
+
+    public int MouseSpeed => 10;
+
+    public bool SnapToDefaultButton => false;
 }

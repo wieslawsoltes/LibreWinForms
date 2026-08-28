@@ -139,7 +139,15 @@ public class LibrePlatformTests
         services.SystemSettings.VerticalScrollBarThumbHeight.Should().Be(17);
         services.SystemSettings.HorizontalScrollBarThumbWidth.Should().Be(18);
         services.SystemSettings.DragSize.Should().Be(new LibreSize(19, 20));
+        services.SystemSettings.MouseWheelScrollLines.Should().Be(21);
         services.SystemSettings.MenuAccessKeysUnderlined.Should().BeTrue();
+        services.SystemSettings.KeyboardDelay.Should().Be(2);
+        services.SystemSettings.KeyboardPreferred.Should().BeTrue();
+        services.SystemSettings.KeyboardSpeed.Should().Be(23);
+        services.SystemSettings.MouseHoverSize.Should().Be(new LibreSize(24, 25));
+        services.SystemSettings.MouseHoverTime.Should().Be(640);
+        services.SystemSettings.MouseSpeed.Should().Be(14);
+        services.SystemSettings.SnapToDefaultButton.Should().BeTrue();
         LibreSystemSettingsChangedEventArgs? change = null;
         services.SystemSettings.SettingsChanged += (_, e) => change = e;
         test.RaiseSettingsChanged(LibreSystemSettingsChangeKind.Color | LibreSystemSettingsChangeKind.VisualStyle);
@@ -426,7 +434,15 @@ public class LibrePlatformTests
         public int VerticalScrollBarThumbHeight => 17;
         public int HorizontalScrollBarThumbWidth => 18;
         public LibreSize DragSize => new(19, 20);
+        public int MouseWheelScrollLines => 21;
         public bool MenuAccessKeysUnderlined => true;
+        public int KeyboardDelay => 2;
+        public bool KeyboardPreferred => true;
+        public int KeyboardSpeed => 23;
+        public LibreSize MouseHoverSize => new(24, 25);
+        public int MouseHoverTime => 640;
+        public int MouseSpeed => 14;
+        public bool SnapToDefaultButton => true;
         public bool IsElementDefined(string className, int part) => true;
         public void DrawBackground(
             System.Drawing.Graphics graphics,
