@@ -777,6 +777,16 @@ The headless public lifecycle test focuses a real child, raises mouse-down on it
 
 No compatibility declaration or runtime file under `src/LibreWinForms.Portable` changed. The next bounded audit is canonical `MessageBox`: it still calls USER32 directly and needs a typed, genuinely implemented modal-dialog service rather than new members, fake native handles, or a fabricated result in the frozen compatibility assembly.
 
+## Canonical behavior follow-up: typed `MessageBox`
+
+Exact source checkpoint `4db8ddc6b31b6a382311ef746a6130e87e4a2bc4` routes portable canonical `MessageBox.ShowCore` through `ILibreMessageBoxService`. The request carries backend-neutral text, caption, buttons, icon, default button, options, help intent, and opaque owner; the canonical boundary explicitly maps the unchanged public enums and returned `DialogResult`. Windows retains the complete upstream HWND/Shell/theming/PInvoke branch.
+
+The ProGPU registration uses a genuinely functional `ManagedLibreMessageBoxService`, not a fake result. It creates a typed Silk tool window, runs a nested dispatcher loop, paints through ProGPU `System.Drawing` and text services, selects the owning monitor, and implements pointer, keyboard, RTL, default-button, cancel, and denied-close behavior. An unconfigured host fails explicitly. Help requests also fail explicitly until a typed local-OS launcher is registered, preserving an honest capability boundary instead of pretending help was shown.
+
+The complete local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 32/32, adapter 20/20, lifecycle 60/60, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed differences, and frozen Portable comparison 31 warnings/0 errors. Hosted build workflow `33163995772` passes canonical/package job `98824932534` and independent package job `98824932866`; docs workflow `33163995746` and job `98824932350` also pass. No compatibility declaration or runtime file under `src/LibreWinForms.Portable` changed.
+
+This checkpoint directly supports the issue #9 diagnosis: canonical source already supplies the complete `MessageBox` API, and portability is restored by replacing one native implementation seam, not by recreating public declarations in a reduced assembly. The next proposed repair applies the same rule to `CommonDialog`: typed local-OS adapters for file/folder pickers, reusable managed typed windows for color/font selection, and explicit help/localization/accessibility capabilities, with all Windows native branches preserved.
+
 ## Definition of done
 
 For an API group to be considered ported:

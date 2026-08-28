@@ -1038,6 +1038,18 @@ The public lifecycle test gives a real child control focus, raises mouse-down on
 
 No runtime source under `src/LibreWinForms.Portable` changed. The next larger source-first target remains the direct `MessageBox` USER32 dependency and the modal-dialog contract it requires; this must be a typed real platform capability rather than a compatibility-object emulation or a fabricated default result.
 
+## Current canonical `MessageBox` checkpoint
+
+Exact source checkpoint `4db8ddc6b31b6a382311ef746a6130e87e4a2bc4` replaces the portable canonical `MessageBox.ShowCore` call to USER32 with `ILibreMessageBoxService` and a backend-neutral request/result model. The public `System.Windows.Forms.MessageBox` declarations, overload validation, modal-loop entry/exit, owner resolution, option semantics, and `DialogResult` identity remain in the upstream-derived source. The native Windows branch retains the original HWND, visual-style, Shell help, and `PInvoke.MessageBox` path unchanged.
+
+The ProGPU host supplies `ManagedLibreMessageBoxService`, which creates a real typed Silk window and uses the existing dispatcher, handle registry, monitor inventory, ProGPU paint service, and ProGPU text renderer. It centers against a typed owner or monitor, constrains the tool window, paints text/buttons/vector status icons, honors right alignment and RTL reading, and handles pointer selection plus Enter, Space, Escape, arrow, and Tab navigation. Close behavior follows the button set: OK/Cancel-capable dialogs produce their canonical close result, while sets without a cancel result reject an uncommitted close. Hosts that omit the capability fail explicitly, and `ShowHelp` currently fails with `PlatformNotSupportedException` until a typed local-OS help launcher exists; neither path fabricates a success result or native handle.
+
+Platform tests exercise the real managed session, painting, RTL keyboard navigation, cancel and rejected-close behavior, help failure, wrong-thread failure, and service publication. The canonical lifecycle test passes a real `Form` owner through the opaque registry, proves that owner is disabled during the service call and re-enabled afterward, and verifies exact option/result mapping. The complete local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 32/32, adapter 20/20, lifecycle 60/60, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors.
+
+Hosted build workflow `33163995772` passes canonical source validation, package production, and isolated canonical consumption in job `98824932534`, plus independent package job `98824932866`. Documentation workflow `33163995746` and job `98824932350` also pass. No compatibility declaration or runtime file under `src/LibreWinForms.Portable` changed.
+
+The next dialog tranche should port `CommonDialog` as a family rather than adding per-type compatibility objects. File and folder selection should use typed local-OS adapter requests/results because filesystem pickers are desktop services; color and font selection can use reusable managed typed windows over the same dispatcher/painting/text contracts. Help launching, localization, accessibility, and native-platform enhancements should remain explicit capabilities, while Windows keeps the upstream common-dialog and COM branches.
+
 ## Major risks and controls
 
 | Risk | Control |
