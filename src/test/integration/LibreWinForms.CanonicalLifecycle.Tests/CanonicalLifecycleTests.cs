@@ -985,6 +985,37 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void TimerUsesTypedPortableTimerService()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        int ticks = 0;
+        using var timer = new System.Windows.Forms.Timer { Interval = 25 };
+        timer.Tick += (_, _) => ticks++;
+
+        timer.Start();
+        timer.Enabled.Should().BeTrue();
+        platform.TimerStartCount.Should().Be(1);
+        platform.LastTimerInterval.Should().Be(TimeSpan.FromMilliseconds(25));
+        platform.LastTimerRepeating.Should().BeTrue();
+        platform.FireTimer();
+        ticks.Should().Be(1);
+
+        timer.Interval = 40;
+        platform.TimerStartCount.Should().Be(2);
+        platform.TimerStopCount.Should().Be(1);
+        platform.LastTimerInterval.Should().Be(TimeSpan.FromMilliseconds(40));
+        platform.FireTimer();
+        ticks.Should().Be(2);
+
+        timer.Stop();
+        timer.Enabled.Should().BeFalse();
+        platform.TimerStopCount.Should().Be(2);
+        platform.HasActiveTimer.Should().BeFalse();
+        platform.WindowsCreated.Should().Be(0);
+        platform.Handles.Count.Should().Be(0);
+    }
+
+    [Fact]
     public void GroupBoxAndDisabledLinkLabelPaintWithoutNativeDeviceContexts()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2107,6 +2138,8 @@ public class CanonicalLifecycleTests
         private double? _initialFramebufferScale;
         private HeadlessWindow? _lastWindow;
         private IReadOnlyList<LibreMonitor> _monitors = CreateDefaultMonitorInventory();
+        private Action? _timerCallback;
+        private int _timerGeneration;
 
         internal HeadlessPlatform(bool autoCloseWindows = true)
         {
@@ -2183,6 +2216,12 @@ public class CanonicalLifecycleTests
             LastTextBounds = default;
             LastTextFormat = default;
             LastMeasuredText = string.Empty;
+            _timerCallback = null;
+            _timerGeneration = 0;
+            TimerStartCount = 0;
+            TimerStopCount = 0;
+            LastTimerInterval = default;
+            LastTimerRepeating = false;
         }
 
         internal ManagedLibreHandleRegistry Handles { get; }
@@ -2205,6 +2244,16 @@ public class CanonicalLifecycleTests
         internal LibreRectangle LastDirtyRectangle { get; private set; }
 
         internal int PresentCount { get; private set; }
+
+        internal int TimerStartCount { get; private set; }
+
+        internal int TimerStopCount { get; private set; }
+
+        internal TimeSpan LastTimerInterval { get; private set; }
+
+        internal bool LastTimerRepeating { get; private set; }
+
+        internal bool HasActiveTimer => _timerCallback is not null;
 
         internal int PresentationInvalidationCount { get; private set; }
 
@@ -2452,7 +2501,28 @@ public class CanonicalLifecycleTests
         public void RequestExit() => _exitRequested = true;
 
         public IDisposable Start(TimeSpan interval, bool repeating, Action callback)
-            => new EmptyDisposable();
+        {
+            TimerStartCount++;
+            LastTimerInterval = interval;
+            LastTimerRepeating = repeating;
+            _timerCallback = callback;
+            int generation = ++_timerGeneration;
+            return new HeadlessTimerRegistration(this, generation);
+        }
+
+        internal void FireTimer()
+            => (_timerCallback ?? throw new InvalidOperationException("No headless timer is active."))();
+
+        private void StopTimer(int generation)
+        {
+            TimerStopCount++;
+            if (generation != _timerGeneration)
+            {
+                return;
+            }
+
+            _timerCallback = null;
+        }
 
         public ILibreWindow Create(in LibreWindowCreateOptions options, ILibreWindowEvents events)
         {
@@ -3527,6 +3597,17 @@ public class CanonicalLifecycleTests
         private sealed class EmptyDisposable : IDisposable
         {
             public void Dispose() { }
+        }
+
+        private sealed class HeadlessTimerRegistration(HeadlessPlatform owner, int generation) : IDisposable
+        {
+            private HeadlessPlatform? _owner = owner;
+
+            public void Dispose()
+            {
+                HeadlessPlatform? current = Interlocked.Exchange(ref _owner, null);
+                current?.StopTimer(generation);
+            }
         }
     }
 }
