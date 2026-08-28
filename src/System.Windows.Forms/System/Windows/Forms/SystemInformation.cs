@@ -132,7 +132,11 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the height of the normal caption area of a window in pixels.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int CaptionHeight => PortableSystemSettings.CaptionHeight;
+#else
     public static int CaptionHeight => PInvokeCore.GetSystemMetrics(SM_CYCAPTION);
+#endif
 
     /// <summary>
     ///  Gets the width and height of a window border in pixels.
@@ -237,7 +241,11 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the height of a one line of a menu in pixels.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int MenuHeight => PortableSystemSettings.MenuHeight;
+#else
     public static int MenuHeight => PInvokeCore.GetSystemMetrics(SM_CYMENU);
+#endif
 
     /// <summary>
     ///  Returns the current system power status.
@@ -350,7 +358,11 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the system's default minimum tracking dimensions of a window in pixels.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static Size MinWindowTrackSize => GetPortableSize(PortableSystemSettings.MinWindowTrackSize);
+#else
     public static Size MinWindowTrackSize => GetSize(SM_CXMINTRACK, SM_CYMINTRACK);
+#endif
 
     /// <summary>
     ///  Gets the dimensions in pixels, of the area that the user must click within

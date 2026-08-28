@@ -54,6 +54,12 @@ public interface ILibreSystemSettingsService
 
     int HorizontalScrollBarHeight { get; }
 
+    int CaptionHeight { get; }
+
+    int MenuHeight { get; }
+
+    LibreSize MinWindowTrackSize { get; }
+
     int VerticalScrollBarArrowHeight { get; }
 
     int HorizontalScrollBarArrowWidth { get; }
@@ -181,6 +187,12 @@ public sealed class DefaultLibreSystemSettingsService : ILibreSystemSettingsServ
     public int VerticalScrollBarWidth => 17;
 
     public int HorizontalScrollBarHeight => 17;
+
+    public int CaptionHeight => 23;
+
+    public int MenuHeight => 19;
+
+    public LibreSize MinWindowTrackSize => new(112, 27);
 
     public int VerticalScrollBarArrowHeight => 17;
 

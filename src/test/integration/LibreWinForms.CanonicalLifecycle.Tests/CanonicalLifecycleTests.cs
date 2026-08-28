@@ -846,6 +846,30 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void SystemInformationAndComponentEditorUseTypedPortableNonClientMetrics()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+
+        SystemInformation.CaptionHeight.Should().Be(29);
+        SystemInformation.MenuHeight.Should().Be(31);
+        SystemInformation.MinWindowTrackSize.Should().Be(new Size(140, 52));
+
+        using var component = new System.ComponentModel.Component();
+        using var editor = new System.Windows.Forms.Design.ComponentEditorForm(component, []);
+        Size initialSize = editor.Size;
+
+        platform.CaptionHeightValue = 39;
+        using var tallerEditor = new System.Windows.Forms.Design.ComponentEditorForm(component, []);
+        SystemInformation.CaptionHeight.Should().Be(39);
+        tallerEditor.Width.Should().Be(initialSize.Width);
+        tallerEditor.Height.Should().BeGreaterThan(initialSize.Height);
+        editor.IsHandleCreated.Should().BeFalse();
+        tallerEditor.IsHandleCreated.Should().BeFalse();
+        platform.WindowsCreated.Should().Be(0);
+        platform.Handles.Count.Should().Be(0);
+    }
+
+    [Fact]
     public void GroupBoxAndDisabledLinkLabelPaintWithoutNativeDeviceContexts()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -1996,6 +2020,7 @@ public class CanonicalLifecycleTests
             _initialFramebufferScale = null;
             _lastWindow = null;
             _monitors = CreateDefaultMonitorInventory();
+            CaptionHeightValue = 29;
             _formHandles.Clear();
             while (_queue.TryDequeue(out _))
             {
@@ -2054,6 +2079,8 @@ public class CanonicalLifecycleTests
 
         internal int WindowsCreated { get; private set; }
 
+        internal int CaptionHeightValue { get; set; } = 29;
+
         internal LibreRectangle LastWindowBounds { get; private set; }
 
         internal LibreRectangle LastNativeWindowBounds { get; private set; }
@@ -2079,6 +2106,9 @@ public class CanonicalLifecycleTests
         public LibreSize Border3DSize => new(2, 2);
         public int VerticalScrollBarWidth => 17;
         public int HorizontalScrollBarHeight => 17;
+        public int CaptionHeight => CaptionHeightValue;
+        public int MenuHeight => 31;
+        public LibreSize MinWindowTrackSize => new(140, 52);
         public int VerticalScrollBarArrowHeight => 17;
         public int HorizontalScrollBarArrowWidth => 17;
         public int VerticalScrollBarThumbHeight => 17;

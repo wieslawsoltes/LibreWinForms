@@ -134,6 +134,9 @@ public class LibrePlatformTests
         services.SystemSettings.Border3DSize.Should().Be(new LibreSize(11, 12));
         services.SystemSettings.VerticalScrollBarWidth.Should().Be(13);
         services.SystemSettings.HorizontalScrollBarHeight.Should().Be(14);
+        services.SystemSettings.CaptionHeight.Should().Be(29);
+        services.SystemSettings.MenuHeight.Should().Be(31);
+        services.SystemSettings.MinWindowTrackSize.Should().Be(new LibreSize(140, 52));
         services.SystemSettings.VerticalScrollBarArrowHeight.Should().Be(15);
         services.SystemSettings.HorizontalScrollBarArrowWidth.Should().Be(16);
         services.SystemSettings.VerticalScrollBarThumbHeight.Should().Be(17);
@@ -465,6 +468,9 @@ public class LibrePlatformTests
         public LibreSize Border3DSize => new(11, 12);
         public int VerticalScrollBarWidth => 13;
         public int HorizontalScrollBarHeight => 14;
+        public int CaptionHeight => 29;
+        public int MenuHeight => 31;
+        public LibreSize MinWindowTrackSize => new(140, 52);
         public int VerticalScrollBarArrowHeight => 15;
         public int HorizontalScrollBarArrowWidth => 16;
         public int VerticalScrollBarThumbHeight => 17;
