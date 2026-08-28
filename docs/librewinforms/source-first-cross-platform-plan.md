@@ -938,6 +938,16 @@ Hosted build workflow `33145334373` passes canonical source/ProGPU validation, c
 
 The next coherent settings boundary is pointer/caret timing and capability: double-click size and time, mouse presence, button count and swap state, wheel presence, and caret blink time. These canonical values have real ToolStrip, DataGridView, and PropertyGrid consumers and should be host-supplied without changing their public API or the native Windows branches.
 
+## Current canonical pointer and timing settings checkpoint
+
+Exact source checkpoint `d242c35d7c2bd26d576eb95120f9ec74db34c5fd` moves seven host values into `ILibreSystemSettingsService`: mouse presence, swapped-button state, button count, double-click size and time, wheel presence, and caret blink time. Portable canonical `SystemInformation` uses them for eight public properties because `MouseWheelPresent` intentionally remains the upstream alias of `NativeMouseWheelSupport`. Native Windows retains every original `GetSystemMetrics`, `GetDoubleClickTime`, and `GetCaretBlinkTime` branch.
+
+The typed default service supplies deterministic desktop-style baselines, while the lifecycle host publishes deliberately distinctive values. Public-path coverage verifies all eight canonical getters and proves that the reads create neither a platform window nor a managed handle. This repairs values already consumed by canonical ToolStrip, DataGridView, and PropertyGrid code; it does not add parallel WinForms-shaped members. The complete exact-commit local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 48/48, ProGPU drawing 392/392, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and frozen Portable comparison 31 warnings/0 errors.
+
+Hosted build workflow `33146782554` passes canonical source/ProGPU validation, canonical package production and isolated consumption in job `98769463881`, and independent package job `98769464050`; documentation workflow `33146782558` and job `98769463961` also pass. No runtime source under `src/LibreWinForms.Portable` changed.
+
+The next bounded non-client metric group should route `CaptionHeight`, `MenuHeight`, and `MinWindowTrackSize` through the same typed service. ComponentEditorForm, ToolStripDropDownMenu, and Form already consume those canonical properties, so portable hosts need real values while Windows keeps its upstream system-metric calls.
+
 ## Major risks and controls
 
 | Risk | Control |

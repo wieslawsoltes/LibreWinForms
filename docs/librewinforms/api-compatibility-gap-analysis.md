@@ -699,6 +699,14 @@ Hosted build workflow `33145334373` passes canonical source/ProGPU validation, c
 
 The next grouped repair should cover pointer/caret timing and capability: double-click size/time, mouse presence, button count and swap state, wheel presence, and caret blink time. ToolStrip, DataGridView, and PropertyGrid already consume the canonical double-click properties, so this is another typed behavior seam rather than a reason to add members to the compatibility implementation.
 
+## Canonical property implementation follow-up: pointer and timing settings
+
+Exact source checkpoint `d242c35d7c2bd26d576eb95120f9ec74db34c5fd` ports mouse presence, swapped-button state, mouse-button count, double-click size/time, mouse-wheel presence, and caret blink time through `ILibreSystemSettingsService`. Those seven typed host values back eight unchanged canonical `SystemInformation` properties because `MouseWheelPresent` remains the upstream alias of `NativeMouseWheelSupport`. Windows retains the original `GetSystemMetrics`, `GetDoubleClickTime`, and `GetCaretBlinkTime` calls.
+
+The headless public-path case injects distinctive values, verifies every getter including the wheel alias pair, and proves no platform window or logical handle is created. The complete local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 48/48, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors. Hosted build workflow `33146782554` passes canonical source validation, canonical package production and isolated consumption in job `98769463881`, and package job `98769464050`; docs workflow `33146782558` and job `98769463961` also pass.
+
+This group closes portable Win32 reads used by real ToolStrip, DataGridView, and PropertyGrid behavior without recreating the properties in the compatibility tree. No compatibility declaration or runtime file under `src/LibreWinForms.Portable` changed. The next grouped repair should cover `CaptionHeight`, `MenuHeight`, and `MinWindowTrackSize`, which have canonical ComponentEditorForm, ToolStripDropDownMenu, and Form consumers.
+
 ## Definition of done
 
 For an API group to be considered ported:
