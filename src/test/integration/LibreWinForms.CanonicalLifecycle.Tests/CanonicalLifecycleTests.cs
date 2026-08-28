@@ -870,6 +870,18 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void SystemInformationUsesTypedPortableCursorAndIconMetrics()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+
+        SystemInformation.IconSize.Should().Be(new Size(33, 35));
+        SystemInformation.CursorSize.Should().Be(new Size(37, 39));
+        SystemInformation.SmallIconSize.Should().Be(new Size(17, 19));
+        platform.WindowsCreated.Should().Be(0);
+        platform.Handles.Count.Should().Be(0);
+    }
+
+    [Fact]
     public void GroupBoxAndDisabledLinkLabelPaintWithoutNativeDeviceContexts()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2109,6 +2121,9 @@ public class CanonicalLifecycleTests
         public int CaptionHeight => CaptionHeightValue;
         public int MenuHeight => 31;
         public LibreSize MinWindowTrackSize => new(140, 52);
+        public LibreSize IconSize => new(33, 35);
+        public LibreSize CursorSize => new(37, 39);
+        public LibreSize SmallIconSize => new(17, 19);
         public int VerticalScrollBarArrowHeight => 17;
         public int HorizontalScrollBarArrowWidth => 17;
         public int VerticalScrollBarThumbHeight => 17;

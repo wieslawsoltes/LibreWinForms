@@ -188,12 +188,20 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the default dimensions of an icon in pixels.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static Size IconSize => GetPortableSize(PortableSystemSettings.IconSize);
+#else
     public static Size IconSize => GetSize(SM_CXICON, SM_CYICON);
+#endif
 
     /// <summary>
     ///  Gets the dimensions of a cursor in pixels.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static Size CursorSize => GetPortableSize(PortableSystemSettings.CursorSize);
+#else
     public static Size CursorSize => GetSize(SM_CXCURSOR, SM_CYCURSOR);
+#endif
 
     /// <summary>
     ///  Gets the system's font for menus.
@@ -442,7 +450,11 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the recommended dimensions of a small icon in pixels.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static Size SmallIconSize => GetPortableSize(PortableSystemSettings.SmallIconSize);
+#else
     public static Size SmallIconSize => GetSize(SM_CXSMICON, SM_CYSMICON);
+#endif
 
     /// <summary>
     ///  Gets the height of a small caption in pixels.
