@@ -20,6 +20,44 @@ namespace LibreWinForms.CanonicalLifecycle.Tests;
 public class CanonicalLifecycleTests
 {
     [Fact]
+    public void KeyboardAndFocusCues_UseManagedPortableState()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        platform.MenuAccessKeysUnderlinedValue = false;
+        using Form form = new();
+        using CueProbeButton button = new()
+        {
+            AutoSize = true,
+            Text = "&Run"
+        };
+        form.Controls.Add(button);
+
+        form.Show();
+
+        button.KeyboardCues.Should().BeFalse();
+        button.FocusCues.Should().BeFalse();
+        button.GetPreferredSize(Size.Empty).Width.Should().BeGreaterThan(0);
+        Action paint = () =>
+        {
+            form.Invalidate();
+            form.Update();
+        };
+        paint.Should().NotThrow();
+
+        Message showKeyboard = Message.Create(button.Handle, 0x0104, (nint)Keys.Menu, 0);
+        button.PreProcessMessage(ref showKeyboard);
+        button.KeyboardCues.Should().BeTrue();
+        button.FocusCues.Should().BeFalse();
+
+        Message showFocus = Message.Create(button.Handle, 0x0100, (nint)Keys.Tab, 0);
+        button.PreProcessMessage(ref showFocus);
+        button.KeyboardCues.Should().BeTrue();
+        button.FocusCues.Should().BeTrue();
+
+        form.Close();
+    }
+
+    [Fact]
     public void FormSizeConstraints_UseTypedInitialAndLivePlatformState()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2522,6 +2560,14 @@ public class CanonicalLifecycleTests
             => SetStyle(ControlStyles.Selectable | ControlStyles.StandardClick | ControlStyles.UserPaint, true);
     }
 
+    private sealed class CueProbeButton : Button
+    {
+        internal bool KeyboardCues => ShowKeyboardCues;
+        internal bool FocusCues => ShowFocusCues;
+
+        protected override bool IsInputKey(Keys keyData) => true;
+    }
+
     private sealed class MouseDownProbeUserControl : UserControl
     {
         internal void RaiseMouseDown(MouseEventArgs e) => OnMouseDown(e);
@@ -2675,6 +2721,7 @@ public class CanonicalLifecycleTests
             _lastWindow = null;
             _monitors = CreateDefaultMonitorInventory();
             CaptionHeightValue = 29;
+            MenuAccessKeysUnderlinedValue = true;
             _formHandles.Clear();
             while (_queue.TryDequeue(out _))
             {
@@ -2963,7 +3010,8 @@ public class CanonicalLifecycleTests
         public bool MouseWheelPresent => false;
         public int CaretBlinkTime => 725;
         public int MouseWheelScrollLines => 7;
-        public bool MenuAccessKeysUnderlined => true;
+        internal bool MenuAccessKeysUnderlinedValue { get; set; } = true;
+        public bool MenuAccessKeysUnderlined => MenuAccessKeysUnderlinedValue;
         public int KeyboardDelay => 2;
         public bool KeyboardPreferred => true;
         public int KeyboardSpeed => 23;

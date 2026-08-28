@@ -66,6 +66,10 @@ require_text eng/librewinforms-pack-source-first.sh 'PROGPU_PACKAGE_GROUP=drawin
 require_text docs/librewinforms/api-compatibility-gap-analysis.md 'exact source-package closure'
 require_text docs/librewinforms/source-first-cross-platform-plan.md 'Exact package-mode checkpoint'
 require_text packaging/LibreWinForms.Sdk.SourceFirstSmoke/LibreWinForms.Sdk.SourceFirstSmoke.csproj '<Project Sdk="LibreWinForms.Sdk/0.1.0-source-first-sdk">'
+require_text packaging/LibreWinForms.Sdk.SourceFirstVisibleSmoke/LibreWinForms.Sdk.SourceFirstVisibleSmoke.csproj '<LibreWinFormsReferenceMode>Package</LibreWinFormsReferenceMode>'
+require_text packaging/LibreWinForms.Sdk.SourceFirstVisibleSmoke/Program.cs 'Application.Run(form)'
+require_text .github/workflows/librewinforms-ci.yml 'Visible canonical package (${{ matrix.os }})'
+require_text .github/workflows/librewinforms-ci.yml './eng/librewinforms-source-first-visible-smoke.sh'
 require_text packaging/LibreWinForms.Sdk.CompatibilitySmoke/Program.cs "namespace LibreWinForms.SdkSmoke;"
 if [[ -e src/LibreWinForms.Portable/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj ]]; then
   echo "LibreWinForms.Sdk project must remain outside the frozen Portable source tree." >&2

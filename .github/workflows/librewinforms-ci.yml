@@ -57,6 +57,50 @@ jobs:
           path: artifacts/packages/source-first/*.nupkg
           if-no-files-found: error
 
+  source-first-visible:
+    name: Visible canonical package (${{ matrix.os }})
+    needs: source-first-shadow
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-15
+          - windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux display and software WebGPU adapter
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes xvfb libvulkan1 mesa-vulkan-drivers
+
+      - name: Setup .NET 10 for ProGPU dependencies
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Setup LibreWinForms repository SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Download canonical package closure
+        uses: actions/download-artifact@v4
+        with:
+          name: canonical-source-first-package
+          path: artifacts/packages/source-first
+
+      - name: Run visible installed-SDK package smoke
+        shell: bash
+        run: ./eng/librewinforms-source-first-visible-smoke.sh
+
   appkit-adapter:
     name: AppKit adapter lane
     runs-on: macos-15

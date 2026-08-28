@@ -595,9 +595,14 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
 
 #if LIBREWINFORMS_PORTABLE
     private static Graphics GetPortableGraphics(IDeviceContext deviceContext)
-        => deviceContext as Graphics
-            ?? throw new PlatformNotSupportedException(
-                "Portable visual-style drawing requires a managed System.Drawing.Graphics recorder.");
+        => deviceContext switch
+        {
+            Graphics graphics => graphics,
+            PaintEventArgs paintEventArgs => paintEventArgs.GraphicsInternal,
+            _ => deviceContext.TryGetGraphics(create: true)
+                ?? throw new PlatformNotSupportedException(
+                    "Portable visual-style drawing requires a managed System.Drawing.Graphics recorder.")
+        };
 
     private static LibreVisualStyleSizeType GetPortableSizeType(ThemeSizeType type)
         => type switch

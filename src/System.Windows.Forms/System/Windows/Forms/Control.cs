@@ -3480,15 +3480,17 @@ public unsafe partial class Control :
                 else
                 {
                     // if we're in the hidden state, we need to manufacture an update message so everyone knows it.
-                    uint actionMask = PInvoke.UISF_HIDEACCEL << 16;
                     _uiCuesState |= UICuesStates.KeyboardHidden;
 
                     // The side effect of this initial state is that adding new controls may clear the accelerator
                     // state (has been this way forever)
+#if !LIBREWINFORMS_PORTABLE
+                    uint actionMask = PInvoke.UISF_HIDEACCEL << 16;
                     PInvokeCore.SendMessage(
                         TopMostParent,
                         PInvokeCore.WM_CHANGEUISTATE,
                         (WPARAM)(actionMask | PInvoke.UIS_SET));
+#endif
                 }
             }
 
@@ -3528,13 +3530,14 @@ public unsafe partial class Control :
                     _uiCuesState |= UICuesStates.FocusHidden;
 
                     // if we're in the hidden state, we need to manufacture an update message so everyone knows it.
-                    int actionMask = (int)(PInvoke.UISF_HIDEACCEL | PInvoke.UISF_HIDEFOCUS) << 16;
-
                     // The side effect of this initial state is that adding new controls may clear the focus cue state
                     // state (has been this way forever)
+#if !LIBREWINFORMS_PORTABLE
+                    int actionMask = (int)(PInvoke.UISF_HIDEACCEL | PInvoke.UISF_HIDEFOCUS) << 16;
                     PInvokeCore.SendMessage(TopMostParent,
                         PInvokeCore.WM_CHANGEUISTATE,
                         (WPARAM)(actionMask | (int)PInvoke.UIS_SET));
+#endif
                 }
             }
 
@@ -9386,6 +9389,12 @@ public unsafe partial class Control :
             return;  // PERF: don't WM_QUERYUISTATE if we don't have to.
         }
 
+#if LIBREWINFORMS_PORTABLE
+        TopMostParent.UpdatePortableUICues(
+            showKeyboard: keyCode is Keys.F10 or Keys.Menu,
+            showFocus: keyCode == Keys.Tab);
+        return;
+#else
         Control? topMostParent = null;
         uint current = (uint)PInvokeCore.SendMessage(this, PInvokeCore.WM_QUERYUISTATE);
 
@@ -9443,7 +9452,45 @@ public unsafe partial class Control :
                 PInvoke.GetParent(topMostParent).IsNull ? PInvokeCore.WM_CHANGEUISTATE : PInvokeCore.WM_UPDATEUISTATE,
                 (WPARAM)((int)PInvoke.UIS_CLEAR | ((int)toClear << 16)));
         }
+#endif
     }
+
+#if LIBREWINFORMS_PORTABLE
+    private void UpdatePortableUICues(bool showKeyboard, bool showFocus)
+    {
+        UICues cues = UICues.None;
+
+        if (showKeyboard
+            && (_uiCuesState & UICuesStates.KeyboardMask) != UICuesStates.KeyboardShow)
+        {
+            _uiCuesState &= ~UICuesStates.KeyboardMask;
+            _uiCuesState |= UICuesStates.KeyboardShow;
+            cues |= UICues.ChangeKeyboard | UICues.ShowKeyboard;
+        }
+
+        if (showFocus
+            && (_uiCuesState & UICuesStates.FocusMask) != UICuesStates.FocusShow)
+        {
+            _uiCuesState &= ~UICuesStates.FocusMask;
+            _uiCuesState |= UICuesStates.FocusShow;
+            cues |= UICues.ChangeFocus | UICues.ShowFocus;
+        }
+
+        if ((cues & UICues.Changed) != 0)
+        {
+            OnChangeUICues(new UICuesEventArgs(cues));
+            Invalidate();
+        }
+
+        if (ChildControls is { } children)
+        {
+            for (int i = 0; i < children.Count; i++)
+            {
+                children[i].UpdatePortableUICues(showKeyboard, showFocus);
+            }
+        }
+    }
+#endif
 
     /// <summary>
     ///  Raises the event associated with key with the event data of
