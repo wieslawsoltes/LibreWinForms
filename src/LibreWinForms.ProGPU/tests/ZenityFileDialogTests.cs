@@ -91,7 +91,7 @@ public class ZenityFileDialogTests
     }
 
     [Fact]
-    public async Task Show_RejectsWrongDispatcherThreadBeforeStartingDesktopProcess()
+    public void Show_RejectsWrongDispatcherThreadBeforeStartingDesktopProcess()
     {
         if (!OperatingSystem.IsLinux())
         {
@@ -106,9 +106,22 @@ public class ZenityFileDialogTests
             LibreFileDialogOptions.None,
             null);
 
-        Func<Task> show = () => Task.Run(() => service.Show(request));
+        Exception? error = null;
+        Thread thread = new(() =>
+        {
+            try
+            {
+                service.Show(request);
+            }
+            catch (Exception exception)
+            {
+                error = exception;
+            }
+        });
+        thread.Start();
+        thread.Join();
 
-        await show.Should().ThrowAsync<InvalidOperationException>();
+        error.Should().BeOfType<InvalidOperationException>();
         runner.CallCount.Should().Be(0);
     }
 

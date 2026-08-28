@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Diagnostics.CodeAnalysis;
 using FluentAssertions;
 using LibreWinForms.Platform;
 using ProGPU.Backend;
@@ -100,7 +101,7 @@ public class XdgPortalFileDialogTests
     }
 
     [Fact]
-    public async Task Show_RequiresDispatcherAndRoutesUnsupportedHelpToFallbackPolicy()
+    public void Show_RequiresDispatcherAndRoutesUnsupportedHelpToFallbackPolicy()
     {
         if (!OperatingSystem.IsLinux())
         {
@@ -120,11 +121,24 @@ public class XdgPortalFileDialogTests
         {
             Options = LibreFileDialogOptions.ShowHiddenFiles,
         });
-        Func<Task> wrongThread = () => Task.Run(() => service.Show(CreateRequest()));
+        Exception? wrongThreadError = null;
+        Thread thread = new(() =>
+        {
+            try
+            {
+                service.Show(CreateRequest());
+            }
+            catch (Exception exception)
+            {
+                wrongThreadError = exception;
+            }
+        });
+        thread.Start();
+        thread.Join();
 
         help.Should().Throw<PlatformNotSupportedException>().WithMessage("*Help action*");
         hidden.Should().Throw<PlatformNotSupportedException>().WithMessage("*hidden files*");
-        await wrongThread.Should().ThrowAsync<InvalidOperationException>();
+        wrongThreadError.Should().BeOfType<InvalidOperationException>();
         portal.CallCount.Should().Be(0);
     }
 
@@ -136,6 +150,48 @@ public class XdgPortalFileDialogTests
         XdgPortalParentWindow.Format(new(NativeWindowKind.Wayland, (nint)0x2A, 0, "Wayland"))
             .Should().BeEmpty();
         XdgPortalParentWindow.Format(NativeWindowHandle.Empty).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ParentProvider_HoldsWaylandExportForExactlyOneRequestLease()
+    {
+        RecordingWaylandExporter exporter = new("wayland:exported-token");
+        var provider = new ProGpuXdgPortalParentWindowProvider(new ManagedLibreHandleRegistry(), exporter);
+
+        IXdgPortalParentWindowLease lease = provider.AcquireNative(
+            new(NativeWindowKind.Wayland, (nint)0x2A, 0, "Wayland"));
+        lease.Identifier.Should().Be("wayland:exported-token");
+        exporter.NativeHandle.Should().Be((nint)0x2A);
+
+        lease.Dispose();
+        lease.Dispose();
+
+        exporter.ReleaseCount.Should().Be(1);
+    }
+
+    [Fact]
+    public void ParentProvider_RejectsInvalidWaylandExportAndServiceReleasesLease()
+    {
+        RecordingWaylandExporter invalidExporter = new("wayland:");
+        var provider = new ProGpuXdgPortalParentWindowProvider(
+            new ManagedLibreHandleRegistry(),
+            invalidExporter);
+        Action invalid = () => provider.AcquireNative(
+            new(NativeWindowKind.Wayland, (nint)0x2A, 0, "Wayland"));
+        invalid.Should().Throw<InvalidOperationException>().WithMessage("*invalid xdg-foreign identifier*");
+        invalidExporter.ReleaseCount.Should().Be(1);
+
+        RecordingParentProvider parent = new("x11:2a");
+        RecordingPortal portal = new(new(
+            XdgPortalResponse.Success,
+            ["file:///tmp/file.txt"],
+            null,
+            null));
+        var service = new XdgDesktopPortalLibreFileDialogService(new ProGpuDispatcher(), portal, parent);
+
+        service.Show(CreateRequest());
+
+        parent.ReleaseCount.Should().Be(1);
     }
 
     [Fact]
@@ -254,7 +310,32 @@ public class XdgPortalFileDialogTests
 
     private sealed class StaticParentProvider(string parent) : IXdgPortalParentWindowProvider
     {
-        public string GetParentWindow(LibreHandle owner) => parent;
+        public IXdgPortalParentWindowLease Acquire(LibreHandle owner)
+            => new XdgPortalParentWindowLease(parent);
+    }
+
+    private sealed class RecordingParentProvider(string parent) : IXdgPortalParentWindowProvider
+    {
+        public int ReleaseCount { get; private set; }
+
+        public IXdgPortalParentWindowLease Acquire(LibreHandle owner)
+            => new XdgPortalParentWindowLease(parent, () => ReleaseCount++);
+    }
+
+    private sealed class RecordingWaylandExporter(string identifier) : IXdgPortalWaylandParentExporter
+    {
+        public nint NativeHandle { get; private set; }
+
+        public int ReleaseCount { get; private set; }
+
+        public bool TryExport(
+            NativeWindowHandle window,
+            [NotNullWhen(true)] out IXdgPortalParentWindowLease? lease)
+        {
+            NativeHandle = window.Handle;
+            lease = new XdgPortalParentWindowLease(identifier, () => ReleaseCount++);
+            return true;
+        }
     }
 
     private sealed class RecordingPortal(XdgFileChooserResult result) : IXdgFileChooserPortal

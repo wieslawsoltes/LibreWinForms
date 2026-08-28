@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Diagnostics.CodeAnalysis;
 using LibreWinForms.Platform;
 using ProGPU.Backend;
 
@@ -41,10 +42,61 @@ public interface IXdgFileChooserPortal
     XdgFileChooserResult Show(in XdgFileChooserRequest request);
 }
 
-/// <summary>Converts a managed owner identity into an XDG portal parent-window identifier.</summary>
+/// <summary>Keeps an exported portal parent identity alive for one request.</summary>
+public interface IXdgPortalParentWindowLease : IDisposable
+{
+    string Identifier { get; }
+}
+
+/// <summary>Converts a managed owner identity into a request-scoped portal parent lease.</summary>
 public interface IXdgPortalParentWindowProvider
 {
-    string GetParentWindow(LibreHandle owner);
+    IXdgPortalParentWindowLease Acquire(LibreHandle owner);
+}
+
+/// <summary>Exports a Wayland surface through xdg-foreign for the lifetime of a portal request.</summary>
+public interface IXdgPortalWaylandParentExporter
+{
+    bool TryExport(
+        NativeWindowHandle window,
+        [NotNullWhen(true)] out IXdgPortalParentWindowLease? lease);
+}
+
+/// <summary>An immutable portal parent identifier with an optional one-shot release action.</summary>
+public sealed class XdgPortalParentWindowLease : IXdgPortalParentWindowLease
+{
+    private Action? _release;
+
+    public XdgPortalParentWindowLease(string identifier, Action? release = null)
+    {
+        ArgumentNullException.ThrowIfNull(identifier);
+        Identifier = identifier;
+        _release = release;
+    }
+
+    public static XdgPortalParentWindowLease Empty { get; } = new(string.Empty);
+
+    public string Identifier { get; }
+
+    public void Dispose() => Interlocked.Exchange(ref _release, null)?.Invoke();
+}
+
+/// <summary>Explicit default until a host supplies a real xdg-foreign protocol implementation.</summary>
+public sealed class UnsupportedXdgPortalWaylandParentExporter : IXdgPortalWaylandParentExporter
+{
+    public static UnsupportedXdgPortalWaylandParentExporter Instance { get; } = new();
+
+    private UnsupportedXdgPortalWaylandParentExporter()
+    {
+    }
+
+    public bool TryExport(
+        NativeWindowHandle window,
+        [NotNullWhen(true)] out IXdgPortalParentWindowLease? lease)
+    {
+        lease = null;
+        return false;
+    }
 }
 
 /// <summary>Formats only native handles that the XDG parent-window protocol can represent safely.</summary>
@@ -60,15 +112,26 @@ public static class XdgPortalParentWindow
 public sealed class ProGpuXdgPortalParentWindowProvider : IXdgPortalParentWindowProvider
 {
     private readonly ILibreHandleRegistry _handles;
+    private readonly IXdgPortalWaylandParentExporter _wayland;
 
     public ProGpuXdgPortalParentWindowProvider(ILibreHandleRegistry handles)
-        => _handles = handles ?? throw new ArgumentNullException(nameof(handles));
+        : this(handles, UnsupportedXdgPortalWaylandParentExporter.Instance)
+    {
+    }
 
-    public string GetParentWindow(LibreHandle owner)
+    public ProGpuXdgPortalParentWindowProvider(
+        ILibreHandleRegistry handles,
+        IXdgPortalWaylandParentExporter wayland)
+    {
+        _handles = handles ?? throw new ArgumentNullException(nameof(handles));
+        _wayland = wayland ?? throw new ArgumentNullException(nameof(wayland));
+    }
+
+    public IXdgPortalParentWindowLease Acquire(LibreHandle owner)
     {
         if (owner.IsNull)
         {
-            return string.Empty;
+            return XdgPortalParentWindowLease.Empty;
         }
 
         if (!_handles.TryGet(owner, out SilkLibreWindow? window))
@@ -76,9 +139,35 @@ public sealed class ProGpuXdgPortalParentWindowProvider : IXdgPortalParentWindow
             throw new ArgumentException("The file-dialog owner must be a live Silk.NET window.", nameof(owner));
         }
 
-        // A raw wl_surface is not a valid portal parent. Wayland needs an xdg-foreign exported
-        // handle, so it deliberately remains unparented until that typed exporter seam exists.
-        return XdgPortalParentWindow.Format(window.NativeHandle);
+        return AcquireNative(window.NativeHandle);
+    }
+
+    internal IXdgPortalParentWindowLease AcquireNative(NativeWindowHandle window)
+    {
+        string staticIdentifier = XdgPortalParentWindow.Format(window);
+        if (staticIdentifier.Length > 0)
+        {
+            return new XdgPortalParentWindowLease(staticIdentifier);
+        }
+
+        // A raw wl_surface is not a valid portal parent. The exporter must return an xdg-foreign
+        // handle and retain its protocol object until this request-scoped lease is disposed.
+        if (window.Kind != NativeWindowKind.Wayland
+            || !window.IsValid
+            || !_wayland.TryExport(window, out IXdgPortalParentWindowLease? lease))
+        {
+            return XdgPortalParentWindowLease.Empty;
+        }
+
+        if (!lease.Identifier.StartsWith("wayland:", StringComparison.Ordinal)
+            || lease.Identifier.Length == "wayland:".Length)
+        {
+            lease.Dispose();
+            throw new InvalidOperationException(
+                "The Wayland portal parent exporter returned an invalid xdg-foreign identifier.");
+        }
+
+        return lease;
     }
 }
 
@@ -123,9 +212,10 @@ public sealed class XdgDesktopPortalLibreFileDialogService : ILibreFileDialogSer
                 "The XDG FileChooser portal cannot request that hidden files are initially shown.");
         }
 
+        using IXdgPortalParentWindowLease parent = _parents.Acquire(request.Owner);
         XdgFileChooserRequest portalRequest = new(
             request.Kind,
-            _parents.GetParentWindow(request.Owner),
+            parent.Identifier,
             request.Title.Length > 0 ? request.Title : request.Description,
             request.InitialDirectory,
             request.SelectedPaths.ToArray(),
