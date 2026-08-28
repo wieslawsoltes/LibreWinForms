@@ -749,6 +749,20 @@ The platform and public lifecycle tests verify all twelve values and remain wind
 
 Hosted workflow `33155019264` passes canonical source validation, canonical package production and isolated consumption in job `98795627342`, and independent package job `98795627028`; docs workflow `33155019249` and job `98795627012` also pass. No compatibility declaration or runtime file under `src/LibreWinForms.Portable` changed. The remaining direct minimized-window arrangement read should become a backend-neutral typed value with explicit canonical enum mapping.
 
+## Canonical property implementation follow-up: arrangement and late display metrics
+
+Exact source checkpoint `9afd09243fb29a3a6df22e5f71c213c35455d7fe` replaces portable `SM_ARRANGE` access with backend-neutral start-position, direction, and hide values explicitly mapped to the existing canonical enums. Its complete local gate passes lifecycle 54/54, and hosted workflow `33156291346` passes canonical/package job `98799731632` plus package job `98799731407`; docs job `98799732045` also passes.
+
+Exact source checkpoint `a99e26943e6f37efa7311abfdcd0b4f3ad148b36` ports `ScreenOrientation`, `SizingBorderWidth`, `SmallCaptionButtonSize`, `MenuBarButtonSize`, DPI border scaling, and locked-terminal-session detection. Portable builds use typed settings and native Windows retains the original USER32 paths. The complete local gate passes lifecycle 55/55, and hosted workflow `33157252468` passes canonical/package job `98802871268` plus package job `98802871070`; docs job `98802870989` also passes. Both checkpoints retain ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, adapter 20/20, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed differences, and frozen comparison 31 warnings/0 errors.
+
+## Canonical property implementation follow-up: power status and menu fonts
+
+Exact source checkpoint `918098c53fc75a92b14c200a4c109132773c2b4b` moves canonical `PowerStatus` behind `ILibrePowerStatusService` and an atomic backend-neutral snapshot with explicit canonical enum/flag mapping. Windows keeps `GetSystemPowerStatus`; portable hosts no longer call it. The exact local gate passes platform 28/28 and lifecycle 56/56, and hosted workflow `33158024870` passes canonical/package job `98805395030` plus package job `98805395356`; docs job `98805395768` also passes.
+
+Exact source checkpoint `4bd67a8c017b364578ea68a475fa15e99c6287b1` routes portable `SystemInformation.MenuFont` and `GetMenuFontForDpi` through a typed, caller-owned ProGPU `System.Drawing.Font` factory. Explicit DPI is forwarded to the host, while native Windows retains `NONCLIENTMETRICS`/`LOGFONT` behavior. Its complete local gate passes platform 28/28, lifecycle 57/57, ProGPU canonical 609 reviewed warnings/0 errors, adapter 20/20, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed differences, and frozen comparison 31 warnings/0 errors. Exact-head workflows `33158835096` and `33158835106` were queued when this report checkpoint was prepared.
+
+No compatibility declaration or runtime file under `src/LibreWinForms.Portable` changed. These repairs demonstrate the core cause of the reported missing properties: the canonical declarations already exist, while portable native dependencies must be replaced at typed seams. The next audit should therefore rank remaining Win32-dependent canonical behavior rather than adding more members to the frozen compatibility assembly.
+
 ## Definition of done
 
 For an API group to be considered ported:

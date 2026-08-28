@@ -998,6 +998,32 @@ Hosted workflow `33155019264` passes canonical source validation, canonical pack
 
 The remaining direct `SM_ARRANGE` reads should be replaced next with a backend-neutral minimized-window arrangement value and explicit mapping to canonical `ArrangeStartingPosition` and `ArrangeDirection`.
 
+## Current canonical minimized-window arrangement checkpoint
+
+Exact source checkpoint `9afd09243fb29a3a6df22e5f71c213c35455d7fe` replaces the final portable `SM_ARRANGE` read with backend-neutral `LibreMinimizedWindowStartPosition` and `LibreMinimizedWindowDirection` values plus a separate hide flag. Canonical `ArrangeStartingPosition` and `ArrangeDirection` remain unchanged and receive explicit enum mappings at the source boundary; native Windows retains the original masked `GetSystemMetrics(SM_ARRANGE)` behavior.
+
+The platform and public lifecycle tests inject `TopRight`, `Up`, and hide, verify the exact public flag combinations, and prove the reads create neither a window nor a logical handle. The complete local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 54/54, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors. Hosted workflow `33156291346` passes canonical source validation and isolated canonical package consumption in job `98799731632` plus independent package job `98799731407`; docs workflow `33156291424` and job `98799732045` also pass.
+
+## Current canonical late display metrics checkpoint
+
+Exact source checkpoint `a99e26943e6f37efa7311abfdcd0b4f3ad148b36` routes the remaining late `SystemInformation` display reads through typed host data on portable builds: `ScreenOrientation`, `SizingBorderWidth`, `SmallCaptionButtonSize`, and `MenuBarButtonSize`. `GetBorderSizeForDpi` now scales the typed border rather than retaining a reachable `GetSystemMetricsForDpi` path, and locked-terminal-session detection uses an explicit host value instead of opening a Windows desktop. Native Windows keeps the upstream display-settings, non-client-metrics, and desktop APIs.
+
+The public-path test verifies distinctive orientation and sizes, including 192-DPI border scaling, without creating a window or handle. The complete local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 55/55, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors. Hosted workflow `33157252468` passes canonical source validation and isolated canonical package consumption in job `98802871268` plus independent package job `98802871070`; docs workflow `33157252452` and job `98802870989` also pass.
+
+## Current canonical power-status checkpoint
+
+Exact source checkpoint `918098c53fc75a92b14c200a4c109132773c2b4b` adds the narrow `ILibrePowerStatusService` and an atomic `LibrePowerStatusSnapshot`. Portable canonical `PowerStatus` refreshes from that typed service and explicitly maps backend-neutral line and battery flags; native Windows retains `GetSystemPowerStatus` and its original `SYSTEM_POWER_STATUS` storage. The default service reports documented unknown/unavailable values until a local-OS adapter supplies real power data.
+
+Contract and public lifecycle coverage verify online, low-and-charging, lifetime, percentage, and remaining-time values without native calls, windows, or handles. The complete local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 28/28, adapter 20/20, lifecycle 56/56, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors. Hosted workflow `33158024870` passes canonical source validation and isolated canonical package consumption in job `98805395030` plus independent package job `98805395356`; docs workflow `33158025104` and job `98805395768` also pass.
+
+## Current canonical menu-font checkpoint
+
+Exact source checkpoint `4bd67a8c017b364578ea68a475fa15e99c6287b1` connects `SystemInformation.MenuFont` and `GetMenuFontForDpi` to `ILibreSystemSettingsService.GetMenuFont` for portable builds. The typed host owns local font selection, returns a caller-owned ProGPU `System.Drawing.Font`, and receives the explicit DPI requested by the public API. Native Windows retains upstream `NONCLIENTMETRICS` and `LOGFONT` conversion, while the separate native-ProGPU configuration keeps its existing managed fallback.
+
+Contract and lifecycle tests prove distinct default- and 192-DPI fonts flow through the unchanged canonical APIs without window or handle creation. The complete local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 28/28, adapter 20/20, lifecycle 57/57, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors. Exact-head build workflow `33158835096` and docs workflow `33158835106` were queued when this report checkpoint was prepared.
+
+No runtime source under `src/LibreWinForms.Portable` changed in any of these four checkpoints. With `SystemInformation` and `PowerStatus` native reads now bounded, the next source-first audit should rank direct Win32 dependencies in canonical control behavior and services rather than extending the frozen compatibility tree.
+
 ## Major risks and controls
 
 | Risk | Control |
