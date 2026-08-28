@@ -910,6 +910,27 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void SystemInformationUsesTypedPortableCapabilityMetrics()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+
+        SystemInformation.KanjiWindowHeight.Should().Be(41);
+        SystemInformation.DebugOS.Should().BeTrue();
+        SystemInformation.RightAlignedMenus.Should().BeTrue();
+        SystemInformation.PenWindows.Should().BeTrue();
+        SystemInformation.DbcsEnabled.Should().BeTrue();
+        SystemInformation.Secure.Should().BeTrue();
+        SystemInformation.Network.Should().BeFalse();
+        SystemInformation.TerminalServerSession.Should().BeTrue();
+        SystemInformation.BootMode.Should().Be(BootMode.FailSafeWithNetwork);
+        SystemInformation.ShowSounds.Should().BeTrue();
+        SystemInformation.MenuCheckSize.Should().Be(new Size(27, 29));
+        SystemInformation.MidEastEnabled.Should().BeTrue();
+        platform.WindowsCreated.Should().Be(0);
+        platform.Handles.Count.Should().Be(0);
+    }
+
+    [Fact]
     public void GroupBoxAndDisabledLinkLabelPaintWithoutNativeDeviceContexts()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2162,6 +2183,18 @@ public class CanonicalLifecycleTests
         public LibreSize ToolWindowCaptionButtonSize => new(45, 46);
         public LibreSize MenuButtonSize => new(47, 48);
         public LibreSize MinimizedWindowSize => new(203, 204);
+        public int KanjiWindowHeight => 41;
+        public bool DebugOperatingSystem => true;
+        public bool RightAlignedMenus => true;
+        public bool PenWindows => true;
+        public bool DbcsEnabled => true;
+        public bool Secure => true;
+        public bool Network => false;
+        public bool TerminalServerSession => true;
+        public LibreBootMode BootMode => LibreBootMode.FailSafeWithNetwork;
+        public bool ShowSounds => true;
+        public LibreSize MenuCheckSize => new(27, 29);
+        public bool MidEastEnabled => true;
         public int VerticalScrollBarArrowHeight => 17;
         public int HorizontalScrollBarArrowWidth => 17;
         public int VerticalScrollBarThumbHeight => 17;

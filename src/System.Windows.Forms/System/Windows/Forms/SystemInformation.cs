@@ -281,7 +281,11 @@ public static class SystemInformation
     ///  Gets the height, in pixels, of the Kanji window at the bottom of the screen
     ///  for double-byte (DBCS) character set versions of Windows.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int KanjiWindowHeight => PortableSystemSettings.KanjiWindowHeight;
+#else
     public static int KanjiWindowHeight => PInvokeCore.GetSystemMetrics(SM_CYKANJIWINDOW);
+#endif
 
     /// <summary>
     ///  Gets a value indicating whether the system has a mouse installed.
@@ -336,7 +340,11 @@ public static class SystemInformation
     /// <summary>
     ///  Gets a value indicating whether this is a debug version of the operating system.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool DebugOS => PortableSystemSettings.DebugOperatingSystem;
+#else
     public static bool DebugOS => PInvokeCore.GetSystemMetrics(SM_DEBUG) != 0;
+#endif
 
     /// <summary>
     ///  Gets a value indicating whether the functions of the left and right mouse
@@ -418,18 +426,30 @@ public static class SystemInformation
     ///  Gets a value indicating whether drop down menus should be right-aligned with the corresponding menu
     ///  bar item.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool RightAlignedMenus => PortableSystemSettings.RightAlignedMenus;
+#else
     public static bool RightAlignedMenus => PInvokeCore.GetSystemMetrics(SM_MENUDROPALIGNMENT) != 0;
+#endif
 
     /// <summary>
     ///  Gets a value indicating whether the Microsoft Windows for Pen computing extensions are installed.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool PenWindows => PortableSystemSettings.PenWindows;
+#else
     public static bool PenWindows => PInvokeCore.GetSystemMetrics(SM_PENWINDOWS) != 0;
+#endif
 
     /// <summary>
     ///  Gets a value indicating whether the operating system is capable of handling
     ///  double-byte (DBCS) characters.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool DbcsEnabled => PortableSystemSettings.DbcsEnabled;
+#else
     public static bool DbcsEnabled => PInvokeCore.GetSystemMetrics(SM_DBCSENABLED) != 0;
+#endif
 
     /// <summary>
     ///  Gets the number of buttons on mouse.
@@ -443,7 +463,11 @@ public static class SystemInformation
     /// <summary>
     ///  Gets a value indicating whether security is present on this operating system.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool Secure => PortableSystemSettings.Secure;
+#else
     public static bool Secure => PInvokeCore.GetSystemMetrics(SM_SECURE) != 0;
+#endif
 
     /// <summary>
     ///  Gets the dimensions in pixels, of a 3-D border.
@@ -565,14 +589,29 @@ public static class SystemInformation
     /// <summary>
     ///  Gets a value indicating whether this computer is connected to a network.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool Network => PortableSystemSettings.Network;
+
+    public static bool TerminalServerSession => PortableSystemSettings.TerminalServerSession;
+#else
     public static bool Network => (PInvokeCore.GetSystemMetrics(SM_NETWORK) & 0x00000001) != 0;
 
     public static bool TerminalServerSession => (PInvokeCore.GetSystemMetrics(SM_REMOTESESSION) & 0x00000001) != 0;
+#endif
 
     /// <summary>
     ///  Gets a value that specifies how the system was started.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static BootMode BootMode => PortableSystemSettings.BootMode switch
+    {
+        LibreBootMode.FailSafe => BootMode.FailSafe,
+        LibreBootMode.FailSafeWithNetwork => BootMode.FailSafeWithNetwork,
+        _ => BootMode.Normal,
+    };
+#else
     public static BootMode BootMode => (BootMode)PInvokeCore.GetSystemMetrics(SM_CLEANBOOT);
+#endif
 
     /// <summary>
     ///  Gets the dimensions in pixels, of the rectangle that a drag operation must
@@ -590,17 +629,29 @@ public static class SystemInformation
     ///  information visually in situations where it would otherwise present the
     ///  information in audible form.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool ShowSounds => PortableSystemSettings.ShowSounds;
+#else
     public static bool ShowSounds => PInvokeCore.GetSystemMetrics(SM_SHOWSOUNDS) != 0;
+#endif
 
     /// <summary>
     ///  Gets the dimensions of the default size of a menu checkmark in pixels.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static Size MenuCheckSize => GetPortableSize(PortableSystemSettings.MenuCheckSize);
+#else
     public static Size MenuCheckSize => GetSize(SM_CXMENUCHECK, SM_CYMENUCHECK);
+#endif
 
     /// <summary>
     ///  Gets a value indicating whether the system is enabled for Hebrew and Arabic languages.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool MidEastEnabled => PortableSystemSettings.MidEastEnabled;
+#else
     public static bool MidEastEnabled => PInvokeCore.GetSystemMetrics(SM_MIDEASTENABLED) != 0;
+#endif
 
     internal static bool MultiMonitorSupport
     {
@@ -1230,6 +1281,8 @@ public static class SystemInformation
     private static Size GetPortableSize(LibreSize size) => new(size.Width, size.Height);
 #endif
 
+#if !LIBREWINFORMS_PORTABLE
     private static Size GetSize(SYSTEM_METRICS_INDEX x, SYSTEM_METRICS_INDEX y)
         => new(PInvokeCore.GetSystemMetrics(x), PInvokeCore.GetSystemMetrics(y));
+#endif
 }

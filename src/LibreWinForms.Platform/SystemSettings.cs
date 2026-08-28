@@ -3,6 +3,14 @@
 
 namespace LibreWinForms.Platform;
 
+/// <summary>Identifies the host boot mode without exposing a WinForms enum.</summary>
+public enum LibreBootMode
+{
+    Normal,
+    FailSafe,
+    FailSafeWithNetwork,
+}
+
 /// <summary>Identifies the host setting families affected by a settings notification.</summary>
 [Flags]
 public enum LibreSystemSettingsChangeKind
@@ -85,6 +93,30 @@ public interface ILibreSystemSettingsService
     LibreSize MenuButtonSize { get; }
 
     LibreSize MinimizedWindowSize { get; }
+
+    int KanjiWindowHeight { get; }
+
+    bool DebugOperatingSystem { get; }
+
+    bool RightAlignedMenus { get; }
+
+    bool PenWindows { get; }
+
+    bool DbcsEnabled { get; }
+
+    bool Secure { get; }
+
+    bool Network { get; }
+
+    bool TerminalServerSession { get; }
+
+    LibreBootMode BootMode { get; }
+
+    bool ShowSounds { get; }
+
+    LibreSize MenuCheckSize { get; }
+
+    bool MidEastEnabled { get; }
 
     int VerticalScrollBarArrowHeight { get; }
 
@@ -245,6 +277,30 @@ public sealed class DefaultLibreSystemSettingsService : ILibreSystemSettingsServ
     public LibreSize MenuButtonSize => new(18, 18);
 
     public LibreSize MinimizedWindowSize => new(160, 28);
+
+    public int KanjiWindowHeight => 0;
+
+    public bool DebugOperatingSystem => false;
+
+    public bool RightAlignedMenus => false;
+
+    public bool PenWindows => false;
+
+    public bool DbcsEnabled => false;
+
+    public bool Secure => false;
+
+    public bool Network => true;
+
+    public bool TerminalServerSession => false;
+
+    public LibreBootMode BootMode => LibreBootMode.Normal;
+
+    public bool ShowSounds => false;
+
+    public LibreSize MenuCheckSize => new(13, 13);
+
+    public bool MidEastEnabled => false;
 
     public int VerticalScrollBarArrowHeight => 17;
 
