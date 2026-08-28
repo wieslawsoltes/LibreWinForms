@@ -162,6 +162,9 @@ public class LibrePlatformTests
         services.SystemSettings.ShowSounds.Should().BeTrue();
         services.SystemSettings.MenuCheckSize.Should().Be(new LibreSize(27, 29));
         services.SystemSettings.MidEastEnabled.Should().BeTrue();
+        services.SystemSettings.MinimizedWindowStartPosition.Should().Be(LibreMinimizedWindowStartPosition.TopRight);
+        services.SystemSettings.MinimizedWindowDirection.Should().Be(LibreMinimizedWindowDirection.Up);
+        services.SystemSettings.HideMinimizedWindows.Should().BeTrue();
         services.SystemSettings.VerticalScrollBarArrowHeight.Should().Be(15);
         services.SystemSettings.HorizontalScrollBarArrowWidth.Should().Be(16);
         services.SystemSettings.VerticalScrollBarThumbHeight.Should().Be(17);
@@ -521,6 +524,10 @@ public class LibrePlatformTests
         public bool ShowSounds => true;
         public LibreSize MenuCheckSize => new(27, 29);
         public bool MidEastEnabled => true;
+        public LibreMinimizedWindowStartPosition MinimizedWindowStartPosition
+            => LibreMinimizedWindowStartPosition.TopRight;
+        public LibreMinimizedWindowDirection MinimizedWindowDirection => LibreMinimizedWindowDirection.Up;
+        public bool HideMinimizedWindows => true;
         public int VerticalScrollBarArrowHeight => 15;
         public int HorizontalScrollBarArrowWidth => 16;
         public int VerticalScrollBarThumbHeight => 17;

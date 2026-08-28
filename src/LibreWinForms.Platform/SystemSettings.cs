@@ -11,6 +11,24 @@ public enum LibreBootMode
     FailSafeWithNetwork,
 }
 
+/// <summary>Identifies the host corner used to begin arranging minimized windows.</summary>
+public enum LibreMinimizedWindowStartPosition
+{
+    BottomLeft,
+    BottomRight,
+    TopLeft,
+    TopRight,
+}
+
+/// <summary>Identifies the host direction used to arrange minimized windows.</summary>
+public enum LibreMinimizedWindowDirection
+{
+    Left,
+    Right,
+    Up,
+    Down,
+}
+
 /// <summary>Identifies the host setting families affected by a settings notification.</summary>
 [Flags]
 public enum LibreSystemSettingsChangeKind
@@ -117,6 +135,12 @@ public interface ILibreSystemSettingsService
     LibreSize MenuCheckSize { get; }
 
     bool MidEastEnabled { get; }
+
+    LibreMinimizedWindowStartPosition MinimizedWindowStartPosition { get; }
+
+    LibreMinimizedWindowDirection MinimizedWindowDirection { get; }
+
+    bool HideMinimizedWindows { get; }
 
     int VerticalScrollBarArrowHeight { get; }
 
@@ -301,6 +325,14 @@ public sealed class DefaultLibreSystemSettingsService : ILibreSystemSettingsServ
     public LibreSize MenuCheckSize => new(13, 13);
 
     public bool MidEastEnabled => false;
+
+    public LibreMinimizedWindowStartPosition MinimizedWindowStartPosition
+        => LibreMinimizedWindowStartPosition.BottomLeft;
+
+    public LibreMinimizedWindowDirection MinimizedWindowDirection
+        => LibreMinimizedWindowDirection.Left;
+
+    public bool HideMinimizedWindows => false;
 
     public int VerticalScrollBarArrowHeight => 17;
 

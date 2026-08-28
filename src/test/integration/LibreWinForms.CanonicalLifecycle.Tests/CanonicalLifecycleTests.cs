@@ -931,6 +931,18 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void SystemInformationUsesTypedPortableMinimizedWindowArrangement()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+
+        SystemInformation.ArrangeStartingPosition.Should().Be(
+            ArrangeStartingPosition.TopRight | ArrangeStartingPosition.Hide);
+        SystemInformation.ArrangeDirection.Should().Be(ArrangeDirection.Up);
+        platform.WindowsCreated.Should().Be(0);
+        platform.Handles.Count.Should().Be(0);
+    }
+
+    [Fact]
     public void GroupBoxAndDisabledLinkLabelPaintWithoutNativeDeviceContexts()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2195,6 +2207,10 @@ public class CanonicalLifecycleTests
         public bool ShowSounds => true;
         public LibreSize MenuCheckSize => new(27, 29);
         public bool MidEastEnabled => true;
+        public LibreMinimizedWindowStartPosition MinimizedWindowStartPosition
+            => LibreMinimizedWindowStartPosition.TopRight;
+        public LibreMinimizedWindowDirection MinimizedWindowDirection => LibreMinimizedWindowDirection.Up;
+        public bool HideMinimizedWindows => true;
         public int VerticalScrollBarArrowHeight => 17;
         public int HorizontalScrollBarArrowWidth => 17;
         public int VerticalScrollBarThumbHeight => 17;

@@ -532,6 +532,19 @@ public static class SystemInformation
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            ArrangeStartingPosition position = PortableSystemSettings.MinimizedWindowStartPosition switch
+            {
+                LibreMinimizedWindowStartPosition.BottomRight => ArrangeStartingPosition.BottomRight,
+                LibreMinimizedWindowStartPosition.TopLeft => ArrangeStartingPosition.TopLeft,
+                LibreMinimizedWindowStartPosition.TopRight => ArrangeStartingPosition.TopRight,
+                _ => ArrangeStartingPosition.BottomLeft,
+            };
+
+            return PortableSystemSettings.HideMinimizedWindows
+                ? position | ArrangeStartingPosition.Hide
+                : position;
+#else
             ArrangeStartingPosition mask = ArrangeStartingPosition.BottomLeft
                 | ArrangeStartingPosition.BottomRight
                 | ArrangeStartingPosition.Hide
@@ -539,6 +552,7 @@ public static class SystemInformation
                 | ArrangeStartingPosition.TopRight;
             int compoundValue = PInvokeCore.GetSystemMetrics(SM_ARRANGE);
             return mask & (ArrangeStartingPosition)compoundValue;
+#endif
         }
     }
 
@@ -549,10 +563,20 @@ public static class SystemInformation
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return PortableSystemSettings.MinimizedWindowDirection switch
+            {
+                LibreMinimizedWindowDirection.Right => ArrangeDirection.Right,
+                LibreMinimizedWindowDirection.Up => ArrangeDirection.Up,
+                LibreMinimizedWindowDirection.Down => ArrangeDirection.Down,
+                _ => ArrangeDirection.Left,
+            };
+#else
             ArrangeDirection mask = ArrangeDirection.Down
                 | ArrangeDirection.Left | ArrangeDirection.Right | ArrangeDirection.Up;
             int compoundValue = PInvokeCore.GetSystemMetrics(SM_ARRANGE);
             return mask & (ArrangeDirection)compoundValue;
+#endif
         }
     }
 
