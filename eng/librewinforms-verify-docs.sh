@@ -90,6 +90,7 @@ require_text .github/workflows/librewinforms-ci.yml '-p:LibreWinFormsProGpuPacka
 require_text eng/librewinforms-package-smoke.sh '<ProGpuPackageVersion>${progpu_version}</ProGpuPackageVersion>'
 require_text .github/workflows/librewinforms-ci.yml '-p:RestoreSources="${restore_sources}"'
 require_text .github/workflows/librewinforms-ci.yml "Run package-mode SDK smoke"
+require_text .github/workflows/librewinforms-ci.yml 'src/test/compatibility/LibreWinForms.Portable.Tests/LibreWinForms.Portable.Tests.csproj'
 require_text .github/workflows/librewinforms-docs.yml "LibreWinForms Docs"
 require_text .github/workflows/librewinforms-docs.yml "docs/**"
 require_text .github/workflows/librewinforms-public-package-smoke.yml "LibreWinForms Public Package Smoke"
@@ -109,6 +110,7 @@ require_text .github/workflows/librewinforms-release.yml '-p:LibreWinFormsBridge
 require_text .github/workflows/librewinforms-release.yml '-p:LibreWinFormsProGpuPackageVersion="${LIBREWINFORMS_PROGPU_PACKAGE_VERSION}"'
 require_text .github/workflows/librewinforms-release.yml '-p:RestoreSources="${restore_sources}"'
 require_text .github/workflows/librewinforms-release.yml "Run package-mode SDK smoke"
+require_text .github/workflows/librewinforms-release.yml 'src/test/compatibility/LibreWinForms.Portable.Tests/LibreWinForms.Portable.Tests.csproj'
 require_text .github/workflows/librewinforms-release.yml "librewinforms-v*"
 require_text .github/workflows/librewinforms-release.yml "refs/tags/librewinforms-v"
 require_text .github/workflows/librewinforms-release.yml "Create GitHub Release"
