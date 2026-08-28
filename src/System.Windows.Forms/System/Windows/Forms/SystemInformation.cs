@@ -1003,22 +1003,38 @@ public static class SystemInformation
     /// <summary>
     ///  The width of the left and right edges of the focus rectangle.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int VerticalFocusThickness => PortableSystemSettings.VerticalFocusThickness;
+#else
     public static int VerticalFocusThickness => PInvokeCore.GetSystemMetrics(SM_CYFOCUSBORDER);
+#endif
 
     /// <summary>
     ///  The width of the top and bottom edges of the focus rectangle.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int HorizontalFocusThickness => PortableSystemSettings.HorizontalFocusThickness;
+#else
     public static int HorizontalFocusThickness => PInvokeCore.GetSystemMetrics(SM_CXFOCUSBORDER);
+#endif
 
     /// <summary>
     ///  The height of the vertical sizing border around the perimeter of the window that can be resized.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int VerticalResizeBorderThickness => PortableSystemSettings.VerticalResizeBorderThickness;
+#else
     public static int VerticalResizeBorderThickness => PInvokeCore.GetSystemMetrics(SM_CYSIZEFRAME);
+#endif
 
     /// <summary>
     ///  The width of the horizontal sizing border around the perimeter of the window that can be resized.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int HorizontalResizeBorderThickness => PortableSystemSettings.HorizontalResizeBorderThickness;
+#else
     public static int HorizontalResizeBorderThickness => PInvokeCore.GetSystemMetrics(SM_CXSIZEFRAME);
+#endif
 
     /// <summary>
     ///  The orientation of the screen in degrees.

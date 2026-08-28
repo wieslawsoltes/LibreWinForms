@@ -120,6 +120,14 @@ public interface ILibreSystemSettingsService
 
     int CaretWidth { get; }
 
+    int VerticalFocusThickness { get; }
+
+    int HorizontalFocusThickness { get; }
+
+    int VerticalResizeBorderThickness { get; }
+
+    int HorizontalResizeBorderThickness { get; }
+
     bool FontSmoothingEnabled { get; }
 
     int FontSmoothingContrast { get; }
@@ -225,6 +233,14 @@ public sealed class DefaultLibreSystemSettingsService : ILibreSystemSettingsServ
     public int BorderMultiplierFactor => 1;
 
     public int CaretWidth => 1;
+
+    public int VerticalFocusThickness => 1;
+
+    public int HorizontalFocusThickness => 1;
+
+    public int VerticalResizeBorderThickness => 8;
+
+    public int HorizontalResizeBorderThickness => 8;
 
     public bool FontSmoothingEnabled => true;
 

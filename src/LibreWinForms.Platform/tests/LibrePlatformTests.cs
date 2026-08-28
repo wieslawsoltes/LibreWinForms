@@ -167,6 +167,10 @@ public class LibrePlatformTests
         services.SystemSettings.MinimizeRestoreAnimationEnabled.Should().BeTrue();
         services.SystemSettings.BorderMultiplierFactor.Should().Be(3);
         services.SystemSettings.CaretWidth.Should().Be(5);
+        services.SystemSettings.VerticalFocusThickness.Should().Be(6);
+        services.SystemSettings.HorizontalFocusThickness.Should().Be(7);
+        services.SystemSettings.VerticalResizeBorderThickness.Should().Be(8);
+        services.SystemSettings.HorizontalResizeBorderThickness.Should().Be(9);
         services.SystemSettings.FontSmoothingEnabled.Should().BeFalse();
         services.SystemSettings.FontSmoothingContrast.Should().Be(1700);
         services.SystemSettings.FontSmoothingType.Should().Be(1);
@@ -487,6 +491,10 @@ public class LibrePlatformTests
         public bool MinimizeRestoreAnimationEnabled => true;
         public int BorderMultiplierFactor => 3;
         public int CaretWidth => 5;
+        public int VerticalFocusThickness => 6;
+        public int HorizontalFocusThickness => 7;
+        public int VerticalResizeBorderThickness => 8;
+        public int HorizontalResizeBorderThickness => 9;
         public bool FontSmoothingEnabled => false;
         public int FontSmoothingContrast => 1700;
         public int FontSmoothingType => 1;

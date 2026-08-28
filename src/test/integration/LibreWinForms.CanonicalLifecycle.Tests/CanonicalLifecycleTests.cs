@@ -811,6 +811,24 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void SystemInformationAndPrintPreviewUseTypedPortableFocusAndResizeMetrics()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+
+        SystemInformation.VerticalFocusThickness.Should().Be(6);
+        SystemInformation.HorizontalFocusThickness.Should().Be(7);
+        SystemInformation.VerticalResizeBorderThickness.Should().Be(8);
+        SystemInformation.HorizontalResizeBorderThickness.Should().Be(9);
+
+        using var preview = new PrintPreviewControl();
+        preview.Controls[0].Should().BeAssignableTo<HScrollBar>().Which.Left.Should().Be(7);
+        preview.Controls[1].Should().BeAssignableTo<VScrollBar>().Which.Top.Should().Be(6);
+        preview.IsHandleCreated.Should().BeFalse();
+        platform.WindowsCreated.Should().Be(0);
+        platform.Handles.Count.Should().Be(0);
+    }
+
+    [Fact]
     public void GroupBoxAndDisabledLinkLabelPaintWithoutNativeDeviceContexts()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2077,6 +2095,10 @@ public class CanonicalLifecycleTests
         public bool MinimizeRestoreAnimationEnabled => true;
         public int BorderMultiplierFactor => 3;
         public int CaretWidth => 5;
+        public int VerticalFocusThickness => 6;
+        public int HorizontalFocusThickness => 7;
+        public int VerticalResizeBorderThickness => 8;
+        public int HorizontalResizeBorderThickness => 9;
         public bool FontSmoothingEnabled => false;
         public int FontSmoothingContrast => 1700;
         public int FontSmoothingType => 1;
