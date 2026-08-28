@@ -665,20 +665,11 @@ internal abstract partial class ButtonBaseAdapter
             if (UseCompatibleTextRendering)
             {
                 // GDI+ text rendering.
-#if LIBREWINFORMS_PORTABLE
-                using var surface = new Bitmap(1, 1);
-                using Graphics graphics = Graphics.FromImage(surface);
+                using var layoutGraphics = new LayoutGraphicsScope();
                 using StringFormat stringFormat = StringFormat;
                 textSize = Size.Ceiling(
-                    graphics.MeasureString(Text, Font, new SizeF(proposedSize.Width, proposedSize.Height),
+                    layoutGraphics.Graphics.MeasureString(Text, Font, new SizeF(proposedSize.Width, proposedSize.Height),
                     stringFormat));
-#else
-                using var screen = GdiCache.GetScreenDCGraphics();
-                using StringFormat stringFormat = StringFormat;
-                textSize = Size.Ceiling(
-                    screen.Graphics.MeasureString(Text, Font, new SizeF(proposedSize.Width, proposedSize.Height),
-                    stringFormat));
-#endif
             }
             else if (!string.IsNullOrEmpty(Text))
             {

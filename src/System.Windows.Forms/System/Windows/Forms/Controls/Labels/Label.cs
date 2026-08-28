@@ -1083,13 +1083,13 @@ public partial class Label : Control, IAutomationLiveRegion
         else
         {
             // GDI+ rendering.
-            using var screen = GdiCache.GetScreenDCGraphics();
+            using var layoutGraphics = new LayoutGraphicsScope();
             using StringFormat stringFormat = CreateStringFormat();
             SizeF bounds = (proposedConstraints.Width == 1) ?
                 new SizeF(0, proposedConstraints.Height) :
                 new SizeF(proposedConstraints.Width, proposedConstraints.Height);
 
-            requiredSize = Size.Ceiling(screen.Graphics.MeasureString(Text, Font, bounds, stringFormat));
+            requiredSize = Size.Ceiling(layoutGraphics.Graphics.MeasureString(Text, Font, bounds, stringFormat));
         }
 
         requiredSize += bordersAndPadding;

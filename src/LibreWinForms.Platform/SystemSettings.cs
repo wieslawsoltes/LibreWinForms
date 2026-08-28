@@ -21,6 +21,12 @@ public interface ILibreSystemSettingsService
     int VerticalScrollBarArrowHeight { get; }
 
     int HorizontalScrollBarArrowWidth { get; }
+
+    int VerticalScrollBarThumbHeight { get; }
+
+    int HorizontalScrollBarThumbWidth { get; }
+
+    LibreSize DragSize { get; }
 }
 
 /// <summary>Portable baseline used when a host does not expose OS system settings.</summary>
@@ -47,4 +53,10 @@ public sealed class DefaultLibreSystemSettingsService : ILibreSystemSettingsServ
     public int VerticalScrollBarArrowHeight => 17;
 
     public int HorizontalScrollBarArrowWidth => 17;
+
+    public int VerticalScrollBarThumbHeight => 17;
+
+    public int HorizontalScrollBarThumbWidth => 17;
+
+    public LibreSize DragSize => new(4, 4);
 }

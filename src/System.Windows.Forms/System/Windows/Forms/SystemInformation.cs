@@ -156,12 +156,20 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the height of the scroll box in a vertical scroll bar in pixels.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int VerticalScrollBarThumbHeight => PortableSystemSettings.VerticalScrollBarThumbHeight;
+#else
     public static int VerticalScrollBarThumbHeight => PInvokeCore.GetSystemMetrics(SM_CYVTHUMB);
+#endif
 
     /// <summary>
     ///  Gets the width of the scroll box in a horizontal scroll bar in pixels.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int HorizontalScrollBarThumbWidth => PortableSystemSettings.HorizontalScrollBarThumbWidth;
+#else
     public static int HorizontalScrollBarThumbWidth => PInvokeCore.GetSystemMetrics(SM_CXHTHUMB);
+#endif
 
     /// <summary>
     ///  Gets the default dimensions of an icon in pixels.
@@ -468,7 +476,12 @@ public static class SystemInformation
     ///  Gets the dimensions in pixels, of the rectangle that a drag operation must
     ///  extend to be considered a drag. The rectangle is centered on a drag point.
     /// </summary>
-    public static Size DragSize => GetSize(SM_CXDRAG, SM_CYDRAG);
+    public static Size DragSize
+#if LIBREWINFORMS_PORTABLE
+        => GetPortableSize(PortableSystemSettings.DragSize);
+#else
+        => GetSize(SM_CXDRAG, SM_CYDRAG);
+#endif
 
     /// <summary>
     ///  Gets a value indicating whether the user requires an application to present

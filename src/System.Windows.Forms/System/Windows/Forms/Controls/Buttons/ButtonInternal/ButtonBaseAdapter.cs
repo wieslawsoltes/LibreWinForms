@@ -52,9 +52,8 @@ internal abstract partial class ButtonBaseAdapter
     protected Size GetPreferredSizeFromLayout(Size proposedSize)
     {
 #if LIBREWINFORMS_PORTABLE
-        using var surface = new Bitmap(1, 1);
-        using Graphics graphics = Graphics.FromImage(surface);
-        using PaintEventArgs e = new(graphics, default);
+        using var layoutGraphics = new LayoutGraphicsScope();
+        using PaintEventArgs e = new(layoutGraphics.Graphics, default);
         return Layout(e).GetPreferredSizeCore(proposedSize);
 #else
         using var screen = GdiCache.GetScreenHdc();

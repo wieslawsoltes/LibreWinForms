@@ -130,6 +130,9 @@ public class LibrePlatformTests
         services.SystemSettings.HorizontalScrollBarHeight.Should().Be(14);
         services.SystemSettings.VerticalScrollBarArrowHeight.Should().Be(15);
         services.SystemSettings.HorizontalScrollBarArrowWidth.Should().Be(16);
+        services.SystemSettings.VerticalScrollBarThumbHeight.Should().Be(17);
+        services.SystemSettings.HorizontalScrollBarThumbWidth.Should().Be(18);
+        services.SystemSettings.DragSize.Should().Be(new LibreSize(19, 20));
         Action create = () => new LibrePlatformServices(
             test, test, test.Handles, test, test, test, test, test, test, test, null!);
         create.Should().Throw<ArgumentNullException>().WithParameterName("systemSettings");
@@ -387,6 +390,9 @@ public class LibrePlatformTests
         public int HorizontalScrollBarHeight => 14;
         public int VerticalScrollBarArrowHeight => 15;
         public int HorizontalScrollBarArrowWidth => 16;
+        public int VerticalScrollBarThumbHeight => 17;
+        public int HorizontalScrollBarThumbWidth => 18;
+        public LibreSize DragSize => new(19, 20);
         public bool IsElementDefined(string className, int part) => true;
         public void DrawBackground(
             System.Drawing.Graphics graphics,

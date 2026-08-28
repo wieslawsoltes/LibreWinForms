@@ -573,6 +573,23 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void CompatibleLabelPreferredSizeUsesManagedLayoutSurfaceWithoutScreenHdc()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using var label = new Label
+        {
+            Text = "compatible label",
+            UseCompatibleTextRendering = true,
+        };
+
+        Size preferredSize = label.GetPreferredSize(Size.Empty);
+
+        preferredSize.Should().NotBe(Size.Empty);
+        platform.TextMeasureCount.Should().Be(0);
+        label.IsHandleCreated.Should().BeFalse();
+    }
+
+    [Fact]
     public void ComboBoxPreferredHeightUsesManagedTextMetricsWithoutHfont()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -637,6 +654,42 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void DataGridViewLayoutUsesManagedGraphicsWithoutScreenHdc()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using var grid = new DataGridView
+        {
+            AllowUserToAddRows = false,
+            RowHeadersVisible = false,
+            ColumnHeadersVisible = false,
+        };
+
+        var textColumn = new DataGridViewTextBoxColumn
+        {
+            Width = 72,
+            DefaultCellStyle = { WrapMode = DataGridViewTriState.True },
+        };
+        var comboColumn = new DataGridViewComboBoxColumn { Width = 72 };
+        comboColumn.Items.AddRange("first", "second");
+        grid.Columns.AddRange(textColumn, comboColumn);
+        int rowIndex = grid.Rows.Add("wrapped DataGridView text", "second");
+        int measurementsBefore = platform.TextMeasureCount;
+
+        SystemInformation.DragSize.Should().Be(new Size(4, 4));
+        grid.AutoResizeColumn(0, DataGridViewAutoSizeColumnMode.AllCellsExceptHeader);
+        grid.AutoResizeRow(rowIndex, DataGridViewAutoSizeRowMode.AllCellsExceptHeader);
+        Rectangle textBounds = grid.Rows[rowIndex].Cells[0].GetContentBounds(rowIndex);
+        Rectangle comboBounds = grid.Rows[rowIndex].Cells[1].GetContentBounds(rowIndex);
+
+        grid.Columns[0].Width.Should().BeGreaterThan(0);
+        grid.Rows[rowIndex].Height.Should().BeGreaterThan(0);
+        textBounds.Should().NotBe(Rectangle.Empty);
+        comboBounds.Should().NotBe(Rectangle.Empty);
+        platform.TextMeasureCount.Should().BeGreaterThan(measurementsBefore);
+        grid.IsHandleCreated.Should().BeFalse();
+    }
+
+    [Fact]
     public void ScrollBarDefaultSizesUseTypedPortableSystemMetrics()
     {
         UseHeadlessPlatform(autoCloseWindows: false);
@@ -647,6 +700,8 @@ public class CanonicalLifecycleTests
         SystemInformation.HorizontalScrollBarHeight.Should().Be(17);
         SystemInformation.VerticalScrollBarArrowHeight.Should().Be(17);
         SystemInformation.HorizontalScrollBarArrowWidth.Should().Be(17);
+        SystemInformation.VerticalScrollBarThumbHeight.Should().Be(17);
+        SystemInformation.HorizontalScrollBarThumbWidth.Should().Be(17);
         SystemInformation.GetVerticalScrollBarWidthForDpi(192).Should().Be(34);
         SystemInformation.GetHorizontalScrollBarHeightForDpi(192).Should().Be(34);
         SystemInformation.VerticalScrollBarArrowHeightForDpi(192).Should().Be(34);
@@ -2354,6 +2409,15 @@ public class CanonicalLifecycleTests
                 graphics.Should().BeNull();
                 format.Should().HaveFlag(LibreTextFormat.TextBoxControl);
                 return new Size(text.Length * 7, font!.Height);
+            }
+
+            if (text is "wrapped DataGridView text" or "first" or "second" or " ")
+            {
+                int availableWidth = proposedSize.Width is > 0 and < int.MaxValue
+                    ? proposedSize.Width
+                    : text.Length * 7;
+                int lineCount = Math.Max(1, (text.Length * 7 + availableWidth - 1) / availableWidth);
+                return new Size(Math.Min(text.Length * 7, availableWidth), font!.Height * lineCount);
             }
 
             if (graphics is null)
