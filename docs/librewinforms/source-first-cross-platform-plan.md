@@ -888,6 +888,16 @@ The complete exact-commit local gate passes default canonical 0 warnings/0 error
 
 The next bounded system-settings tranche should migrate a coherent family of remaining `SystemInformation` SPI-backed values—rather than isolated properties—through the same typed contract, with public canonical consumers driving tests. This preserves upstream declarations and Windows behavior while reducing portable USER32 assumptions at a reusable boundary.
 
+## Current canonical input-settings checkpoint
+
+Exact source checkpoint `943950df12c2581325509d8ff8a04f8813617b3d` moves the first coherent SPI-backed family into `ILibreSystemSettingsService`: mouse-wheel scroll lines, keyboard delay/preference/speed, mouse hover size/time, mouse speed, and snap-to-default-button preference. Portable canonical `SystemInformation.MouseWheelScrollLines`, `KeyboardDelay`, `IsKeyboardPreferred`, `KeyboardSpeed`, `MouseHoverSize`, `MouseHoverTime`, `MouseSpeed`, and `IsSnapToDefaultEnabled` now read those typed values; the already-typed `MenuAccessKeysUnderlined` completes the input-preference group. Every Windows property retains its original `SystemParametersInfo` branch.
+
+The default service publishes stable WinForms-compatible baselines for an unregistered or unsupported host, while a real backend can publish local desktop preferences without exposing USER32 constants or handles. The public lifecycle case injects distinctive values through the headless service, reads all nine canonical properties, and proves the reads create neither a platform window nor a managed handle.
+
+The complete exact-commit local gate passes default canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 43/43, ProGPU drawing 392/392, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and frozen Portable comparison 31 warnings/0 errors. Exact hosted build workflow `33139007022` and docs workflow `33139007037` also pass at the implementation commit. No runtime source under `src/LibreWinForms.Portable` changed.
+
+The next bounded SPI family is menu and UI-effect policy: alignment, delay, animation, fade, hot tracking, smooth scrolling, selection/tool-tip effects, and the global UI-effects switch. Moving that group together will make both the public properties and their canonical control consumers portable while retaining the upstream Windows calls.
+
 ## Major risks and controls
 
 | Risk | Control |

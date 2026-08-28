@@ -653,6 +653,14 @@ The focused lifecycle test exercises a real canonical `ToolStrip`: a color notif
 
 This is further evidence that the properties reported missing in issue #9 should not be reconstructed in `src/LibreWinForms.Portable`: upstream source already supplies the correct public surface and shared managed behavior. Portable work belongs at typed platform boundaries, while the compatibility tree remains frozen until the canonical package graph can replace and remove it.
 
+## Canonical property implementation follow-up: input preferences
+
+Exact source checkpoint `943950df12c2581325509d8ff8a04f8813617b3d` applies the grouped settings strategy to eight additional upstream `SystemInformation` properties: mouse-wheel scroll lines, keyboard delay/preference/speed, mouse hover size/time, mouse speed, and snap-to-default-button preference. Together with the prior menu-access-key setting, this yields a typed input-preference family in `ILibreSystemSettingsService` rather than eight unrelated portable constants or compatibility declarations.
+
+The canonical public properties retain their names, documentation, assembly identity, and native Windows `SystemParametersInfo` branches. Only portable reads use the host contract. A headless public-path test supplies distinctive values, verifies all nine properties, and proves no window or handle is created. Contract tests verify the same values traverse `LibrePlatformServices`; the default service provides deterministic baselines when no desktop integration is available.
+
+The exact local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 43/43, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors. Exact hosted build workflow `33139007022` and docs workflow `33139007037` pass at the implementation commit. The public API gap remains closed by source reuse, and no runtime source under `src/LibreWinForms.Portable` changed.
+
 ## Definition of done
 
 For an API group to be considered ported:
