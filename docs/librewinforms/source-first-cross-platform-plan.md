@@ -840,6 +840,12 @@ Exact source checkpoint `952f2c44c4e523bad8a0887202a390485bba1397` removes the l
 
 The public construction test verifies canonical `MonthCalendar.Size` relative to `SingleMonthSize`, the exact localized managed measurement and flags, and no handle creation. The complete exact-commit local gate passes default canonical 0 warnings/0 errors, ProGPU canonical 614 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 34/34, ProGPU drawing 391/391, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and frozen Portable comparison 31 warnings/0 errors. Hosted build workflow `33125908123` and docs workflow `33125908105` pass at the same implementation commit. No runtime source under `src/LibreWinForms.Portable` changed.
 
+## Current canonical button preferred-size checkpoint
+
+Exact source checkpoint `580246edeeded54b1586ec7e8a0618c89866f10c` removes screen device contexts from canonical `Button`, `CheckBox`, and `RadioButton` preferred-size adapters. A shared portable adapter helper supplies a one-pixel managed ProGPU bitmap/graphics surface to the unchanged layout calculation, including visual-style glyph sizing. Normal text continues through the typed canonical `TextRenderer`; `UseCompatibleTextRendering` now measures through ProGPU `Graphics.MeasureString` on an in-memory surface instead of `GdiCache.GetScreenDCGraphics()`. Windows retains the upstream cached screen-HDC and GDI+ screen-graphics paths.
+
+The public lifecycle case verifies nonempty preferred sizes for all three control families, both text-rendering modes, exact typed measurement routing for normal text, and no handle creation. The complete exact-commit local gate passes default canonical 0 warnings/0 errors, ProGPU canonical 614 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 35/35, ProGPU drawing 391/391, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and frozen Portable comparison 31 warnings/0 errors. Hosted build workflow `33127623507` and docs workflow `33127623497` pass at the same implementation commit. No runtime source under `src/LibreWinForms.Portable` changed.
+
 ## Major risks and controls
 
 | Risk | Control |

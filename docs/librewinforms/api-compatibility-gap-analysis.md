@@ -605,6 +605,14 @@ The public-path lifecycle test verifies `Size` against `SingleMonthSize`, one lo
 
 Together with the `Label` and `ComboBox` checkpoints, this closes the direct `GdiCache.GetScreenHdc()` dependencies in ordinary canonical control sizing. Remaining occurrences belong to rendering adapters, accessibility/native text providers, font caches, or explicit native interop boundaries and should be migrated according to their owning subsystem rather than by adding compatibility properties.
 
+## Canonical property implementation follow-up: button preferred sizes
+
+Exact source checkpoint `580246edeeded54b1586ec7e8a0618c89866f10c` fixes the canonical `GetPreferredSize` behavior shared by `Button`, `CheckBox`, and `RadioButton`. Those public APIs previously entered adapter layout through a screen HDC even when the calculation needed only managed text, image, and glyph dimensions. Compatible-text mode also opened GDI+ screen graphics separately. On portable builds, a shared adapter helper now provides an in-memory ProGPU drawing surface, while the existing layout model and public contracts remain unchanged. Normal text uses the typed `TextRenderer` service and compatible text uses ProGPU `Graphics.MeasureString`; native builds preserve the original device-context paths.
+
+The focused public-path test covers all three control families, explicit normal and compatible text modes, nonempty canonical preferred sizes, typed text routing, and absence of handle creation. The complete local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 614 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 35/35, drawing 391/391, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors. Hosted build `33127623507` and docs `33127623497` pass at the same commit.
+
+This extends the source-first conclusion beyond individual properties: one narrow managed layout surface repairs several inherited public APIs at once, whereas compatibility declarations would duplicate types without recovering the shared upstream adapter behavior.
+
 ## Definition of done
 
 For an API group to be considered ported:
