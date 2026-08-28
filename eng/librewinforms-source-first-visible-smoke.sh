@@ -11,6 +11,9 @@ if [[ -z "${dotnet}" ]]; then
   fi
 fi
 package_source="${LIBREWINFORMS_SOURCE_FIRST_PACKAGE_SOURCE:-${repo_root}/artifacts/packages/source-first}"
+package_version="${LIBREWINFORMS_SOURCE_FIRST_PACKAGE_VERSION:-0.1.0-source-first}"
+sdk_package_version="${LIBREWINFORMS_SOURCE_FIRST_SDK_PACKAGE_VERSION:-${package_version}}"
+backend_package_version="${LIBREWINFORMS_SOURCE_FIRST_BACKEND_PACKAGE_VERSION:-${package_version}}"
 smoke_source="${repo_root}/packaging/LibreWinForms.Sdk.SourceFirstVisibleSmoke"
 smoke_root="$(mktemp -d -t librewinforms-source-first-visible.XXXXXXXX)"
 smoke_project="${smoke_root}/LibreWinForms.Sdk.SourceFirstVisibleSmoke.csproj"
@@ -22,12 +25,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if [[ ! -f "${package_source}/LibreWinForms.Sdk.0.1.0-source-first-sdk.nupkg" ]]; then
+if [[ ! -f "${package_source}/LibreWinForms.Sdk.${sdk_package_version}.nupkg" ]]; then
   echo "Source-first SDK package was not found in ${package_source}." >&2
   exit 1
 fi
 
-cp "${smoke_source}/LibreWinForms.Sdk.SourceFirstVisibleSmoke.csproj" "${smoke_root}/"
+sed \
+  -e "s#LibreWinForms.Sdk/0.1.0-source-first-sdk#LibreWinForms.Sdk/${sdk_package_version}#" \
+  -e "s#<LibreWinFormsCanonicalPackageVersion>0.1.0-source-first</LibreWinFormsCanonicalPackageVersion>#<LibreWinFormsCanonicalPackageVersion>${package_version}</LibreWinFormsCanonicalPackageVersion>#" \
+  -e "s#<LibreWinFormsProGpuBackendPackageVersion>0.1.0-source-first-backend</LibreWinFormsProGpuBackendPackageVersion>#<LibreWinFormsProGpuBackendPackageVersion>${backend_package_version}</LibreWinFormsProGpuBackendPackageVersion>#" \
+  "${smoke_source}/LibreWinForms.Sdk.SourceFirstVisibleSmoke.csproj" \
+  >"${smoke_project}"
 cp "${smoke_source}/Program.cs" "${smoke_root}/"
 cp "${repo_root}/NuGet.config" "${smoke_config}"
 

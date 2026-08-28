@@ -12,9 +12,9 @@ export DOTNET_ROLL_FORWARD_TO_PRERELEASE="${DOTNET_ROLL_FORWARD_TO_PRERELEASE:-1
 
 configuration="${LIBREWINFORMS_CONFIGURATION:-Release}"
 package_version="${LIBREWINFORMS_SOURCE_FIRST_PACKAGE_VERSION:-0.1.0-source-first}"
-sdk_package_version="0.1.0-source-first-sdk"
-backend_package_version="0.1.0-source-first-backend"
-progpu_package_version="${LIBREWINFORMS_SOURCE_FIRST_PROGPU_PACKAGE_VERSION:-0.1.0-source-first-drawing}"
+sdk_package_version="${LIBREWINFORMS_SOURCE_FIRST_SDK_PACKAGE_VERSION:-${package_version}}"
+backend_package_version="${LIBREWINFORMS_SOURCE_FIRST_BACKEND_PACKAGE_VERSION:-${package_version}}"
+progpu_package_version="${LIBREWINFORMS_SOURCE_FIRST_PROGPU_PACKAGE_VERSION:-${package_version}}"
 package_output="${LIBREWINFORMS_SOURCE_FIRST_PACKAGE_OUTPUT:-${repo_root}/artifacts/packages/source-first}"
 package_file="${package_output}/LibreWinForms.System.Windows.Forms.${package_version}.nupkg"
 sdk_package_file="${package_output}/LibreWinForms.Sdk.${sdk_package_version}.nupkg"
@@ -226,7 +226,9 @@ sdk_smoke_properties=(
 )
 
 mkdir -p "${sdk_smoke_root}"
-cp "${sdk_smoke_source}/LibreWinForms.Sdk.SourceFirstSmoke.csproj" "${sdk_smoke_root}/"
+sed "s#LibreWinForms.Sdk/0.1.0-source-first-sdk#LibreWinForms.Sdk/${sdk_package_version}#" \
+  "${sdk_smoke_source}/LibreWinForms.Sdk.SourceFirstSmoke.csproj" \
+  >"${sdk_smoke_project}"
 cp "${sdk_smoke_source}/Program.cs" "${sdk_smoke_root}/"
 cp "${repo_root}/NuGet.config" "${sdk_smoke_config}"
 "${dotnet}" nuget add source "${package_output}" \
@@ -299,7 +301,9 @@ sdk_package_smoke_properties=(
 )
 
 mkdir -p "${sdk_package_smoke_root}"
-cp "${sdk_smoke_source}/LibreWinForms.Sdk.SourceFirstSmoke.csproj" "${sdk_package_smoke_root}/"
+sed "s#LibreWinForms.Sdk/0.1.0-source-first-sdk#LibreWinForms.Sdk/${sdk_package_version}#" \
+  "${sdk_smoke_source}/LibreWinForms.Sdk.SourceFirstSmoke.csproj" \
+  >"${sdk_package_smoke_project}"
 cp "${sdk_smoke_source}/Program.cs" "${sdk_package_smoke_root}/"
 cp "${repo_root}/NuGet.config" "${sdk_package_smoke_config}"
 "${dotnet}" nuget add source "${package_output}" \
