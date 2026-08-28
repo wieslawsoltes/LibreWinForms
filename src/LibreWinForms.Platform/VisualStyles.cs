@@ -246,6 +246,10 @@ public interface ILibreVisualStyleService
 {
     bool IsEnabled { get; }
 
+    string ThemeFilename { get; }
+
+    string ColorScheme { get; }
+
     bool IsElementDefined(string className, int part);
 
     void DrawBackground(
@@ -351,6 +355,10 @@ public sealed class UnsupportedLibreVisualStyleService : ILibreVisualStyleServic
     }
 
     public bool IsEnabled => false;
+
+    public string ThemeFilename => string.Empty;
+
+    public string ColorScheme => string.Empty;
 
     public bool IsElementDefined(string className, int part) => false;
 

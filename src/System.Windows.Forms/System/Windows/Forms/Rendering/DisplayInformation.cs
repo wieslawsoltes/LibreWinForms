@@ -1,7 +1,11 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#else
 using Microsoft.Win32;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -19,8 +23,15 @@ internal static class DisplayInformation
 
     static DisplayInformation()
     {
+#if LIBREWINFORMS_PORTABLE
+        ILibreSystemSettingsService systemSettings = LibrePlatform.IsRegistered
+            ? LibrePlatform.Current.SystemSettings
+            : DefaultLibreSystemSettingsService.Instance;
+        systemSettings.SettingsChanged += SystemSettingsChanged;
+#else
         SystemEvents.UserPreferenceChanging += UserPreferenceChanging;
         SystemEvents.DisplaySettingsChanging += DisplaySettingsChanging;
+#endif
     }
 
     public static short BitsPerPixel
@@ -109,6 +120,16 @@ internal static class DisplayInformation
         }
     }
 
+#if LIBREWINFORMS_PORTABLE
+    private static void SystemSettingsChanged(object? sender, EventArgs e)
+    {
+        s_highContrastSettingValid = false;
+        s_lowResSettingValid = false;
+        s_dropShadowSettingValid = false;
+        s_menuAccessKeysUnderlinedValid = false;
+        s_bitsPerPixel = 0;
+    }
+#else
     /// <summary>
     ///  Event handler for change in display setting
     /// </summary>
@@ -135,4 +156,5 @@ internal static class DisplayInformation
             s_menuAccessKeysUnderlinedValid = false;
         }
     }
+#endif
 }

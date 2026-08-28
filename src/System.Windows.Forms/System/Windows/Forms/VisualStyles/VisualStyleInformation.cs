@@ -2,6 +2,9 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#endif
 
 namespace System.Windows.Forms.VisualStyles;
 
@@ -31,12 +34,22 @@ public static class VisualStyleInformation
     /// <summary>
     ///  Returns true if a visual style has currently been applied by the user, else false.
     /// </summary>
-    public static bool IsEnabledByUser => PInvoke.IsAppThemed();
+    public static bool IsEnabledByUser
+#if LIBREWINFORMS_PORTABLE
+        => LibrePlatform.IsRegistered && LibrePlatform.Current.VisualStyles.IsEnabled;
+#else
+        => PInvoke.IsAppThemed();
+#endif
 
     internal static unsafe string ThemeFilename
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return LibrePlatform.IsRegistered
+                ? LibrePlatform.Current.VisualStyles.ThemeFilename
+                : string.Empty;
+#else
             if (IsEnabledByUser)
             {
                 Span<char> filename = stackalloc char[512];
@@ -49,6 +62,7 @@ public static class VisualStyleInformation
             }
 
             return string.Empty;
+#endif
         }
     }
 
@@ -59,6 +73,11 @@ public static class VisualStyleInformation
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return LibrePlatform.IsRegistered
+                ? LibrePlatform.Current.VisualStyles.ColorScheme
+                : string.Empty;
+#else
             if (IsEnabledByUser)
             {
                 Span<char> colorScheme = stackalloc char[512];
@@ -71,6 +90,7 @@ public static class VisualStyleInformation
             }
 
             return string.Empty;
+#endif
         }
     }
 

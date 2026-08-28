@@ -5,7 +5,9 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Design;
 using System.Globalization;
+#if !LIBREWINFORMS_PORTABLE
 using System.Windows.Forms.Internal;
+#endif
 using System.Windows.Forms.Layout;
 using Windows.Win32.UI.Accessibility;
 
@@ -576,6 +578,7 @@ public partial class LinkLabel : Label, IButtonControl
             // We need to take into account the padding that GDI adds around the text.
             int iLeftMargin, iRightMargin;
 
+#if !LIBREWINFORMS_PORTABLE
             TextPaddingOptions padding = default;
             if ((flags & TextFormatFlags.NoPadding) == TextFormatFlags.NoPadding)
             {
@@ -585,12 +588,19 @@ public partial class LinkLabel : Label, IButtonControl
             {
                 padding = TextPaddingOptions.LeftAndRightPadding;
             }
+#endif
 
+#if LIBREWINFORMS_PORTABLE
+            // The portable text service owns padding in the returned measurement.
+            iLeftMargin = 0;
+            iRightMargin = 0;
+#else
             using var hfont = GdiCache.GetHFONTScope(Font);
             DRAWTEXTPARAMS dtParams = hfont.GetTextMargins(padding);
 
             iLeftMargin = dtParams.iLeftMargin;
             iRightMargin = dtParams.iRightMargin;
+#endif
 
             Rectangle visualRectangle = new(
                 clientRectWithPadding.X + iLeftMargin,
@@ -1136,11 +1146,15 @@ public partial class LinkLabel : Label, IButtonControl
             }
             else
             {
+#if LIBREWINFORMS_PORTABLE
+                Color foreColor = g.FindNearestColor(DisabledColor);
+#else
                 Color foreColor;
                 using (DeviceContextHdcScope scope = new(e, applyGraphicsState: false))
                 {
                     foreColor = scope.HDC.FindNearestColor(DisabledColor);
                 }
+#endif
 
                 Rectangle clientRectWidthPadding = ClientRectWithPadding;
 
@@ -1364,12 +1378,16 @@ public partial class LinkLabel : Label, IButtonControl
                 return;
             }
 
+#if LIBREWINFORMS_PORTABLE
+            Color color = g.FindNearestColor(foreBrush.Color);
+#else
             Color color;
             using (DeviceContextHdcScope hdc = g.ToHdcScope(ApplyGraphicsProperties.None))
             {
                 color = ColorTranslator.FromWin32(
                     (int)PInvoke.GetNearestColor(hdc, (COLORREF)(uint)ColorTranslator.ToWin32(foreBrush.Color)).Value);
             }
+#endif
 
             Rectangle clientRectWithPadding = ClientRectWithPadding;
             TextRenderer.DrawText(

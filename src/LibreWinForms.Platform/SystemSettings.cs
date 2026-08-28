@@ -6,6 +6,9 @@ namespace LibreWinForms.Platform;
 /// <summary>Supplies host system settings used by canonical managed controls.</summary>
 public interface ILibreSystemSettingsService
 {
+    /// <summary>Raised when host appearance or metric settings have changed.</summary>
+    event EventHandler? SettingsChanged;
+
     bool HighContrast { get; }
 
     LibreSize BorderSize { get; }
@@ -36,6 +39,12 @@ public sealed class DefaultLibreSystemSettingsService : ILibreSystemSettingsServ
 
     private DefaultLibreSystemSettingsService()
     {
+    }
+
+    public event EventHandler? SettingsChanged
+    {
+        add { }
+        remove { }
     }
 
     public bool HighContrast => false;

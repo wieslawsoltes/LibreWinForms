@@ -690,6 +690,45 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void ProfessionalColorsUseManagedLayoutGraphicsWithoutScreenHdc()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        var colors = new ProfessionalColorTable();
+
+        colors.ButtonPressedHighlight.Should().NotBe(Color.Empty);
+        colors.ButtonCheckedHighlight.Should().NotBe(Color.Empty);
+    }
+
+    [Fact]
+    public void GroupBoxAndDisabledLinkLabelPaintWithoutNativeDeviceContexts()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using var target = new Bitmap(180, 60);
+        using Graphics graphics = Graphics.FromImage(target);
+        using var groupBox = new PaintingGroupBox
+        {
+            Text = "group",
+            Size = new Size(160, 9),
+            UseCompatibleTextRendering = false,
+        };
+        using var linkLabel = new PaintingLinkLabel
+        {
+            Text = "link",
+            Enabled = false,
+            Size = new Size(160, 30),
+            UseCompatibleTextRendering = false,
+        };
+
+        groupBox.PaintTo(graphics);
+        linkLabel.PaintTo(graphics);
+
+        platform.TextMeasureCount.Should().BeGreaterThan(0);
+        platform.TextDrawCount.Should().BeGreaterThan(1);
+        groupBox.IsHandleCreated.Should().BeFalse();
+        linkLabel.IsHandleCreated.Should().BeFalse();
+    }
+
+    [Fact]
     public void ScrollBarDefaultSizesUseTypedPortableSystemMetrics()
     {
         UseHeadlessPlatform(autoCloseWindows: false);
@@ -1696,6 +1735,24 @@ public class CanonicalLifecycleTests
         internal void RecreatePortableHandle() => RecreateHandle();
     }
 
+    private sealed class PaintingGroupBox : GroupBox
+    {
+        internal void PaintTo(Graphics graphics)
+        {
+            using var e = new PaintEventArgs(graphics, ClientRectangle);
+            OnPaint(e);
+        }
+    }
+
+    private sealed class PaintingLinkLabel : LinkLabel
+    {
+        internal void PaintTo(Graphics graphics)
+        {
+            using var e = new PaintEventArgs(graphics, ClientRectangle);
+            OnPaint(e);
+        }
+    }
+
     private sealed class TrackingDeviceContext : IDeviceContext
     {
         internal bool GetHdcCalled { get; private set; }
@@ -1742,6 +1799,7 @@ public class CanonicalLifecycleTests
         ILibreMonitorService,
         ILibrePaintService,
         ILibreVisualStyleService,
+        ILibreSystemSettingsService,
         ILibreTextRendererService
     {
         private readonly ConcurrentQueue<Action> _queue = new();
@@ -1768,7 +1826,7 @@ public class CanonicalLifecycleTests
                 UnsupportedLibreNativeFontInteropService.Instance,
                 UnsupportedLibreNativeGraphicsInteropService.Instance,
                 this,
-                DefaultLibreSystemSettingsService.Instance,
+                this,
                 this);
         }
 
@@ -1830,6 +1888,12 @@ public class CanonicalLifecycleTests
 
         internal ManagedLibreHandleRegistry Handles { get; }
 
+        public event EventHandler? SettingsChanged
+        {
+            add { }
+            remove { }
+        }
+
         internal LibrePlatformServices Services { get; }
 
         internal int WindowsCreated { get; private set; }
@@ -1852,6 +1916,21 @@ public class CanonicalLifecycleTests
         internal Rectangle LastTextBounds { get; private set; }
         internal LibreTextFormat LastTextFormat { get; private set; }
         internal string LastMeasuredText { get; private set; } = string.Empty;
+
+        public bool HighContrast => false;
+        public LibreSize BorderSize => new(1, 1);
+        public LibreSize FixedFrameBorderSize => new(3, 3);
+        public LibreSize Border3DSize => new(2, 2);
+        public int VerticalScrollBarWidth => 17;
+        public int HorizontalScrollBarHeight => 17;
+        public int VerticalScrollBarArrowHeight => 17;
+        public int HorizontalScrollBarArrowWidth => 17;
+        public int VerticalScrollBarThumbHeight => 17;
+        public int HorizontalScrollBarThumbWidth => 17;
+        public LibreSize DragSize => new(4, 4);
+
+        public string ThemeFilename => "managed.theme";
+        public string ColorScheme => "ManagedColor";
 
         internal double LastPresentationScale { get; private set; } = 1.0;
 
@@ -2347,12 +2426,17 @@ public class CanonicalLifecycleTests
                         | LibreTextFormat.NoPadding
                         | LibreTextFormat.TextBoxControl);
             }
-            else
+            else if (text == "disabled")
             {
-                text.Should().Be("disabled");
                 bounds.Should().BeOneOf(new Rectangle(5, 6, 60, 18), new Rectangle(4, 5, 60, 18));
                 backColor.Should().Be(Color.Empty);
                 format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
+            }
+            else
+            {
+                text.Should().BeOneOf("group", "link");
+                bounds.Width.Should().BeGreaterThan(0);
+                bounds.Height.Should().BeGreaterThan(0);
             }
 
             LastTextBounds = bounds;
@@ -2418,6 +2502,12 @@ public class CanonicalLifecycleTests
                     : text.Length * 7;
                 int lineCount = Math.Max(1, (text.Length * 7 + availableWidth - 1) / availableWidth);
                 return new Size(Math.Min(text.Length * 7, availableWidth), font!.Height * lineCount);
+            }
+
+            if (text is "group" or "link")
+            {
+                proposedSize.Width.Should().BeGreaterThan(0);
+                return new Size(text.Length * 7, font!.Height);
             }
 
             if (graphics is null)

@@ -15,6 +15,10 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
 {
     public bool IsEnabled => true;
 
+    public string ThemeFilename => "progpu.theme";
+
+    public string ColorScheme => "NormalColor";
+
     public bool IsElementDefined(string className, int part)
         => !string.IsNullOrWhiteSpace(className) && part >= 0;
 

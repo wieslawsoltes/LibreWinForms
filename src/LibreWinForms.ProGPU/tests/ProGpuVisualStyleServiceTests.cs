@@ -40,6 +40,8 @@ public sealed class ProGpuVisualStyleServiceTests
         var service = new ProGpuVisualStyleService();
 
         service.IsEnabled.Should().BeTrue();
+        service.ThemeFilename.Should().Be("progpu.theme");
+        service.ColorScheme.Should().Be("NormalColor");
         service.IsElementDefined("BUTTON", 1).Should().BeTrue();
         using Region? region = service.GetBackgroundRegion("BUTTON", 1, 1, new Rectangle(1, 2, 4, 5));
 

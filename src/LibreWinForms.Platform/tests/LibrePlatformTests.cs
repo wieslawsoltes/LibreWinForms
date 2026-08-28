@@ -99,6 +99,8 @@ public class LibrePlatformTests
             test);
 
         services.VisualStyles.Should().BeSameAs(test);
+        services.VisualStyles.ThemeFilename.Should().Be("test.theme");
+        services.VisualStyles.ColorScheme.Should().Be("TestColor");
         Action create = () => new LibrePlatformServices(
             test, test, test.Handles, test, test, test, test, test, test, null!);
         create.Should().Throw<ArgumentNullException>().WithParameterName("visualStyles");
@@ -347,6 +349,12 @@ public class LibrePlatformTests
         ILibreSystemSettingsService,
         ILibreTextRendererService
     {
+        public event EventHandler? SettingsChanged
+        {
+            add { }
+            remove { }
+        }
+
         public ManagedLibreHandleRegistry Handles { get; } = new();
 
         public LibrePlatformServices Create() => new(this, this, Handles, this, this, this);
@@ -382,6 +390,8 @@ public class LibrePlatformTests
             => throw new NotSupportedException();
         public IntPtr CreateHalftonePalette() => IntPtr.Zero;
         public bool IsEnabled => true;
+        public string ThemeFilename => "test.theme";
+        public string ColorScheme => "TestColor";
         public bool HighContrast => true;
         public LibreSize BorderSize => new(7, 8);
         public LibreSize FixedFrameBorderSize => new(9, 10);
