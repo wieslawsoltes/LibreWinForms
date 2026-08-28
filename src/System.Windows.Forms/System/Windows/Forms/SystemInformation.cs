@@ -222,9 +222,11 @@ public static class SystemInformation
 
     private static unsafe Font GetMenuFontHelper(uint dpi, bool useDpi)
     {
-#if LIBREWINFORMS_PROGPU_DRAWING
-        // Portable system settings are supplied by the windowing backend. Until
-        // that typed service is connected, preserve WinForms' managed fallback.
+#if LIBREWINFORMS_PORTABLE
+        return PortableSystemSettings.GetMenuFont(checked((int)dpi));
+#elif LIBREWINFORMS_PROGPU_DRAWING
+        // The native ProGPU drawing configuration cannot import a Windows LOGFONT.
+        // Preserve its managed fallback while portable hosts use the typed service above.
         return Control.DefaultFont;
 #else
         // We can get the system's menu font through the NONCLIENTMETRICS structure

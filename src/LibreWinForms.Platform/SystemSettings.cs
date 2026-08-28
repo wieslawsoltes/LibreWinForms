@@ -1,6 +1,8 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Drawing;
+
 namespace LibreWinForms.Platform;
 
 /// <summary>Identifies the host boot mode without exposing a WinForms enum.</summary>
@@ -78,6 +80,9 @@ public interface ILibreSystemSettingsService
     event EventHandler<LibreSystemSettingsChangedEventArgs>? SettingsChanged;
 
     bool HighContrast { get; }
+
+    /// <summary>Creates the host menu font for the requested DPI, or the default DPI when zero.</summary>
+    Font GetMenuFont(int dpi);
 
     LibreSize BorderSize { get; }
 
@@ -278,6 +283,8 @@ public sealed class DefaultLibreSystemSettingsService : ILibreSystemSettingsServ
     }
 
     public bool HighContrast => false;
+
+    public Font GetMenuFont(int dpi) => (Font)SystemFonts.MenuFont.Clone();
 
     public LibreSize BorderSize => new(1, 1);
 

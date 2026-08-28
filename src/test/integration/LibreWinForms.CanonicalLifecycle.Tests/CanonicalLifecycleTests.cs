@@ -972,6 +972,19 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void SystemInformationUsesTypedPortableMenuFonts()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+
+        using Font menuFont = SystemInformation.MenuFont;
+        using Font dpiMenuFont = SystemInformation.GetMenuFontForDpi(192);
+        menuFont.Size.Should().Be(11f);
+        dpiMenuFont.Size.Should().Be(17f);
+        platform.WindowsCreated.Should().Be(0);
+        platform.Handles.Count.Should().Be(0);
+    }
+
+    [Fact]
     public void GroupBoxAndDisabledLinkLabelPaintWithoutNativeDeviceContexts()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2205,6 +2218,8 @@ public class CanonicalLifecycleTests
         internal string LastMeasuredText { get; private set; } = string.Empty;
 
         public bool HighContrast => false;
+        public Font GetMenuFont(int dpi)
+            => new(FontFamily.GenericMonospace, dpi == 0 ? 11f : 17f);
         public LibreSize BorderSize => new(11, 13);
         public LibreSize FixedFrameBorderSize => new(3, 3);
         public LibreSize Border3DSize => new(2, 2);

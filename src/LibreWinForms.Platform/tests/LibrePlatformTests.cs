@@ -129,6 +129,11 @@ public class LibrePlatformTests
 
         services.SystemSettings.Should().BeSameAs(test);
         services.SystemSettings.HighContrast.Should().BeTrue();
+        using (System.Drawing.Font menuFont = services.SystemSettings.GetMenuFont(192))
+        {
+            menuFont.Size.Should().Be(17f);
+        }
+
         services.SystemSettings.BorderSize.Should().Be(new LibreSize(7, 8));
         services.SystemSettings.FixedFrameBorderSize.Should().Be(new LibreSize(9, 10));
         services.SystemSettings.Border3DSize.Should().Be(new LibreSize(11, 12));
@@ -525,6 +530,8 @@ public class LibrePlatformTests
         public bool SupportsFlatMenus => true;
         public int MinimumColorDepth => 24;
         public bool HighContrast => true;
+        public System.Drawing.Font GetMenuFont(int dpi)
+            => new(System.Drawing.FontFamily.GenericMonospace, dpi == 0 ? 11f : 17f);
         public LibreSize BorderSize => new(7, 8);
         public LibreSize FixedFrameBorderSize => new(9, 10);
         public LibreSize Border3DSize => new(11, 12);
