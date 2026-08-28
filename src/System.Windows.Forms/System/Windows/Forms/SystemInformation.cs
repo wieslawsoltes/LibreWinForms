@@ -351,17 +351,29 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the minimum allowable dimensions of a window in pixels.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static Size MinimumWindowSize => GetPortableSize(PortableSystemSettings.MinimumWindowSize);
+#else
     public static Size MinimumWindowSize => GetSize(SM_CXMIN, SM_CYMIN);
+#endif
 
     /// <summary>
     ///  Gets the dimensions in pixels, of a caption bar or title bar button.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static Size CaptionButtonSize => GetPortableSize(PortableSystemSettings.CaptionButtonSize);
+#else
     public static Size CaptionButtonSize => GetSize(SM_CXSIZE, SM_CYSIZE);
+#endif
 
     /// <summary>
     ///  Gets the thickness in pixels, of the border for a window that can be resized.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static Size FrameBorderSize => GetPortableSize(PortableSystemSettings.FrameBorderSize);
+#else
     public static Size FrameBorderSize => GetSize(SM_CXFRAME, SM_CYFRAME);
+#endif
 
     /// <summary>
     ///  Gets the system's default minimum tracking dimensions of a window in pixels.
@@ -511,13 +523,22 @@ public static class SystemInformation
     ///  Gets the default maximum dimensions in pixels, of a window that has a
     ///  caption and sizing borders.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static Size MaxWindowTrackSize => GetPortableSize(PortableSystemSettings.MaxWindowTrackSize);
+#else
     public static Size MaxWindowTrackSize => GetSize(SM_CXMAXTRACK, SM_CYMAXTRACK);
+#endif
 
     /// <summary>
     ///  Gets the default dimensions, in pixels, of a maximized top-left window on the
     ///  primary monitor.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static Size PrimaryMonitorMaximizedWindowSize
+        => GetPortableSize(PortableSystemSettings.PrimaryMonitorMaximizedWindowSize);
+#else
     public static Size PrimaryMonitorMaximizedWindowSize => GetSize(SM_CXMAXIMIZED, SM_CYMAXIMIZED);
+#endif
 
     /// <summary>
     ///  Gets a value indicating whether this computer is connected to a network.

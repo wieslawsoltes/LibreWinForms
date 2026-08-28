@@ -882,6 +882,20 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void SystemInformationUsesTypedPortableWindowGeometryMetrics()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+
+        SystemInformation.MinimumWindowSize.Should().Be(new Size(101, 102));
+        SystemInformation.CaptionButtonSize.Should().Be(new Size(33, 34));
+        SystemInformation.FrameBorderSize.Should().Be(new Size(7, 8));
+        SystemInformation.MaxWindowTrackSize.Should().Be(new Size(1600, 1200));
+        SystemInformation.PrimaryMonitorMaximizedWindowSize.Should().Be(new Size(1500, 1100));
+        platform.WindowsCreated.Should().Be(0);
+        platform.Handles.Count.Should().Be(0);
+    }
+
+    [Fact]
     public void GroupBoxAndDisabledLinkLabelPaintWithoutNativeDeviceContexts()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2124,6 +2138,11 @@ public class CanonicalLifecycleTests
         public LibreSize IconSize => new(33, 35);
         public LibreSize CursorSize => new(37, 39);
         public LibreSize SmallIconSize => new(17, 19);
+        public LibreSize MinimumWindowSize => new(101, 102);
+        public LibreSize CaptionButtonSize => new(33, 34);
+        public LibreSize FrameBorderSize => new(7, 8);
+        public LibreSize MaxWindowTrackSize => new(1600, 1200);
+        public LibreSize PrimaryMonitorMaximizedWindowSize => new(1500, 1100);
         public int VerticalScrollBarArrowHeight => 17;
         public int HorizontalScrollBarArrowWidth => 17;
         public int VerticalScrollBarThumbHeight => 17;
