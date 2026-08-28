@@ -5,6 +5,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
     <LibreWinFormsUsePortableFrameworkReferences>true</LibreWinFormsUsePortableFrameworkReferences>
+    <LibreWinFormsUseCanonicalRuntime>false</LibreWinFormsUseCanonicalRuntime>
     <LibreWinFormsReferenceMode>Project</LibreWinFormsReferenceMode>
     <LibreWinFormsUseSystemWindowsForms>true</LibreWinFormsUseSystemWindowsForms>
     <LibreWinFormsUseWindowsFormsIntegration>true</LibreWinFormsUseWindowsFormsIntegration>

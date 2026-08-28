@@ -35,6 +35,8 @@ require_text README.md "fails if a stale or unexpected current-version"
 require_text README.md "Release order matters"
 require_text docs/librewinforms-release.md "unexpected current-version package artifact"
 require_text eng/librewinforms-package-list.sh "LibreWinForms.System.Windows.Forms"
+require_text eng/librewinforms-package-list.sh "LibreWinForms.ProGPU"
+require_text eng/librewinforms-package-list.sh "LibreWinForms.Compatibility.System.Windows.Forms"
 require_text eng/librewinforms-package-list.sh "LibreWinForms.WindowsFormsIntegration"
 require_text eng/librewinforms-package-list.sh "LibreWinForms.Sdk"
 require_text NuGet.config "https://api.nuget.org/v3/index.json"
@@ -43,9 +45,8 @@ require_text eng/librewinforms-fetch-librewpf-packages.sh 'commit=\"${bridge_com
 require_text src/LibreWinForms.Portable/Directory.Build.props "<PackageProjectUrl>https://github.com/wieslawsoltes/winforms</PackageProjectUrl>"
 require_text src/LibreWinForms.Portable/Directory.Build.props "<RepositoryUrl>https://github.com/wieslawsoltes/winforms</RepositoryUrl>"
 require_text src/LibreWinForms.Portable/Directory.Build.props "<PackageTags>librewinforms;progpu;silk.net;winforms;cross-platform</PackageTags>"
-require_text src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj "<PackageId>LibreWinForms.System.Windows.Forms</PackageId>"
-require_text src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj "<Description>LibreWinForms portable System.Windows.Forms API surface"
-require_text src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj "<PackageTags>librewinforms;winforms;progpu;silk.net;cross-platform</PackageTags>"
+require_text src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj "<PackageId>LibreWinForms.Compatibility.System.Windows.Forms</PackageId>"
+require_text src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj "<Description>Transitional LibreWinForms portable System.Windows.Forms compatibility surface"
 require_text src/LibreWinForms.Portable/LibreWinForms.WindowsFormsIntegration/LibreWinForms.WindowsFormsIntegration.csproj "<PackageId>LibreWinForms.WindowsFormsIntegration</PackageId>"
 require_text src/LibreWinForms.Portable/LibreWinForms.WindowsFormsIntegration/LibreWinForms.WindowsFormsIntegration.csproj "<Description>LibreWinForms portable WindowsFormsIntegration host surface"
 require_text src/LibreWinForms.Portable/LibreWinForms.WindowsFormsIntegration/LibreWinForms.WindowsFormsIntegration.csproj "<PackageTags>librewinforms;windowsformsintegration;librewpf;progpu;cross-platform</PackageTags>"
@@ -55,6 +56,8 @@ require_text src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj "<PackageTags>librew
 require_text src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj "<PackageReadmeFile>README.md</PackageReadmeFile>"
 require_text src/LibreWinForms.Portable/LibreWinForms.WindowsFormsIntegration/LibreWinForms.WindowsFormsIntegration.csproj "<PackageReadmeFile>README.md</PackageReadmeFile>"
 require_text src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj "<PackageReadmeFile>README.md</PackageReadmeFile>"
+require_text src/LibreWinForms.Sdk/Sdk/Sdk.props '<LibreWinFormsUseCanonicalRuntime Condition="'\''$(LibreWinFormsUseCanonicalRuntime)'\'' == '\'''\''">true</LibreWinFormsUseCanonicalRuntime>'
+require_text src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj 'LibreWinForms.Sdk.Versions.props'
 require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets "global::LibreWinForms.ProGPU.ProGpuPlatform.Register()"
 require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'PackageReference Include="LibreWinForms.System.Windows.Forms" Version="$(LibreWinFormsCanonicalPackageVersion)"'
 require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'PackageReference Include="LibreWinForms.ProGPU" Version="$(LibreWinFormsProGpuBackendPackageVersion)"'
@@ -90,8 +93,8 @@ require_text .github/workflows/librewinforms-ci.yml "LIBREWINFORMS_PROGPU_PACKAG
 require_text .github/workflows/librewinforms-ci.yml "LibreWinFormsReferenceMode=Package"
 require_text .github/workflows/librewinforms-ci.yml 'restore_sources="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping;https://api.nuget.org/v3/index.json"'
 require_text .github/workflows/librewinforms-ci.yml '-p:LibreWinFormsBridgePackageVersion="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION}"'
-require_text .github/workflows/librewinforms-ci.yml '-p:LibreWinFormsProGpuPackageVersion="${LIBREWINFORMS_PROGPU_PACKAGE_VERSION}"'
-require_text eng/librewinforms-package-smoke.sh '<ProGpuPackageVersion>${progpu_version}</ProGpuPackageVersion>'
+require_text .github/workflows/librewinforms-ci.yml '-p:LibreWinFormsProGpuPackageVersion="${LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION}"'
+require_text eng/librewinforms-package-smoke.sh '<ProGpuPackageVersion>${compatibility_progpu_version}</ProGpuPackageVersion>'
 require_text .github/workflows/librewinforms-ci.yml '-p:RestoreSources="${restore_sources}"'
 require_text .github/workflows/librewinforms-ci.yml "Run package-mode SDK smoke"
 require_text .github/workflows/librewinforms-ci.yml 'src/test/compatibility/LibreWinForms.Portable.Tests/LibreWinForms.Portable.Tests.csproj'
@@ -99,7 +102,7 @@ require_text .github/workflows/librewinforms-docs.yml "LibreWinForms Docs"
 require_text .github/workflows/librewinforms-docs.yml "docs/**"
 require_text .github/workflows/librewinforms-public-package-smoke.yml "LibreWinForms Public Package Smoke"
 require_text .github/workflows/librewinforms-public-package-smoke.yml '<Project Sdk="LibreWinForms.Sdk/${LIBREWINFORMS_VERSION}">'
-require_text .github/workflows/librewinforms-public-package-smoke.yml "<TargetFramework>net10.0</TargetFramework>"
+require_text .github/workflows/librewinforms-public-package-smoke.yml "<TargetFramework>net11.0</TargetFramework>"
 require_text .github/workflows/librewinforms-public-package-smoke.yml "ApplicationConfiguration.Initialize()"
 require_text .github/workflows/librewinforms-public-package-smoke.yml "ubuntu-24.04"
 require_text .github/workflows/librewinforms-public-package-smoke.yml "macos-15"
@@ -111,7 +114,7 @@ require_text .github/workflows/librewinforms-release.yml "Stage immutable LibreW
 require_text .github/workflows/librewinforms-release.yml "LibreWinFormsReferenceMode=Package"
 require_text .github/workflows/librewinforms-release.yml 'restore_sources="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping;https://api.nuget.org/v3/index.json"'
 require_text .github/workflows/librewinforms-release.yml '-p:LibreWinFormsBridgePackageVersion="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION}"'
-require_text .github/workflows/librewinforms-release.yml '-p:LibreWinFormsProGpuPackageVersion="${LIBREWINFORMS_PROGPU_PACKAGE_VERSION}"'
+require_text .github/workflows/librewinforms-release.yml '-p:LibreWinFormsProGpuPackageVersion="${LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION}"'
 require_text .github/workflows/librewinforms-release.yml '-p:RestoreSources="${restore_sources}"'
 require_text .github/workflows/librewinforms-release.yml "Run package-mode SDK smoke"
 require_text .github/workflows/librewinforms-release.yml 'src/test/compatibility/LibreWinForms.Portable.Tests/LibreWinForms.Portable.Tests.csproj'

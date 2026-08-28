@@ -22,11 +22,11 @@ LibreWinForms is packaged as an MSBuild SDK so normal WinForms apps can move to 
 2. Make sure the project targets the supported preview TFM:
 
 ```xml
-<TargetFramework>net10.0</TargetFramework>
+<TargetFramework>net11.0</TargetFramework>
 <UseWindowsForms>true</UseWindowsForms>
 ```
 
-`LibreWinForms.Sdk` supplies the portable WinForms package references and keeps Windows-shaped WinForms APIs available while the runtime is hosted through the portable ProGPU/LibreWPF stack.
+`LibreWinForms.Sdk` supplies canonical source-built WinForms plus the typed ProGPU/Silk.NET backend. Package mode is the default; source checkouts can select project mode explicitly.
 
 3. Change only the project SDK.
 
@@ -48,7 +48,7 @@ After:
 <Project Sdk="LibreWinForms.Sdk/0.1.0-preview.45">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
 </Project>
@@ -62,7 +62,7 @@ Older projects that still use `Microsoft.NET.Sdk.WindowsDesktop` should make the
 <Project Sdk="LibreWinForms.Sdk/0.1.0-preview.45">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
 
@@ -89,13 +89,15 @@ The preview package set is defined in `eng/librewinforms-package-list.sh` and va
 
 | Package | NuGet | Purpose |
 | --- | --- | --- |
-| `LibreWinForms.Sdk` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.Sdk.svg)](https://www.nuget.org/packages/LibreWinForms.Sdk) | Custom MSBuild SDK that redirects WinForms apps to the portable LibreWinForms package set. |
-| `LibreWinForms.System.Windows.Forms` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.System.Windows.Forms.svg)](https://www.nuget.org/packages/LibreWinForms.System.Windows.Forms) | Portable `System.Windows.Forms` API/runtime surface used by LibreWinForms apps. |
-| `LibreWinForms.WindowsFormsIntegration` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.WindowsFormsIntegration.svg)](https://www.nuget.org/packages/LibreWinForms.WindowsFormsIntegration) | Portable `WindowsFormsIntegration` bridge for LibreWPF-hosted WinForms content. |
+| `LibreWinForms.Sdk` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.Sdk.svg)](https://www.nuget.org/packages/LibreWinForms.Sdk) | Custom MSBuild SDK that selects canonical WinForms and the ProGPU backend by default. |
+| `LibreWinForms.System.Windows.Forms` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.System.Windows.Forms.svg)](https://www.nuget.org/packages/LibreWinForms.System.Windows.Forms) | Canonical source-built `System.Windows.Forms` implementation and reference assets. |
+| `LibreWinForms.ProGPU` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.ProGPU.svg)](https://www.nuget.org/packages/LibreWinForms.ProGPU) | Typed ProGPU/Silk.NET platform backend for canonical WinForms. |
+| `LibreWinForms.Compatibility.System.Windows.Forms` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.Compatibility.System.Windows.Forms.svg)](https://www.nuget.org/packages/LibreWinForms.Compatibility.System.Windows.Forms) | Explicit transitional Portable runtime used only during the LibreWPF/SharpDevelop cutover. |
+| `LibreWinForms.WindowsFormsIntegration` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.WindowsFormsIntegration.svg)](https://www.nuget.org/packages/LibreWinForms.WindowsFormsIntegration) | Transitional WindowsFormsIntegration bridge for LibreWPF-hosted compatibility content. |
 
 ### Bridge Packages
 
-LibreWinForms consumes LibreWPF packages from the matching LibreWPF preview and ProGPU-owned packages from the immutable ProGPU version pinned by that LibreWPF release. CI and release workflows check out the immutable `librewpf-v<version>` tag and stage its published, provenance-verified package bundle before packing LibreWinForms. This preserves the Windows RID-specific text runtime built by the LibreWPF release lane without requiring LibreWPF and ProGPU package version numbers to match.
+The canonical runtime and its ten-package ProGPU drawing closure are built from this repository and its pinned ProGPU submodule. Transitional WindowsFormsIntegration validation also consumes LibreWPF packages from the matching immutable LibreWPF preview.
 
 | Package | NuGet | Purpose |
 | --- | --- | --- |
@@ -109,7 +111,7 @@ LibreWinForms consumes LibreWPF packages from the matching LibreWPF preview and 
 LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.45 ./eng/librewinforms-pack.sh
 ```
 
-The package lane builds `LibreWinForms.System.Windows.Forms`, `LibreWinForms.WindowsFormsIntegration`, and `LibreWinForms.Sdk`, verifies README/release docs, writes the preview package manifest, and creates a release bundle with package hashes and a local-feed `NuGet.config`. It also cleans current-version package artifacts before packing and fails if a stale or unexpected current-version `.nupkg` would be published.
+The package lane builds canonical `LibreWinForms.System.Windows.Forms`, `LibreWinForms.ProGPU`, `LibreWinForms.Sdk`, the exact ten-package ProGPU drawing closure, and the two explicitly transitional compatibility packages. It verifies docs, writes the preview manifest, creates a release bundle with hashes and a local-feed `NuGet.config`, and fails if a stale or unexpected current-version package would be published.
 
 The pack script restores through an isolated cache under `artifacts/nuget/librewinforms-pack` by default and clears current-version LibreWPF/ProGPU bridge packages from that cache before restore. This keeps package-mode validation tied to the bridge feed built for the same run instead of a stale same-version package from a user/global NuGet cache.
 
@@ -118,19 +120,22 @@ When validating against unpublished LibreWPF/ProGPU bridge packages, build or re
 ```bash
 LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.45 \
 LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.45 \
-LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.55 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.62 \
+LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION=0.1.0-preview.55 \
 LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShipping%3Bhttps://api.nuget.org/v3/index.json \
 ./eng/librewinforms-pack.sh
 ```
+
+`LIBREWINFORMS_PROGPU_PACKAGE_VERSION` labels the current drawing closure built from the submodule. `LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION` keeps the temporary LibreWPF integration packages on their historical ABI until canonical WindowsFormsIntegration replaces them.
 
 GitHub workflows:
 
 - `LibreWinForms Build` stages the matching immutable LibreWPF release feed, runs the preview package lane, and uploads package artifacts.
 - `LibreWinForms Docs` verifies README and release docs against the preview package list.
-- `LibreWinForms Public Package Smoke` restores only from NuGet.org and builds the unchanged `net10.0` WinForms template on Ubuntu and macOS after publication.
+- `LibreWinForms Public Package Smoke` restores only from NuGet.org and builds the unchanged `net11.0` WinForms template on Ubuntu and macOS after publication.
 - `LibreWinForms Release` resolves an immutable LibreWPF bridge tag or commit, records exact LibreWinForms/LibreWPF/ProGPU provenance, runs behavior and package-mode SDK smokes, builds preview packages/bundle artifacts, can publish to NuGet.org with `NUGET_API_KEY`, and creates a GitHub release for `librewinforms-v*` tags.
 
-Release order matters: publish the immutable ProGPU version first, publish the LibreWPF version that pins it, then publish LibreWinForms so downstream restores can resolve the full package dependency closure from NuGet.org.
+Release order matters for the transitional integration gate: the release publishes the ProGPU drawing closure and LibreWinForms packages from one manifest, while the matching LibreWPF bridge must already be available for WindowsFormsIntegration/SharpDevelop validation.
 
 See [docs/librewinforms-release.md](docs/librewinforms-release.md) and the ongoing port plan in [docs/librewinforms/progpu-port-plan.md](docs/librewinforms/progpu-port-plan.md).
 

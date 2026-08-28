@@ -1,12 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <PackageId>LibreWinForms.System.Windows.Forms</PackageId>
-    <Title>LibreWinForms System.Windows.Forms</Title>
+    <PackageId>LibreWinForms.Compatibility.System.Windows.Forms</PackageId>
+    <Title>LibreWinForms compatibility System.Windows.Forms</Title>
     <AssemblyName>System.Windows.Forms</AssemblyName>
     <RootNamespace>System.Windows.Forms</RootNamespace>
-    <Description>LibreWinForms portable System.Windows.Forms API surface backed by ProGPU/Silk.NET-compatible services.</Description>
+    <Description>Transitional LibreWinForms portable System.Windows.Forms compatibility surface for LibreWPF migration.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageTags>librewinforms;winforms;progpu;silk.net;cross-platform</PackageTags>
+    <PackageTags>librewinforms;winforms;progpu;silk.net;cross-platform;compatibility;transitional</PackageTags>
     <IncludeBuildOutput>true</IncludeBuildOutput>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <SignAssembly Condition="Exists('$(LibreWinFormsProGpuSourceRoot)eng\ProGPU.snk')">true</SignAssembly>

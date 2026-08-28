@@ -23,6 +23,7 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        System.Windows.Forms.Integration.WindowsFormsHost.EnableWindowsFormsInterop();
         VerifyHexEditorInputScrollContracts();
         VerifyKeysConverterContracts();
 

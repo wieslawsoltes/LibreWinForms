@@ -13,7 +13,8 @@ export DOTNET_ROLL_FORWARD_TO_PRERELEASE="${DOTNET_ROLL_FORWARD_TO_PRERELEASE:-1
 package_output="${LIBREWINFORMS_PACKAGE_OUTPUT:-${repo_root}/artifacts/packages/Release/NonShipping}"
 dev_package_version="${LIBREWINFORMS_DEV_PACKAGE_VERSION:-0.1.0-preview.45}"
 bridge_package_version="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION:-${dev_package_version}}"
-progpu_package_version="${LIBREWINFORMS_PROGPU_PACKAGE_VERSION:-0.1.0-preview.55}"
+progpu_package_version="${LIBREWINFORMS_PROGPU_PACKAGE_VERSION:-0.1.0-preview.62}"
+compatibility_progpu_package_version="${LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION:-0.1.0-preview.55}"
 configuration="${LIBREWINFORMS_CONFIGURATION:-Release}"
 restore_sources="${LIBREWINFORMS_RESTORE_SOURCES:-}"
 nuget_packages="${LIBREWINFORMS_NUGET_PACKAGES:-${NUGET_PACKAGES:-${repo_root}/artifacts/nuget/librewinforms-pack}}"
@@ -39,19 +40,6 @@ bridge_package_ids=(
   LibreWPF.Transport
 )
 
-progpu_package_ids=(
-  LibreWPF.Interop
-  ProGPU.Backend
-  ProGPU.Compute
-  ProGPU.DirectX
-  ProGPU.Scene
-  ProGPU.SkiaSharp
-  ProGPU.System.Drawing.Common
-  ProGPU.Text
-  ProGPU.Transpiler
-  ProGPU.Vector
-)
-
 package_cache_id() {
   printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
 }
@@ -65,15 +53,24 @@ clean_restore_cache() {
     rm -rf "${package_cache_path}"
   done
 
-  for package_id in "${progpu_package_ids[@]}"; do
+  for package_id in "${librewinforms_preview_progpu_package_ids[@]}"; do
     package_cache_path="${NUGET_PACKAGES}/$(package_cache_id "${package_id}")/${progpu_package_version}"
     rm -rf "${package_cache_path}"
   done
+
+
+  if [[ "${compatibility_progpu_package_version}" != "${progpu_package_version}" ]]; then
+    for package_id in "${librewinforms_preview_progpu_package_ids[@]}"; do
+      package_cache_path="${NUGET_PACKAGES}/$(package_cache_id "${package_id}")/${compatibility_progpu_package_version}"
+      rm -rf "${package_cache_path}"
+    done
+  fi
 
   for package_id in "${librewinforms_preview_package_ids[@]}"; do
     package_cache_path="${NUGET_PACKAGES}/$(package_cache_id "${package_id}")/${dev_package_version}"
     rm -rf "${package_cache_path}"
   done
+
 }
 
 clean_release_artifacts() {
@@ -89,6 +86,11 @@ clean_release_artifacts() {
       "${package_output}/${package_id}.${dev_package_version}.nupkg" \
       "${package_output}/${package_id}.${dev_package_version}.snupkg"
   done
+  for package_id in "${librewinforms_preview_progpu_package_ids[@]}"; do
+    rm -f \
+      "${package_output}/${package_id}.${progpu_package_version}.nupkg" \
+      "${package_output}/${package_id}.${progpu_package_version}.snupkg"
+  done
 }
 
 is_expected_package_file() {
@@ -99,6 +101,12 @@ is_expected_package_file() {
   for package_id in "${librewinforms_preview_package_ids[@]}"; do
     if [[ "${package_name}" == "${package_id}.${dev_package_version}.nupkg" ||
           "${package_name}" == "${package_id}.${dev_package_version}.snupkg" ]]; then
+      return 0
+    fi
+  done
+  for package_id in "${librewinforms_preview_progpu_package_ids[@]}"; do
+    if [[ "${package_name}" == "${package_id}.${progpu_package_version}.nupkg" ||
+          "${package_name}" == "${package_id}.${progpu_package_version}.snupkg" ]]; then
       return 0
     fi
   done
@@ -115,9 +123,20 @@ verify_package_outputs() {
     fi
   done
 
+  for package_id in "${librewinforms_preview_progpu_package_ids[@]}"; do
+    if [[ ! -f "${package_output}/${package_id}.${progpu_package_version}.nupkg" ]]; then
+      echo "Missing package ${package_output}/${package_id}.${progpu_package_version}.nupkg." >&2
+      exit 1
+    fi
+  done
+
   local package_file
   shopt -s nullglob
-  for package_file in "${package_output}"/*.${dev_package_version}.nupkg "${package_output}"/*.${dev_package_version}.snupkg; do
+  for package_file in \
+    "${package_output}"/*.${dev_package_version}.nupkg \
+    "${package_output}"/*.${dev_package_version}.snupkg \
+    "${package_output}"/*.${progpu_package_version}.nupkg \
+    "${package_output}"/*.${progpu_package_version}.snupkg; do
     if ! is_expected_package_file "${package_file}"; then
       echo "Unexpected current-version package artifact: ${package_file}." >&2
       exit 1
@@ -139,7 +158,7 @@ pack_project() {
     -p:PackageVersion="${dev_package_version}"
     -p:LibreWinFormsVersion="${dev_package_version}"
     -p:LibreWinFormsBridgePackageVersion="${bridge_package_version}"
-    -p:LibreWinFormsProGpuPackageVersion="${progpu_package_version}"
+    -p:LibreWinFormsProGpuPackageVersion="${compatibility_progpu_package_version}"
     -p:ContinuousIntegrationBuild=true
   )
 
@@ -164,9 +183,16 @@ pack_project() {
 clean_release_artifacts
 clean_restore_cache
 
-pack_project "src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj" "LibreWinForms.System.Windows.Forms"
+LIBREWINFORMS_CONFIGURATION="${configuration}" \
+LIBREWINFORMS_SOURCE_FIRST_PACKAGE_VERSION="${dev_package_version}" \
+LIBREWINFORMS_SOURCE_FIRST_SDK_PACKAGE_VERSION="${dev_package_version}" \
+LIBREWINFORMS_SOURCE_FIRST_BACKEND_PACKAGE_VERSION="${dev_package_version}" \
+LIBREWINFORMS_SOURCE_FIRST_PROGPU_PACKAGE_VERSION="${progpu_package_version}" \
+LIBREWINFORMS_SOURCE_FIRST_PACKAGE_OUTPUT="${package_output}" \
+  "${repo_root}/eng/librewinforms-pack-source-first.sh"
+
+pack_project "src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj" "LibreWinForms.Compatibility.System.Windows.Forms"
 pack_project "src/LibreWinForms.Portable/LibreWinForms.WindowsFormsIntegration/LibreWinForms.WindowsFormsIntegration.csproj" "LibreWinForms.WindowsFormsIntegration"
-pack_project "src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj" "LibreWinForms.Sdk"
 
 verify_package_outputs
 "${repo_root}/eng/librewinforms-verify-docs.sh"

@@ -12,7 +12,11 @@ on:
         required: false
         default: ''
       progpu_version:
-        description: Immutable ProGPU package version to build against.
+        description: Version assigned to the ProGPU drawing closure built from the pinned submodule.
+        required: false
+        default: 0.1.0-preview.62
+      compatibility_progpu_version:
+        description: Historical ProGPU ABI used by the transitional LibreWPF bridge packages.
         required: false
         default: 0.1.0-preview.55
       bridge_ref:
@@ -40,6 +44,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Resolve release version
         id: release
@@ -57,7 +63,11 @@ jobs:
           fi
           progpu_version="${{ inputs.progpu_version }}"
           if [[ -z "${progpu_version}" ]]; then
-            progpu_version="0.1.0-preview.55"
+            progpu_version="0.1.0-preview.62"
+          fi
+          compatibility_progpu_version="${{ inputs.compatibility_progpu_version }}"
+          if [[ -z "${compatibility_progpu_version}" ]]; then
+            compatibility_progpu_version="0.1.0-preview.55"
           fi
           bridge_ref="${{ inputs.bridge_ref }}"
           if [[ -z "${bridge_ref}" ]]; then
@@ -66,11 +76,13 @@ jobs:
           echo "LIBREWINFORMS_DEV_PACKAGE_VERSION=${version}" >> "${GITHUB_ENV}"
           echo "LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=${bridge_version}" >> "${GITHUB_ENV}"
           echo "LIBREWINFORMS_PROGPU_PACKAGE_VERSION=${progpu_version}" >> "${GITHUB_ENV}"
+          echo "LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION=${compatibility_progpu_version}" >> "${GITHUB_ENV}"
           echo "LIBREWINFORMS_BRIDGE_REF=${bridge_ref}" >> "${GITHUB_ENV}"
           echo "bridge_ref=${bridge_ref}" >> "${GITHUB_OUTPUT}"
           echo "Resolved LibreWinForms package version: ${version}"
           echo "Resolved LibreWPF bridge package version: ${bridge_version}"
           echo "Resolved immutable ProGPU package version: ${progpu_version}"
+          echo "Resolved transitional compatibility ProGPU package version: ${compatibility_progpu_version}"
           echo "Resolved immutable LibreWPF bridge ref: ${bridge_ref}"
 
       - name: Checkout LibreWPF bridge packages
@@ -107,7 +119,7 @@ jobs:
             --configuration Release \
             -p:LibreWinFormsReferenceMode=Package \
             -p:LibreWinFormsBridgePackageVersion="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION}" \
-            -p:LibreWinFormsProGpuPackageVersion="${LIBREWINFORMS_PROGPU_PACKAGE_VERSION}" \
+            -p:LibreWinFormsProGpuPackageVersion="${LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION}" \
             -p:RestoreSources="${restore_sources}"
 
       - name: Build and pack
@@ -117,7 +129,7 @@ jobs:
           export LIBREWINFORMS_RESTORE_SOURCES="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping;https://api.nuget.org/v3/index.json"
           export LIBREWINFORMS_STRONG_NAME_KEY_FILE="${GITHUB_WORKSPACE}/wpf-bridge/external/ProGPU/eng/ProGPU.snk"
           export LIBREWINFORMS_BRIDGE_COMMIT="$(git -C wpf-bridge rev-parse HEAD)"
-          export LIBREWINFORMS_PROGPU_COMMIT="$(git -C wpf-bridge/external/ProGPU rev-parse HEAD)"
+          export LIBREWINFORMS_PROGPU_COMMIT="$(git -C external/ProGPU rev-parse HEAD)"
           export LIBREWINFORMS_REQUIRE_CLEAN=1
           ./eng/librewinforms-pack.sh
 

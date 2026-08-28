@@ -141,12 +141,15 @@ jobs:
     env:
       LIBREWINFORMS_DEV_PACKAGE_VERSION: 0.1.0-preview.45
       LIBREWINFORMS_BRIDGE_PACKAGE_VERSION: 0.1.0-preview.45
-      LIBREWINFORMS_PROGPU_PACKAGE_VERSION: 0.1.0-preview.55
+      LIBREWINFORMS_PROGPU_PACKAGE_VERSION: 0.1.0-preview.62
+      LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION: 0.1.0-preview.55
       LIBREWINFORMS_BRIDGE_REF: librewpf-v0.1.0-preview.45
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Checkout LibreWPF bridge packages
         uses: actions/checkout@v4
@@ -179,7 +182,7 @@ jobs:
             --configuration Release \
             -p:LibreWinFormsReferenceMode=Package \
             -p:LibreWinFormsBridgePackageVersion="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION}" \
-            -p:LibreWinFormsProGpuPackageVersion="${LIBREWINFORMS_PROGPU_PACKAGE_VERSION}" \
+            -p:LibreWinFormsProGpuPackageVersion="${LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION}" \
             -p:RestoreSources="${restore_sources}"
 
       - name: Pack LibreWinForms
@@ -189,7 +192,7 @@ jobs:
           export LIBREWINFORMS_RESTORE_SOURCES="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping;https://api.nuget.org/v3/index.json"
           export LIBREWINFORMS_STRONG_NAME_KEY_FILE="${GITHUB_WORKSPACE}/wpf-bridge/external/ProGPU/eng/ProGPU.snk"
           export LIBREWINFORMS_BRIDGE_COMMIT="$(git -C wpf-bridge rev-parse HEAD)"
-          export LIBREWINFORMS_PROGPU_COMMIT="$(git -C wpf-bridge/external/ProGPU rev-parse HEAD)"
+          export LIBREWINFORMS_PROGPU_COMMIT="$(git -C external/ProGPU rev-parse HEAD)"
           export LIBREWINFORMS_REQUIRE_CLEAN=1
           ./eng/librewinforms-pack.sh
 

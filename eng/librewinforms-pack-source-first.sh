@@ -87,6 +87,9 @@ NUGET_PACKAGES="${smoke_root}/backend-packages" "${dotnet}" pack \
   --output "${package_output}" \
   -p:PackageVersion="${sdk_package_version}" \
   -p:Version="${sdk_package_version}" \
+  -p:LibreWinFormsCanonicalPackageVersion="${package_version}" \
+  -p:LibreWinFormsProGpuBackendPackageVersion="${backend_package_version}" \
+  -p:LibreWinFormsProGpuPackageVersion="${progpu_package_version}" \
   -p:ContinuousIntegrationBuild=true
 
 if [[ ! -f "${package_file}" ]]; then
@@ -106,6 +109,14 @@ fi
 
 if [[ ! -f "${progpu_drawing_package_file}" ]]; then
   echo "Pinned-source ProGPU drawing package was not produced: ${progpu_drawing_package_file}" >&2
+  exit 1
+fi
+
+sdk_version_props="$(unzip -p "${sdk_package_file}" Sdk/LibreWinForms.Sdk.Versions.props)"
+if ! grep -Fq "<LibreWinFormsPackagedRuntimeVersion>${package_version}</LibreWinFormsPackagedRuntimeVersion>" <<<"${sdk_version_props}" \
+  || ! grep -Fq "<LibreWinFormsPackagedProGpuBackendVersion>${backend_package_version}</LibreWinFormsPackagedProGpuBackendVersion>" <<<"${sdk_version_props}" \
+  || ! grep -Fq "<LibreWinFormsPackagedProGpuVersion>${progpu_package_version}</LibreWinFormsPackagedProGpuVersion>" <<<"${sdk_version_props}"; then
+  echo "Source-first SDK package does not carry its exact runtime/backend/ProGPU version closure." >&2
   exit 1
 fi
 

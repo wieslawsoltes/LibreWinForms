@@ -1,19 +1,25 @@
 <Project>
+  <Import Project="$(MSBuildThisFileDirectory)LibreWinForms.Sdk.Versions.props"
+          Condition="Exists('$(MSBuildThisFileDirectory)LibreWinForms.Sdk.Versions.props')" />
+
   <PropertyGroup>
     <_LibreWinFormsSdkImported>true</_LibreWinFormsSdkImported>
     <LibreWinFormsRequestedUseWindowsForms Condition="'$(LibreWinFormsRequestedUseWindowsForms)' == ''">$(UseWindowsForms)</LibreWinFormsRequestedUseWindowsForms>
     <LibreWinFormsSdkConsumerProject Condition="'$(LibreWinFormsSdkConsumerProject)' == ''">$(MSBuildProjectFullPath)</LibreWinFormsSdkConsumerProject>
     <LibreWinFormsUsePortableFrameworkReferences Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == ''">true</LibreWinFormsUsePortableFrameworkReferences>
-    <LibreWinFormsUseCanonicalRuntime Condition="'$(LibreWinFormsUseCanonicalRuntime)' == ''">false</LibreWinFormsUseCanonicalRuntime>
+    <LibreWinFormsUseCanonicalRuntime Condition="'$(LibreWinFormsUseCanonicalRuntime)' == ''">true</LibreWinFormsUseCanonicalRuntime>
     <LibreWinFormsUseProGpuSystemDrawing Condition="'$(LibreWinFormsUseCanonicalRuntime)' == 'true'">true</LibreWinFormsUseProGpuSystemDrawing>
     <MicrosoftNETCoreAppRefPackageVersion Condition="'$(LibreWinFormsUseCanonicalRuntime)' == 'true'"></MicrosoftNETCoreAppRefPackageVersion>
     <UseWindowsForms Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true'">false</UseWindowsForms>
     <EnableWindowsTargeting Condition="'$(EnableWindowsTargeting)' == ''">true</EnableWindowsTargeting>
+    <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == '' And '$(LibreWinFormsPackagedRuntimeVersion)' != ''">$(LibreWinFormsPackagedRuntimeVersion)</LibreWinFormsVersion>
     <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == ''">0.1.0-preview.45</LibreWinFormsVersion>
     <LibreWinFormsPackageVersion Condition="'$(LibreWinFormsPackageVersion)' == ''">$(LibreWinFormsVersion)</LibreWinFormsPackageVersion>
+    <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == '' And '$(LibreWinFormsPackagedProGpuVersion)' != ''">$(LibreWinFormsPackagedProGpuVersion)</LibreWinFormsProGpuPackageVersion>
     <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == ''">0.1.0-preview.55</LibreWinFormsProGpuPackageVersion>
-    <LibreWinFormsCanonicalPackageVersion Condition="'$(LibreWinFormsCanonicalPackageVersion)' == ''">0.1.0-source-first</LibreWinFormsCanonicalPackageVersion>
-    <LibreWinFormsProGpuBackendPackageVersion Condition="'$(LibreWinFormsProGpuBackendPackageVersion)' == ''">0.1.0-source-first-backend</LibreWinFormsProGpuBackendPackageVersion>
+    <LibreWinFormsCanonicalPackageVersion Condition="'$(LibreWinFormsCanonicalPackageVersion)' == ''">$(LibreWinFormsVersion)</LibreWinFormsCanonicalPackageVersion>
+    <LibreWinFormsProGpuBackendPackageVersion Condition="'$(LibreWinFormsProGpuBackendPackageVersion)' == '' And '$(LibreWinFormsPackagedProGpuBackendVersion)' != ''">$(LibreWinFormsPackagedProGpuBackendVersion)</LibreWinFormsProGpuBackendPackageVersion>
+    <LibreWinFormsProGpuBackendPackageVersion Condition="'$(LibreWinFormsProGpuBackendPackageVersion)' == ''">$(LibreWinFormsVersion)</LibreWinFormsProGpuBackendPackageVersion>
     <LibreWinFormsSystemConfigurationConfigurationManagerVersion Condition="'$(LibreWinFormsSystemConfigurationConfigurationManagerVersion)' == ''">11.0.0-preview.5.26302.115</LibreWinFormsSystemConfigurationConfigurationManagerVersion>
     <LibreWinFormsSystemFormatsNrbfVersion Condition="'$(LibreWinFormsSystemFormatsNrbfVersion)' == ''">11.0.0-preview.5.26302.115</LibreWinFormsSystemFormatsNrbfVersion>
     <LibreWinFormsSystemIOPackagingVersion Condition="'$(LibreWinFormsSystemIOPackagingVersion)' == ''">11.0.0-preview.5.26302.115</LibreWinFormsSystemIOPackagingVersion>

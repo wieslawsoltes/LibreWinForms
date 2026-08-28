@@ -1,10 +1,14 @@
 # LibreWinForms Release
 
-LibreWinForms preview releases publish the portable WinForms package set:
+LibreWinForms preview releases publish the canonical WinForms package set:
 
 - `LibreWinForms.Sdk`
 - `LibreWinForms.System.Windows.Forms`
+- `LibreWinForms.ProGPU`
+- `LibreWinForms.Compatibility.System.Windows.Forms` (transitional)
 - `LibreWinForms.WindowsFormsIntegration`
+
+The same release bundle contains the exact ten-package ProGPU drawing closure built from the pinned submodule.
 
 Run the local package lane:
 
@@ -12,14 +16,15 @@ Run the local package lane:
 LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.45 ./eng/librewinforms-pack.sh
 ```
 
-LibreWinForms depends on `LibreWPF.Transport` and `LibreWPF.ProGPU` from its matching LibreWPF release, plus `LibreWPF.Interop` and `ProGPU.System.Drawing.Common` from the immutable ProGPU version pinned by that release. CI and release workflows check out the immutable `librewpf-v<version>` tag, download its three published LibreWPF packages, verify their package identity/version/repository commit against that checkout, and pass the staged local feed through `LIBREWINFORMS_RESTORE_SOURCES`.
+Canonical WinForms, the typed backend, and ProGPU drawing dependencies are built from this checkout and its pinned ProGPU submodule. The matching immutable LibreWPF packages are staged only to build and validate the transitional WindowsFormsIntegration compatibility lane.
 
 For local validation against unpublished bridge packages:
 
 ```bash
 LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.45 \
 LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.45 \
-LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.55 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.62 \
+LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION=0.1.0-preview.55 \
 LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShipping%3Bhttps://api.nuget.org/v3/index.json \
 ./eng/librewinforms-pack.sh
 ```
@@ -28,10 +33,13 @@ Additional MSBuild properties can be passed after the script name, for example w
 
 ```bash
 LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.45 \
-LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.55 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.62 \
+LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION=0.1.0-preview.55 \
 LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShipping%3Bhttps://api.nuget.org/v3/index.json \
 ./eng/librewinforms-pack.sh -p:LibreWpfManagedAssemblyRoot=/path/to/wpf/artifacts/bin/
 ```
+
+The two ProGPU versions are intentionally distinct during the transition: the canonical closure is built from the current submodule, while the compatibility version is the historical ABI required by the selected immutable LibreWPF bridge. Canonical consumers never reference the compatibility closure.
 
 The package lane writes:
 
@@ -50,8 +58,8 @@ Both CI and release run the standalone control/dispatcher/drag-drop/tree behavio
 
 Preview.42 also compiles the unchanged Microsoft `dotnet/samples` DataGridView source against the portable SDK. Its compatibility slice covers typed cell styles and painting/value events, custom cell-template/editor activation, virtual data callbacks, DataTable binding, row-sharing APIs, and MaskedTextBox behavior. `System.Resources.Extensions` is a transitive forms-package dependency so designer RESX payloads do not require an application-level workaround.
 
-After NuGet indexing, dispatch `LibreWinForms Public Package Smoke` for the published version. It restores only from NuGet.org and builds the unchanged WinForms template shape (`LibreWinForms.Sdk`, `net10.0`, `UseWindowsForms`, `ApplicationConfiguration.Initialize`) on Ubuntu and macOS.
+After NuGet indexing, dispatch `LibreWinForms Public Package Smoke` for the published version. It restores only from NuGet.org and builds the unchanged WinForms template shape (`LibreWinForms.Sdk`, `net11.0`, `UseWindowsForms`, `ApplicationConfiguration.Initialize`) on Ubuntu and macOS.
 
 The GitHub release workflow runs the same bridge bootstrap and package lane, then publishes to NuGet.org when `NUGET_API_KEY` is configured and the workflow is invoked with publishing enabled or a `librewinforms-v*` tag is pushed. Tag-triggered releases create a GitHub prerelease through `gh release create --generate-notes`, attaching the NuGet packages, manifest, bundle, checksum, README, and local-feed `NuGet.config`.
 
-Publish the immutable ProGPU package version and then the LibreWPF bridge packages that pin it before publishing LibreWinForms so downstream restores can resolve the dependency closure from NuGet.org. The active release branch is `librewinforms-progpu-port`; use `librewinforms-v<version>` tags for public preview releases from that branch.
+Publish the complete manifest together so canonical LibreWinForms and its source-built ProGPU closure stay version-aligned. The matching LibreWPF bridge remains a prerequisite for validating the transitional integration packages. The active release branch is `librewinforms-progpu-port`; use `librewinforms-v<version>` tags for public preview releases from that branch.

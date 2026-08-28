@@ -8,7 +8,7 @@ Compared contract: .NET 10.0.11 `Microsoft.WindowsDesktop.App.Ref`
 
 ## Executive conclusion
 
-LibreWinForms contains the full upstream WinForms source tree, but the default portable package consumed by `LibreWinForms.Sdk` is not built from that tree. The normal/default `System.Windows.Forms.dll` is still built from a separate, approximately 26,000-line compatibility implementation under `src/LibreWinForms.Portable`. An explicit source-first SDK mode now consumes canonical WinForms and ProGPU `System.Drawing.Common` either as coordinated source projects or as an exact, isolated package closure; the current ProGPU contract gate reports zero missing types and zero missing members, with 13 reviewed non-breaking shape differences.
+LibreWinForms contains the full upstream WinForms source tree, but historically shipped a separate, approximately 26,000-line compatibility implementation under `src/LibreWinForms.Portable`; that divergence is why so many public properties were missing. The SDK now defaults to canonical source-built WinForms and ProGPU `System.Drawing.Common` through an exact package closure, with coordinated project mode for source development. The current ProGPU contract gate reports zero missing types and zero missing members, with 13 reviewed non-breaking shape differences.
 
 Therefore, the statement “the repository contains the full WinForms source” is true, while the stronger statement “the portable package is the full WinForms source with platform-specific implementations” is currently false.
 
@@ -28,7 +28,7 @@ This closure is necessary because the then-current public `ProGPU.System.Drawing
 
 The SDK's canonical package mode now references `LibreWinForms.System.Windows.Forms` and the typed `LibreWinForms.ProGPU` backend package. The canonical package carries the real implementation and reference assemblies, including `System.Private.Windows.GdiPlus`, and declares exact ProGPU drawing dependencies instead of embedding them. The backend package similarly contains only its own `lib`/`ref` assets and declares the canonical runtime, exact ProGPU drawing closure, Silk.NET, and local-OS dependencies.
 
-The local end-to-end gate passed with a fresh NuGet cache and warnings treated as errors. It produced and verified all ten ProGPU packages, built the canonical and backend packages, installed `LibreWinForms.Sdk/0.1.0-source-first-sdk`, and built and ran both project-mode and package-mode consumers. The package-mode dependency manifest contains `LibreWinForms.System.Windows.Forms/0.1.0-source-first`, `LibreWinForms.ProGPU/0.1.0-source-first-backend`, and `ProGPU.System.Drawing.Common/0.1.0-source-first-drawing`, loads drawing identity `10.0.0.0`, includes the GDI+ support assembly, and rejects the official Windows drawing project.
+The local end-to-end gate passed with a fresh NuGet cache and warnings treated as errors. It produced and verified all ten ProGPU packages, built the canonical runtime/backend/SDK packages, and built and ran both project-mode and package-mode consumers. A production-version rehearsal emitted all 13 packages at `0.1.0-preview.9001`; the installed SDK selected canonical WinForms and ProGPU without opt-in properties, loaded drawing identity `10.0.0.0`, included the GDI+ support assembly, and rejected the official Windows drawing project.
 
 ### Issue interpretation and proposed fixes
 
@@ -51,11 +51,11 @@ The 69-case canonical lifecycle suite now covers hidden initial cues, Alt/Menu k
 
 ## Implementation update: 2026-08-28 source-first SDK
 
-The SDK project and payload have moved from `src/LibreWinForms.Portable` to `src/LibreWinForms.Sdk`. Default consumers remain on compatibility NuGet/package mode, preserving the existing development path. Consumers that explicitly set `LibreWinFormsUseCanonicalRuntime=true` with project mode now reference canonical `src/System.Windows.Forms` and `src/LibreWinForms.ProGPU`, select the source-built ProGPU drawing assembly, and receive a generated module initializer that calls the typed `ProGpuPlatform.Register()` bootstrap instead of `WindowsFormsHost`.
+The SDK project and payload have moved from `src/LibreWinForms.Portable` to `src/LibreWinForms.Sdk`. Default consumers use canonical NuGet/package mode and receive a generated module initializer that calls typed `ProGpuPlatform.Register()`. Source development remains available with `LibreWinFormsReferenceMode=Project`; the old Portable runtime now requires `LibreWinFormsUseCanonicalRuntime=false` and has the explicit transitional package identity `LibreWinForms.Compatibility.System.Windows.Forms`.
 
 The fresh-cache package gate installs the moved SDK into a disposable project and empty package cache, builds and runs the canonical consumer, rejects the official `System.Drawing.Common/11.0.0-dev` project from its dependency manifest, requires the ProGPU 10.0 drawing identity, and byte-compares the runtime drawing payload with the pinned ProGPU submodule output. Exact hosted workflow `33197186003` passes at implementation revision `30ed556495bafb0d8c1b15b52f5dd8e1b73e30b4`: platform 44/44, ProGPU adapter 46/46, lifecycle 68/68, drawing 392/392, and drawing ApiCompat at 0 missing types, 0 missing members, and 13 reviewed other differences. The canonical/source package lane, ordinary NuGet/package lane, AppKit lane, and docs workflow are all green.
 
-This is not yet permission to delete `src/LibreWinForms.Portable`. The default SDK still selects the compatibility runtime; the frozen comparison smoke and application integrations still reference it; and the isolated installed-SDK smoke does not yet prove an unchanged visible `Application.Run(new Form())` on Windows, Linux, and macOS. The authoritative remaining deletion gates and proposed fixes are recorded in the source-first plan.
+This is not yet permission to delete `src/LibreWinForms.Portable`. The default SDK and release graph are canonical, and visible installed-SDK `Application.Run(new Form())` smokes pass on Windows, Linux, and macOS, but the frozen comparison lane and transitional WindowsFormsIntegration/SharpDevelop integration still reference Portable. The authoritative remaining deletion gates and proposed fixes are recorded in the source-first plan.
 
 ## Implementation update: 2026-08-25
 

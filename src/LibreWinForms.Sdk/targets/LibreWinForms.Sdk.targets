@@ -9,13 +9,13 @@
   </Target>
 
   <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseCanonicalRuntime)' != 'true' And '$(LibreWinFormsReferenceMode)' == 'Package' And '$(ManagePackageVersionsCentrally)' != 'true'">
-    <PackageReference Include="LibreWinForms.System.Windows.Forms" Version="$(LibreWinFormsPackageVersion)" Condition="'$(LibreWinFormsUseSystemWindowsForms)' == 'true'" />
+    <PackageReference Include="LibreWinForms.Compatibility.System.Windows.Forms" Version="$(LibreWinFormsPackageVersion)" Condition="'$(LibreWinFormsUseSystemWindowsForms)' == 'true'" />
     <PackageReference Include="LibreWinForms.WindowsFormsIntegration" Version="$(LibreWinFormsPackageVersion)" Condition="'$(LibreWinFormsUseWindowsFormsIntegration)' == 'true'" />
     <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(LibreWinFormsProGpuPackageVersion)" GeneratePathProperty="true" Condition="'$(LibreWinFormsUseSystemWindowsForms)' == 'true'" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseCanonicalRuntime)' != 'true' And '$(LibreWinFormsReferenceMode)' == 'Package' And '$(ManagePackageVersionsCentrally)' == 'true'">
-    <PackageReference Include="LibreWinForms.System.Windows.Forms" VersionOverride="$(LibreWinFormsPackageVersion)" Condition="'$(LibreWinFormsUseSystemWindowsForms)' == 'true'" />
+    <PackageReference Include="LibreWinForms.Compatibility.System.Windows.Forms" VersionOverride="$(LibreWinFormsPackageVersion)" Condition="'$(LibreWinFormsUseSystemWindowsForms)' == 'true'" />
     <PackageReference Include="LibreWinForms.WindowsFormsIntegration" VersionOverride="$(LibreWinFormsPackageVersion)" Condition="'$(LibreWinFormsUseWindowsFormsIntegration)' == 'true'" />
     <PackageReference Include="ProGPU.System.Drawing.Common" VersionOverride="$(LibreWinFormsProGpuPackageVersion)" GeneratePathProperty="true" Condition="'$(LibreWinFormsUseSystemWindowsForms)' == 'true'" />
   </ItemGroup>
