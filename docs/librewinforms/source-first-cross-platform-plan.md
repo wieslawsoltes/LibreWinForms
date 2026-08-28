@@ -968,6 +968,16 @@ Hosted build workflow `33149591150` passes canonical source/ProGPU validation, c
 
 The next coherent geometry group should cover the remaining window-size metrics, beginning with minimum/maximum tracking, normal minimum size, frame size, caption-button size, and maximized-window size. These public canonical properties must stop calling USER32 on portable hosts even where some current consumers remain native-only.
 
+## Current canonical window geometry checkpoint
+
+Exact source checkpoint `8fb4b731528c85191f6c80c77356dffdfa4f178a` routes `SystemInformation.MinimumWindowSize`, `CaptionButtonSize`, `FrameBorderSize`, `MaxWindowTrackSize`, and `PrimaryMonitorMaximizedWindowSize` through `ILibreSystemSettingsService` on portable builds. Native Windows retains every original `GetSystemMetrics` branch. The default portable service provides deterministic desktop baselines, while a real host can publish dimensions from its local window system without exposing Silk.NET or operating-system types to canonical WinForms.
+
+Platform-contract and public-path tests inject five deliberately distinct sizes and verify exact transport through the unchanged canonical getters. The public lifecycle case also proves that reading the metrics creates neither a platform window nor a logical handle. The complete exact-commit local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 51/51, ProGPU drawing 392/392, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and frozen Portable comparison 31 warnings/0 errors.
+
+Hosted build workflow `33150870155` passes canonical source/ProGPU validation, canonical package production and isolated consumption in job `98782286494`, and independent package job `98782286686`; documentation workflow `33150870098` and job `98782286396` also pass. No runtime source under `src/LibreWinForms.Portable` changed.
+
+The next bounded geometry group should cover the remaining menu, tool-window, and minimized-window dimensions: `ToolWindowCaptionHeight`, `ToolWindowCaptionButtonSize`, `MenuButtonSize`, `MinimizedWindowSpacingSize`, and `MinimizedWindowSize`. This keeps the work on one typed settings seam while preserving all native Windows metric calls.
+
 ## Major risks and controls
 
 | Risk | Control |

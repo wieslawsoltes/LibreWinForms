@@ -723,6 +723,14 @@ The platform contract and public lifecycle case inject distinct cursor, standard
 
 Hosted build workflow `33149591150` passes canonical source validation, canonical package production and isolated consumption in job `98778231129`, and package job `98778230972`; docs workflow `33149591143` and job `98778231191` also pass. No compatibility declaration or runtime file under `src/LibreWinForms.Portable` changed. The next grouped repair should cover remaining window-size metrics such as minimum/maximum tracking, frame and caption-button dimensions, and maximized-window size.
 
+## Canonical property implementation follow-up: core window geometry
+
+Exact source checkpoint `8fb4b731528c85191f6c80c77356dffdfa4f178a` ports `SystemInformation.MinimumWindowSize`, `CaptionButtonSize`, `FrameBorderSize`, `MaxWindowTrackSize`, and `PrimaryMonitorMaximizedWindowSize` through `ILibreSystemSettingsService`. The upstream public declarations and native Windows `GetSystemMetrics` branches remain intact; only portable builds read typed host dimensions.
+
+Contract and public lifecycle tests inject distinct values for all five metrics, verify each unchanged canonical getter, and prove the reads create neither a platform window nor a logical handle. The complete local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 51/51, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors.
+
+Hosted build workflow `33150870155` passes canonical source validation, canonical package production and isolated consumption in job `98782286494`, and package job `98782286686`; docs workflow `33150870098` and job `98782286396` also pass. No compatibility declaration or runtime file under `src/LibreWinForms.Portable` changed. The next grouped repair should cover the remaining menu, tool-window, and minimized-window sizes through the same typed host seam.
+
 ## Definition of done
 
 For an API group to be considered ported:
