@@ -639,6 +639,10 @@ Pinned ProGPU checkpoint `efbc9f30f35b1ecf4a6dc6a0938fcc2acfe1ffa2` also matches
 
 This checkpoint sharpens the proposed fix for issue #9: use the full upstream source so properties cannot disappear through hand-maintained inheritance gaps, then exercise public behavior until native assumptions surface and replace each assumption with a typed platform or ProGPU service. The next grouped gap is not another list of missing declarations; it is the remaining portable `SystemEvents` notification consumers and `VisualStyleInformation` metadata/system-property reads.
 
+Exact source checkpoint `1e2ad2c319c76795db03ceac7e655694da935e6b` closes the latter group without changing any public WinForms declaration. The ten canonical `VisualStyleInformation` properties that still read UxTheme now obtain renderer-neutral metadata, flat-menu capability, and minimum color depth from `ILibreVisualStyleService` on portable builds. Their native branches remain upstream UxTheme code. A public lifecycle test verifies every distinctive host value after visual-style opt-in, while platform and ProGPU tests verify the contract and concrete defaults.
+
+The complete exact-commit local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 41/41, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors. This is another direct answer to the reported missing-property symptoms: the property surface comes from upstream source, and the real implementation becomes cross-platform by replacing only its native data source. No compatibility property or Portable runtime type was added.
+
 ## Definition of done
 
 For an API group to be considered ported:

@@ -872,6 +872,10 @@ The complete exact-commit local gate passes default canonical 0 warnings/0 error
 
 The next bounded source-first tranche is the remaining visual/system-settings notification surface. `Screen`, `ProgressBar`, `DateTimePicker`, `MonthCalendar`, `RichTextBox`, `ToolStripTextBox`, `PropertyGridView`, `ToolStrip`, `UpDownBase`, and `DataGridView` still contain `SystemEvents` subscriptions whose portable behavior should move to typed host events according to the setting family they consume. The remaining `VisualStyleInformation` documentation and system properties should similarly use typed theme metadata/settings rather than UxTheme. Native subscriptions and UxTheme calls remain unchanged on Windows; portable work must not emulate native handles.
 
+Exact source checkpoint `1e2ad2c319c76795db03ceac7e655694da935e6b` completes the `VisualStyleInformation` portion of that follow-up. `ILibreVisualStyleService` now publishes the theme size, display/documentation metadata, flat-menu capability, and minimum color depth. Portable canonical `Size`, `DisplayName`, `Company`, `Author`, `Copyright`, `Url`, `Version`, `Description`, `SupportsFlatMenus`, and `MinimumColorDepth` consume those typed values; Windows retains `GetCurrentThemeName`, `GetThemeDocumentationProperty`, `GetThemeSysBool`, and `GetThemeSysInt`. ProGPU supplies a stable managed-theme baseline and unsupported hosts supply empty/false/zero values.
+
+The canonical lifecycle case reads every public property through the registered headless service after `Application.EnableVisualStyles()`. The complete exact-commit local gate passes default canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 41/41, ProGPU drawing 392/392, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and frozen Portable comparison 31 warnings/0 errors. The remaining work in this tranche is the grouped `SystemEvents` consumer migration; no runtime source under `src/LibreWinForms.Portable` changed.
+
 ## Major risks and controls
 
 | Risk | Control |
