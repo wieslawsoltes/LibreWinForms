@@ -1028,7 +1028,15 @@ Exact source checkpoint `1a582fd38a122c8437e96a2b8d0edeb682ad7689` routes portab
 
 The public lifecycle test proves start, tick delivery, interval-driven restart, stop, and disposal without creating a platform window or logical handle. The complete exact-commit local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 28/28, adapter 20/20, lifecycle 58/58, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors. Hosted build workflow `33160330948` passes canonical source validation and isolated canonical package consumption in job `98812966804` plus independent package job `98812967110`; docs workflow `33160330876` and job `98812966788` also pass.
 
-No runtime source under `src/LibreWinForms.Portable` changed in any of these five checkpoints. With `SystemInformation`, `PowerStatus`, menu fonts, and canonical timers now bounded, the next source-first audit target is the direct `MessageBox` USER32 dependency and the modal-dialog contract it requires; this must be a typed real platform capability rather than a compatibility-object emulation.
+No runtime source under `src/LibreWinForms.Portable` changed in any of these five checkpoints. With `SystemInformation`, `PowerStatus`, menu fonts, and canonical timers now bounded, the ensuing direct-call audit moved into canonical control behavior.
+
+## Current canonical `UserControl` focus checkpoint
+
+Exact source checkpoint `eea569fd40fc31c0365827d35e74faf42aa1f314` removes the portable `UserControl.OnMouseDown` dependency on USER32 `GetFocus` and `IsChild`. Its private focus-inside check now reuses canonical `Control.ContainsFocus`, which already evaluates the managed portable focus tree. The native Windows branch retains the original handle queries unchanged.
+
+The public lifecycle test gives a real child control focus, raises mouse-down on its containing `UserControl`, and proves the child remains focused without transferring focus to the container or entering USER32. The complete local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 28/28, adapter 20/20, lifecycle 59/59, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors. Hosted build workflow `33161841191` passes canonical source validation and isolated canonical package consumption in job `98817907967` plus independent package job `98817907835`; docs workflow `33161841334` and job `98817908435` also pass.
+
+No runtime source under `src/LibreWinForms.Portable` changed. The next larger source-first target remains the direct `MessageBox` USER32 dependency and the modal-dialog contract it requires; this must be a typed real platform capability rather than a compatibility-object emulation or a fabricated default result.
 
 ## Major risks and controls
 

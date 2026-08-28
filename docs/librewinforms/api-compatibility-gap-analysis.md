@@ -767,7 +767,15 @@ Exact source checkpoint `1a582fd38a122c8437e96a2b8d0edeb682ad7689` replaces the 
 
 The headless public lifecycle test covers start, tick, interval restart, stop, and disposal and proves the path creates zero windows and zero logical handles. The complete local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 28/28, adapter 20/20, lifecycle 58/58, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed differences, and frozen comparison 31 warnings/0 errors. Hosted build workflow `33160330948` passes canonical source validation and isolated canonical package consumption in job `98812966804` plus independent package job `98812967110`; docs workflow `33160330876` and job `98812966788` also pass.
 
-No compatibility declaration or runtime file under `src/LibreWinForms.Portable` changed. These repairs demonstrate the core cause of the reported missing properties: the canonical declarations already exist, while portable native dependencies must be replaced at typed seams. The next bounded audit is canonical `MessageBox`: it still calls USER32 directly and needs a typed, genuinely implemented modal-dialog service rather than new members or fake native handles in the frozen compatibility assembly.
+No compatibility declaration or runtime file under `src/LibreWinForms.Portable` changed. These repairs demonstrate the core cause of the reported missing properties: the canonical declarations already exist, while portable native dependencies must be replaced at typed seams.
+
+## Canonical behavior follow-up: `UserControl` descendant focus
+
+Exact source checkpoint `eea569fd40fc31c0365827d35e74faf42aa1f314` routes the portable `UserControl` mouse-down focus check through canonical `Control.ContainsFocus`. That property already uses the managed portable focus tree, so `UserControl` no longer calls USER32 `GetFocus` or `IsChild` to decide whether a focused descendant should retain focus. Native Windows keeps the original handle-based branch.
+
+The headless public lifecycle test focuses a real child, raises mouse-down on its containing `UserControl`, and proves the child remains focused while the container receives no `GotFocus`. The complete local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 28/28, adapter 20/20, lifecycle 59/59, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed differences, and frozen comparison 31 warnings/0 errors. Hosted build workflow `33161841191` passes canonical/package job `98817907967` plus package job `98817907835`; docs workflow `33161841334` and job `98817908435` also pass.
+
+No compatibility declaration or runtime file under `src/LibreWinForms.Portable` changed. The next bounded audit is canonical `MessageBox`: it still calls USER32 directly and needs a typed, genuinely implemented modal-dialog service rather than new members, fake native handles, or a fabricated result in the frozen compatibility assembly.
 
 ## Definition of done
 
