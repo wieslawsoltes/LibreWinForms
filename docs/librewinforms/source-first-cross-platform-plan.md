@@ -918,6 +918,16 @@ The complete exact-implementation local gate passes native canonical 0 warnings/
 
 No runtime source under `src/LibreWinForms.Portable` changed. The next bounded settings family should cover active-window tracking, tracking delay, border multiplier, and caret width through the same typed contract, provided the canonical consumer audit confirms they form the next coherent host-policy boundary.
 
+## Current canonical window-tracking and caret settings checkpoint
+
+Exact source checkpoint `32ef5ab587598f6a477ff2cf80afa64e8994db82` moves that four-property family into `ILibreSystemSettingsService`. Portable canonical `SystemInformation.IsActiveWindowTrackingEnabled`, `ActiveWindowTrackingDelay`, `BorderMultiplierFactor`, and `CaretWidth` now read typed host data, while Windows retains its original `SystemParametersInfo` branches. Unregistered hosts receive deterministic baselines of disabled tracking, a 500-millisecond delay, and one-pixel border multiplier and caret width.
+
+The public lifecycle case supplies enabled tracking, a 525-millisecond delay, multiplier 3, and caret width 5, then proves all four getters create neither a platform window nor a managed handle. Platform contract tests verify the same transport. The complete exact-pin local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 46/46, ProGPU drawing 392/392, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and frozen Portable comparison 31 warnings/0 errors.
+
+That full gate exposed a tiered-compilation order dependency in ProGPU's existing matrix batch-transform allocation test: a single warm-up call could cross the compilation threshold inside the measured 64-call loop. ProGPU checkpoint `7f00f6806f76fcdc2cfeafdd1063359dc2ebd372` warms the exact transform path for 128 calls before measurement without changing the measured loop or its zero-byte assertion. Five fresh focused processes, the complete 392/392 local suite, and hosted System.Drawing API/quality job `98758654734` in workflow `33143260638` pass. An unrelated macOS MotionMark retained-recording budget failed in that broader ProGPU workflow while the Ubuntu full suite passed; it is not a System.Drawing or LibreWinForms failure. Exact LibreWinForms workflow `33144032251` passes canonical source-first job `98761040831`, including pack and isolated consumption, and independent package job `98761040652`; documentation job `98761040604` also passes.
+
+No runtime source under `src/LibreWinForms.Portable` changed. The next coherent metric family is horizontal/vertical focus-border thickness and horizontal/vertical resize-border thickness. Those four canonical getters should use the same typed service on portable builds while native `GetSystemMetrics` behavior remains unchanged.
+
 ## Major risks and controls
 
 | Risk | Control |

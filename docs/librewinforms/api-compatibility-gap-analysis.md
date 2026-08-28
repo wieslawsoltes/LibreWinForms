@@ -679,6 +679,16 @@ The first hosted execution found that ProGPU's existing allocation test warmed o
 
 This tranche again demonstrates the proposed fix for issue #9: keep the original `System.Windows.Forms` property surface and route its platform data through a reusable typed seam. No runtime source under `src/LibreWinForms.Portable` changed, and deletion remains gated on the canonical package, consumer, subsystem, and migration criteria rather than on a growing compatibility facade.
 
+## Canonical property implementation follow-up: window tracking and caret metrics
+
+Exact source checkpoint `32ef5ab587598f6a477ff2cf80afa64e8994db82` ports `SystemInformation.IsActiveWindowTrackingEnabled`, `ActiveWindowTrackingDelay`, `BorderMultiplierFactor`, and `CaretWidth` through `ILibreSystemSettingsService`. These declarations were never missing from the canonical source; their portable implementations still crossed directly into USER32. The typed host now supplies their data, deterministic defaults cover unregistered environments, and every native Windows branch retains the upstream `SystemParametersInfo` call.
+
+The public-path test injects distinctive values for all four properties and proves the reads create no window or logical handle. The exact local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 46/46, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors.
+
+The first full local execution also caught a pre-existing under-warm ProGPU matrix allocation assertion. ProGPU checkpoint `7f00f6806f76fcdc2cfeafdd1063359dc2ebd372` exercises the same transform path through tiered compilation before measuring the unchanged 64-call loop and exact zero-byte requirement. It passes five fresh focused processes, the full local 392-test drawing suite, and hosted System.Drawing API/quality job `98758654734` in workflow `33143260638`. The broader ProGPU workflow has an unrelated macOS MotionMark retained-recording budget failure while the Ubuntu full suite passes. Exact LibreWinForms workflow `33144032251` passes canonical source-first job `98761040831`, including pack and isolated consumption, and independent package job `98761040652`; documentation job `98761040604` also passes.
+
+No compatibility declaration or runtime file under `src/LibreWinForms.Portable` changed. The next grouped repair should route the four focus- and resize-border thickness properties through this same seam, preserving the original `System.Windows.Forms` identities and native metric calls.
+
 ## Definition of done
 
 For an API group to be considered ported:
