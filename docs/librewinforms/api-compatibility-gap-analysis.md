@@ -1,14 +1,14 @@
 # LibreWinForms API Compatibility Gap Analysis
 
-Date: 2026-08-20
+Date: 2026-08-28
 
-Repository revision: `7087611f2145b2dc09bac8e78ce239b1fe819259`
+Implementation revision: `30ed556495bafb0d8c1b15b52f5dd8e1b73e30b4`
 
 Compared contract: .NET 10.0.11 `Microsoft.WindowsDesktop.App.Ref`
 
 ## Executive conclusion
 
-LibreWinForms contains the full upstream WinForms source tree, but the portable package consumed by `LibreWinForms.Sdk` is not built from that tree. The shipping `System.Windows.Forms.dll` is built from a separate, approximately 26,000-line compatibility implementation under `src/LibreWinForms.Portable`. The SDK also replaces `System.Drawing.Common` with the ProGPU implementation, whose printing surface is currently only a small subset of the original API.
+LibreWinForms contains the full upstream WinForms source tree, but the default portable package consumed by `LibreWinForms.Sdk` is not built from that tree. The normal/default `System.Windows.Forms.dll` is still built from a separate, approximately 26,000-line compatibility implementation under `src/LibreWinForms.Portable`. An explicit source-first SDK mode now builds canonical WinForms and uses ProGPU `System.Drawing.Common`; the current ProGPU contract gate reports zero missing types and zero missing members, with 13 reviewed non-breaking shape differences.
 
 Therefore, the statement “the repository contains the full WinForms source” is true, while the stronger statement “the portable package is the full WinForms source with platform-specific implementations” is currently false.
 
@@ -19,6 +19,14 @@ The properties reported in issues [#10](https://github.com/wieslawsoltes/LibreWi
 3. CI exercises selected applications and behavior scenarios but does not enforce the official WinForms public contract.
 
 The correct direction is defined in the [source-first cross-platform plan](./source-first-cross-platform-plan.md): replace the copied compatibility implementation with builds of the canonical managed source and put platform behavior behind typed seams. The immediate fix should be to make that direction measurable with an API-compatibility gate, then migrate APIs by coherent source-owned subsystems.
+
+## Implementation update: 2026-08-28 source-first SDK
+
+The SDK project and payload have moved from `src/LibreWinForms.Portable` to `src/LibreWinForms.Sdk`. Default consumers remain on compatibility NuGet/package mode, preserving the existing development path. Consumers that explicitly set `LibreWinFormsUseCanonicalRuntime=true` with project mode now reference canonical `src/System.Windows.Forms` and `src/LibreWinForms.ProGPU`, select the source-built ProGPU drawing assembly, and receive a generated module initializer that calls the typed `ProGpuPlatform.Register()` bootstrap instead of `WindowsFormsHost`.
+
+The fresh-cache package gate installs the moved SDK into a disposable project and empty package cache, builds and runs the canonical consumer, rejects the official `System.Drawing.Common/11.0.0-dev` project from its dependency manifest, requires the ProGPU 10.0 drawing identity, and byte-compares the runtime drawing payload with the pinned ProGPU submodule output. Exact hosted workflow `33197186003` passes at implementation revision `30ed556495bafb0d8c1b15b52f5dd8e1b73e30b4`: platform 44/44, ProGPU adapter 46/46, lifecycle 68/68, drawing 392/392, and drawing ApiCompat at 0 missing types, 0 missing members, and 13 reviewed other differences. The canonical/source package lane, ordinary NuGet/package lane, AppKit lane, and docs workflow are all green.
+
+This is not yet permission to delete `src/LibreWinForms.Portable`. The default SDK still selects the compatibility runtime; the frozen comparison smoke and application integrations still reference it; and the isolated installed-SDK smoke does not yet prove an unchanged visible `Application.Run(new Form())` on Windows, Linux, and macOS. The authoritative remaining deletion gates and proposed fixes are recorded in the source-first plan.
 
 ## Implementation update: 2026-08-25
 

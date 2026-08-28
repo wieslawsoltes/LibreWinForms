@@ -310,6 +310,8 @@ Exit: no new compatibility surface can merge without an explicit exception, and 
 
 Exit: the shadow package can be packed and inspected, even if some portable runtime operations still throw at typed boundaries.
 
+Current status: `LibreWinForms.Sdk` now lives at `src/LibreWinForms.Sdk`, and the installed source-first SDK smoke lives under `packaging`. The compatibility SDK smoke remains under `src/LibreWinForms.Portable` only as comparison coverage until its consumers move; this phase does not authorize deleting the rest of the Portable tree.
+
 ### Phase 2: make the canonical assembly graph compile cross-platform
 
 - Condition the XP theme manifest and other Windows-only build assets.
@@ -385,6 +387,8 @@ Exit: SharpDevelop builds, launches, loads/saves a real WinForms design surface,
 
 Exit: current smoke applications and SharpDevelop consume no compatibility assembly while retaining the expected package names and runtime type identities.
 
+Current status: the SDK has an explicit `LibreWinFormsUseCanonicalRuntime=true` source/project mode that selects canonical `System.Windows.Forms`, `LibreWinForms.ProGPU`, and the ProGPU drawing assembly and generates the typed ProGPU bootstrap. The normal default remains compatibility package mode, so this is a validated cutover path rather than the production cutover exit.
+
 ### Phase 8: delete `src/LibreWinForms.Portable`
 
 Delete the entire directory in one focused change only after all deletion gates below pass. The same change should remove obsolete aliases, suppression files, build conditions, workflow branches, and documentation that describes the compatibility assembly as the active runtime.
@@ -410,6 +414,7 @@ All gates are required before removing `src/LibreWinForms.Portable`:
 - [ ] API shape diagnostics are zero or have reviewed, time-bounded exceptions.
 - [ ] ProGPU `System.Drawing.Common` passes its independent public API and WinForms-required behavior gates.
 - [ ] A fresh-cache SDK smoke builds and runs an unchanged `Application.Run(new Form())` application.
+  The installed-SDK gate now restores, builds, and runs an isolated canonical consumer, but its headless program initializes WinForms, draws, and constructs a form without entering a visible `Application.Run` loop. The deletion gate therefore remains open.
 - [ ] Windows, Linux, and macOS CI exercise window lifecycle, painting, input, timers, popups, dialogs, and shutdown.
 - [ ] The Windows adapter passes upstream/native regression coverage.
 - [ ] Standalone WinForms has no runtime dependency on LibreWPF.
@@ -1125,6 +1130,18 @@ The exact parent-lifetime checkpoint is independently green in hosted build work
 Exact hosted build workflow `33177624130` passes canonical source/submodule validation, canonical package production, and isolated consumption in job `98870242098`, plus the ordinary package lane in job `98870242310`. Canonical artifact `9688633805` has digest `be760d5d86deadacafa51b70159c84f45fd5dc486f4a04d92aee9d1a04494302`; ordinary package artifact `9688413557` has digest `048579278fdef91192fac09e43b308d5aff13a7a12886d38a219ef3e531b1b38`. Documentation workflow `33177624015` and job `98870241822` pass; docs artifact `9688277769` has digest `7f35e00593c6c869f54d159ba8082123bd2be0b703da4c49980d1ad53be00d71`. Normal NuGet mode remains unchanged: the portal packages belong to the non-packable ProGPU backend source project and are absent from the canonical package consumer graph. The ProGPU submodule remains pinned at `f779258271df016ab70c462041ba38c81aef1e51`.
 
 This is still bounded desktop-integration coverage, not complete shell parity. A full chooser interaction smoke still needs controlled acceptance/cancellation through a real portal UI on both X11 and Wayland; the portal does not reproduce custom-place/known-folder, client GUID, pinned/recent, preview, and every overwrite/create-prompt semantic; and a rejected canonical `FileOk` still starts another one-shot portal request. AppKit still needs a controlled visible-panel smoke, security-scoped/sandbox validation, and typed accessory support for Help, read-only, live filter switching, preview, and custom places. Those are platform-adapter tasks behind the existing canonical API, not reasons to restore the reduced Portable runtime.
+
+## Source-first SDK relocation and installed-consumer checkpoint
+
+Exact implementation checkpoint `30ed556495bafb0d8c1b15b52f5dd8e1b73e30b4` moves the SDK project and its `Sdk`/`targets` payload from `src/LibreWinForms.Portable` to `src/LibreWinForms.Sdk`. A local packaging-only `Directory.Build` boundary keeps that SDK package independent of the upstream WinForms Arcade restore graph; this preserves the restricted-feed normal package lane instead of depending on cached internal .NET packages. `eng/librewinforms-pack.sh`, the comparison smoke imports, and documentation assertions now resolve the new location, and the architecture check rejects restoring the SDK project under the frozen Portable tree.
+
+The existing consumer contract remains backwards-compatible by default: `LibreWinFormsUseCanonicalRuntime` defaults to false, `LibreWinFormsReferenceMode` defaults to `Package`, the current `LibreWinForms.*` and ProGPU NuGet versions remain the normal development path, and compatibility mode retains the `WindowsFormsIntegration` bootstrap. The explicit canonical source-development path requires `net11.0`, `LibreWinFormsUseCanonicalRuntime=true`, and project mode with a source root. It references canonical `src/System.Windows.Forms` plus `src/LibreWinForms.ProGPU`, selects the source-built ProGPU `System.Drawing.Common`, and generates a module initializer that calls `LibreWinForms.ProGPU.ProGpuPlatform.Register()` rather than `WindowsFormsHost.EnableWindowsFormsInterop()`.
+
+The package gate now installs `LibreWinForms.Sdk/0.1.0-source-first-sdk` into a disposable consumer directory and an empty NuGet package cache. Keeping the copied `NuGet.config` beside that disposable project is intentional: NuGet resolves an MSBuild SDK before ordinary project evaluation and does not honor a late project `restore --configfile` for that initial SDK lookup. The smoke builds canonical WinForms from source, verifies that the generated bootstrap contains the typed ProGPU registration and no compatibility host call, rejects `System.Drawing.Common/11.0.0-dev` in the dependency manifest, requires the ProGPU `System.Drawing.Common` 10.0 identity, byte-compares the output drawing assembly with the current submodule build, and runs WinForms initialization, ProGPU drawing, and canonical `Form`/`Button` construction. Local fresh-cache validation reports drawing SHA-256 `660582eda6e8da64c2b55d43406115b9a0451b433bc460cc6a11642c732df68c`.
+
+Exact-head hosted workflow `33197186003` passes canonical/source validation and both isolated consumers in job `98937214000`, the ordinary NuGet/package lane in job `98937213675`, and the macOS AppKit lane in job `98937213984`. Totals are platform 44/44, ProGPU adapter 46/46, lifecycle 68/68, and ProGPU drawing 392/392. Drawing ApiCompat reports 0 missing types, 0 missing members, and 13 reviewed other differences; the canonical ProGPU build has 608 reviewed warnings and 0 errors, while the frozen Portable comparison has 31 warnings and 0 errors. Hosted package hashes are `c41fdfb2baede469b51afca3ebe749e02a87bfdf38c6c616ed5d8ffdd5383cc8` for `System.Windows.Forms.dll`, `925944ae6cbc225473475f97f45b9ed83fd4dfadd29a096307d059df49b5fc9c` for `LibreWinForms.Platform.dll`, and `b609a1d17d30682ab4af673969e91fe41f528b7c65ae7b4ba3f608d4adec8e25` for the exact ProGPU drawing payload in the installed-SDK output. Canonical artifact `9696607448` has digest `09b9c30cd3631b94a95552abdb53cc64b81b71f1fc2f4bd94e75a278121f1ff6`; ordinary package artifact `9696296232` has digest `0bcc50600035fde3ce751376de074c0f926363845fb3dff3f2eacc5fcb2d2192`. Exact-head docs workflow `33197186002` and job `98937213910` pass with artifact `9696227564`, digest `7c0c9beedec860fe18f85be91b14923bea8128cc364041016237bceb09162abc`.
+
+This closes the SDK-location and installed canonical project-mode bootstrap slice, not the overall cutover. The production/default SDK still selects the compatibility package, the comparison smoke and runtime remain under `src/LibreWinForms.Portable`, and the fresh-cache program deliberately does not claim a visible unchanged `Application.Run(new Form())` platform smoke. Phase 7 and the deletion gates therefore remain open.
 
 ## Major risks and controls
 
