@@ -195,6 +195,86 @@ public class XdgPortalFileDialogTests
     }
 
     [Fact]
+    public void LibWaylandExporter_MapsTypedProtocolExportAndOwnsItsLifetime()
+    {
+        RecordingWaylandProtocol protocol = new("compositor-token");
+        var exporter = new LibWaylandXdgForeignPortalParentExporter(protocol);
+
+        exporter.TryExport(
+            new(NativeWindowKind.Wayland, (nint)0x2A, (nint)0x3B, "wl_surface"),
+            out IXdgPortalParentWindowLease? lease).Should().BeTrue();
+
+        protocol.Display.Should().Be((nint)0x3B);
+        protocol.Surface.Should().Be((nint)0x2A);
+        lease!.Identifier.Should().Be("wayland:compositor-token");
+        lease.Dispose();
+        lease.Dispose();
+        protocol.Export!.DisposeCount.Should().Be(1);
+
+        exporter.Dispose();
+        exporter.Dispose();
+        protocol.DisposeCount.Should().Be(1);
+        Action afterDispose = () => exporter.TryExport(
+            new(NativeWindowKind.Wayland, (nint)0x2A, (nint)0x3B, "wl_surface"),
+            out _);
+        afterDispose.Should().Throw<ObjectDisposedException>();
+    }
+
+    [Fact]
+    public void LibWaylandExporter_FailsClosedForUnavailableOrInvalidNativeState()
+    {
+        RecordingWaylandProtocol protocol = new(handle: null);
+        using var exporter = new LibWaylandXdgForeignPortalParentExporter(protocol);
+
+        exporter.TryExport(
+            new(NativeWindowKind.X11, (nint)0x2A, (nint)0x3B, "XID"),
+            out _).Should().BeFalse();
+        exporter.TryExport(
+            new(NativeWindowKind.Wayland, (nint)0x2A, 0, "wl_surface"),
+            out _).Should().BeFalse();
+        protocol.CallCount.Should().Be(0);
+
+        exporter.TryExport(
+            new(NativeWindowKind.Wayland, (nint)0x2A, (nint)0x3B, "wl_surface"),
+            out _).Should().BeFalse();
+        protocol.CallCount.Should().Be(1);
+
+        RecordingWaylandProtocol invalid = new(string.Empty);
+        using var invalidExporter = new LibWaylandXdgForeignPortalParentExporter(invalid);
+        Action invalidHandle = () => invalidExporter.TryExport(
+            new(NativeWindowKind.Wayland, (nint)0x2A, (nint)0x3B, "wl_surface"),
+            out _);
+        invalidHandle.Should().Throw<InvalidOperationException>().WithMessage("*invalid xdg-foreign handle*");
+        invalid.Export!.DisposeCount.Should().Be(1);
+
+        RecordingWaylandProtocol missingLibrary = new(new DllNotFoundException("libwayland"));
+        using var missingExporter = new LibWaylandXdgForeignPortalParentExporter(missingLibrary);
+        missingExporter.TryExport(
+            new(NativeWindowKind.Wayland, (nint)0x2A, (nint)0x3B, "wl_surface"),
+            out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public void PortalService_DisposesPortalParentProviderAndOwnedExporterExactlyOnce()
+    {
+        RecordingWaylandExporter wayland = new("wayland:token");
+        var parents = new ProGpuXdgPortalParentWindowProvider(
+            new ManagedLibreHandleRegistry(),
+            wayland,
+            ownsWayland: true);
+        RecordingPortal portal = new(new(XdgPortalResponse.Cancelled, [], null, null));
+        var service = new XdgDesktopPortalLibreFileDialogService(new ProGpuDispatcher(), portal, parents);
+
+        service.Dispose();
+        service.Dispose();
+
+        portal.DisposeCount.Should().Be(1);
+        wayland.DisposeCount.Should().Be(1);
+        Action show = () => service.Show(CreateRequest());
+        show.Should().Throw<ObjectDisposedException>();
+    }
+
+    [Fact]
     public void PreferredService_FallsBackOnlyWhenPortalIsUnavailable()
     {
         LibreFileDialogRequest request = CreateRequest();
@@ -322,11 +402,13 @@ public class XdgPortalFileDialogTests
             => new XdgPortalParentWindowLease(parent, () => ReleaseCount++);
     }
 
-    private sealed class RecordingWaylandExporter(string identifier) : IXdgPortalWaylandParentExporter
+    private sealed class RecordingWaylandExporter(string identifier) : IXdgPortalWaylandParentExporter, IDisposable
     {
         public nint NativeHandle { get; private set; }
 
         public int ReleaseCount { get; private set; }
+
+        public int DisposeCount { get; private set; }
 
         public bool TryExport(
             NativeWindowHandle window,
@@ -336,11 +418,70 @@ public class XdgPortalFileDialogTests
             lease = new XdgPortalParentWindowLease(identifier, () => ReleaseCount++);
             return true;
         }
+
+        public void Dispose() => DisposeCount++;
     }
 
-    private sealed class RecordingPortal(XdgFileChooserResult result) : IXdgFileChooserPortal
+    private sealed class RecordingWaylandProtocol : IWaylandXdgForeignProtocol
+    {
+        private readonly string? _handle;
+        private readonly Exception? _exception;
+
+        public RecordingWaylandProtocol(string? handle) => _handle = handle;
+
+        public RecordingWaylandProtocol(Exception exception) => _exception = exception;
+
+        public int CallCount { get; private set; }
+
+        public int DisposeCount { get; private set; }
+
+        public nint Display { get; private set; }
+
+        public nint Surface { get; private set; }
+
+        public RecordingWaylandExport? Export { get; private set; }
+
+        public bool TryExport(
+            nint display,
+            nint surface,
+            [NotNullWhen(true)] out IWaylandXdgForeignExport? export)
+        {
+            CallCount++;
+            Display = display;
+            Surface = surface;
+            if (_exception is not null)
+            {
+                throw _exception;
+            }
+
+            if (_handle is null)
+            {
+                export = null;
+                return false;
+            }
+
+            Export = new RecordingWaylandExport(_handle);
+            export = Export;
+            return true;
+        }
+
+        public void Dispose() => DisposeCount++;
+    }
+
+    private sealed class RecordingWaylandExport(string handle) : IWaylandXdgForeignExport
+    {
+        public string Handle { get; } = handle;
+
+        public int DisposeCount { get; private set; }
+
+        public void Dispose() => DisposeCount++;
+    }
+
+    private sealed class RecordingPortal(XdgFileChooserResult result) : IXdgFileChooserPortal, IDisposable
     {
         public int CallCount { get; private set; }
+
+        public int DisposeCount { get; private set; }
 
         public XdgFileChooserRequest Request { get; private set; }
 
@@ -350,6 +491,8 @@ public class XdgPortalFileDialogTests
             Request = request;
             return result;
         }
+
+        public void Dispose() => DisposeCount++;
     }
 
     private sealed class RecordingDialog : ILibreFileDialogService, IDisposable

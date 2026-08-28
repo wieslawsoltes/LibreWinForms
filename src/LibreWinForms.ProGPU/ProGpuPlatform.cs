@@ -41,7 +41,10 @@ public static class ProGpuPlatform
                 new XdgDesktopPortalLibreFileDialogService(
                     dispatcher,
                     new TmdsXdgFileChooserPortal(),
-                    new ProGpuXdgPortalParentWindowProvider(handles)),
+                    new ProGpuXdgPortalParentWindowProvider(
+                        handles,
+                        new LibWaylandXdgForeignPortalParentExporter(),
+                        ownsWayland: true)),
                 new ZenityLibreFileDialogService(dispatcher))
             : UnsupportedLibreFileDialogService.Instance;
         ProGpuDesktopCaptureService captureBridge = new(desktopCapture);
@@ -53,6 +56,11 @@ public static class ProGpuPlatform
         catch
         {
             captureBridge.Dispose();
+            if (fileDialogs is IDisposable disposableFileDialogs)
+            {
+                disposableFileDialogs.Dispose();
+            }
+
             throw;
         }
 

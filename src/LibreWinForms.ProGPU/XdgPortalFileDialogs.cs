@@ -109,10 +109,12 @@ public static class XdgPortalParentWindow
 }
 
 /// <summary>Resolves opaque LibreWinForms owners inside the ProGPU backend.</summary>
-public sealed class ProGpuXdgPortalParentWindowProvider : IXdgPortalParentWindowProvider
+public sealed class ProGpuXdgPortalParentWindowProvider : IXdgPortalParentWindowProvider, IDisposable
 {
     private readonly ILibreHandleRegistry _handles;
     private readonly IXdgPortalWaylandParentExporter _wayland;
+    private readonly bool _ownsWayland;
+    private int _disposed;
 
     public ProGpuXdgPortalParentWindowProvider(ILibreHandleRegistry handles)
         : this(handles, UnsupportedXdgPortalWaylandParentExporter.Instance)
@@ -122,13 +124,23 @@ public sealed class ProGpuXdgPortalParentWindowProvider : IXdgPortalParentWindow
     public ProGpuXdgPortalParentWindowProvider(
         ILibreHandleRegistry handles,
         IXdgPortalWaylandParentExporter wayland)
+        : this(handles, wayland, ownsWayland: false)
+    {
+    }
+
+    internal ProGpuXdgPortalParentWindowProvider(
+        ILibreHandleRegistry handles,
+        IXdgPortalWaylandParentExporter wayland,
+        bool ownsWayland)
     {
         _handles = handles ?? throw new ArgumentNullException(nameof(handles));
         _wayland = wayland ?? throw new ArgumentNullException(nameof(wayland));
+        _ownsWayland = ownsWayland;
     }
 
     public IXdgPortalParentWindowLease Acquire(LibreHandle owner)
     {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         if (owner.IsNull)
         {
             return XdgPortalParentWindowLease.Empty;
@@ -169,6 +181,16 @@ public sealed class ProGpuXdgPortalParentWindowProvider : IXdgPortalParentWindow
 
         return lease;
     }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) == 0
+            && _ownsWayland
+            && _wayland is IDisposable disposable)
+        {
+            disposable.Dispose();
+        }
+    }
 }
 
 /// <summary>Maps canonical WinForms file-dialog state to the XDG desktop portal.</summary>
@@ -177,6 +199,7 @@ public sealed class XdgDesktopPortalLibreFileDialogService : ILibreFileDialogSer
     private readonly ILibreDispatcher _dispatcher;
     private readonly IXdgFileChooserPortal _portal;
     private readonly IXdgPortalParentWindowProvider _parents;
+    private int _disposed;
 
     public XdgDesktopPortalLibreFileDialogService(
         ILibreDispatcher dispatcher,
@@ -190,6 +213,7 @@ public sealed class XdgDesktopPortalLibreFileDialogService : ILibreFileDialogSer
 
     public LibreFileDialogResult Show(in LibreFileDialogRequest request)
     {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         if (!_dispatcher.CheckAccess())
         {
             throw new InvalidOperationException("File dialogs must be shown on the owning dispatcher thread.");
@@ -265,9 +289,20 @@ public sealed class XdgDesktopPortalLibreFileDialogService : ILibreFileDialogSer
 
     public void Dispose()
     {
-        if (_portal is IDisposable disposable)
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {
-            disposable.Dispose();
+            return;
+        }
+
+        HashSet<IDisposable> disposed = new(ReferenceEqualityComparer.Instance);
+        if (_parents is IDisposable parents && disposed.Add(parents))
+        {
+            parents.Dispose();
+        }
+
+        if (_portal is IDisposable portal && disposed.Add(portal))
+        {
+            portal.Dispose();
         }
     }
 
