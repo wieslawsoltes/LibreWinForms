@@ -613,6 +613,14 @@ The focused public-path test covers all three control families, explicit normal 
 
 This extends the source-first conclusion beyond individual properties: one narrow managed layout surface repairs several inherited public APIs at once, whereas compatibility declarations would duplicate types without recovering the shared upstream adapter behavior.
 
+## Canonical property implementation follow-up: scroll-bar metrics and sizes
+
+Exact source checkpoint `d079635876fbc82970042cedd82006c66000020e` fixes a grouped `SystemInformation` property dependency rather than patching controls individually. `ILibreSystemSettingsService` now publishes vertical scroll-bar width, horizontal scroll-bar height, vertical arrow height, and horizontal arrow width as typed host values. Canonical portable `SystemInformation` exposes those values directly and uses the existing WinForms DPI scaler for its four DPI-specific methods; native builds keep the upstream USER32 metrics.
+
+Because canonical `VScrollBar.DefaultSize` and `HScrollBar.DefaultSize` consume the same public properties, the tranche also makes both control families construct at their upstream default sizes without USER32 or handle creation. The focused public-path test verifies the four base metrics, four 192-DPI values, both control sizes, and no handles. The complete local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 614 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 36/36, drawing 391/391, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors. Hosted build `33129119580` and docs `33129119576` pass at the same commit.
+
+This is the scalable fix for the remaining `SystemInformation` surface: port related metric families through the typed system-settings contract so each tranche unlocks the original properties and every canonical control that consumes them.
+
 ## Definition of done
 
 For an API group to be considered ported:

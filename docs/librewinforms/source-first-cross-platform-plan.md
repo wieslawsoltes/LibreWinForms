@@ -846,6 +846,12 @@ Exact source checkpoint `580246edeeded54b1586ec7e8a0618c89866f10c` removes scree
 
 The public lifecycle case verifies nonempty preferred sizes for all three control families, both text-rendering modes, exact typed measurement routing for normal text, and no handle creation. The complete exact-commit local gate passes default canonical 0 warnings/0 errors, ProGPU canonical 614 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 35/35, ProGPU drawing 391/391, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and frozen Portable comparison 31 warnings/0 errors. Hosted build workflow `33127623507` and docs workflow `33127623497` pass at the same implementation commit. No runtime source under `src/LibreWinForms.Portable` changed.
 
+## Current canonical scroll-bar system-metrics checkpoint
+
+Exact source checkpoint `d079635876fbc82970042cedd82006c66000020e` expands the typed `ILibreSystemSettingsService` with vertical/horizontal scroll-bar thickness and arrow dimensions. Portable `SystemInformation` now obtains those four public metrics from the host, scales their DPI-specific variants from the 96-DPI host baseline, and retains stable 17-pixel defaults for headless/unregistered environments. Windows retains every original `GetSystemMetrics` and `GetSystemMetricsForDpi` path.
+
+This single system-settings tranche also repairs canonical `VScrollBar.Size` and `HScrollBar.Size` during construction because their upstream `DefaultSize` properties consume those metrics. The public lifecycle case verifies all four `SystemInformation` getters, all four 192-DPI results, both canonical default sizes, and no handle creation. The complete exact-commit local gate passes default canonical 0 warnings/0 errors, ProGPU canonical 614 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 36/36, ProGPU drawing 391/391, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and frozen Portable comparison 31 warnings/0 errors. Hosted build workflow `33129119580` and docs workflow `33129119576` pass at the same implementation commit. No runtime source under `src/LibreWinForms.Portable` changed.
+
 ## Major risks and controls
 
 | Risk | Control |
