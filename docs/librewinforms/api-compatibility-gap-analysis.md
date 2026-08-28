@@ -669,6 +669,16 @@ The headless public-path test publishes mixed values so every mapping—includin
 
 The exact local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 44/44, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors. Exact hosted build workflow `33140114976` and docs workflow `33140114968` pass at the implementation commit. No runtime source under `src/LibreWinForms.Portable` changed.
 
+## Canonical property implementation follow-up: rendering and icon layout
+
+Exact implementation checkpoint `de7cd00c6620217407dff9d801f50a6ac11378c9` ports the next coherent settings family without reconstructing any public declaration. `ILibreSystemSettingsService` now publishes font-smoothing enablement, contrast, and type; horizontal and vertical icon spacing; and icon-title wrapping. Portable canonical `SystemInformation` uses those six host values for `IsFontSmoothingEnabled`, `FontSmoothingContrast`, `FontSmoothingType`, `IconHorizontalSpacing`, `IconVerticalSpacing`, and `IsIconTitleWrappingEnabled`; `IconSpacingSize` is derived from the same two spacing values. The native Windows branches retain their upstream SPI and system-metric calls.
+
+The public lifecycle case injects distinctive rendering and layout values, verifies all seven canonical properties, and proves no platform window or logical handle is created. Contract tests verify the host transport and deterministic unregistered-host defaults. The complete exact-implementation local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 45/45, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors.
+
+The first hosted execution found that ProGPU's existing allocation test warmed only one of four font-metric getters before measuring all four. This was a test-order issue rather than a WinForms regression: every LibreWinForms lifecycle test and the ProGPU API contract passed. ProGPU checkpoint `12cfdec01c76ecb344bc98664a95dc2fc44621de` now warms every measured getter; the focused gate passes repeatedly, the full local drawing suite remains 392/392, and hosted API, quality/allocation, benchmark, and evidence job `98753296752` passes in workflow `33141554640`. LibreWinForms pin checkpoint `d7c412d395290fb52960d7bcaab7208954baf27d` advances that correction; canonical job `98753331074` in workflow `33141566240` passes the full hosted source-first validation, pack, and isolated package consumption. The independent macOS package-matrix job is queued for a runner at the time of this report update.
+
+This tranche again demonstrates the proposed fix for issue #9: keep the original `System.Windows.Forms` property surface and route its platform data through a reusable typed seam. No runtime source under `src/LibreWinForms.Portable` changed, and deletion remains gated on the canonical package, consumer, subsystem, and migration criteria rather than on a growing compatibility facade.
+
 ## Definition of done
 
 For an API group to be considered ported:

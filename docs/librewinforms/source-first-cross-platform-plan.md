@@ -908,6 +908,16 @@ The complete exact-commit local gate passes default canonical 0 warnings/0 error
 
 The next bounded SPI group is desktop rendering and icon layout: font smoothing enabled/contrast/type, icon grid spacing, and icon-title wrapping. It should follow the same source-first rule, with canonical public properties and consumers backed by typed host data while Windows retains its upstream native queries.
 
+## Current canonical rendering and icon-layout settings checkpoint
+
+Exact implementation checkpoint `de7cd00c6620217407dff9d801f50a6ac11378c9` moves that complete group into `ILibreSystemSettingsService`: font-smoothing enablement, contrast, and type; horizontal and vertical icon spacing; and icon-title wrapping. Portable canonical `SystemInformation.IsFontSmoothingEnabled`, `FontSmoothingContrast`, `FontSmoothingType`, `IconHorizontalSpacing`, `IconVerticalSpacing`, and `IsIconTitleWrappingEnabled` now read the typed host values. `IconSpacingSize` derives from the same two spacing values, so the seven public properties cannot drift. Windows retains the original `SystemParametersInfo` and `GetSystemMetrics` branches.
+
+The default service publishes stable desktop-style baselines of enabled smoothing, contrast 1400, smoothing type 2, 75-pixel horizontal and vertical spacing, and enabled title wrapping. The public lifecycle test injects deliberately different values, verifies all seven canonical getters including the derived size, and proves that the reads create neither a platform window nor a managed handle. Platform contract tests cover the same typed transport.
+
+The complete exact-implementation local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 45/45, ProGPU drawing 392/392, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and frozen Portable comparison 31 warnings/0 errors. The first hosted run exposed a pre-existing order dependency in ProGPU's warmed font-metric allocation assertion: it warmed only `GetLineSpacing` before measuring four getters. ProGPU checkpoint `12cfdec01c76ecb344bc98664a95dc2fc44621de` warms every measured getter, passes the focused allocation gate repeatedly and the complete 392/392 drawing suite locally, and passes hosted API, quality/allocation, benchmark, and evidence job `98753296752` in workflow `33141554640`. LibreWinForms pin checkpoint `d7c412d395290fb52960d7bcaab7208954baf27d` advances only that test-quality fix; canonical job `98753331074` in workflow `33141566240` passes the full hosted source-first gate, pack, and isolated package consumption. The independent macOS package-matrix job is queued for a runner at the time of this report update.
+
+No runtime source under `src/LibreWinForms.Portable` changed. The next bounded settings family should cover active-window tracking, tracking delay, border multiplier, and caret width through the same typed contract, provided the canonical consumer audit confirms they form the next coherent host-policy boundary.
+
 ## Major risks and controls
 
 | Risk | Control |
