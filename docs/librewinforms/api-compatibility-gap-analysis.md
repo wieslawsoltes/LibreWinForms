@@ -2,13 +2,13 @@
 
 Date: 2026-08-28
 
-Implementation revision: `30ed556495bafb0d8c1b15b52f5dd8e1b73e30b4`
+Implementation revision: `f861b756c19306b92343cbbcfef02ae379b4ae2c`
 
 Compared contract: .NET 10.0.11 `Microsoft.WindowsDesktop.App.Ref`
 
 ## Executive conclusion
 
-LibreWinForms contains the full upstream WinForms source tree, but the default portable package consumed by `LibreWinForms.Sdk` is not built from that tree. The normal/default `System.Windows.Forms.dll` is still built from a separate, approximately 26,000-line compatibility implementation under `src/LibreWinForms.Portable`. An explicit source-first SDK mode now builds canonical WinForms and uses ProGPU `System.Drawing.Common`; the current ProGPU contract gate reports zero missing types and zero missing members, with 13 reviewed non-breaking shape differences.
+LibreWinForms contains the full upstream WinForms source tree, but the default portable package consumed by `LibreWinForms.Sdk` is not built from that tree. The normal/default `System.Windows.Forms.dll` is still built from a separate, approximately 26,000-line compatibility implementation under `src/LibreWinForms.Portable`. An explicit source-first SDK mode now consumes canonical WinForms and ProGPU `System.Drawing.Common` either as coordinated source projects or as an exact, isolated package closure; the current ProGPU contract gate reports zero missing types and zero missing members, with 13 reviewed non-breaking shape differences.
 
 Therefore, the statement “the repository contains the full WinForms source” is true, while the stronger statement “the portable package is the full WinForms source with platform-specific implementations” is currently false.
 
@@ -19,6 +19,29 @@ The properties reported in issues [#10](https://github.com/wieslawsoltes/LibreWi
 3. CI exercises selected applications and behavior scenarios but does not enforce the official WinForms public contract.
 
 The correct direction is defined in the [source-first cross-platform plan](./source-first-cross-platform-plan.md): replace the copied compatibility implementation with builds of the canonical managed source and put platform behavior behind typed seams. The immediate fix should be to make that direction measurable with an API-compatibility gate, then migrate APIs by coherent source-owned subsystems.
+
+## Implementation update: 2026-08-28 exact source-package closure
+
+Checkpoint `f861b756c19306b92343cbbcfef02ae379b4ae2c` advances the source-first SDK from a source-checkout-only development mode to a reproducible package-mode runtime. It pins ProGPU commit `2806e8bb0ad107cd1190c7de357a2c9338dcca11` and builds the narrow `drawing-runtime` closure as ten same-version packages: backend, text shaping, transpiler, WinRT, vector, text, compute, scene, SkiaSharp, and `ProGPU.System.Drawing.Common`. ProGPU's pack verifier rejects missing, extra, or version-skewed internal dependencies.
+
+This closure is necessary because the then-current public `ProGPU.System.Drawing.Common` preview package was not binary- or API-equivalent to the pinned source used by canonical WinForms: its drawing assembly had identity `0.0.0.0`, was substantially smaller, and omitted canonical dependencies such as `Region`, while the pinned source assembly has identity `10.0.0.0`. Substituting that public package produced a compile/runtime split. The fix is coordinated artifacts from one reviewed source revision, not an assembly-load redirect or a second drawing facade. Ordinary NuGet development remains available; source-first package versions remain deliberately isolated until ProGPU publishes an aligned normal preview closure.
+
+The SDK's canonical package mode now references `LibreWinForms.System.Windows.Forms` and the typed `LibreWinForms.ProGPU` backend package. The canonical package carries the real implementation and reference assemblies, including `System.Private.Windows.GdiPlus`, and declares exact ProGPU drawing dependencies instead of embedding them. The backend package similarly contains only its own `lib`/`ref` assets and declares the canonical runtime, exact ProGPU drawing closure, Silk.NET, and local-OS dependencies.
+
+The local end-to-end gate passed with a fresh NuGet cache and warnings treated as errors. It produced and verified all ten ProGPU packages, built the canonical and backend packages, installed `LibreWinForms.Sdk/0.1.0-source-first-sdk`, and built and ran both project-mode and package-mode consumers. The package-mode dependency manifest contains `LibreWinForms.System.Windows.Forms/0.1.0-source-first`, `LibreWinForms.ProGPU/0.1.0-source-first-backend`, and `ProGPU.System.Drawing.Common/0.1.0-source-first-drawing`, loads drawing identity `10.0.0.0`, includes the GDI+ support assembly, and rejects the official Windows drawing project.
+
+### Issue interpretation and proposed fixes
+
+| Issues | What the report actually demonstrates | Proposed source-first fix |
+| --- | --- | --- |
+| [#10](https://github.com/wieslawsoltes/LibreWinForms/issues/10), [#17](https://github.com/wieslawsoltes/LibreWinForms/issues/17), [#20](https://github.com/wieslawsoltes/LibreWinForms/issues/20) | `Label.AutoEllipsis`, `Application.ProductName`, and `ButtonBase.TextImageRelation` already exist in canonical WinForms; they are absent from the reduced compatibility assembly. | Cut consumers over to the canonical package and add compile/behavior regressions. Do not re-declare the properties in Portable. |
+| [#11](https://github.com/wieslawsoltes/LibreWinForms/issues/11), [#12](https://github.com/wieslawsoltes/LibreWinForms/issues/12), [#14](https://github.com/wieslawsoltes/LibreWinForms/issues/14), [#15](https://github.com/wieslawsoltes/LibreWinForms/issues/15), [#16](https://github.com/wieslawsoltes/LibreWinForms/issues/16) | The missing `DataGridView` members are a subsystem/inheritance failure, not five unrelated properties. The canonical `DataGridViewElement`/`DataGridViewBand` hierarchy already owns them. | Use the canonical hierarchy unchanged, then gate layout, style inheritance, editing, visibility, painting, and accessibility behavior as a coherent subsystem. |
+| [#18](https://github.com/wieslawsoltes/LibreWinForms/issues/18) | `PrintDocument` belongs to `System.Drawing.Printing`; its public surface and portable behavior depend on the ProGPU drawing/printing implementation, not on duplicating WinForms declarations. | Keep ProGPU ApiCompat at zero missing types/members; route printer discovery, settings, spool/output, and dialogs through typed platform services, with explicit unsupported failures where a host has no printer capability. |
+| [#21](https://github.com/wieslawsoltes/LibreWinForms/issues/21) | A declaration-only `TableLayoutPanel` in the compatibility runtime cannot be repaired property by property. Canonical WinForms already contains the layout engine and metadata model. | Package the canonical implementation and add layout vectors for spans, percent/absolute/auto sizing, preferred size, DPI, RTL, and nested invalidation. |
+| [#23](https://github.com/wieslawsoltes/LibreWinForms/issues/23) | Loading Microsoft's Windows-only `System.Drawing.Common` first defeats ProGPU behavior because both providers use the same framework assembly identity. | Permit exactly one drawing provider, validate the dependency manifest and payload hash in a fresh cache, and fail the SDK build on an ambiguous provider. The new exact package closure implements this control. |
+| [#26](https://github.com/wieslawsoltes/LibreWinForms/issues/26) | Remaining unconditional locale P/Invokes are platform-seam defects in otherwise complete canonical code. | Preserve the Windows calls and use a typed locale/system-settings service off Windows; test non-Windows font and OLE paths without native shims or fabricated kernel32 exports. |
+
+The bot requested in [issue #9's comment](https://github.com/wieslawsoltes/LibreWinForms/issues/9#issuecomment-5361043002) should publish one generated compatibility artifact and open or update subsystem issues only for actionable groups. Creating thousands of per-member issues would duplicate symptoms caused by the same wrong package graph and inheritance gaps. The gate should fail CI on a new missing type/member, attach machine-readable ApiCompat output, and require any reviewed shape difference to carry an owner and rationale.
 
 ## Implementation update: 2026-08-28 source-first SDK
 

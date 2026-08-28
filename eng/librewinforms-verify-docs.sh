@@ -56,6 +56,15 @@ require_text src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms/Libre
 require_text src/LibreWinForms.Portable/LibreWinForms.WindowsFormsIntegration/LibreWinForms.WindowsFormsIntegration.csproj "<PackageReadmeFile>README.md</PackageReadmeFile>"
 require_text src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj "<PackageReadmeFile>README.md</PackageReadmeFile>"
 require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets "global::LibreWinForms.ProGPU.ProGpuPlatform.Register()"
+require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'PackageReference Include="LibreWinForms.System.Windows.Forms" Version="$(LibreWinFormsCanonicalPackageVersion)"'
+require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'PackageReference Include="LibreWinForms.ProGPU" Version="$(LibreWinFormsProGpuBackendPackageVersion)"'
+require_text packaging/LibreWinForms.ProGPU/LibreWinForms.ProGPU.Package.csproj '<PackageId>LibreWinForms.ProGPU</PackageId>'
+require_text packaging/LibreWinForms.ProGPU/LibreWinForms.ProGPU.Package.csproj '<PackageVersion Include="ProGPU.System.Drawing.Common" Version="$(LibreWinFormsProGpuPackageVersion)" />'
+require_text packaging/LibreWinForms.ProGPU/LibreWinForms.ProGPU.Package.csproj '<PackageReference Include="ProGPU.System.Drawing.Common" />'
+require_text packaging/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj 'System.Private.Windows.GdiPlus.dll'
+require_text eng/librewinforms-pack-source-first.sh 'PROGPU_PACKAGE_GROUP=drawing-runtime'
+require_text docs/librewinforms/api-compatibility-gap-analysis.md 'exact source-package closure'
+require_text docs/librewinforms/source-first-cross-platform-plan.md 'Exact package-mode checkpoint'
 require_text packaging/LibreWinForms.Sdk.SourceFirstSmoke/LibreWinForms.Sdk.SourceFirstSmoke.csproj '<Project Sdk="LibreWinForms.Sdk/0.1.0-source-first-sdk">'
 require_text packaging/LibreWinForms.Sdk.CompatibilitySmoke/Program.cs "namespace LibreWinForms.SdkSmoke;"
 if [[ -e src/LibreWinForms.Portable/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj ]]; then
