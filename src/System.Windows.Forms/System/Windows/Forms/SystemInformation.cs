@@ -271,7 +271,11 @@ public static class SystemInformation
     ///  Gets a value indicating whether the system has a mouse installed.
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Never)]
+#if LIBREWINFORMS_PORTABLE
+    public static bool MousePresent => PortableSystemSettings.MousePresent;
+#else
     public static bool MousePresent => PInvokeCore.GetSystemMetrics(SM_MOUSEPRESENT) != 0;
+#endif
 
     /// <summary>
     ///  Gets the height in pixels, of the arrow bitmap on the vertical scroll bar.
@@ -322,7 +326,11 @@ public static class SystemInformation
     ///  Gets a value indicating whether the functions of the left and right mouse
     ///  buttons have been swapped.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool MouseButtonsSwapped => PortableSystemSettings.MouseButtonsSwapped;
+#else
     public static bool MouseButtonsSwapped => PInvokeCore.GetSystemMetrics(SM_SWAPBUTTON) != 0;
+#endif
 
     /// <summary>
     ///  Gets the minimum allowable dimensions of a window in pixels.
@@ -349,12 +357,20 @@ public static class SystemInformation
     ///  for the system to consider the two clicks a double-click. The rectangle is
     ///  centered around the first click.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static Size DoubleClickSize => GetPortableSize(PortableSystemSettings.DoubleClickSize);
+#else
     public static Size DoubleClickSize => GetSize(SM_CXDOUBLECLK, SM_CYDOUBLECLK);
+#endif
 
     /// <summary>
     ///  Gets the maximum number of milliseconds allowed between mouse clicks for a double-click.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int DoubleClickTime => PortableSystemSettings.DoubleClickTime;
+#else
     public static int DoubleClickTime => (int)PInvoke.GetDoubleClickTime();
+#endif
 
     /// <summary>
     ///  Gets the dimensions in pixels, of the grid used to arrange icons in a large icon view.
@@ -386,7 +402,11 @@ public static class SystemInformation
     /// <summary>
     ///  Gets the number of buttons on mouse.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int MouseButtons => PortableSystemSettings.MouseButtons;
+#else
     public static int MouseButtons => PInvokeCore.GetSystemMetrics(SM_CMOUSEBUTTONS);
+#endif
 
     /// <summary>
     ///  Gets a value indicating whether security is present on this operating system.
@@ -543,7 +563,11 @@ public static class SystemInformation
     ///   keep it equivalent to <see cref="MouseWheelPresent"/>.
     ///  </para>
     /// </remarks>
+#if LIBREWINFORMS_PORTABLE
+    public static bool NativeMouseWheelSupport => PortableSystemSettings.MouseWheelPresent;
+#else
     public static bool NativeMouseWheelSupport => PInvokeCore.GetSystemMetrics(SM_MOUSEWHEELPRESENT) != 0;
+#endif
 
     /// <summary>
     ///  Gets a value indicating whether a mouse with a mouse wheel is installed.
@@ -987,7 +1011,11 @@ public static class SystemInformation
     /// <summary>
     ///  Indicates the caret blink time.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int CaretBlinkTime => PortableSystemSettings.CaretBlinkTime;
+#else
     public static int CaretBlinkTime => (int)PInvoke.GetCaretBlinkTime();
+#endif
 
     /// <summary>
     ///  Indicates the caret width in edit controls.

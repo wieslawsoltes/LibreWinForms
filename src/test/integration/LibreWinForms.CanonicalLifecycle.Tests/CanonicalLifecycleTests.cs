@@ -829,6 +829,23 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void SystemInformationUsesTypedPortablePointerAndTimingSettings()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+
+        SystemInformation.MousePresent.Should().BeTrue();
+        SystemInformation.MouseButtonsSwapped.Should().BeTrue();
+        SystemInformation.MouseButtons.Should().Be(5);
+        SystemInformation.DoubleClickSize.Should().Be(new Size(12, 14));
+        SystemInformation.DoubleClickTime.Should().Be(650);
+        SystemInformation.NativeMouseWheelSupport.Should().BeFalse();
+        SystemInformation.MouseWheelPresent.Should().BeFalse();
+        SystemInformation.CaretBlinkTime.Should().Be(725);
+        platform.WindowsCreated.Should().Be(0);
+        platform.Handles.Count.Should().Be(0);
+    }
+
+    [Fact]
     public void GroupBoxAndDisabledLinkLabelPaintWithoutNativeDeviceContexts()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2067,6 +2084,13 @@ public class CanonicalLifecycleTests
         public int VerticalScrollBarThumbHeight => 17;
         public int HorizontalScrollBarThumbWidth => 17;
         public LibreSize DragSize => new(4, 4);
+        public bool MousePresent => true;
+        public bool MouseButtonsSwapped => true;
+        public int MouseButtons => 5;
+        public LibreSize DoubleClickSize => new(12, 14);
+        public int DoubleClickTime => 650;
+        public bool MouseWheelPresent => false;
+        public int CaretBlinkTime => 725;
         public int MouseWheelScrollLines => 7;
         public bool MenuAccessKeysUnderlined => true;
         public int KeyboardDelay => 2;

@@ -64,6 +64,20 @@ public interface ILibreSystemSettingsService
 
     LibreSize DragSize { get; }
 
+    bool MousePresent { get; }
+
+    bool MouseButtonsSwapped { get; }
+
+    int MouseButtons { get; }
+
+    LibreSize DoubleClickSize { get; }
+
+    int DoubleClickTime { get; }
+
+    bool MouseWheelPresent { get; }
+
+    int CaretBlinkTime { get; }
+
     int MouseWheelScrollLines { get; }
 
     bool MenuAccessKeysUnderlined { get; }
@@ -177,6 +191,20 @@ public sealed class DefaultLibreSystemSettingsService : ILibreSystemSettingsServ
     public int HorizontalScrollBarThumbWidth => 17;
 
     public LibreSize DragSize => new(4, 4);
+
+    public bool MousePresent => true;
+
+    public bool MouseButtonsSwapped => false;
+
+    public int MouseButtons => 3;
+
+    public LibreSize DoubleClickSize => new(4, 4);
+
+    public int DoubleClickTime => 500;
+
+    public bool MouseWheelPresent => true;
+
+    public int CaretBlinkTime => 530;
 
     public int MouseWheelScrollLines => 3;
 

@@ -139,6 +139,13 @@ public class LibrePlatformTests
         services.SystemSettings.VerticalScrollBarThumbHeight.Should().Be(17);
         services.SystemSettings.HorizontalScrollBarThumbWidth.Should().Be(18);
         services.SystemSettings.DragSize.Should().Be(new LibreSize(19, 20));
+        services.SystemSettings.MousePresent.Should().BeTrue();
+        services.SystemSettings.MouseButtonsSwapped.Should().BeTrue();
+        services.SystemSettings.MouseButtons.Should().Be(5);
+        services.SystemSettings.DoubleClickSize.Should().Be(new LibreSize(12, 14));
+        services.SystemSettings.DoubleClickTime.Should().Be(650);
+        services.SystemSettings.MouseWheelPresent.Should().BeFalse();
+        services.SystemSettings.CaretBlinkTime.Should().Be(725);
         services.SystemSettings.MouseWheelScrollLines.Should().Be(21);
         services.SystemSettings.MenuAccessKeysUnderlined.Should().BeTrue();
         services.SystemSettings.KeyboardDelay.Should().Be(2);
@@ -463,6 +470,13 @@ public class LibrePlatformTests
         public int VerticalScrollBarThumbHeight => 17;
         public int HorizontalScrollBarThumbWidth => 18;
         public LibreSize DragSize => new(19, 20);
+        public bool MousePresent => true;
+        public bool MouseButtonsSwapped => true;
+        public int MouseButtons => 5;
+        public LibreSize DoubleClickSize => new(12, 14);
+        public int DoubleClickTime => 650;
+        public bool MouseWheelPresent => false;
+        public int CaretBlinkTime => 725;
         public int MouseWheelScrollLines => 21;
         public bool MenuAccessKeysUnderlined => true;
         public int KeyboardDelay => 2;
