@@ -1337,6 +1337,84 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void ColorDialog_UsesTypedCommonDialogPathWithOwnerHelpAndOwnedResult()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { Text = "Owner", Bounds = new Rectangle(40, 50, 320, 220) };
+        form.Show();
+        nint ownerHandle = form.Handle;
+        int helpRequests = 0;
+        platform.NextColorDialogResult = new LibreColorDialogResult(
+            Accepted: true,
+            Color.MediumPurple,
+            [Color.DarkCyan, Color.Goldenrod]);
+        platform.InvokeColorDialogHelp = true;
+        using var dialog = new ColorDialog
+        {
+            Color = Color.Orange,
+            CustomColors = [ColorTranslator.ToWin32(Color.CadetBlue)],
+            AllowFullOpen = true,
+            AnyColor = true,
+            FullOpen = true,
+            ShowHelp = true,
+            SolidColorOnly = true,
+        };
+        dialog.HelpRequest += (_, _) => helpRequests++;
+
+        DialogResult result = dialog.ShowDialog(form);
+
+        result.Should().Be(DialogResult.OK);
+        platform.ColorDialogShowCount.Should().Be(1);
+        platform.LastColorDialogRequest.Should().NotBeNull();
+        LibreColorDialogRequest request = platform.LastColorDialogRequest!.Value;
+        request.Color.Should().Be(Color.Orange);
+        request.CustomColors.Should().HaveCount(16);
+        request.CustomColors[0].ToArgb().Should().Be(Color.CadetBlue.ToArgb());
+        request.Options.Should().Be(
+            LibreColorDialogOptions.AllowFullOpen
+            | LibreColorDialogOptions.AnyColor
+            | LibreColorDialogOptions.FullOpen
+            | LibreColorDialogOptions.ShowHelp
+            | LibreColorDialogOptions.SolidColorOnly);
+        request.Owner.Should().Be(new LibreHandle(ownerHandle, LibreHandleKind.Window));
+        platform.ColorDialogOwnerDisabledDuringShow.Should().BeTrue();
+        helpRequests.Should().Be(1);
+        dialog.Color.ToArgb().Should().Be(Color.MediumPurple.ToArgb());
+        dialog.CustomColors[0].Should().Be(ColorTranslator.ToWin32(Color.DarkCyan));
+        dialog.CustomColors[1].Should().Be(ColorTranslator.ToWin32(Color.Goldenrod));
+        form.Enabled.Should().BeTrue();
+        form.Handle.Should().Be(ownerHandle);
+        platform.WindowsCreated.Should().Be(1);
+    }
+
+    [Fact]
+    public void ColorDialog_CancelKeepsCanonicalStateAndCreatesNoFallbackOwnerWindow()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        int initialCustom = ColorTranslator.ToWin32(Color.Goldenrod);
+        platform.NextColorDialogResult = new LibreColorDialogResult(
+            Accepted: false,
+            Color.Red,
+            [Color.Magenta]);
+        using var dialog = new ColorDialog
+        {
+            Color = Color.CadetBlue,
+            CustomColors = [initialCustom],
+        };
+
+        DialogResult result = dialog.ShowDialog();
+
+        result.Should().Be(DialogResult.Cancel);
+        platform.ColorDialogShowCount.Should().Be(1);
+        platform.LastColorDialogRequest.Should().NotBeNull();
+        platform.LastColorDialogRequest!.Value.Owner.Should().Be(default(LibreHandle));
+        dialog.Color.Should().Be(Color.CadetBlue);
+        dialog.CustomColors[0].Should().Be(initialCustom);
+        platform.WindowsCreated.Should().Be(0);
+        platform.Handles.Count.Should().Be(0);
+    }
+
+    [Fact]
     public void ControlCreateGraphics_UsesAncestorClipWithoutNativeHwndGraphics()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2193,7 +2271,8 @@ public class CanonicalLifecycleTests
         ILibreSystemSettingsService,
         ILibreTextRendererService,
         ILibrePowerStatusService,
-        ILibreMessageBoxService
+        ILibreMessageBoxService,
+        ILibreColorDialogService
     {
         private readonly ConcurrentQueue<Action> _queue = new();
         private bool _autoCloseWindows;
@@ -2220,6 +2299,7 @@ public class CanonicalLifecycleTests
                 UnsupportedLibreDesktopCaptureService.Instance,
                 UnsupportedLibreNativeFontInteropService.Instance,
                 UnsupportedLibreNativeGraphicsInteropService.Instance,
+                this,
                 this,
                 this,
                 this,
@@ -2292,6 +2372,11 @@ public class CanonicalLifecycleTests
             LastMessageBoxRequest = null;
             MessageBoxShowCount = 0;
             MessageBoxOwnerDisabledDuringShow = false;
+            NextColorDialogResult = new LibreColorDialogResult(true, Color.Black, []);
+            LastColorDialogRequest = null;
+            ColorDialogShowCount = 0;
+            ColorDialogOwnerDisabledDuringShow = false;
+            InvokeColorDialogHelp = false;
         }
 
         internal ManagedLibreHandleRegistry Handles { get; }
@@ -2332,6 +2417,17 @@ public class CanonicalLifecycleTests
         internal int MessageBoxShowCount { get; private set; }
 
         internal bool MessageBoxOwnerDisabledDuringShow { get; private set; }
+
+        internal LibreColorDialogResult NextColorDialogResult { get; set; }
+            = new(true, Color.Black, []);
+
+        internal LibreColorDialogRequest? LastColorDialogRequest { get; private set; }
+
+        internal int ColorDialogShowCount { get; private set; }
+
+        internal bool ColorDialogOwnerDisabledDuringShow { get; private set; }
+
+        internal bool InvokeColorDialogHelp { get; set; }
 
         internal int PresentationInvalidationCount { get; private set; }
 
@@ -2404,6 +2500,20 @@ public class CanonicalLifecycleTests
             MessageBoxOwnerDisabledDuringShow = request.Owner.IsNull
                 || (Handles.TryGet(request.Owner, out ILibreWindow? owner) && !owner.Enabled);
             return NextMessageBoxResult;
+        }
+
+        public LibreColorDialogResult Show(in LibreColorDialogRequest request)
+        {
+            LastColorDialogRequest = request;
+            ColorDialogShowCount++;
+            ColorDialogOwnerDisabledDuringShow = request.Owner.IsNull
+                || (Handles.TryGet(request.Owner, out ILibreWindow? owner) && !owner.Enabled);
+            if (InvokeColorDialogHelp)
+            {
+                request.HelpRequested?.Invoke();
+            }
+
+            return NextColorDialogResult;
         }
 
         public int VerticalScrollBarArrowHeight => 17;

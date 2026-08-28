@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Drawing;
 using FluentAssertions;
 using Xunit;
 
@@ -306,6 +307,27 @@ public class LibrePlatformTests
     }
 
     [Fact]
+    public void ConstructorPublishesTypedColorDialogsAndRejectsMissingCapability()
+    {
+        TestServices test = new();
+        using LibrePlatformServices services = new(
+            test, test, test.Handles, test, test, test, test, test, test, test, test, test, test, test, test);
+
+        services.ColorDialogs.Should().BeSameAs(test);
+        LibreColorDialogResult result = services.ColorDialogs.Show(new LibreColorDialogRequest(
+            Color.CornflowerBlue,
+            [Color.Orange],
+            LibreColorDialogOptions.AllowFullOpen,
+            HelpRequested: null,
+            Owner: default));
+        result.Accepted.Should().BeTrue();
+        result.Color.Should().Be(Color.CornflowerBlue);
+        Action create = () => new LibrePlatformServices(
+            test, test, test.Handles, test, test, test, test, test, test, test, test, test, test, test, null!);
+        create.Should().Throw<ArgumentNullException>().WithParameterName("colorDialogs");
+    }
+
+    [Fact]
     public void MonitorSelection_PrefersLargestIntersection()
     {
         LibreMonitor[] monitors = CreateMonitorInventory();
@@ -490,7 +512,8 @@ public class LibrePlatformTests
         ILibreSystemSettingsService,
         ILibreTextRendererService,
         ILibrePowerStatusService,
-        ILibreMessageBoxService
+        ILibreMessageBoxService,
+        ILibreColorDialogService
     {
         public event EventHandler<LibreSystemSettingsChangedEventArgs>? SettingsChanged;
 
@@ -512,6 +535,9 @@ public class LibrePlatformTests
             _ = request;
             return LibreMessageBoxResult.OK;
         }
+
+        public LibreColorDialogResult Show(in LibreColorDialogRequest request)
+            => new(true, request.Color, request.CustomColors.ToArray());
 
         public LibrePlatformServices Create() => new(this, this, Handles, this, this, this);
 

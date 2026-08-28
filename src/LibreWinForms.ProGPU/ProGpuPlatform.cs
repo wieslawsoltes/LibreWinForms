@@ -68,6 +68,13 @@ public static class ProGpuPlatform
                 windows,
                 monitors,
                 painting,
+                textRenderer),
+            new ManagedLibreColorDialogService(
+                dispatcher,
+                handles,
+                windows,
+                monitors,
+                painting,
                 textRenderer));
     }
 
