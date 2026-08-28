@@ -787,6 +787,16 @@ The complete local gate passes native canonical 0 warnings/0 errors, ProGPU cano
 
 This checkpoint directly supports the issue #9 diagnosis: canonical source already supplies the complete `MessageBox` API, and portability is restored by replacing one native implementation seam, not by recreating public declarations in a reduced assembly. The next proposed repair applies the same rule to `CommonDialog`: typed local-OS adapters for file/folder pickers, reusable managed typed windows for color/font selection, and explicit help/localization/accessibility capabilities, with all Windows native branches preserved.
 
+## Canonical behavior follow-up: `CommonDialog` and managed `ColorDialog`
+
+Exact source checkpoint `5fd7f6465d509e5ad503fb461ee0df5e2d5c4af9` removes portable `CommonDialog.ShowDialog` dependence on an invented fallback `NativeWindow`, owner WNDPROC subclassing, a registered common-dialog help message, and native theming scope. It preserves the upstream public/protected declarations, interactivity/reentrancy behavior, owner selection, and modal-loop lifetime. The native branch is unchanged.
+
+Canonical `ColorDialog.RunDialog` now crosses `ILibreColorDialogService` with explicit backend-neutral options and owned color snapshots. The ProGPU host registers a real `ManagedLibreColorDialogService`: a typed Silk window with ProGPU painting/text, palette and custom slots, expandable RGB editing, keyboard/pointer input, Help callback, owner-aware placement, and honest accept/cancel behavior. Missing hosts fail explicitly. Cancellation cannot mutate canonical color/custom-color state, and no compatibility-shaped dialog or fabricated result is involved.
+
+The complete local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 38/38, adapter 20/20, lifecycle 62/62, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed differences, and frozen Portable comparison 31 warnings/0 errors. Hosted build workflow `33166957221` passes canonical/package job `98834547776` and independent package job `98834547975`; docs workflow `33166957204` and job `98834547510` also pass. No compatibility declaration or runtime file under `src/LibreWinForms.Portable` changed.
+
+The next proposed repair is the canonical `FontDialog` member of the same family, using typed font/style/size/effect state and Apply/Help callbacks over a managed ProGPU/Silk window. File and folder pickers should follow through typed local-OS adapters rather than a renderer pretending to be an operating-system shell. Localization and accessible dialog semantics remain explicit quality work; English labels in this initial managed picker are not claimed as locale parity.
+
 ## Definition of done
 
 For an API group to be considered ported:
