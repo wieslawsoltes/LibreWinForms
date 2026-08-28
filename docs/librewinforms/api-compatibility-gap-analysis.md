@@ -621,6 +621,14 @@ Because canonical `VScrollBar.DefaultSize` and `HScrollBar.DefaultSize` consume 
 
 This is the scalable fix for the remaining `SystemInformation` surface: port related metric families through the typed system-settings contract so each tranche unlocks the original properties and every canonical control that consumes them.
 
+## Canonical property implementation follow-up: `DataGridView` layout
+
+Exact source checkpoint `eba186310f5fb1f13d078ac97ad709c3acf4b15b` applies that same source-first repair to the canonical `DataGridView` hierarchy highlighted by issues #11, #12, #14, #15, and #16. The complete upstream types and inherited properties already come from canonical source, but ordinary cell sizing and content calculations still attempted to acquire screen `Graphics`. A reusable `LayoutGraphicsScope` now supplies an owned in-memory ProGPU surface on portable builds and the original cached screen graphics on Windows. All nine direct grid acquisitions move through this seam, covering preferred height/width/size, content and error-icon bounds, wrapped editing height, combo drop-button geometry, mouse-hit geometry, and header tooltip measurement without duplicating any DataGridView property or class.
+
+Canonical `DataGridView` initialization also revealed two grouped USER32 metric dependencies. `ILibreSystemSettingsService` now publishes vertical/horizontal scroll-thumb dimensions plus the drag threshold; portable `SystemInformation` consumes them while native Windows keeps `GetSystemMetrics`. This is evidence for the report's architectural diagnosis: source reuse restores the public hierarchy, then typed settings and drawing seams make the real implementation runnable. Adding `Visible`, `DefaultCellStyle`, or other isolated members to `WinFormsCompatTypes.cs` would not recover these shared layout behaviors.
+
+The public-path test constructs real text and combo columns, adds a real row, autosizes both axes, queries both content rectangles, observes managed text measurement, and verifies that the canonical grid never creates a handle. Compatible-label sizing proves the same reusable surface outside DataGridView. The complete local source-first gate passes native canonical 0 warnings/0 errors, ProGPU canonical 614 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 38/38, drawing 391/391, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors. No Portable runtime source changed; the remaining direct canonical screen-graphics use outside the native half of the new scope is the separate ToolStrip `ProfessionalColorTable` settings path.
+
 ## Definition of done
 
 For an API group to be considered ported:
