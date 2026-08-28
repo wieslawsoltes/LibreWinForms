@@ -29,6 +29,15 @@ public enum LibreMinimizedWindowDirection
     Down,
 }
 
+/// <summary>Identifies the host display orientation without exposing a WinForms enum.</summary>
+public enum LibreScreenOrientation
+{
+    Angle0,
+    Angle90,
+    Angle180,
+    Angle270,
+}
+
 /// <summary>Identifies the host setting families affected by a settings notification.</summary>
 [Flags]
 public enum LibreSystemSettingsChangeKind
@@ -141,6 +150,16 @@ public interface ILibreSystemSettingsService
     LibreMinimizedWindowDirection MinimizedWindowDirection { get; }
 
     bool HideMinimizedWindows { get; }
+
+    LibreScreenOrientation ScreenOrientation { get; }
+
+    int SizingBorderWidth { get; }
+
+    LibreSize SmallCaptionButtonSize { get; }
+
+    LibreSize MenuBarButtonSize { get; }
+
+    bool LockedTerminalSession { get; }
 
     int VerticalScrollBarArrowHeight { get; }
 
@@ -333,6 +352,16 @@ public sealed class DefaultLibreSystemSettingsService : ILibreSystemSettingsServ
         => LibreMinimizedWindowDirection.Left;
 
     public bool HideMinimizedWindows => false;
+
+    public LibreScreenOrientation ScreenOrientation => LibreScreenOrientation.Angle0;
+
+    public int SizingBorderWidth => 1;
+
+    public LibreSize SmallCaptionButtonSize => new(18, 18);
+
+    public LibreSize MenuBarButtonSize => new(18, 18);
+
+    public bool LockedTerminalSession => false;
 
     public int VerticalScrollBarArrowHeight => 17;
 

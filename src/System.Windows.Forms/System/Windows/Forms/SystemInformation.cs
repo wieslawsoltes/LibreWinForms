@@ -10,13 +10,15 @@ using LibreWinForms.Platform;
 using System.Drawing.Interop;
 using System.Runtime.CompilerServices;
 #endif
-using System.Runtime.InteropServices;
-using Windows.Win32.System.StationsAndDesktops;
 #if !LIBREWINFORMS_PORTABLE
+using System.Runtime.InteropServices;
+#endif
+#if !LIBREWINFORMS_PORTABLE
+using Windows.Win32.System.StationsAndDesktops;
 using Windows.Win32.UI.Accessibility;
 #endif
-using static Windows.Win32.UI.WindowsAndMessaging.SYSTEM_METRICS_INDEX;
 #if !LIBREWINFORMS_PORTABLE
+using static Windows.Win32.UI.WindowsAndMessaging.SYSTEM_METRICS_INDEX;
 using static Windows.Win32.UI.WindowsAndMessaging.SYSTEM_PARAMETERS_INFO_ACTION;
 #endif
 
@@ -152,10 +154,14 @@ public static class SystemInformation
     /// </summary>
     public static Size GetBorderSizeForDpi(int dpi)
     {
+#if LIBREWINFORMS_PORTABLE
+        return ScaleHelper.ScaleToDpi(GetPortableSize(PortableSystemSettings.BorderSize), dpi);
+#else
         return ScaleHelper.IsThreadPerMonitorV2Aware
             ? new(PInvoke.GetCurrentSystemMetrics(SM_CXBORDER, (uint)dpi),
                 PInvoke.GetCurrentSystemMetrics(SM_CYBORDER, (uint)dpi))
             : BorderSize;
+#endif
     }
 
     /// <summary>
@@ -1213,6 +1219,15 @@ public static class SystemInformation
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return PortableSystemSettings.ScreenOrientation switch
+            {
+                LibreScreenOrientation.Angle90 => ScreenOrientation.Angle90,
+                LibreScreenOrientation.Angle180 => ScreenOrientation.Angle180,
+                LibreScreenOrientation.Angle270 => ScreenOrientation.Angle270,
+                _ => ScreenOrientation.Angle0,
+            };
+#else
             ScreenOrientation so = ScreenOrientation.Angle0;
             DEVMODEW dm = new()
             {
@@ -1226,6 +1241,7 @@ public static class SystemInformation
             }
 
             return so;
+#endif
         }
     }
 
@@ -1236,9 +1252,13 @@ public static class SystemInformation
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return PortableSystemSettings.SizingBorderWidth;
+#else
             NONCLIENTMETRICSW data = default;
             return PInvokeCore.SystemParametersInfo(ref data)
                 && data.iBorderWidth > 0 ? data.iBorderWidth : 0;
+#endif
         }
     }
 
@@ -1249,11 +1269,15 @@ public static class SystemInformation
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return GetPortableSize(PortableSystemSettings.SmallCaptionButtonSize);
+#else
             NONCLIENTMETRICSW data = default;
             return PInvokeCore.SystemParametersInfo(ref data)
                 && data.iSmCaptionHeight > 0 && data.iSmCaptionWidth > 0
                     ? new Size(data.iSmCaptionWidth, data.iSmCaptionHeight)
                     : Size.Empty;
+#endif
         }
     }
 
@@ -1264,11 +1288,15 @@ public static class SystemInformation
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return GetPortableSize(PortableSystemSettings.MenuBarButtonSize);
+#else
             NONCLIENTMETRICSW data = default;
             return PInvokeCore.SystemParametersInfo(ref data)
                 && data.iMenuHeight > 0 && data.iMenuWidth > 0
                     ? new Size(data.iMenuWidth, data.iMenuHeight)
                     : Size.Empty;
+#endif
         }
     }
 
@@ -1280,6 +1308,9 @@ public static class SystemInformation
     /// </summary>
     internal static bool InLockedTerminalSession()
     {
+#if LIBREWINFORMS_PORTABLE
+        return TerminalServerSession && PortableSystemSettings.LockedTerminalSession;
+#else
         if (TerminalServerSession)
         {
             // Try to open the input desktop. If it fails with access denied assume
@@ -1294,6 +1325,7 @@ public static class SystemInformation
         }
 
         return false;
+#endif
     }
 
 #if LIBREWINFORMS_PORTABLE

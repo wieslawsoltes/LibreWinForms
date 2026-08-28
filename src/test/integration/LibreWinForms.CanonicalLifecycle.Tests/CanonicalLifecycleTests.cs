@@ -943,6 +943,20 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void SystemInformationUsesTypedPortableLateDisplayMetrics()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+
+        SystemInformation.GetBorderSizeForDpi(192).Should().Be(new Size(22, 26));
+        SystemInformation.ScreenOrientation.Should().Be(ScreenOrientation.Angle270);
+        SystemInformation.SizingBorderWidth.Should().Be(7);
+        SystemInformation.SmallCaptionButtonSize.Should().Be(new Size(31, 33));
+        SystemInformation.MenuBarButtonSize.Should().Be(new Size(35, 37));
+        platform.WindowsCreated.Should().Be(0);
+        platform.Handles.Count.Should().Be(0);
+    }
+
+    [Fact]
     public void GroupBoxAndDisabledLinkLabelPaintWithoutNativeDeviceContexts()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2174,7 +2188,7 @@ public class CanonicalLifecycleTests
         internal string LastMeasuredText { get; private set; } = string.Empty;
 
         public bool HighContrast => false;
-        public LibreSize BorderSize => new(1, 1);
+        public LibreSize BorderSize => new(11, 13);
         public LibreSize FixedFrameBorderSize => new(3, 3);
         public LibreSize Border3DSize => new(2, 2);
         public int VerticalScrollBarWidth => 17;
@@ -2211,6 +2225,11 @@ public class CanonicalLifecycleTests
             => LibreMinimizedWindowStartPosition.TopRight;
         public LibreMinimizedWindowDirection MinimizedWindowDirection => LibreMinimizedWindowDirection.Up;
         public bool HideMinimizedWindows => true;
+        public LibreScreenOrientation ScreenOrientation => LibreScreenOrientation.Angle270;
+        public int SizingBorderWidth => 7;
+        public LibreSize SmallCaptionButtonSize => new(31, 33);
+        public LibreSize MenuBarButtonSize => new(35, 37);
+        public bool LockedTerminalSession => true;
         public int VerticalScrollBarArrowHeight => 17;
         public int HorizontalScrollBarArrowWidth => 17;
         public int VerticalScrollBarThumbHeight => 17;

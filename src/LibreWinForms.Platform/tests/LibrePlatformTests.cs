@@ -165,6 +165,11 @@ public class LibrePlatformTests
         services.SystemSettings.MinimizedWindowStartPosition.Should().Be(LibreMinimizedWindowStartPosition.TopRight);
         services.SystemSettings.MinimizedWindowDirection.Should().Be(LibreMinimizedWindowDirection.Up);
         services.SystemSettings.HideMinimizedWindows.Should().BeTrue();
+        services.SystemSettings.ScreenOrientation.Should().Be(LibreScreenOrientation.Angle270);
+        services.SystemSettings.SizingBorderWidth.Should().Be(7);
+        services.SystemSettings.SmallCaptionButtonSize.Should().Be(new LibreSize(31, 33));
+        services.SystemSettings.MenuBarButtonSize.Should().Be(new LibreSize(35, 37));
+        services.SystemSettings.LockedTerminalSession.Should().BeTrue();
         services.SystemSettings.VerticalScrollBarArrowHeight.Should().Be(15);
         services.SystemSettings.HorizontalScrollBarArrowWidth.Should().Be(16);
         services.SystemSettings.VerticalScrollBarThumbHeight.Should().Be(17);
@@ -528,6 +533,11 @@ public class LibrePlatformTests
             => LibreMinimizedWindowStartPosition.TopRight;
         public LibreMinimizedWindowDirection MinimizedWindowDirection => LibreMinimizedWindowDirection.Up;
         public bool HideMinimizedWindows => true;
+        public LibreScreenOrientation ScreenOrientation => LibreScreenOrientation.Angle270;
+        public int SizingBorderWidth => 7;
+        public LibreSize SmallCaptionButtonSize => new(31, 33);
+        public LibreSize MenuBarButtonSize => new(35, 37);
+        public bool LockedTerminalSession => true;
         public int VerticalScrollBarArrowHeight => 15;
         public int HorizontalScrollBarArrowWidth => 16;
         public int VerticalScrollBarThumbHeight => 17;
