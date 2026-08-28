@@ -715,6 +715,14 @@ The public lifecycle case verifies all three getters and constructs the real can
 
 Hosted build workflow `33148414902` passes canonical source validation, canonical package production and isolated consumption in job `98774542995`, and package job `98774542737`; docs workflow `33148414794` and job `98774542536` also pass. No compatibility declaration or runtime file under `src/LibreWinForms.Portable` changed. The next grouped repair should route `CursorSize`, `IconSize`, and `SmallIconSize` through the typed host because canonical Cursor and MDI paths already consume those dimensions.
 
+## Canonical property implementation follow-up: cursor and icon metrics
+
+Exact source checkpoint `74436490f10713174263677bbc0207b2a5b63fb1` ports `SystemInformation.CursorSize`, `IconSize`, and `SmallIconSize` through `ILibreSystemSettingsService`. Native Windows keeps its original `GetSystemMetrics` branches; portable hosts receive deterministic defaults and may publish real local-OS values. Canonical Cursor and MDI paths already consume these dimensions.
+
+The platform contract and public lifecycle case inject distinct cursor, standard-icon, and small-icon dimensions, verify all three unchanged canonical getters, and prove no window or managed handle is created. The complete local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, adapter 20/20, lifecycle 50/50, drawing 392/392, ApiCompat 0 missing types/0 missing members/13 reviewed non-breaking differences, and frozen Portable comparison 31 warnings/0 errors.
+
+Hosted build workflow `33149591150` passes canonical source validation, canonical package production and isolated consumption in job `98778231129`, and package job `98778230972`; docs workflow `33149591143` and job `98778231191` also pass. No compatibility declaration or runtime file under `src/LibreWinForms.Portable` changed. The next grouped repair should cover remaining window-size metrics such as minimum/maximum tracking, frame and caption-button dimensions, and maximized-window size.
+
 ## Definition of done
 
 For an API group to be considered ported:

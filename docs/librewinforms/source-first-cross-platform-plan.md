@@ -958,6 +958,16 @@ Hosted build workflow `33148414902` passes canonical source/ProGPU validation, c
 
 The next bounded size-metric family should cover `CursorSize`, `IconSize`, and `SmallIconSize`. Canonical `Cursor.Size` and MDI icon rendering already consume two of these values, so typed host dimensions remove another common portable `GetSystemMetrics` dependency while preserving native branches.
 
+## Current canonical cursor and icon metrics checkpoint
+
+Exact source checkpoint `74436490f10713174263677bbc0207b2a5b63fb1` routes `SystemInformation.CursorSize`, `IconSize`, and `SmallIconSize` through `ILibreSystemSettingsService` on portable builds. Native Windows retains the original `GetSystemMetrics` calls, while the default portable host supplies stable 32×32 cursor/icon and 16×16 small-icon dimensions.
+
+Contract and public-path tests inject three deliberately distinct sizes, verify exact transport through the canonical getters, and prove the reads create neither a platform window nor a logical handle. The properties feed upstream `Cursor.Size` caching and MDI small-icon rendering without introducing a second WinForms-shaped implementation. The complete exact-commit local gate passes native canonical 0 warnings/0 errors, ProGPU canonical 609 reviewed warnings/0 errors, platform 27/27, ProGPU adapter 20/20, canonical lifecycle 50/50, ProGPU drawing 392/392, ApiCompat 0 missing types/0 missing members/13 other reviewed diagnostics with no breaks, and frozen Portable comparison 31 warnings/0 errors.
+
+Hosted build workflow `33149591150` passes canonical source/ProGPU validation, canonical package production and isolated consumption in job `98778231129`, and independent package job `98778230972`; documentation workflow `33149591143` and job `98778231191` also pass. No runtime source under `src/LibreWinForms.Portable` changed.
+
+The next coherent geometry group should cover the remaining window-size metrics, beginning with minimum/maximum tracking, normal minimum size, frame size, caption-button size, and maximized-window size. These public canonical properties must stop calling USER32 on portable hosts even where some current consumers remain native-only.
+
 ## Major risks and controls
 
 | Risk | Control |
