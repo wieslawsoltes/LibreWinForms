@@ -19,6 +19,26 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
 
     public string ColorScheme => "NormalColor";
 
+    public string ThemeSize => "NormalSize";
+
+    public string DisplayName => "ProGPU";
+
+    public string Company => "LibreWinForms";
+
+    public string Author => "LibreWinForms contributors";
+
+    public string Copyright => string.Empty;
+
+    public string Url => "https://github.com/wieslawsoltes/LibreWinForms";
+
+    public string Version => "1";
+
+    public string Description => "LibreWinForms ProGPU managed visual style";
+
+    public bool SupportsFlatMenus => true;
+
+    public int MinimumColorDepth => 32;
+
     public bool IsElementDefined(string className, int part)
         => !string.IsNullOrWhiteSpace(className) && part >= 0;
 

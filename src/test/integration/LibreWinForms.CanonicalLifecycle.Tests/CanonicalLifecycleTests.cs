@@ -700,6 +700,26 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void VisualStyleInformationUsesTypedPortableMetadata()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        Application.EnableVisualStyles();
+
+        VisualStyleInformation.IsEnabledByUser.Should().BeTrue();
+        VisualStyleInformation.ColorScheme.Should().Be("ManagedColor");
+        VisualStyleInformation.Size.Should().Be("ManagedSize");
+        VisualStyleInformation.DisplayName.Should().Be("Managed theme");
+        VisualStyleInformation.Company.Should().Be("Managed company");
+        VisualStyleInformation.Author.Should().Be("Managed author");
+        VisualStyleInformation.Copyright.Should().Be("Managed copyright");
+        VisualStyleInformation.Url.Should().Be("https://managed.test");
+        VisualStyleInformation.Version.Should().Be("Managed version");
+        VisualStyleInformation.Description.Should().Be("Managed description");
+        VisualStyleInformation.SupportsFlatMenus.Should().BeTrue();
+        VisualStyleInformation.MinimumColorDepth.Should().Be(30);
+    }
+
+    [Fact]
     public void GroupBoxAndDisabledLinkLabelPaintWithoutNativeDeviceContexts()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -1931,6 +1951,16 @@ public class CanonicalLifecycleTests
 
         public string ThemeFilename => "managed.theme";
         public string ColorScheme => "ManagedColor";
+        public string ThemeSize => "ManagedSize";
+        public string DisplayName => "Managed theme";
+        public string Company => "Managed company";
+        public string Author => "Managed author";
+        public string Copyright => "Managed copyright";
+        public string Url => "https://managed.test";
+        public string Version => "Managed version";
+        public string Description => "Managed description";
+        public bool SupportsFlatMenus => true;
+        public int MinimumColorDepth => 30;
 
         internal double LastPresentationScale { get; private set; } = 1.0;
 

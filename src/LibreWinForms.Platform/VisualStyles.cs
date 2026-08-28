@@ -250,6 +250,26 @@ public interface ILibreVisualStyleService
 
     string ColorScheme { get; }
 
+    string ThemeSize { get; }
+
+    string DisplayName { get; }
+
+    string Company { get; }
+
+    string Author { get; }
+
+    string Copyright { get; }
+
+    string Url { get; }
+
+    string Version { get; }
+
+    string Description { get; }
+
+    bool SupportsFlatMenus { get; }
+
+    int MinimumColorDepth { get; }
+
     bool IsElementDefined(string className, int part);
 
     void DrawBackground(
@@ -359,6 +379,26 @@ public sealed class UnsupportedLibreVisualStyleService : ILibreVisualStyleServic
     public string ThemeFilename => string.Empty;
 
     public string ColorScheme => string.Empty;
+
+    public string ThemeSize => string.Empty;
+
+    public string DisplayName => string.Empty;
+
+    public string Company => string.Empty;
+
+    public string Author => string.Empty;
+
+    public string Copyright => string.Empty;
+
+    public string Url => string.Empty;
+
+    public string Version => string.Empty;
+
+    public string Description => string.Empty;
+
+    public bool SupportsFlatMenus => false;
+
+    public int MinimumColorDepth => 0;
 
     public bool IsElementDefined(string className, int part) => false;
 

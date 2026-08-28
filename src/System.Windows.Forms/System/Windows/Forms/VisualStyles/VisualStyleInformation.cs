@@ -101,6 +101,11 @@ public static class VisualStyleInformation
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return LibrePlatform.IsRegistered
+                ? LibrePlatform.Current.VisualStyles.ThemeSize
+                : string.Empty;
+#else
             if (IsEnabledByUser)
             {
                 Span<char> size = stackalloc char[512];
@@ -113,66 +118,109 @@ public static class VisualStyleInformation
             }
 
             return string.Empty;
+#endif
         }
     }
 
     /// <summary>
     ///  The current visual style's display name.
     /// </summary>
-    public static unsafe string DisplayName => IsEnabledByUser
+    public static unsafe string DisplayName
+#if LIBREWINFORMS_PORTABLE
+        => LibrePlatform.IsRegistered ? LibrePlatform.Current.VisualStyles.DisplayName : string.Empty;
+#else
+        => IsEnabledByUser
         ? PInvoke.GetThemeDocumentationProperty(ThemeFilename, "DisplayName")
         : string.Empty;
+#endif
 
     /// <summary>
     ///  The current visual style's company.
     /// </summary>
-    public static string Company => IsEnabledByUser
+    public static string Company
+#if LIBREWINFORMS_PORTABLE
+        => LibrePlatform.IsRegistered ? LibrePlatform.Current.VisualStyles.Company : string.Empty;
+#else
+        => IsEnabledByUser
         ? PInvoke.GetThemeDocumentationProperty(ThemeFilename, "Company")
         : string.Empty;
+#endif
 
     /// <summary>
     ///  The name of the current visual style's author.
     /// </summary>
-    public static string Author => IsEnabledByUser
+    public static string Author
+#if LIBREWINFORMS_PORTABLE
+        => LibrePlatform.IsRegistered ? LibrePlatform.Current.VisualStyles.Author : string.Empty;
+#else
+        => IsEnabledByUser
         ? PInvoke.GetThemeDocumentationProperty(ThemeFilename, "Author")
         : string.Empty;
+#endif
 
     /// <summary>
     ///  The current visual style's copyright information.
     /// </summary>
-    public static string Copyright => IsEnabledByUser
+    public static string Copyright
+#if LIBREWINFORMS_PORTABLE
+        => LibrePlatform.IsRegistered ? LibrePlatform.Current.VisualStyles.Copyright : string.Empty;
+#else
+        => IsEnabledByUser
         ? PInvoke.GetThemeDocumentationProperty(ThemeFilename, "Copyright")
         : string.Empty;
+#endif
 
     /// <summary>
     ///  The current visual style's url.
     /// </summary>
-    public static string Url => IsEnabledByUser
+    public static string Url
+#if LIBREWINFORMS_PORTABLE
+        => LibrePlatform.IsRegistered ? LibrePlatform.Current.VisualStyles.Url : string.Empty;
+#else
+        => IsEnabledByUser
         ? PInvoke.GetThemeDocumentationProperty(ThemeFilename, "Url")
         : string.Empty;
+#endif
 
     /// <summary>
     ///  The current visual style's version.
     /// </summary>
-    public static string Version => IsEnabledByUser
+    public static string Version
+#if LIBREWINFORMS_PORTABLE
+        => LibrePlatform.IsRegistered ? LibrePlatform.Current.VisualStyles.Version : string.Empty;
+#else
+        => IsEnabledByUser
         ? PInvoke.GetThemeDocumentationProperty(ThemeFilename, "Version")
         : string.Empty;
+#endif
 
     /// <summary>
     ///  The current visual style's description.
     /// </summary>
-    public static string Description => IsEnabledByUser
+    public static string Description
+#if LIBREWINFORMS_PORTABLE
+        => LibrePlatform.IsRegistered ? LibrePlatform.Current.VisualStyles.Description : string.Empty;
+#else
+        => IsEnabledByUser
         ? PInvoke.GetThemeDocumentationProperty(ThemeFilename, "Description")
         : string.Empty;
+#endif
 
     /// <summary>
     ///  Returns true if the current theme supports flat menus, else false.
     /// </summary>
-    public static bool SupportsFlatMenus =>
+    public static bool SupportsFlatMenus
+#if LIBREWINFORMS_PORTABLE
+        => Application.RenderWithVisualStyles
+        && LibrePlatform.IsRegistered
+        && LibrePlatform.Current.VisualStyles.SupportsFlatMenus;
+#else
+        =>
         Application.RenderWithVisualStyles
         && PInvoke.GetThemeSysBool(
             SetParameters(VisualStyleElement.Window.Caption.Active).HTHEME,
             THEME_PROPERTY_SYMBOL_ID.TMT_FLATMENUS);
+#endif
 
     /// <summary>
     ///  The minimum color depth supported by the current visual style.
@@ -186,12 +234,18 @@ public static class VisualStyleInformation
                 return 0;
             }
 
+#if LIBREWINFORMS_PORTABLE
+            return LibrePlatform.IsRegistered
+                ? LibrePlatform.Current.VisualStyles.MinimumColorDepth
+                : 0;
+#else
             PInvoke.GetThemeSysInt(
                 SetParameters(VisualStyleElement.Window.Caption.Active).HTHEME,
                 THEME_PROPERTY_SYMBOL_ID.TMT_MINCOLORDEPTH,
                 out int depth);
 
             return depth;
+#endif
         }
     }
 

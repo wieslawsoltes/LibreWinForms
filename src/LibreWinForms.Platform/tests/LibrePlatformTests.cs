@@ -101,6 +101,10 @@ public class LibrePlatformTests
         services.VisualStyles.Should().BeSameAs(test);
         services.VisualStyles.ThemeFilename.Should().Be("test.theme");
         services.VisualStyles.ColorScheme.Should().Be("TestColor");
+        services.VisualStyles.ThemeSize.Should().Be("TestSize");
+        services.VisualStyles.DisplayName.Should().Be("Test theme");
+        services.VisualStyles.SupportsFlatMenus.Should().BeTrue();
+        services.VisualStyles.MinimumColorDepth.Should().Be(24);
         Action create = () => new LibrePlatformServices(
             test, test, test.Handles, test, test, test, test, test, test, null!);
         create.Should().Throw<ArgumentNullException>().WithParameterName("visualStyles");
@@ -392,6 +396,16 @@ public class LibrePlatformTests
         public bool IsEnabled => true;
         public string ThemeFilename => "test.theme";
         public string ColorScheme => "TestColor";
+        public string ThemeSize => "TestSize";
+        public string DisplayName => "Test theme";
+        public string Company => "Test company";
+        public string Author => "Test author";
+        public string Copyright => "Test copyright";
+        public string Url => "https://example.test";
+        public string Version => "Test version";
+        public string Description => "Test description";
+        public bool SupportsFlatMenus => true;
+        public int MinimumColorDepth => 24;
         public bool HighContrast => true;
         public LibreSize BorderSize => new(7, 8);
         public LibreSize FixedFrameBorderSize => new(9, 10);

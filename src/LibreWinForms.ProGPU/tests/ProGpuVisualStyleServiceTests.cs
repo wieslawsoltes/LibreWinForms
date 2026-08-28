@@ -42,6 +42,16 @@ public sealed class ProGpuVisualStyleServiceTests
         service.IsEnabled.Should().BeTrue();
         service.ThemeFilename.Should().Be("progpu.theme");
         service.ColorScheme.Should().Be("NormalColor");
+        service.ThemeSize.Should().Be("NormalSize");
+        service.DisplayName.Should().Be("ProGPU");
+        service.Company.Should().Be("LibreWinForms");
+        service.Author.Should().NotBeEmpty();
+        service.Copyright.Should().BeEmpty();
+        service.Url.Should().Be("https://github.com/wieslawsoltes/LibreWinForms");
+        service.Version.Should().Be("1");
+        service.Description.Should().NotBeEmpty();
+        service.SupportsFlatMenus.Should().BeTrue();
+        service.MinimumColorDepth.Should().Be(32);
         service.IsElementDefined("BUTTON", 1).Should().BeTrue();
         using Region? region = service.GetBackgroundRegion("BUTTON", 1, 1, new Rectangle(1, 2, 4, 5));
 
