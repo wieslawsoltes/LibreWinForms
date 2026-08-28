@@ -15,6 +15,7 @@ smoke_source="${repo_root}/packaging/LibreWinForms.Sdk.SourceFirstVisibleSmoke"
 smoke_root="$(mktemp -d -t librewinforms-source-first-visible.XXXXXXXX)"
 smoke_project="${smoke_root}/LibreWinForms.Sdk.SourceFirstVisibleSmoke.csproj"
 smoke_config="${smoke_root}/NuGet.config"
+smoke_packages="${smoke_root}/packages"
 
 cleanup() {
   rm -rf "${smoke_root}"
@@ -29,23 +30,37 @@ fi
 cp "${smoke_source}/LibreWinForms.Sdk.SourceFirstVisibleSmoke.csproj" "${smoke_root}/"
 cp "${smoke_source}/Program.cs" "${smoke_root}/"
 cp "${repo_root}/NuGet.config" "${smoke_config}"
-"${dotnet}" nuget add source "${package_source}" \
-  --name LibreWinFormsSourceFirstVisible \
-  --configfile "${smoke_config}"
 
-NUGET_PACKAGES="${smoke_root}/packages" "${dotnet}" restore \
-  "${smoke_project}" \
-  --configfile "${smoke_config}" \
+dotnet_package_source="${package_source}"
+dotnet_smoke_project="${smoke_project}"
+dotnet_smoke_config="${smoke_config}"
+dotnet_smoke_packages="${smoke_packages}"
+case "$(uname -s)" in
+  MINGW*|MSYS*)
+    dotnet_package_source="$(cygpath -w "${package_source}")"
+    dotnet_smoke_project="$(cygpath -w "${smoke_project}")"
+    dotnet_smoke_config="$(cygpath -w "${smoke_config}")"
+    dotnet_smoke_packages="$(cygpath -w "${smoke_packages}")"
+    ;;
+esac
+
+"${dotnet}" nuget add source "${dotnet_package_source}" \
+  --name LibreWinFormsSourceFirstVisible \
+  --configfile "${dotnet_smoke_config}"
+
+NUGET_PACKAGES="${dotnet_smoke_packages}" "${dotnet}" restore \
+  "${dotnet_smoke_project}" \
+  --configfile "${dotnet_smoke_config}" \
   --force \
   --no-cache
-NUGET_PACKAGES="${smoke_root}/packages" "${dotnet}" build \
-  "${smoke_project}" \
+NUGET_PACKAGES="${dotnet_smoke_packages}" "${dotnet}" build \
+  "${dotnet_smoke_project}" \
   --configuration Release \
   --no-restore
 
 run_command=(
   "${dotnet}" run
-  --project "${smoke_project}"
+  --project "${dotnet_smoke_project}"
   --configuration Release
   --no-build
   --no-restore
