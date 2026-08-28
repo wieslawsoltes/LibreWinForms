@@ -293,7 +293,12 @@ public abstract partial class FileDialog : CommonDialog
     /// <summary>
     ///  Gets the Win32 instance handle for the application.
     /// </summary>
-    protected virtual nint Instance => PInvoke.GetModuleHandle((PCWSTR)null);
+    protected virtual nint Instance
+#if LIBREWINFORMS_PORTABLE
+        => 0;
+#else
+        => PInvoke.GetModuleHandle((PCWSTR)null);
+#endif
 
     /// <summary>
     ///  Gets the Win32 common Open File Dialog OFN_* and FOS_* option flags.
