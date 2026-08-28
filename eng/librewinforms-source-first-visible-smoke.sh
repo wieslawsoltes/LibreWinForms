@@ -2,7 +2,14 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-dotnet="${repo_root}/eng/common/dotnet.sh"
+dotnet="${LIBREWINFORMS_VISIBLE_DOTNET:-}"
+if [[ -z "${dotnet}" ]]; then
+  if [[ -x "${repo_root}/.dotnet/dotnet" ]]; then
+    dotnet="${repo_root}/.dotnet/dotnet"
+  else
+    dotnet="dotnet"
+  fi
+fi
 package_source="${LIBREWINFORMS_SOURCE_FIRST_PACKAGE_SOURCE:-${repo_root}/artifacts/packages/source-first}"
 smoke_source="${repo_root}/packaging/LibreWinForms.Sdk.SourceFirstVisibleSmoke"
 smoke_root="$(mktemp -d -t librewinforms-source-first-visible.XXXXXXXX)"

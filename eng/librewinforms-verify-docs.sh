@@ -70,6 +70,9 @@ require_text packaging/LibreWinForms.Sdk.SourceFirstVisibleSmoke/LibreWinForms.S
 require_text packaging/LibreWinForms.Sdk.SourceFirstVisibleSmoke/Program.cs 'Application.Run(form)'
 require_text .github/workflows/librewinforms-ci.yml 'Visible canonical package (${{ matrix.os }})'
 require_text .github/workflows/librewinforms-ci.yml './eng/librewinforms-source-first-visible-smoke.sh'
+require_text .github/workflows/librewinforms-ci.yml 'libglfw3'
+require_text .github/workflows/librewinforms-ci.yml 'LIBREWINFORMS_VISIBLE_DOTNET: dotnet'
+require_text eng/librewinforms-source-first-visible-smoke.sh 'LIBREWINFORMS_VISIBLE_DOTNET'
 require_text packaging/LibreWinForms.Sdk.CompatibilitySmoke/Program.cs "namespace LibreWinForms.SdkSmoke;"
 if [[ -e src/LibreWinForms.Portable/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj ]]; then
   echo "LibreWinForms.Sdk project must remain outside the frozen Portable source tree." >&2
