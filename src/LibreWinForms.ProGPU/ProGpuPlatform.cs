@@ -46,7 +46,9 @@ public static class ProGpuPlatform
                         new LibWaylandXdgForeignPortalParentExporter(),
                         ownsWayland: true)),
                 new ZenityLibreFileDialogService(dispatcher))
-            : UnsupportedLibreFileDialogService.Instance;
+            : OperatingSystem.IsMacOS()
+                ? new MacOsAppKitFileDialogService(dispatcher, handles)
+                : UnsupportedLibreFileDialogService.Instance;
         ProGpuDesktopCaptureService captureBridge = new(desktopCapture);
         ProGpuNativeDrawingInteropService nativeBridge;
         try

@@ -57,6 +57,37 @@ jobs:
           path: artifacts/packages/source-first/*.nupkg
           if-no-files-found: error
 
+  appkit-adapter:
+    name: AppKit adapter lane
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup .NET 10 for ProGPU
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Setup LibreWinForms repository SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build and test typed AppKit file-dialog adapter
+        shell: bash
+        run: |
+          dotnet run \
+            --project src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj \
+            --configuration Release \
+            -- \
+            --minimum-expected-tests 5 \
+            --filter-class '*MacOsAppKitFileDialogTests*'
+
   packages:
     name: Package lane
     runs-on: macos-15

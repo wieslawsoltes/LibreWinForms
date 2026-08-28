@@ -50,7 +50,7 @@ run_test_project \
   44
 run_test_project \
   "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
-  39
+  44
 
 echo "Testing unchanged canonical Application.Run(Form) against a typed headless backend."
 run_test_project \
