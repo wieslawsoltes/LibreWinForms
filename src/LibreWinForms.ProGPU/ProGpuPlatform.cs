@@ -34,6 +34,8 @@ public static class ProGpuPlatform
         ProGpuTimerService timers = new(dispatcher);
         SilkMonitorService monitors = new();
         SilkWindowService windows = new(dispatcher, handles, monitors);
+        ProGpuPaintService painting = new(dispatcher, handles);
+        ProGpuTextRendererService textRenderer = new();
         ProGpuDesktopCaptureService captureBridge = new(desktopCapture);
         ProGpuNativeDrawingInteropService nativeBridge;
         try
@@ -52,13 +54,21 @@ public static class ProGpuPlatform
             handles,
             windows,
             monitors,
-            new ProGpuPaintService(dispatcher, handles),
+            painting,
             captureBridge,
             nativeBridge,
             nativeBridge,
             new ProGpuVisualStyleService(),
             DefaultLibreSystemSettingsService.Instance,
-            new ProGpuTextRendererService());
+            textRenderer,
+            DefaultLibrePowerStatusService.Instance,
+            new ManagedLibreMessageBoxService(
+                dispatcher,
+                handles,
+                windows,
+                monitors,
+                painting,
+                textRenderer));
     }
 
     public static void Register() => LibrePlatform.Register(CreateServices());

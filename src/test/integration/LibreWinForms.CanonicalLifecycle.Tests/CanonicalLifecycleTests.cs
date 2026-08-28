@@ -1302,6 +1302,41 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void MessageBox_UsesTypedModalServiceWithCanonicalOwnerOptionsAndResult()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { Text = "Owner", Bounds = new Rectangle(40, 50, 320, 220) };
+        form.Show();
+        nint ownerHandle = form.Handle;
+        platform.NextMessageBoxResult = LibreMessageBoxResult.TryAgain;
+
+        DialogResult result = MessageBox.Show(
+            form,
+            "Choose the next action.",
+            "Portable message",
+            MessageBoxButtons.CancelTryContinue,
+            MessageBoxIcon.Warning,
+            MessageBoxDefaultButton.Button2,
+            MessageBoxOptions.RightAlign | MessageBoxOptions.RtlReading);
+
+        result.Should().Be(DialogResult.TryAgain);
+        platform.MessageBoxShowCount.Should().Be(1);
+        platform.LastMessageBoxRequest.Should().Be(new LibreMessageBoxRequest(
+            "Choose the next action.",
+            "Portable message",
+            LibreMessageBoxButtons.CancelTryContinue,
+            LibreMessageBoxIcon.Warning,
+            LibreMessageBoxDefaultButton.Button2,
+            LibreMessageBoxOptions.RightAlign | LibreMessageBoxOptions.RightToLeftReading,
+            ShowHelp: false,
+            new LibreHandle(ownerHandle, LibreHandleKind.Window)));
+        platform.MessageBoxOwnerDisabledDuringShow.Should().BeTrue();
+        form.Enabled.Should().BeTrue();
+        form.Handle.Should().Be(ownerHandle);
+        platform.WindowsCreated.Should().Be(1);
+    }
+
+    [Fact]
     public void ControlCreateGraphics_UsesAncestorClipWithoutNativeHwndGraphics()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2157,7 +2192,8 @@ public class CanonicalLifecycleTests
         ILibreVisualStyleService,
         ILibreSystemSettingsService,
         ILibreTextRendererService,
-        ILibrePowerStatusService
+        ILibrePowerStatusService,
+        ILibreMessageBoxService
     {
         private readonly ConcurrentQueue<Action> _queue = new();
         private bool _autoCloseWindows;
@@ -2184,6 +2220,7 @@ public class CanonicalLifecycleTests
                 UnsupportedLibreDesktopCaptureService.Instance,
                 UnsupportedLibreNativeFontInteropService.Instance,
                 UnsupportedLibreNativeGraphicsInteropService.Instance,
+                this,
                 this,
                 this,
                 this,
@@ -2251,6 +2288,10 @@ public class CanonicalLifecycleTests
             TimerStopCount = 0;
             LastTimerInterval = default;
             LastTimerRepeating = false;
+            NextMessageBoxResult = LibreMessageBoxResult.OK;
+            LastMessageBoxRequest = null;
+            MessageBoxShowCount = 0;
+            MessageBoxOwnerDisabledDuringShow = false;
         }
 
         internal ManagedLibreHandleRegistry Handles { get; }
@@ -2283,6 +2324,14 @@ public class CanonicalLifecycleTests
         internal bool LastTimerRepeating { get; private set; }
 
         internal bool HasActiveTimer => _timerCallback is not null;
+
+        internal LibreMessageBoxResult NextMessageBoxResult { get; set; } = LibreMessageBoxResult.OK;
+
+        internal LibreMessageBoxRequest? LastMessageBoxRequest { get; private set; }
+
+        internal int MessageBoxShowCount { get; private set; }
+
+        internal bool MessageBoxOwnerDisabledDuringShow { get; private set; }
 
         internal int PresentationInvalidationCount { get; private set; }
 
@@ -2347,6 +2396,16 @@ public class CanonicalLifecycleTests
                 7200,
                 0.42f,
                 1800);
+
+        public LibreMessageBoxResult Show(in LibreMessageBoxRequest request)
+        {
+            LastMessageBoxRequest = request;
+            MessageBoxShowCount++;
+            MessageBoxOwnerDisabledDuringShow = request.Owner.IsNull
+                || (Handles.TryGet(request.Owner, out ILibreWindow? owner) && !owner.Enabled);
+            return NextMessageBoxResult;
+        }
+
         public int VerticalScrollBarArrowHeight => 17;
         public int HorizontalScrollBarArrowWidth => 17;
         public int VerticalScrollBarThumbHeight => 17;

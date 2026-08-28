@@ -1,8 +1,12 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#else
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -453,6 +457,27 @@ public class MessageBox
 
         MESSAGEBOX_STYLE style = GetMessageBoxStyle(owner, buttons, icon, defaultButton, options, showHelp);
 
+#if LIBREWINFORMS_PORTABLE
+        _ = style;
+        LibreMessageBoxRequest request = new(
+            text ?? string.Empty,
+            caption ?? string.Empty,
+            MapButtons(buttons),
+            MapIcon(icon),
+            MapDefaultButton(defaultButton),
+            MapOptions(options),
+            showHelp,
+            GetPortableOwner(owner, options, showHelp));
+        Application.BeginModalMessageLoop();
+        try
+        {
+            return MapResult(LibrePlatform.Current.MessageBoxes.Show(request));
+        }
+        finally
+        {
+            Application.EndModalMessageLoop();
+        }
+#else
         HandleRef<HWND> handle = default;
         if (showHelp || ((options & (MessageBoxOptions.ServiceNotification | MessageBoxOptions.DefaultDesktopOnly)) == 0))
         {
@@ -490,5 +515,93 @@ public class MessageBox
             // we enable the main window.
             PInvokeCore.SendMessage(handle, PInvokeCore.WM_SETFOCUS);
         }
+#endif
     }
+
+#if LIBREWINFORMS_PORTABLE
+    private static LibreHandle GetPortableOwner(
+        IWin32Window? owner,
+        MessageBoxOptions options,
+        bool showHelp)
+    {
+        if (!showHelp
+            && (options & (MessageBoxOptions.ServiceNotification | MessageBoxOptions.DefaultDesktopOnly)) != 0)
+        {
+            return default;
+        }
+
+        IWin32Window? resolved = owner;
+        if (resolved is Control control)
+        {
+            resolved = control.TopLevelControlInternal ?? control;
+        }
+        else if (resolved is null)
+        {
+            resolved = Form.ActiveForm;
+        }
+
+        nint handle = resolved?.Handle ?? 0;
+        return handle == 0 ? default : new LibreHandle(handle, LibreHandleKind.Window);
+    }
+
+    private static LibreMessageBoxButtons MapButtons(MessageBoxButtons buttons)
+        => buttons switch
+        {
+            MessageBoxButtons.OK => LibreMessageBoxButtons.OK,
+            MessageBoxButtons.OKCancel => LibreMessageBoxButtons.OKCancel,
+            MessageBoxButtons.AbortRetryIgnore => LibreMessageBoxButtons.AbortRetryIgnore,
+            MessageBoxButtons.YesNoCancel => LibreMessageBoxButtons.YesNoCancel,
+            MessageBoxButtons.YesNo => LibreMessageBoxButtons.YesNo,
+            MessageBoxButtons.RetryCancel => LibreMessageBoxButtons.RetryCancel,
+            MessageBoxButtons.CancelTryContinue => LibreMessageBoxButtons.CancelTryContinue,
+            _ => throw new ArgumentOutOfRangeException(nameof(buttons)),
+        };
+
+    private static LibreMessageBoxIcon MapIcon(MessageBoxIcon icon)
+        => (int)icon switch
+        {
+            0 => LibreMessageBoxIcon.None,
+            16 => LibreMessageBoxIcon.Error,
+            32 => LibreMessageBoxIcon.Question,
+            48 => LibreMessageBoxIcon.Warning,
+            64 => LibreMessageBoxIcon.Information,
+            _ => throw new ArgumentOutOfRangeException(nameof(icon)),
+        };
+
+    private static LibreMessageBoxDefaultButton MapDefaultButton(MessageBoxDefaultButton button)
+        => button switch
+        {
+            MessageBoxDefaultButton.Button1 => LibreMessageBoxDefaultButton.Button1,
+            MessageBoxDefaultButton.Button2 => LibreMessageBoxDefaultButton.Button2,
+            MessageBoxDefaultButton.Button3 => LibreMessageBoxDefaultButton.Button3,
+            MessageBoxDefaultButton.Button4 => LibreMessageBoxDefaultButton.Button4,
+            _ => throw new ArgumentOutOfRangeException(nameof(button)),
+        };
+
+    private static LibreMessageBoxOptions MapOptions(MessageBoxOptions options)
+    {
+        LibreMessageBoxOptions mapped = LibreMessageBoxOptions.None;
+        if (options.HasFlag(MessageBoxOptions.DefaultDesktopOnly)) mapped |= LibreMessageBoxOptions.DefaultDesktopOnly;
+        if (options.HasFlag(MessageBoxOptions.RightAlign)) mapped |= LibreMessageBoxOptions.RightAlign;
+        if (options.HasFlag(MessageBoxOptions.RtlReading)) mapped |= LibreMessageBoxOptions.RightToLeftReading;
+        if (options.HasFlag(MessageBoxOptions.ServiceNotification)) mapped |= LibreMessageBoxOptions.ServiceNotification;
+        return mapped;
+    }
+
+    private static DialogResult MapResult(LibreMessageBoxResult result)
+        => result switch
+        {
+            LibreMessageBoxResult.None => DialogResult.None,
+            LibreMessageBoxResult.OK => DialogResult.OK,
+            LibreMessageBoxResult.Cancel => DialogResult.Cancel,
+            LibreMessageBoxResult.Abort => DialogResult.Abort,
+            LibreMessageBoxResult.Retry => DialogResult.Retry,
+            LibreMessageBoxResult.Ignore => DialogResult.Ignore,
+            LibreMessageBoxResult.Yes => DialogResult.Yes,
+            LibreMessageBoxResult.No => DialogResult.No,
+            LibreMessageBoxResult.TryAgain => DialogResult.TryAgain,
+            LibreMessageBoxResult.Continue => DialogResult.Continue,
+            _ => throw new InvalidOperationException($"Unknown portable message-box result {result}."),
+        };
+#endif
 }

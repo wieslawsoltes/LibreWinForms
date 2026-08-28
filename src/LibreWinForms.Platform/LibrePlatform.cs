@@ -176,6 +176,39 @@ public sealed class LibrePlatformServices : IDisposable
         ILibreSystemSettingsService systemSettings,
         ILibreTextRendererService textRenderer,
         ILibrePowerStatusService powerStatus)
+        : this(
+            dispatcher,
+            timers,
+            handles,
+            windows,
+            monitors,
+            painting,
+            desktopCapture,
+            nativeFonts,
+            nativeGraphics,
+            visualStyles,
+            systemSettings,
+            textRenderer,
+            powerStatus,
+            UnsupportedLibreMessageBoxService.Instance)
+    {
+    }
+
+    public LibrePlatformServices(
+        ILibreDispatcher dispatcher,
+        ILibreTimerService timers,
+        ILibreHandleRegistry handles,
+        ILibreWindowService windows,
+        ILibreMonitorService monitors,
+        ILibrePaintService painting,
+        ILibreDesktopCaptureService desktopCapture,
+        ILibreNativeFontInteropService nativeFonts,
+        ILibreNativeGraphicsInteropService nativeGraphics,
+        ILibreVisualStyleService visualStyles,
+        ILibreSystemSettingsService systemSettings,
+        ILibreTextRendererService textRenderer,
+        ILibrePowerStatusService powerStatus,
+        ILibreMessageBoxService messageBoxes)
     {
         Dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         Timers = timers ?? throw new ArgumentNullException(nameof(timers));
@@ -190,6 +223,7 @@ public sealed class LibrePlatformServices : IDisposable
         SystemSettings = systemSettings ?? throw new ArgumentNullException(nameof(systemSettings));
         TextRenderer = textRenderer ?? throw new ArgumentNullException(nameof(textRenderer));
         PowerStatus = powerStatus ?? throw new ArgumentNullException(nameof(powerStatus));
+        MessageBoxes = messageBoxes ?? throw new ArgumentNullException(nameof(messageBoxes));
     }
 
     public ILibreDispatcher Dispatcher { get; }
@@ -218,6 +252,8 @@ public sealed class LibrePlatformServices : IDisposable
 
     public ILibrePowerStatusService PowerStatus { get; }
 
+    public ILibreMessageBoxService MessageBoxes { get; }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
@@ -226,6 +262,7 @@ public sealed class LibrePlatformServices : IDisposable
         }
 
         HashSet<IDisposable> disposed = new(ReferenceEqualityComparer.Instance);
+        DisposeService(MessageBoxes, disposed);
         DisposeService(PowerStatus, disposed);
         DisposeService(TextRenderer, disposed);
         DisposeService(SystemSettings, disposed);

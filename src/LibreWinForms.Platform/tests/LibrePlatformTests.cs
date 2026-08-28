@@ -284,6 +284,28 @@ public class LibrePlatformTests
     }
 
     [Fact]
+    public void ConstructorPublishesTypedMessageBoxesAndRejectsMissingCapability()
+    {
+        TestServices test = new();
+        using LibrePlatformServices services = new(
+            test, test, test.Handles, test, test, test, test, test, test, test, test, test, test, test);
+
+        services.MessageBoxes.Should().BeSameAs(test);
+        services.MessageBoxes.Show(new LibreMessageBoxRequest(
+            "text",
+            "caption",
+            LibreMessageBoxButtons.OK,
+            LibreMessageBoxIcon.None,
+            LibreMessageBoxDefaultButton.Button1,
+            LibreMessageBoxOptions.None,
+            ShowHelp: false,
+            Owner: default)).Should().Be(LibreMessageBoxResult.OK);
+        Action create = () => new LibrePlatformServices(
+            test, test, test.Handles, test, test, test, test, test, test, test, test, test, test, null!);
+        create.Should().Throw<ArgumentNullException>().WithParameterName("messageBoxes");
+    }
+
+    [Fact]
     public void MonitorSelection_PrefersLargestIntersection()
     {
         LibreMonitor[] monitors = CreateMonitorInventory();
@@ -467,7 +489,8 @@ public class LibrePlatformTests
         ILibreVisualStyleService,
         ILibreSystemSettingsService,
         ILibreTextRendererService,
-        ILibrePowerStatusService
+        ILibrePowerStatusService,
+        ILibreMessageBoxService
     {
         public event EventHandler<LibreSystemSettingsChangedEventArgs>? SettingsChanged;
 
@@ -483,6 +506,12 @@ public class LibrePlatformTests
                 7200,
                 0.42f,
                 1800);
+
+        public LibreMessageBoxResult Show(in LibreMessageBoxRequest request)
+        {
+            _ = request;
+            return LibreMessageBoxResult.OK;
+        }
 
         public LibrePlatformServices Create() => new(this, this, Handles, this, this, this);
 
