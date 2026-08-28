@@ -16,7 +16,9 @@ using Windows.Win32.System.StationsAndDesktops;
 using Windows.Win32.UI.Accessibility;
 #endif
 using static Windows.Win32.UI.WindowsAndMessaging.SYSTEM_METRICS_INDEX;
+#if !LIBREWINFORMS_PORTABLE
 using static Windows.Win32.UI.WindowsAndMessaging.SYSTEM_PARAMETERS_INFO_ACTION;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -948,12 +950,20 @@ public static class SystemInformation
     /// <summary>
     ///  Indicates whether the windows tracking (activating the window the mouse in on) is ON or OFF.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static bool IsActiveWindowTrackingEnabled => PortableSystemSettings.ActiveWindowTrackingEnabled;
+#else
     public static bool IsActiveWindowTrackingEnabled => PInvokeCore.SystemParametersInfoBool(SPI_GETACTIVEWINDOWTRACKING);
+#endif
 
     /// <summary>
     ///  Retrieves the active window tracking delay in milliseconds.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int ActiveWindowTrackingDelay => PortableSystemSettings.ActiveWindowTrackingDelay;
+#else
     public static int ActiveWindowTrackingDelay => PInvokeCore.SystemParametersInfoInt(SPI_GETACTIVEWNDTRKTIMEOUT);
+#endif
 
     /// <summary>
     ///  Indicates whether windows minimize/restore animation is enabled.
@@ -968,7 +978,11 @@ public static class SystemInformation
     /// <summary>
     ///  Retrieves the border multiplier factor that determines the width of a window's sizing border.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int BorderMultiplierFactor => PortableSystemSettings.BorderMultiplierFactor;
+#else
     public static int BorderMultiplierFactor => PInvokeCore.SystemParametersInfoInt(SPI_GETBORDER);
+#endif
 
     /// <summary>
     ///  Indicates the caret blink time.
@@ -978,7 +992,11 @@ public static class SystemInformation
     /// <summary>
     ///  Indicates the caret width in edit controls.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public static int CaretWidth => PortableSystemSettings.CaretWidth;
+#else
     public static int CaretWidth => PInvokeCore.SystemParametersInfoInt(SPI_GETCARETWIDTH);
+#endif
 
     public static int MouseWheelScrollDelta => (int)PInvoke.WHEEL_DELTA;
 

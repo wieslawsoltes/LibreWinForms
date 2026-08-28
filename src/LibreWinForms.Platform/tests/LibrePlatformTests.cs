@@ -162,7 +162,11 @@ public class LibrePlatformTests
         services.SystemSettings.SelectionFadeEnabled.Should().BeFalse();
         services.SystemSettings.ToolTipAnimationEnabled.Should().BeTrue();
         services.SystemSettings.UIEffectsEnabled.Should().BeFalse();
+        services.SystemSettings.ActiveWindowTrackingEnabled.Should().BeTrue();
+        services.SystemSettings.ActiveWindowTrackingDelay.Should().Be(525);
         services.SystemSettings.MinimizeRestoreAnimationEnabled.Should().BeTrue();
+        services.SystemSettings.BorderMultiplierFactor.Should().Be(3);
+        services.SystemSettings.CaretWidth.Should().Be(5);
         services.SystemSettings.FontSmoothingEnabled.Should().BeFalse();
         services.SystemSettings.FontSmoothingContrast.Should().Be(1700);
         services.SystemSettings.FontSmoothingType.Should().Be(1);
@@ -478,7 +482,11 @@ public class LibrePlatformTests
         public bool SelectionFadeEnabled => false;
         public bool ToolTipAnimationEnabled => true;
         public bool UIEffectsEnabled => false;
+        public bool ActiveWindowTrackingEnabled => true;
+        public int ActiveWindowTrackingDelay => 525;
         public bool MinimizeRestoreAnimationEnabled => true;
+        public int BorderMultiplierFactor => 3;
+        public int CaretWidth => 5;
         public bool FontSmoothingEnabled => false;
         public int FontSmoothingContrast => 1700;
         public int FontSmoothingType => 1;

@@ -110,7 +110,15 @@ public interface ILibreSystemSettingsService
 
     bool UIEffectsEnabled { get; }
 
+    bool ActiveWindowTrackingEnabled { get; }
+
+    int ActiveWindowTrackingDelay { get; }
+
     bool MinimizeRestoreAnimationEnabled { get; }
+
+    int BorderMultiplierFactor { get; }
+
+    int CaretWidth { get; }
 
     bool FontSmoothingEnabled { get; }
 
@@ -208,7 +216,15 @@ public sealed class DefaultLibreSystemSettingsService : ILibreSystemSettingsServ
 
     public bool UIEffectsEnabled => true;
 
+    public bool ActiveWindowTrackingEnabled => false;
+
+    public int ActiveWindowTrackingDelay => 500;
+
     public bool MinimizeRestoreAnimationEnabled => true;
+
+    public int BorderMultiplierFactor => 1;
+
+    public int CaretWidth => 1;
 
     public bool FontSmoothingEnabled => true;
 

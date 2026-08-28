@@ -798,6 +798,19 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void SystemInformationUsesTypedPortableWindowTrackingAndCaretSettings()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+
+        SystemInformation.IsActiveWindowTrackingEnabled.Should().BeTrue();
+        SystemInformation.ActiveWindowTrackingDelay.Should().Be(525);
+        SystemInformation.BorderMultiplierFactor.Should().Be(3);
+        SystemInformation.CaretWidth.Should().Be(5);
+        platform.WindowsCreated.Should().Be(0);
+        platform.Handles.Count.Should().Be(0);
+    }
+
+    [Fact]
     public void GroupBoxAndDisabledLinkLabelPaintWithoutNativeDeviceContexts()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2059,7 +2072,11 @@ public class CanonicalLifecycleTests
         public bool SelectionFadeEnabled => false;
         public bool ToolTipAnimationEnabled => true;
         public bool UIEffectsEnabled => false;
+        public bool ActiveWindowTrackingEnabled => true;
+        public int ActiveWindowTrackingDelay => 525;
         public bool MinimizeRestoreAnimationEnabled => true;
+        public int BorderMultiplierFactor => 3;
+        public int CaretWidth => 5;
         public bool FontSmoothingEnabled => false;
         public int FontSmoothingContrast => 1700;
         public int FontSmoothingType => 1;
