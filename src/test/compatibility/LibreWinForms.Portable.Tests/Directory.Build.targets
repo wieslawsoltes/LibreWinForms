@@ -1,0 +1,3 @@
+<Project>
+  <Import Project="..\..\..\..\eng\LibreWinForms.ProGPU.targets" />
+</Project>

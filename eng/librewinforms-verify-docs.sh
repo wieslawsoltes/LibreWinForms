@@ -102,8 +102,12 @@ require_text .github/workflows/librewinforms-release.yml "Create GitHub Release"
 require_text .github/workflows/librewinforms-release.yml "gh release create"
 require_text .github/workflows/librewinforms-release.yml "--generate-notes"
 require_text .github/workflows/librewinforms-release.yml "if-no-files-found: error"
-require_text src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms.Tests/LibreWinForms.System.Windows.Forms.Tests.csproj 'Condition="'\''$(LibreWinFormsReferenceMode)'\'' == '\'''\''">Project'
-require_text src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms.Tests/LibreWinForms.System.Windows.Forms.Tests.csproj 'AdditionalProperties="LibreWinFormsReferenceMode=$(LibreWinFormsReferenceMode);LibreWinFormsBridgePackageVersion=$(LibreWinFormsBridgePackageVersion);LibreWinFormsProGpuPackageVersion=$(LibreWinFormsProGpuPackageVersion)"'
+require_text src/test/compatibility/LibreWinForms.Portable.Tests/LibreWinForms.Portable.Tests.csproj 'Condition="'\''$(LibreWinFormsReferenceMode)'\'' == '\'''\''">Project'
+require_text src/test/compatibility/LibreWinForms.Portable.Tests/LibreWinForms.Portable.Tests.csproj 'AdditionalProperties="LibreWinFormsReferenceMode=$(LibreWinFormsReferenceMode);LibreWinFormsBridgePackageVersion=$(LibreWinFormsBridgePackageVersion);LibreWinFormsProGpuPackageVersion=$(LibreWinFormsProGpuPackageVersion)"'
+if [[ -e src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms.Tests/LibreWinForms.System.Windows.Forms.Tests.csproj ]]; then
+  echo "LibreWinForms compatibility tests must remain outside the frozen Portable source tree." >&2
+  exit 1
+fi
 
 for package_id in "${librewinforms_preview_package_ids[@]}"; do
   require_text README.md "| \`${package_id}\` |"

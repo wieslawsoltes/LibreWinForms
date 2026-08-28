@@ -1,3 +1,5 @@
+extern alias PortableWinForms;
+
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -7,6 +9,7 @@ using System.Drawing.Design;
 using System.IO;
 using Forms = System.Windows.Forms;
 using FormsDesign = System.Windows.Forms.Design;
+using PortableCategoryNameCollection = PortableWinForms::System.Drawing.Design.CategoryNameCollection;
 
 namespace LibreWinForms.SystemWindowsForms.Tests;
 
@@ -1487,7 +1490,7 @@ internal static class FormsDesignerLayoutBehaviorTests
     {
         private ToolboxItem? _selected;
 
-        public CategoryNameCollection CategoryNames { get; } = new(Array.Empty<string>());
+        public PortableCategoryNameCollection CategoryNames { get; } = new(Array.Empty<string>());
 
         public string? SelectedCategory { get; set; }
 

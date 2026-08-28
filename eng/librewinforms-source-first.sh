@@ -75,4 +75,18 @@ echo "Building the current comparison lane from the ProGPU submodule rather than
   --nologo \
   -p:LibreWinFormsReferenceMode=Project
 
+echo "Testing relocated comparison source and designer audit contracts."
+"${repo_root}/eng/common/dotnet.sh" build \
+  "${repo_root}/src/test/compatibility/LibreWinForms.Portable.Tests/LibreWinForms.Portable.Tests.csproj" \
+  --configuration "${configuration}" \
+  --nologo \
+  -p:LibreWinFormsReferenceMode=Project
+DOTNET_ROLL_FORWARD=Major DOTNET_ROLL_FORWARD_TO_PRERELEASE=1 \
+  "${repo_root}/eng/common/dotnet.sh" run \
+  --project "${repo_root}/src/test/compatibility/LibreWinForms.Portable.Tests/LibreWinForms.Portable.Tests.csproj" \
+  --configuration "${configuration}" \
+  --no-build \
+  -- \
+  forms-designer-layout
+
 echo "Source-first shadow validation succeeded."
