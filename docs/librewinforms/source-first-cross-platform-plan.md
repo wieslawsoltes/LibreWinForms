@@ -1166,6 +1166,12 @@ Exact-head hosted workflow `33197186003` passes canonical/source validation and 
 
 The production/default SDK and release graph now select the canonical runtime/backend closure, and hosted visible installed-SDK smokes exercise unchanged `Application.Run(new Form())` on Windows, Linux, and macOS. Phase 7 remains open because the frozen comparison implementation and transitional WindowsFormsIntegration/SharpDevelop bridge still live under `src/LibreWinForms.Portable`; those must move to canonical WFI source and typed platform seams before deletion.
 
+### Transitional WindowsFormsIntegration package-ID handoff
+
+The canonical package ID and the old integration ABI are now deliberately separated across repositories. [LibreWPF draft PR #120](https://github.com/wieslawsoltes/LibreWPF/pull/120) makes its existing `LibreWinForms.WindowsFormsIntegration` bridge resolve `LibreWinForms.Compatibility.System.Windows.Forms`, follows that configurable package ID when copying runtime assets, and rejects a hard-coded canonical package reference through both static and MSBuild-evaluated gates. [SharpDevelop draft PR #2](https://github.com/wieslawsoltes/SharpDevelop/pull/2) updates the stacked public-preview consumer assertion and fails if that transitional bridge restores beside `LibreWinForms.System.Windows.Forms`.
+
+This handoff prevents NuGet from unifying two different `System.Windows.Forms` implementations under the canonical package name. It does not make the compatibility bridge canonical and does not close the Portable deletion gate. The replacement must build the real LibreWPF `src/Microsoft.DotNet.Wpf/src/WindowsFormsIntegration` managed source against the canonical LibreWinForms implementation/reference assemblies, retain the runtime identity `WindowsFormsIntegration`, package it as `LibreWinForms.WindowsFormsIntegration`, and move only cross-platform HWND/HDC/input/painting operations behind typed LibreWPF/LibreWinForms seams. After that package passes the mixed-desktop and SharpDevelop gates, LibreWPF and SharpDevelop must switch back to `LibreWinForms.System.Windows.Forms`, and the compatibility package assertion becomes a rejection assertion.
+
 ## Major risks and controls
 
 | Risk | Control |
