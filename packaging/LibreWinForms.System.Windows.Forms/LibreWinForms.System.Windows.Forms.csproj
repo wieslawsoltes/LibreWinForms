@@ -20,6 +20,8 @@
     <CanonicalWinFormsObject>$(ArtifactsDir)obj/System.Windows.Forms/$(Configuration)/$(TargetFramework)/</CanonicalWinFormsObject>
     <CanonicalPrimitivesObject>$(ArtifactsDir)obj/System.Windows.Forms.Primitives/$(Configuration)/$(TargetFramework)/</CanonicalPrimitivesObject>
     <CanonicalCoreObject>$(ArtifactsDir)obj/System.Private.Windows.Core/$(Configuration)/$(TargetFramework)/</CanonicalCoreObject>
+    <CanonicalGdiPlusOutput>$(ArtifactsDir)bin/System.Private.Windows.GdiPlus/$(Configuration)/$(TargetFramework)/</CanonicalGdiPlusOutput>
+    <CanonicalGdiPlusObject>$(ArtifactsDir)obj/System.Private.Windows.GdiPlus/$(Configuration)/$(TargetFramework)/</CanonicalGdiPlusObject>
     <CanonicalPlatformOutput>$(ArtifactsDir)bin/LibreWinForms.Platform/$(Configuration)/$(TargetFramework)/</CanonicalPlatformOutput>
     <CanonicalPlatformObject>$(ArtifactsDir)obj/LibreWinForms.Platform/$(Configuration)/$(TargetFramework)/</CanonicalPlatformObject>
     <_LibreWinFormsDotNet>$(RepoRoot)eng/common/dotnet.sh</_LibreWinFormsDotNet>
@@ -59,6 +61,8 @@
                                      $(CanonicalWinFormsOutput)System.Windows.Forms.Primitives.xml;
                                      $(CanonicalWinFormsOutput)System.Private.Windows.Core.dll;
                                      $(CanonicalWinFormsOutput)System.Private.Windows.Core.xml;
+                                     $(CanonicalGdiPlusOutput)System.Private.Windows.GdiPlus.dll;
+                                     $(CanonicalGdiPlusOutput)System.Private.Windows.GdiPlus.xml;
                                      $(CanonicalWinFormsOutput)Accessibility.dll;
                                      $(CanonicalPlatformOutput)LibreWinForms.Platform.dll;
                                      $(CanonicalPlatformOutput)LibreWinForms.Platform.xml" />
@@ -67,6 +71,7 @@
       <_CanonicalReferenceFile Include="$(CanonicalWinFormsObject)ref/System.Windows.Forms.dll;
                                        $(CanonicalPrimitivesObject)ref/System.Windows.Forms.Primitives.dll;
                                        $(CanonicalCoreObject)ref/System.Private.Windows.Core.dll;
+                                       $(CanonicalGdiPlusObject)ref/System.Private.Windows.GdiPlus.dll;
                                        $(CanonicalWinFormsOutput)Accessibility.dll;
                                        $(CanonicalPlatformObject)ref/LibreWinForms.Platform.dll" />
 

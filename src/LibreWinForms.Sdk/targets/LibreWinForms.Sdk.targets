@@ -27,6 +27,16 @@
                       AdditionalProperties="LibreWinFormsReferenceMode=Project;LibreWinFormsUseProGpuSystemDrawing=true;MicrosoftNETCoreAppRefPackageVersion=" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseCanonicalRuntime)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Package' And '$(ManagePackageVersionsCentrally)' != 'true'">
+    <PackageReference Include="LibreWinForms.System.Windows.Forms" Version="$(LibreWinFormsCanonicalPackageVersion)" />
+    <PackageReference Include="LibreWinForms.ProGPU" Version="$(LibreWinFormsProGpuBackendPackageVersion)" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseCanonicalRuntime)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Package' And '$(ManagePackageVersionsCentrally)' == 'true'">
+    <PackageReference Include="LibreWinForms.System.Windows.Forms" VersionOverride="$(LibreWinFormsCanonicalPackageVersion)" />
+    <PackageReference Include="LibreWinForms.ProGPU" VersionOverride="$(LibreWinFormsProGpuBackendPackageVersion)" />
+  </ItemGroup>
+
   <Target Name="_LibreWinFormsSelectProGpuSystemDrawing"
           BeforeTargets="ResolveAssemblyReferences"
           Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseCanonicalRuntime)' != 'true' And '$(LibreWinFormsUseSystemWindowsForms)' == 'true'">

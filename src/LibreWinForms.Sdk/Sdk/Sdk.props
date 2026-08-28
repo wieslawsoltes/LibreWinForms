@@ -12,6 +12,8 @@
     <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == ''">0.1.0-preview.45</LibreWinFormsVersion>
     <LibreWinFormsPackageVersion Condition="'$(LibreWinFormsPackageVersion)' == ''">$(LibreWinFormsVersion)</LibreWinFormsPackageVersion>
     <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == ''">0.1.0-preview.55</LibreWinFormsProGpuPackageVersion>
+    <LibreWinFormsCanonicalPackageVersion Condition="'$(LibreWinFormsCanonicalPackageVersion)' == ''">0.1.0-source-first</LibreWinFormsCanonicalPackageVersion>
+    <LibreWinFormsProGpuBackendPackageVersion Condition="'$(LibreWinFormsProGpuBackendPackageVersion)' == ''">0.1.0-source-first-backend</LibreWinFormsProGpuBackendPackageVersion>
     <LibreWinFormsSystemConfigurationConfigurationManagerVersion Condition="'$(LibreWinFormsSystemConfigurationConfigurationManagerVersion)' == ''">11.0.0-preview.5.26302.115</LibreWinFormsSystemConfigurationConfigurationManagerVersion>
     <LibreWinFormsSystemFormatsNrbfVersion Condition="'$(LibreWinFormsSystemFormatsNrbfVersion)' == ''">11.0.0-preview.5.26302.115</LibreWinFormsSystemFormatsNrbfVersion>
     <LibreWinFormsSystemIOPackagingVersion Condition="'$(LibreWinFormsSystemIOPackagingVersion)' == ''">11.0.0-preview.5.26302.115</LibreWinFormsSystemIOPackagingVersion>

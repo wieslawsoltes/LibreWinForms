@@ -8,6 +8,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <Deterministic>true</Deterministic>
     <StrongNameKeyId>ECMA</StrongNameKeyId>
+    <ProduceReferenceAssembly>true</ProduceReferenceAssembly>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
