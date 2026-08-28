@@ -166,6 +166,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
 
     public LibreHandle Handle { get; }
 
+    internal NativeWindowHandle NativeHandle => _controller.Handle;
+
     public LibreWindowCoordinateMode CoordinateMode => _coordinateMode;
 
     public string Title

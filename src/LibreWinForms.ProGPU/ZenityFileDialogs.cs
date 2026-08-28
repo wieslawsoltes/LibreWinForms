@@ -63,7 +63,7 @@ public sealed class SystemLibreDesktopDialogProcessRunner : ILibreDesktopDialogP
 /// Linux GTK file and folder selection through Zenity. Arguments are passed as discrete process
 /// tokens; logical LibreWinForms handles never cross into the native process.
 /// </summary>
-public sealed class ZenityLibreFileDialogService : ILibreFileDialogService
+public sealed partial class ZenityLibreFileDialogService : ILibreFileDialogService
 {
     private const char PathSeparator = '\u001F';
     private const string HelpButton = "Help";
@@ -94,7 +94,7 @@ public sealed class ZenityLibreFileDialogService : ILibreFileDialogService
             throw new PlatformNotSupportedException("The Zenity file-dialog adapter requires Linux.");
         }
 
-        Validate(request);
+        LibreFileDialogRequestValidator.Validate(request);
         List<string> arguments = BuildArguments(request);
         while (true)
         {
@@ -139,7 +139,30 @@ public sealed class ZenityLibreFileDialogService : ILibreFileDialogService
         }
     }
 
-    private static void Validate(in LibreFileDialogRequest request)
+    internal static string ResolveInitialPath(in LibreFileDialogRequest request)
+    {
+        string selected = request.SelectedPaths.FirstOrDefault(static path => !string.IsNullOrWhiteSpace(path))
+            ?? string.Empty;
+        if (selected.Length == 0)
+        {
+            return request.InitialDirectory;
+        }
+
+        return !Path.IsPathFullyQualified(selected) && request.InitialDirectory.Length > 0
+            ? Path.Join(request.InitialDirectory, selected)
+            : selected;
+    }
+
+    private static string TrimLineEnding(string value)
+        => value.TrimEnd('\r', '\n');
+
+    private static bool IsReadOnlyChecked(in LibreFileDialogRequest request)
+        => request.Options.HasFlag(LibreFileDialogOptions.ReadOnlyChecked);
+}
+
+internal static class LibreFileDialogRequestValidator
+{
+    internal static void Validate(in LibreFileDialogRequest request)
     {
         if (!Enum.IsDefined(request.Kind))
         {
@@ -176,7 +199,10 @@ public sealed class ZenityLibreFileDialogService : ILibreFileDialogService
             throw new ArgumentOutOfRangeException(nameof(request), request.Options, "Unknown file-dialog option.");
         }
     }
+}
 
+public sealed partial class ZenityLibreFileDialogService
+{
     private static List<string> BuildArguments(in LibreFileDialogRequest request)
     {
         List<string> arguments = ["--file-selection", "--modal"];
@@ -197,6 +223,11 @@ public sealed class ZenityLibreFileDialogService : ILibreFileDialogService
         {
             arguments.Add("--multiple");
             arguments.Add($"--separator={PathSeparator}");
+        }
+
+        if (request.Options.HasFlag(LibreFileDialogOptions.ShowHiddenFiles))
+        {
+            arguments.Add("--show-hidden");
         }
 
         if (request.Options.HasFlag(LibreFileDialogOptions.ShowHelp) && request.HelpRequested is not null)
@@ -223,24 +254,4 @@ public sealed class ZenityLibreFileDialogService : ILibreFileDialogService
 
         return arguments;
     }
-
-    private static string ResolveInitialPath(in LibreFileDialogRequest request)
-    {
-        string selected = request.SelectedPaths.FirstOrDefault(static path => !string.IsNullOrWhiteSpace(path))
-            ?? string.Empty;
-        if (selected.Length == 0)
-        {
-            return request.InitialDirectory;
-        }
-
-        return !Path.IsPathFullyQualified(selected) && request.InitialDirectory.Length > 0
-            ? Path.Join(request.InitialDirectory, selected)
-            : selected;
-    }
-
-    private static string TrimLineEnding(string value)
-        => value.TrimEnd('\r', '\n');
-
-    private static bool IsReadOnlyChecked(in LibreFileDialogRequest request)
-        => request.Options.HasFlag(LibreFileDialogOptions.ReadOnlyChecked);
 }

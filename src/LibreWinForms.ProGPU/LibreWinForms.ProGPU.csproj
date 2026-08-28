@@ -24,6 +24,11 @@
     <PackageReference Include="Silk.NET.GLFW" />
     <PackageReference Include="Silk.NET.Windowing" />
     <PackageReference Include="Silk.NET.Windowing.Glfw" />
+    <PackageReference Include="Tmds.DBus.Generator" PrivateAssets="all" />
+    <PackageReference Include="Tmds.DBus.Protocol" />
+    <AdditionalFiles Include="Portal\org.freedesktop.portal.FileChooser.xml"
+                     Namespace="LibreWinForms.ProGPU.Portal.Generated"
+                     DBusGeneratorMode="Proxy" />
   </ItemGroup>
 
 </Project>

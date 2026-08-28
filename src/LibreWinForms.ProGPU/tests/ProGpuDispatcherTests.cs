@@ -26,7 +26,7 @@ public class ProGpuDispatcherTests
         services.FontDialogs.Should().BeOfType<ManagedLibreFontDialogService>();
         if (OperatingSystem.IsLinux())
         {
-            services.FileDialogs.Should().BeOfType<ZenityLibreFileDialogService>();
+            services.FileDialogs.Should().BeOfType<PreferredLinuxLibreFileDialogService>();
         }
         else
         {

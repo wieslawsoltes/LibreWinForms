@@ -41,6 +41,7 @@ public class ZenityFileDialogTests
         runner.Arguments.Should().Contain("--file-selection");
         runner.Arguments.Should().Contain("--modal");
         runner.Arguments.Should().Contain("--multiple");
+        runner.Arguments.Should().Contain("--show-hidden");
         runner.Arguments.Should().Contain("--separator=\u001F");
         runner.Arguments.Should().Contain("--extra-button=Help");
         runner.Arguments.Should().Contain("--title=Choose files");

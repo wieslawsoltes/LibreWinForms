@@ -37,7 +37,12 @@ public static class ProGpuPlatform
         ProGpuPaintService painting = new(dispatcher, handles);
         ProGpuTextRendererService textRenderer = new();
         ILibreFileDialogService fileDialogs = OperatingSystem.IsLinux()
-            ? new ZenityLibreFileDialogService(dispatcher)
+            ? new PreferredLinuxLibreFileDialogService(
+                new XdgDesktopPortalLibreFileDialogService(
+                    dispatcher,
+                    new TmdsXdgFileChooserPortal(),
+                    new ProGpuXdgPortalParentWindowProvider(handles)),
+                new ZenityLibreFileDialogService(dispatcher))
             : UnsupportedLibreFileDialogService.Instance;
         ProGpuDesktopCaptureService captureBridge = new(desktopCapture);
         ProGpuNativeDrawingInteropService nativeBridge;
