@@ -401,6 +401,16 @@ Exit: the documented supported control and service matrix passes on all target s
 
 Exit: SharpDevelop builds, launches, loads/saves a real WinForms design surface, edits resources, and exercises hosted WinForms controls through canonical assemblies.
 
+Current canonical consumer evidence: SharpDevelop's complete executable graph builds against canonical `System.Windows.Forms`, `System.Windows.Forms.Design`, canonical `WindowsFormsIntegration`, and ProGPU drawing. Startup reaches the real WPF application loop after `ProGpuPlatform.Register()` and creates its ProGPU surfaces. The remaining Linux ARM64 launch blocker is a cold software-Vulkan first-frame submission: the UI thread blocks in `wgpuQueueSubmit` while lavapipe compiles in LLVM, with no completion during a 378-second bounded probe. The dispatcher and forced-splash hypotheses were disproved and their experimental changes were removed.
+
+Required rendering follow-up before this phase exits:
+
+1. add ProGPU diagnostics that identify and time pipeline creation, first queue submission, and presentation separately;
+2. reproduce the specific SharpDevelop pipeline in a bounded ProGPU qualification harness and retain the generated shader as diagnostic evidence;
+3. measure cold and warm llvmpipe/lavapipe startup, with a reusable Mesa shader-cache directory that is separate from the smoke's isolated application `HOME`;
+4. fix or split the pathological pipeline rather than increasing the watchdog indefinitely; and
+5. qualify any GL/GLES alternative with the native display/surface handle path before exposing it. The pinned wgpu-native 0.19 GL instance mask currently aborts while creating the existing GLFW/X11 surface, so it is not an available fallback.
+
 ### Phase 7: SDK and package cutover
 
 - Change `LibreWinForms.Sdk` to select the canonical transport package, `LibreWinForms.ProGPU`, and ProGPU drawing.
@@ -445,6 +455,7 @@ All gates are required before removing `src/LibreWinForms.Portable`:
 - [ ] Standalone WinForms has no runtime dependency on LibreWPF.
 - [ ] Optional `WindowsFormsIntegration` uses canonical WinForms and canonical LibreWPF assemblies.
 - [ ] SharpDevelop build, workbench, FormsDesigner, ResX, menu/popup, property grid, and shutdown gates pass.
+  The canonical executable graph builds and reaches `Application.Run`, but the Linux software-Vulkan first frame currently exceeds the bounded runtime gate inside ProGPU/wgpu-native shader compilation. Portable deletion must not hide or bypass this renderer gate.
 - [ ] Reflection/private-field/duck-probe audits pass.
 - [ ] Assembly name, public key, version, type forwarding, and facade resolution tests pass.
 - [ ] `rg -n "LibreWinForms\.Portable" --glob '!docs/**' .` returns no product references.
