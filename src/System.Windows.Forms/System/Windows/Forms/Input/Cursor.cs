@@ -198,11 +198,21 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return Rectangle.Empty;
+#else
             PInvoke.GetClipCursor(out RECT rect);
             return rect;
+#endif
         }
         set
         {
+#if LIBREWINFORMS_PORTABLE
+            if (!value.IsEmpty)
+            {
+                throw new PlatformNotSupportedException("Cursor confinement requires a platform cursor-clipping service.");
+            }
+#else
             if (value.IsEmpty)
             {
                 PInvoke.ClipCursor((RECT*)null);
@@ -212,6 +222,7 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
                 RECT rect = value;
                 PInvoke.ClipCursor(&rect);
             }
+#endif
         }
     }
 

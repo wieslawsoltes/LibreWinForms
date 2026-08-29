@@ -5430,6 +5430,9 @@ public partial class DataGridView
             return _cachedScrollableRegion;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        _cachedScrollableRegion = [(RECT)scroll];
+#else
         using (Region region = new(scroll))
         {
             HRGN hrgn = default;
@@ -5444,6 +5447,7 @@ public partial class DataGridView
                 region.ReleaseHrgn((IntPtr)hrgn);
             }
         }
+#endif
 
         return _cachedScrollableRegion;
     }
@@ -19767,7 +19771,12 @@ public partial class DataGridView
                     }
                 }
 
-                if (repositionEditingControl && EditingControl is not null)
+                if (repositionEditingControl
+                    && EditingControl is not null
+#if LIBREWINFORMS_PORTABLE
+                    && !_dataGridViewOper[OperationInDispose]
+#endif
+                    )
                 {
                     PositionEditingControl(setLocation: true, setSize: false, setFocus: false);
                 }
@@ -26281,12 +26290,16 @@ public partial class DataGridView
             for (int r = 0; r < rects.Length; r++)
             {
                 scroll = rects[r];
+#if LIBREWINFORMS_PORTABLE
+                Invalidate((Rectangle)scroll);
+#else
                 PInvoke.ScrollWindow(
                     this,
                     change,
                     0,
                     &scroll,
                     &scroll);
+#endif
             }
         }
     }

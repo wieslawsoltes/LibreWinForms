@@ -4554,7 +4554,9 @@ public unsafe partial class Control :
 
         if (_updateCount == 0)
         {
+#if !LIBREWINFORMS_PORTABLE
             PInvokeCore.SendMessage(this, PInvokeCore.WM_SETREDRAW, (WPARAM)(BOOL)false);
+#endif
         }
 
         _updateCount++;
@@ -5336,7 +5338,9 @@ public unsafe partial class Control :
             _updateCount--;
             if (_updateCount == 0)
             {
+#if !LIBREWINFORMS_PORTABLE
                 PInvokeCore.SendMessage(this, PInvokeCore.WM_SETREDRAW, (WPARAM)(BOOL)true);
+#endif
                 if (invalidate)
                 {
                     Invalidate();

@@ -1690,6 +1690,250 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void DataGridViewGeometryHitTestingAndCurrentCellUseCanonicalContracts()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using DataGridView grid = CreateCanonicalDataGridView();
+        _ = grid.Handle;
+        grid.PerformLayout();
+
+        Rectangle topLeft = grid.GetCellDisplayRectangle(-1, -1, cutOverflow: false);
+        Rectangle columnHeader = grid.GetCellDisplayRectangle(0, -1, cutOverflow: false);
+        Rectangle rowHeader = grid.GetCellDisplayRectangle(-1, 0, cutOverflow: false);
+        Rectangle firstCell = grid.GetCellDisplayRectangle(0, 0, cutOverflow: false);
+        Rectangle secondCell = grid.GetCellDisplayRectangle(1, 1, cutOverflow: false);
+
+        topLeft.Size.Should().Be(new Size(grid.RowHeadersWidth, grid.ColumnHeadersHeight));
+        columnHeader.Left.Should().Be(topLeft.Right);
+        columnHeader.Width.Should().Be(grid.Columns[0].Width);
+        rowHeader.Top.Should().Be(topLeft.Bottom);
+        rowHeader.Height.Should().Be(grid.Rows[0].Height);
+        firstCell.Location.Should().Be(new Point(columnHeader.Left, rowHeader.Top));
+        secondCell.Size.Should().Be(new Size(grid.Columns[1].Width, grid.Rows[1].Height));
+
+        DataGridView.HitTestInfo topLeftHit = grid.HitTest(rowHeader.Left + 1, columnHeader.Top + 1);
+        topLeftHit.Type.Should().Be(DataGridViewHitTestType.TopLeftHeader);
+        topLeftHit.ColumnIndex.Should().Be(-1);
+        topLeftHit.RowIndex.Should().Be(-1);
+
+        DataGridView.HitTestInfo columnHeaderHit = grid.HitTest(columnHeader.Left + 1, columnHeader.Top + 1);
+        columnHeaderHit.Type.Should().Be(DataGridViewHitTestType.ColumnHeader);
+        columnHeaderHit.ColumnIndex.Should().Be(0);
+
+        DataGridView.HitTestInfo rowHeaderHit = grid.HitTest(rowHeader.Left + 1, rowHeader.Top + 1);
+        rowHeaderHit.Type.Should().Be(DataGridViewHitTestType.RowHeader);
+        rowHeaderHit.RowIndex.Should().Be(0);
+
+        DataGridView.HitTestInfo cellHit = grid.HitTest(secondCell.Left + 1, secondCell.Top + 1);
+        cellHit.Type.Should().Be(DataGridViewHitTestType.Cell);
+        cellHit.ColumnIndex.Should().Be(1);
+        cellHit.RowIndex.Should().Be(1);
+        cellHit.ColumnX.Should().Be(secondCell.Left);
+        cellHit.RowY.Should().Be(secondCell.Top);
+        cellHit.Should().Be(grid.HitTest(secondCell.Right - 1, secondCell.Bottom - 1));
+        cellHit.ToString().Should().Be("{ Type:Cell, Column:1, Row:1 }");
+        grid.HitTest(grid.ClientSize.Width - 1, grid.ClientSize.Height - 1)
+            .Should().Be(DataGridView.HitTestInfo.Nowhere);
+        ((int)DataGridViewHitTestType.VerticalScrollBar).Should().Be(6);
+
+        grid.Width = secondCell.Right - 5;
+        grid.PerformLayout();
+        Rectangle clippedSecondCell = grid.GetCellDisplayRectangle(1, 1, cutOverflow: true);
+        clippedSecondCell.Left.Should().Be(secondCell.Left);
+        clippedSecondCell.Width.Should().BePositive().And.BeLessThan(secondCell.Width);
+        clippedSecondCell.Height.Should().Be(secondCell.Height);
+        grid.GetCellDisplayRectangle(1, 1, cutOverflow: false).Should().Be(secondCell);
+        FluentActions.Invoking(() => grid.GetCellDisplayRectangle(-2, 0, false))
+            .Should().Throw<ArgumentOutOfRangeException>();
+        FluentActions.Invoking(() => grid.GetCellDisplayRectangle(0, grid.Rows.Count, false))
+            .Should().Throw<ArgumentOutOfRangeException>();
+
+        grid.CurrentCell = null;
+        int changed = 0;
+        grid.CurrentCellChanged += (_, _) => changed++;
+        DataGridViewCell first = grid.Rows[0].Cells[0];
+        DataGridViewCell second = grid.Rows[1].Cells[1];
+        grid.CurrentCell = first;
+        grid.CurrentCell.Should().BeSameAs(first);
+        grid.CurrentRow.Should().BeSameAs(grid.Rows[0]);
+        changed.Should().Be(1);
+        grid.CurrentCell = first;
+        changed.Should().Be(1);
+
+        using DataGridView foreignGrid = CreateCanonicalDataGridView();
+        grid.CurrentCell = foreignGrid.Rows[0].Cells[0];
+        grid.CurrentCell.Should().BeSameAs(first);
+        changed.Should().Be(1);
+        FluentActions.Invoking(() => grid.CurrentCell = foreignGrid.Rows[1].Cells[1])
+            .Should().Throw<ArgumentException>();
+        grid.CurrentCell.Should().BeSameAs(first);
+
+        grid.CurrentCell = second;
+        changed.Should().Be(2);
+        grid.Rows.RemoveAt(1);
+        grid.CurrentCell.Should().BeNull();
+        grid.CurrentRow.Should().BeNull();
+        changed.Should().Be(3);
+        grid.CurrentCell = null;
+        changed.Should().Be(3);
+    }
+
+    [Fact]
+    public void DataGridViewTextEditingUsesCanonicalEditingPanelAndCommitLifecycle()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using DataGridView grid = CreateCanonicalDataGridView();
+        DataGridViewCell cell = grid.Rows[0].Cells[0];
+        grid.CurrentCell = cell;
+
+        cell.ReadOnly = true;
+        grid.BeginEdit(selectAll: false).Should().BeFalse();
+        cell.ReadOnly = false;
+        grid.Rows[0].ReadOnly = true;
+        grid.BeginEdit(selectAll: false).Should().BeFalse();
+        grid.Rows[0].ReadOnly = false;
+        grid.Columns[0].ReadOnly = true;
+        grid.BeginEdit(selectAll: false).Should().BeFalse();
+        grid.Columns[0].ReadOnly = false;
+        grid.ReadOnly = true;
+        grid.BeginEdit(selectAll: false).Should().BeFalse();
+        grid.ReadOnly = false;
+
+        int showing = 0;
+        int changed = 0;
+        grid.EditingControlShowing += (_, e) =>
+        {
+            showing++;
+            e.Control.Should().BeSameAs(grid.EditingControl);
+        };
+        grid.CellValueChanged += (_, e) =>
+        {
+            changed++;
+            e.ColumnIndex.Should().Be(0);
+            e.RowIndex.Should().Be(0);
+        };
+
+        grid.BeginEdit(selectAll: true).Should().BeTrue();
+        grid.IsCurrentCellInEditMode.Should().BeTrue();
+        DataGridViewTextBoxEditingControl editor = grid.EditingControl
+            .Should().BeOfType<DataGridViewTextBoxEditingControl>().Subject;
+        editor.Parent.Should().BeSameAs(grid.EditingPanel);
+        grid.EditingPanel.Parent.Should().BeSameAs(grid);
+        editor.SelectionStart.Should().Be(0);
+        editor.SelectionLength.Should().Be(editor.TextLength);
+        showing.Should().Be(1);
+        grid.BeginEdit(selectAll: false).Should().BeTrue();
+        showing.Should().Be(1);
+
+        editor.Text = "committed";
+        grid.EndEdit().Should().BeTrue();
+        cell.Value.Should().Be("committed");
+        changed.Should().Be(1);
+        grid.IsCurrentCellInEditMode.Should().BeFalse();
+        grid.EditingControl.Should().BeNull();
+
+        grid.BeginEdit(selectAll: false).Should().BeTrue();
+        ((TextBox)grid.EditingControl!).Text = "discarded";
+        grid.CancelEdit().Should().BeTrue();
+        cell.Value.Should().Be("committed");
+        changed.Should().Be(1);
+
+        grid.BeginEdit(selectAll: false).Should().BeTrue();
+        ((TextBox)grid.EditingControl!).Text = "committed by read-only";
+        grid.Columns[0].ReadOnly = true;
+        grid.IsCurrentCellInEditMode.Should().BeFalse();
+        cell.Value.Should().Be("committed by read-only");
+        changed.Should().Be(2);
+        grid.Columns[0].ReadOnly = false;
+
+        grid.BeginEdit(selectAll: false).Should().BeTrue();
+        ((TextBox)grid.EditingControl!).Text = "committed by move";
+        grid.CurrentCell = grid.Rows[1].Cells[0];
+        cell.Value.Should().Be("committed by move");
+        changed.Should().Be(3);
+    }
+
+    [Fact]
+    public void DataGridViewComboBoxEditingPreservesTypedItemsAndSelection()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var grid = new DataGridView
+        {
+            Size = new Size(240, 100),
+            AllowUserToAddRows = false,
+        };
+        var column = new DataGridViewComboBoxColumn { Width = 100 };
+        column.Items.Add("one");
+        column.Items.Add("two");
+        grid.Columns.Add(column);
+        grid.Rows.Add("one");
+        grid.DataError += (_, e) => e.ThrowException = true;
+
+        DataGridViewComboBoxCell cell = grid.Rows[0].Cells[0]
+            .Should().BeOfType<DataGridViewComboBoxCell>().Subject;
+        cell.Items.Count.Should().Be(2);
+        cell.Items[0].Should().Be("one");
+        cell.Items[1].Should().Be("two");
+        grid.CurrentCell = cell;
+        int itemsAtShowing = -1;
+        grid.EditingControlShowing += (_, e) =>
+            itemsAtShowing = ((DataGridViewComboBoxEditingControl)e.Control).Items.Count;
+        grid.BeginEdit(selectAll: true).Should().BeTrue();
+        itemsAtShowing.Should().Be(2);
+
+        DataGridViewComboBoxEditingControl editor = grid.EditingControl
+            .Should().BeOfType<DataGridViewComboBoxEditingControl>().Subject;
+        editor.Parent.Should().BeSameAs(grid.EditingPanel);
+        editor.Items.Count.Should().Be(2);
+        editor.Items[0].Should().Be("one");
+        editor.Items[1].Should().Be("two");
+        editor.SelectedIndex.Should().Be(0);
+        editor.SelectedItem.Should().Be("one");
+        editor.SelectedIndex = 1;
+        grid.EndEdit().Should().BeTrue();
+        cell.Value.Should().Be("two");
+    }
+
+    [Fact]
+    public void DataGridViewReceivesTypedPortablePointerSelectionWithoutAHostShim()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { ClientSize = new Size(360, 180) };
+        using DataGridView grid = CreateCanonicalDataGridView();
+        grid.Bounds = new Rectangle(12, 15, 300, 120);
+        grid.EditMode = DataGridViewEditMode.EditOnEnter;
+        form.Controls.Add(grid);
+        form.Show();
+        grid.CurrentCell = null;
+
+        Cursor.Clip = Rectangle.Empty;
+        Cursor.Clip.Should().Be(Rectangle.Empty);
+        FluentActions.Invoking(() => Cursor.Clip = new Rectangle(1, 2, 3, 4))
+            .Should().Throw<PlatformNotSupportedException>();
+
+        int mouseDown = 0;
+        grid.CellMouseDown += (_, e) =>
+        {
+            mouseDown++;
+            e.ColumnIndex.Should().Be(1);
+            e.RowIndex.Should().Be(1);
+        };
+        Rectangle cell = grid.GetCellDisplayRectangle(1, 1, cutOverflow: false);
+        var position = new LibrePoint(
+            grid.Left + cell.Left + (cell.Width / 2),
+            grid.Top + cell.Top + (cell.Height / 2));
+
+        platform.SendInput(LibreInputEventKind.PointerDown, position: position, button: LibrePointerButton.Primary);
+        platform.SendInput(LibreInputEventKind.PointerUp, position: position, button: LibrePointerButton.Primary);
+
+        mouseDown.Should().Be(1);
+        grid.CurrentCell.Should().BeSameAs(grid.Rows[1].Cells[1]);
+        grid.BeginEdit(selectAll: true).Should().BeTrue();
+        grid.EditingControl.Should().BeAssignableTo<IDataGridViewEditingControl>();
+        grid.EndEdit().Should().BeTrue();
+    }
+
+    [Fact]
     public void ProfessionalColorsUseManagedLayoutGraphicsWithoutScreenHdc()
     {
         UseHeadlessPlatform(autoCloseWindows: false);
@@ -3719,6 +3963,24 @@ public class CanonicalLifecycleTests
     {
     }
 
+    private static DataGridView CreateCanonicalDataGridView()
+    {
+        var grid = new DataGridView
+        {
+            Size = new Size(300, 120),
+            RowHeadersWidth = 40,
+            ColumnHeadersHeight = 22,
+            AllowUserToAddRows = false,
+        };
+        grid.RowTemplate.Height = 20;
+        grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "first", Width = 80 });
+        grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "second", Width = 90 });
+        grid.Rows.Add("alpha", "one");
+        grid.Rows.Add("beta", "two");
+        grid.CurrentCell = null;
+        return grid;
+    }
+
     private sealed class InputProbeControl : Control
     {
         internal InputProbeControl()
@@ -5022,7 +5284,7 @@ public class CanonicalLifecycleTests
                 return new Size(text.Length * 7, font!.Height);
             }
 
-            if (text is "wrapped DataGridView text" or "first" or "second" or " ")
+            if (text is "wrapped DataGridView text" or "first" or "second" or "alpha" or "one" or "beta" or "two" or " ")
             {
                 int availableWidth = proposedSize.Width is > 0 and < int.MaxValue
                     ? proposedSize.Width

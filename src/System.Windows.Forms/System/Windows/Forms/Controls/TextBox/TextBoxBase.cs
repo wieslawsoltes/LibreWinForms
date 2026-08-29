@@ -662,6 +662,9 @@ public abstract partial class TextBoxBase : Control
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return _textBoxFlags[s_modified];
+#else
             if (IsHandleCreated)
             {
                 bool curState = (int)PInvokeCore.SendMessage(this, PInvokeCore.EM_GETMODIFY) != 0;
@@ -678,18 +681,21 @@ public abstract partial class TextBoxBase : Control
             {
                 return _textBoxFlags[s_modified];
             }
+#endif
         }
 
         set
         {
             if (Modified != value)
             {
+#if !LIBREWINFORMS_PORTABLE
                 if (IsHandleCreated)
                 {
                     PInvokeCore.SendMessage(this, PInvokeCore.EM_SETMODIFY, (WPARAM)(BOOL)value);
                     // Must maintain this state always in order for the
                     // test in the Get method to work properly.
                 }
+#endif
 
                 _textBoxFlags[s_modified] = value;
                 OnModifiedChanged(EventArgs.Empty);
@@ -865,7 +871,11 @@ public abstract partial class TextBoxBase : Control
     {
         int end = 0;
 
-        if (!IsHandleCreated)
+        bool useCachedSelection = !IsHandleCreated;
+#if LIBREWINFORMS_PORTABLE
+        useCachedSelection = true;
+#endif
+        if (useCachedSelection)
         {
             // It is possible that the cached values are no longer valid if the Text has been changed
             // while the control does not have a handle. We need to return valid values. We also need
@@ -1082,11 +1092,13 @@ public abstract partial class TextBoxBase : Control
             if (value != base.Text)
             {
                 base.Text = value;
+#if !LIBREWINFORMS_PORTABLE
                 if (IsHandleCreated)
                 {
                     // clear the modified flag
                     PInvokeCore.SendMessage(this, PInvokeCore.EM_SETMODIFY);
                 }
+#endif
             }
         }
     }
@@ -1096,7 +1108,11 @@ public abstract partial class TextBoxBase : Control
         // Note: Currently WinForms does not fully support surrogates. If
         // the text contains surrogate characters this property may return incorrect values.
 
+#if LIBREWINFORMS_PORTABLE
+        => Text.Length;
+#else
         => IsHandleCreated ? PInvokeCore.GetWindowTextLength(this) : Text.Length;
+#endif
 
     internal override string WindowText
     {
@@ -1382,10 +1398,12 @@ public abstract partial class TextBoxBase : Control
         AdjustHeight(true);
 
         UpdateMaxLength();
+#if !LIBREWINFORMS_PORTABLE
         if (_textBoxFlags[s_modified])
         {
             PInvokeCore.SendMessage(this, PInvokeCore.EM_SETMODIFY, (WPARAM)(BOOL)true);
         }
+#endif
 
         EnsureReadonlyBackgroundColor(true);
 
@@ -1745,6 +1763,19 @@ public abstract partial class TextBoxBase : Control
     /// </summary>
     private protected virtual void SelectInternal(int selectionStart, int selectionLength, int textLength)
     {
+#if LIBREWINFORMS_PORTABLE
+        AdjustSelectionStartAndEnd(selectionStart, selectionLength, out int start, out int end, textLength);
+        _selectionStart = start;
+        _selectionLength = end - start;
+        _textBoxFlags[s_setSelectionOnHandleCreated] = false;
+
+        if (IsAccessibilityObjectCreated)
+        {
+            AccessibilityObject.RaiseAutomationEvent(end == 0
+                ? UIA_EVENT_ID.UIA_AutomationFocusChangedEventId
+                : UIA_EVENT_ID.UIA_Text_TextSelectionChangedEventId);
+        }
+#else
         // if our handle is created - send message...
         if (IsHandleCreated)
         {
@@ -1767,6 +1798,7 @@ public abstract partial class TextBoxBase : Control
             _selectionLength = selectionLength;
             _textBoxFlags[s_setSelectionOnHandleCreated] = true;
         }
+#endif
     }
 
     /// <summary>
@@ -1862,8 +1894,10 @@ public abstract partial class TextBoxBase : Control
         if (_textBoxFlags[s_setSelectionOnHandleCreated])
         {
             _textBoxFlags[s_setSelectionOnHandleCreated] = false;
+#if !LIBREWINFORMS_PORTABLE
             AdjustSelectionStartAndEnd(_selectionStart, _selectionLength, out int start, out int end, -1);
             PInvokeCore.SendMessage(this, PInvokeCore.EM_SETSEL, (WPARAM)start, (LPARAM)end);
+#endif
         }
     }
 
@@ -1990,10 +2024,12 @@ public abstract partial class TextBoxBase : Control
 
     internal virtual void UpdateMaxLength()
     {
+#if !LIBREWINFORMS_PORTABLE
         if (IsHandleCreated)
         {
             PInvokeCore.SendMessage(this, PInvokeCore.EM_LIMITTEXT, (WPARAM)_maxLength);
         }
+#endif
     }
 
     internal override HBRUSH InitializeDCForWmCtlColor(HDC dc, MessageId msg)
