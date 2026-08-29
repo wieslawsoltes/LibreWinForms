@@ -3,6 +3,8 @@
 
 using LibreWinForms.Platform;
 using System.ComponentModel;
+using System.ComponentModel.Design;
+using FormsDesign = System.Windows.Forms.Design;
 
 namespace LibreWinForms.Sdk.SourceFirstSmoke;
 
@@ -24,6 +26,7 @@ internal static class Program
         VerifyHexEditorMenuContracts();
         VerifyHexEditorToolStripContracts();
         VerifyHexEditorDialogAndConverterContracts();
+        VerifyFormsDesignerOptionContracts();
 
         using Bitmap bitmap = new(64, 64);
         using (Graphics graphics = Graphics.FromImage(bitmap))
@@ -326,6 +329,67 @@ internal static class Program
         throw new InvalidOperationException("Expected InvalidEnumArgumentException was not thrown.");
     }
 
+    private static void VerifyFormsDesignerOptionContracts()
+    {
+        var defaults = new FormsDesign.DesignerOptions();
+        if (defaults.GridSize != new Size(8, 8)
+            || !defaults.ShowGrid
+            || !defaults.SnapToGrid
+            || defaults.UseSnapLines)
+        {
+            throw new InvalidOperationException("Canonical DesignerOptions defaults no longer match WinForms.");
+        }
+
+        var sharpOptions = new GetterOnlyDesignerOptions(
+            new Size(12, 14),
+            showGrid: false,
+            snapToGrid: false,
+            useSnapLines: true);
+        if (sharpOptions.GridSize != new Size(12, 14)
+            || sharpOptions.ShowGrid
+            || sharpOptions.SnapToGrid
+            || !sharpOptions.UseSnapLines)
+        {
+            throw new InvalidOperationException("Getter-only SharpDevelop DesignerOptions overrides lost their values.");
+        }
+
+        var service = new FormsDesign.WindowsFormsDesignerOptionService();
+        DesignerOptionService.DesignerOptionCollection root = service.Options;
+        if (root["DesignerOptions"] is null || root["WindowsFormsDesigner"] is not null)
+        {
+            throw new InvalidOperationException("Canonical designer option-page identity changed.");
+        }
+
+        SetDesignerOption(root, service, nameof(FormsDesign.DesignerOptions.GridSize), new Size(1, 201));
+        if (service.CompatibilityOptions.GridSize != new Size(2, 200))
+        {
+            throw new InvalidOperationException("DesignerOptions did not clamp both grid dimensions to 2..200.");
+        }
+
+        SetDesignerOption(root, service, nameof(FormsDesign.DesignerOptions.GridSize), new Size(32, 24));
+        SetDesignerOption(root, service, nameof(FormsDesign.DesignerOptions.ShowGrid), false);
+        SetDesignerOption(root, service, nameof(FormsDesign.DesignerOptions.SnapToGrid), false);
+        SetDesignerOption(root, service, nameof(FormsDesign.DesignerOptions.UseSnapLines), true);
+        if (service.CompatibilityOptions.GridSize != new Size(32, 24)
+            || service.CompatibilityOptions.ShowGrid
+            || service.CompatibilityOptions.SnapToGrid
+            || !service.CompatibilityOptions.UseSnapLines)
+        {
+            throw new InvalidOperationException("SharpDevelop-style option property setting did not reach DesignerOptions.");
+        }
+    }
+
+    private static void SetDesignerOption(
+        DesignerOptionService.DesignerOptionCollection options,
+        FormsDesign.WindowsFormsDesignerOptionService service,
+        string name,
+        object value)
+    {
+        PropertyDescriptor property = options.Properties.Find(name, ignoreCase: false)
+            ?? throw new InvalidOperationException($"Designer option property '{name}' is missing.");
+        property.SetValue(service, value);
+    }
+
     private sealed class DoubleBufferedProbeControl : Control
     {
         public bool IsDoubleBuffered
@@ -360,5 +424,29 @@ internal static class Program
     {
         public void RaiseClosed(ToolStripDropDownCloseReason reason)
             => OnClosed(new ToolStripDropDownClosedEventArgs(reason));
+    }
+
+    private sealed class GetterOnlyDesignerOptions : FormsDesign.DesignerOptions
+    {
+        private readonly Size _gridSize;
+        private readonly bool _showGrid;
+        private readonly bool _snapToGrid;
+        private readonly bool _useSnapLines;
+
+        public GetterOnlyDesignerOptions(Size gridSize, bool showGrid, bool snapToGrid, bool useSnapLines)
+        {
+            _gridSize = gridSize;
+            _showGrid = showGrid;
+            _snapToGrid = snapToGrid;
+            _useSnapLines = useSnapLines;
+        }
+
+        public override Size GridSize => _gridSize;
+
+        public override bool ShowGrid => _showGrid;
+
+        public override bool SnapToGrid => _snapToGrid;
+
+        public override bool UseSnapLines => _useSnapLines;
     }
 }
