@@ -40,7 +40,7 @@
     <!-- A separate process prevents Pack's inner TargetFramework global property from
          leaking into the canonical multi-project graph and its netstandard generator. -->
     <Exec WorkingDirectory="$(RepoRoot)"
-          Command="&quot;$(_LibreWinFormsDotNet)&quot; build &quot;$(CanonicalWinFormsProject)&quot; --configuration &quot;$(Configuration)&quot; -p:LibreWinFormsReferenceMode=Project -p:LibreWinFormsUseProGpuSystemDrawing=true -p:ContinuousIntegrationBuild=$(ContinuousIntegrationBuild)" />
+          Command="&quot;$(_LibreWinFormsDotNet)&quot; build &quot;$(CanonicalWinFormsProject)&quot; --configuration &quot;$(Configuration)&quot; -p:NetCurrent=&quot;$(TargetFramework)&quot; -p:LibreWinFormsReferenceMode=Project -p:LibreWinFormsUseProGpuSystemDrawing=true -p:ContinuousIntegrationBuild=$(ContinuousIntegrationBuild)" />
   </Target>
 
   <Target Name="CollectCanonicalWinFormsPackageFiles"
