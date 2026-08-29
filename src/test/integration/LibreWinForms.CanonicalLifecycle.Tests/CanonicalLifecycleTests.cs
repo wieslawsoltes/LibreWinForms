@@ -2324,6 +2324,196 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void TreeViewUsesCanonicalImageMetricsBoundsAndHitTesting()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var bitmap = new Bitmap(20, 20);
+        using var imageList = new ImageList { ImageSize = new Size(20, 20) };
+        imageList.Images.Add(bitmap);
+        using var treeView = new CanonicalTreeView
+        {
+            ImageIndex = 0,
+            ImageList = imageList,
+            Size = new Size(180, 80),
+        };
+        TreeNode root = treeView.Nodes.Add("Root");
+        TreeNode child = root.Nodes.Add("Child");
+        root.Expand();
+        _ = treeView.Handle;
+        treeView.CreateControl();
+
+        root.Bounds.Should().NotBe(Rectangle.Empty);
+        root.Bounds.Height.Should().BeGreaterThanOrEqualTo(imageList.ImageSize.Height);
+        child.Bounds.Left.Should().BeGreaterThan(root.Bounds.Left);
+        int rootCenterY = root.Bounds.Top + (root.Bounds.Height / 2);
+
+        TreeViewHitTestInfo labelHit = treeView.HitTest(root.Bounds.Left + 1, rootCenterY);
+        labelHit.Node.Should().BeSameAs(root);
+        labelHit.Location.Should().HaveFlag(TreeViewHitTestLocations.Label);
+
+        int imageCenterX = root.Bounds.Left - 3 - (imageList.ImageSize.Width / 2);
+        TreeViewHitTestInfo imageHit = treeView.HitTest(imageCenterX, rootCenterY);
+        imageHit.Node.Should().BeSameAs(root);
+        imageHit.Location.Should().HaveFlag(TreeViewHitTestLocations.Image);
+
+        treeView.GetNodeAt(treeView.ClientSize.Width - 2, rootCenterY).Should().BeSameAs(root);
+    }
+
+    [Fact]
+    public void TreeViewExpansionUsesCanonicalCancellationStateAndActions()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var treeView = new CanonicalTreeView { Size = new Size(180, 80) };
+        TreeNode root = treeView.Nodes.Add("Root");
+        root.Nodes.Add("Child");
+        _ = treeView.Handle;
+        treeView.CreateControl();
+
+        bool cancelExpansion = true;
+        int afterExpand = 0;
+        int afterCollapse = 0;
+        TreeViewAction beforeExpandAction = TreeViewAction.Unknown;
+        TreeViewAction afterExpandAction = TreeViewAction.Unknown;
+        TreeViewAction beforeCollapseAction = TreeViewAction.Unknown;
+        TreeViewAction afterCollapseAction = TreeViewAction.Unknown;
+        treeView.BeforeExpand += (_, e) =>
+        {
+            beforeExpandAction = e.Action;
+            e.Cancel = cancelExpansion;
+        };
+        treeView.AfterExpand += (_, e) =>
+        {
+            afterExpand++;
+            afterExpandAction = e.Action;
+        };
+        treeView.BeforeCollapse += (_, e) => beforeCollapseAction = e.Action;
+        treeView.AfterCollapse += (_, e) =>
+        {
+            afterCollapse++;
+            afterCollapseAction = e.Action;
+        };
+
+        root.Expand();
+        root.IsExpanded.Should().BeFalse();
+        afterExpand.Should().Be(0);
+        beforeExpandAction.Should().Be(TreeViewAction.Expand);
+
+        cancelExpansion = false;
+        root.Expand();
+        root.IsExpanded.Should().BeTrue();
+        afterExpand.Should().Be(1);
+        afterExpandAction.Should().Be(TreeViewAction.Expand);
+
+        root.Collapse();
+        root.IsExpanded.Should().BeFalse();
+        afterCollapse.Should().Be(1);
+        beforeCollapseAction.Should().Be(TreeViewAction.Collapse);
+        afterCollapseAction.Should().Be(TreeViewAction.Collapse);
+    }
+
+    [Fact]
+    public void TreeViewSelectionExpandsAncestorsAndScrollsCanonicalBoundsIntoView()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var treeView = new CanonicalTreeView { Size = new Size(180, 45) };
+        TreeNode root = treeView.Nodes.Add("Root");
+        TreeNode branch = root.Nodes.Add("Branch");
+        TreeNode deepNode = branch.Nodes.Add("Deep node");
+        for (int index = 0; index < 7; index++)
+        {
+            treeView.Nodes.Add($"Root {index}");
+        }
+
+        _ = treeView.Handle;
+        treeView.CreateControl();
+        treeView.SelectedNode = deepNode;
+
+        root.IsExpanded.Should().BeTrue();
+        branch.IsExpanded.Should().BeTrue();
+        treeView.SelectedNode.Should().BeSameAs(deepNode);
+        deepNode.IsSelected.Should().BeTrue();
+        deepNode.IsVisible.Should().BeTrue();
+        deepNode.Bounds.Top.Should().BeGreaterThanOrEqualTo(1);
+        deepNode.Bounds.Bottom.Should().BeLessThanOrEqualTo(treeView.ClientSize.Height - 1);
+        treeView.TopNode.Should().NotBeNull();
+
+        TreeNode finalRoot = treeView.Nodes[^1];
+        finalRoot.EnsureVisible();
+        finalRoot.IsVisible.Should().BeTrue();
+        finalRoot.Bounds.Bottom.Should().BeLessThanOrEqualTo(treeView.ClientSize.Height - 1);
+    }
+
+    [Fact]
+    public void TreeViewKeyboardNavigationUsesCanonicalVisibleOrderAndAction()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var treeView = new CanonicalTreeView { Size = new Size(180, 90) };
+        TreeNode root = treeView.Nodes.Add("Root");
+        TreeNode child = root.Nodes.Add("Child");
+        TreeNode sibling = root.Nodes.Add("Sibling");
+        TreeNode secondRoot = treeView.Nodes.Add("Second root");
+        TreeViewAction lastAction = TreeViewAction.Unknown;
+        treeView.AfterSelect += (_, e) => lastAction = e.Action;
+        _ = treeView.Handle;
+        treeView.CreateControl();
+        treeView.SelectedNode = root;
+
+        treeView.RaiseKey(Keys.Right).Handled.Should().BeTrue();
+        root.IsExpanded.Should().BeTrue();
+        treeView.RaiseKey(Keys.Right).Handled.Should().BeTrue();
+        treeView.SelectedNode.Should().BeSameAs(child);
+        lastAction.Should().Be(TreeViewAction.ByKeyboard);
+
+        treeView.RaiseKey(Keys.Down).Handled.Should().BeTrue();
+        treeView.SelectedNode.Should().BeSameAs(sibling);
+        treeView.RaiseKey(Keys.End).Handled.Should().BeTrue();
+        treeView.SelectedNode.Should().BeSameAs(secondRoot);
+        treeView.RaiseKey(Keys.Home).Handled.Should().BeTrue();
+        treeView.SelectedNode.Should().BeSameAs(root);
+    }
+
+    [Fact]
+    public void TreeViewCheckEventsPreserveCanonicalCancellationAndProgrammaticAction()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var treeView = new CanonicalTreeView
+        {
+            CheckBoxes = true,
+            Size = new Size(180, 80),
+        };
+        TreeNode node = treeView.Nodes.Add("Node");
+        _ = treeView.Handle;
+        treeView.CreateControl();
+
+        bool cancel = true;
+        int beforeCheck = 0;
+        int afterCheck = 0;
+        TreeViewAction afterAction = TreeViewAction.ByMouse;
+        treeView.BeforeCheck += (_, e) =>
+        {
+            beforeCheck++;
+            e.Cancel = cancel;
+        };
+        treeView.AfterCheck += (_, e) =>
+        {
+            afterCheck++;
+            afterAction = e.Action;
+        };
+
+        node.Checked = true;
+        node.Checked.Should().BeFalse();
+        beforeCheck.Should().Be(1);
+        afterCheck.Should().Be(0);
+
+        cancel = false;
+        node.Checked = true;
+        node.Checked.Should().BeTrue();
+        beforeCheck.Should().Be(2);
+        afterCheck.Should().Be(1);
+        afterAction.Should().Be(TreeViewAction.Unknown);
+    }
+
+    [Fact]
     public void ProfessionalColorsUseManagedLayoutGraphicsWithoutScreenHdc()
     {
         UseHeadlessPlatform(autoCloseWindows: false);
@@ -4359,6 +4549,16 @@ public class CanonicalLifecycleTests
             => ScaleControl(factor, specified);
     }
 
+    private sealed class CanonicalTreeView : TreeView
+    {
+        internal KeyEventArgs RaiseKey(Keys key)
+        {
+            KeyEventArgs eventArgs = new(key);
+            OnKeyDown(eventArgs);
+            return eventArgs;
+        }
+    }
+
     private static DataGridView CreateCanonicalDataGridView()
     {
         var grid = new DataGridView
@@ -5721,6 +5921,14 @@ public class CanonicalLifecycleTests
             {
                 proposedSize.Width.Should().BeGreaterThan(0);
                 return new Size(text.Length * 7, font!.Height);
+            }
+
+            if (graphics is null
+                && proposedSize == Size.Empty
+                && format.HasFlag(LibreTextFormat.NoPadding)
+                && format.HasFlag(LibreTextFormat.NoPrefix))
+            {
+                return new Size(Math.Max(1, text.Length * 7), font!.Height);
             }
 
             if (graphics is null)
