@@ -20,6 +20,8 @@ namespace LibreWinForms.CanonicalLifecycle.Tests;
 
 public class CanonicalLifecycleTests
 {
+    private delegate int AddValues(int left, int right);
+
     [Fact]
     public void ApplicationIdle_CoalescesDispatcherPostAndHonorsSubscriberRemoval()
     {
@@ -53,6 +55,170 @@ public class CanonicalLifecycleTests
             Application.Idle -= first;
             Application.Idle -= second;
         }
+    }
+
+    [Fact]
+    public void DispatcherInvocation_UsesCanonicalControlAndTypedDispatcher()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new();
+        using Control control = new();
+        form.Controls.Add(control);
+        form.Show();
+
+        int dispatcherThreadId = Environment.CurrentManagedThreadId;
+        control.InvokeRequired.Should().BeFalse();
+
+        int postsBeforeDirectInvoke = platform.DispatcherPostCount;
+        int directThreadId = 0;
+        control.Invoke((Action)(() => directThreadId = Environment.CurrentManagedThreadId));
+        directThreadId.Should().Be(dispatcherThreadId);
+        platform.DispatcherPostCount.Should().Be(postsBeforeDirectInvoke);
+
+        using ManualResetEventSlim synchronousCompleted = new(initialState: false);
+        bool invokeRequired = false;
+        int callbackThreadId = 0;
+        string? result = null;
+        Exception? synchronousFailure = null;
+        Thread synchronousWorker = new(
+            () =>
+            {
+                try
+                {
+                    invokeRequired = control.InvokeRequired;
+                    result = (string?)control.Invoke(
+                        (Func<string>)(() =>
+                        {
+                            callbackThreadId = Environment.CurrentManagedThreadId;
+                            return "marshaled";
+                        }));
+                }
+                catch (Exception exception)
+                {
+                    synchronousFailure = exception;
+                }
+                finally
+                {
+                    synchronousCompleted.Set();
+                }
+            })
+        {
+            IsBackground = true,
+            Name = "Canonical synchronous Control.Invoke worker"
+        };
+        synchronousWorker.Start();
+
+        PumpUntilSignaled(platform, synchronousCompleted);
+        synchronousWorker.Join(10_000).Should().BeTrue();
+        synchronousFailure.Should().BeNull();
+        invokeRequired.Should().BeTrue();
+        callbackThreadId.Should().Be(dispatcherThreadId);
+        result.Should().Be("marshaled");
+
+        using ManualResetEventSlim asynchronousQueued = new(initialState: false);
+        using ManualResetEventSlim asynchronousCompleted = new(initialState: false);
+        IAsyncResult? asynchronousResult = null;
+        object? asynchronousValue = null;
+        Exception? asynchronousFailure = null;
+        Thread asynchronousWorker = new(
+            () =>
+            {
+                try
+                {
+                    asynchronousResult = control.BeginInvoke(new AddValues((left, right) => left + right), 3, 4);
+                    asynchronousQueued.Set();
+                    asynchronousValue = control.EndInvoke(asynchronousResult);
+                }
+                catch (Exception exception)
+                {
+                    asynchronousFailure = exception;
+                }
+                finally
+                {
+                    asynchronousCompleted.Set();
+                }
+            })
+        {
+            IsBackground = true,
+            Name = "Canonical asynchronous Control.EndInvoke worker"
+        };
+        asynchronousWorker.Start();
+
+        SpinWait.SpinUntil(() => asynchronousQueued.IsSet, TimeSpan.FromSeconds(10)).Should().BeTrue();
+        asynchronousResult.Should().NotBeNull();
+        asynchronousResult!.IsCompleted.Should().BeFalse();
+        PumpUntilSignaled(platform, asynchronousCompleted);
+        asynchronousWorker.Join(10_000).Should().BeTrue();
+        asynchronousFailure.Should().BeNull();
+        asynchronousValue.Should().Be(7);
+        asynchronousResult.IsCompleted.Should().BeTrue();
+
+        control.Invoke(() => 42).Should().Be(42);
+
+        int sameThreadCalls = 0;
+        IAsyncResult sameThread = control.BeginInvoke(
+            (Func<int>)(() =>
+            {
+                sameThreadCalls++;
+                return 42;
+            }));
+        sameThread.IsCompleted.Should().BeFalse();
+        control.EndInvoke(sameThread).Should().Be(42);
+        sameThreadCalls.Should().Be(1);
+        platform.PumpOnce();
+
+        ThreadExceptionEventHandler swallowThreadException = (_, _) => { };
+        Application.ThreadException += swallowThreadException;
+        try
+        {
+            IAsyncResult throwing = control.BeginInvoke(
+                (Action)(() => throw new InvalidOperationException("canonical invoke failure")));
+            Action endThrowingInvoke = () => control.EndInvoke(throwing);
+            endThrowingInvoke.Should().Throw<InvalidOperationException>()
+                .WithMessage("canonical invoke failure");
+            platform.PumpOnce();
+        }
+        finally
+        {
+            Application.ThreadException -= swallowThreadException;
+        }
+
+        using Control disposingControl = new();
+        form.Controls.Add(disposingControl);
+        _ = disposingControl.Handle;
+        int postsBeforeDisposedInvoke = platform.DispatcherPostCount;
+        using ManualResetEventSlim disposedInvokeCompleted = new(initialState: false);
+        Exception? disposedInvokeFailure = null;
+        Thread disposedInvokeWorker = new(
+            () =>
+            {
+                try
+                {
+                    disposingControl.Invoke((Action)(() => { }));
+                }
+                catch (Exception exception)
+                {
+                    disposedInvokeFailure = exception;
+                }
+                finally
+                {
+                    disposedInvokeCompleted.Set();
+                }
+            })
+        {
+            IsBackground = true,
+            Name = "Canonical disposed Control.Invoke worker"
+        };
+        disposedInvokeWorker.Start();
+
+        SpinWait.SpinUntil(
+            () => platform.DispatcherPostCount > postsBeforeDisposedInvoke,
+            TimeSpan.FromSeconds(10)).Should().BeTrue();
+        disposingControl.Dispose();
+        SpinWait.SpinUntil(() => disposedInvokeCompleted.IsSet, TimeSpan.FromSeconds(10)).Should().BeTrue();
+        disposedInvokeWorker.Join(10_000).Should().BeTrue();
+        disposedInvokeFailure.Should().BeOfType<ObjectDisposedException>();
+        platform.PumpOnce();
     }
 
     [Fact]
@@ -2979,6 +3145,17 @@ public class CanonicalLifecycleTests
         return platform;
     }
 
+    private static void PumpUntilSignaled(HeadlessPlatform platform, ManualResetEventSlim completed)
+    {
+        SpinWait.SpinUntil(
+            () =>
+            {
+                platform.PumpOnce();
+                return completed.IsSet;
+            },
+            TimeSpan.FromSeconds(10)).Should().BeTrue();
+    }
+
     private sealed class InputProbeControl : Control
     {
         internal InputProbeControl()
@@ -3159,12 +3336,15 @@ public class CanonicalLifecycleTests
         private double? _initialFramebufferScale;
         private HeadlessWindow? _lastWindow;
         private IReadOnlyList<LibreMonitor> _monitors = CreateDefaultMonitorInventory();
+        private int _dispatcherPostCount;
+        private int _managedThreadId;
         private Action? _timerCallback;
         private int _timerGeneration;
 
         internal HeadlessPlatform(bool autoCloseWindows = true)
         {
             _autoCloseWindows = autoCloseWindows;
+            _managedThreadId = Environment.CurrentManagedThreadId;
             Handles = new ManagedLibreHandleRegistry();
             Services = new LibrePlatformServices(
                 this,
@@ -3191,6 +3371,7 @@ public class CanonicalLifecycleTests
         {
             Handles.Count.Should().Be(0);
             _autoCloseWindows = autoCloseWindows;
+            _managedThreadId = Environment.CurrentManagedThreadId;
             _exitRequested = false;
             _initialDpiScale = null;
             _initialFramebufferScale = null;
@@ -3274,7 +3455,7 @@ public class CanonicalLifecycleTests
             InvokeFileDialogHelp = false;
             _currentInputLanguageToken = s_inputLanguages[0].Token;
             InputLanguageActivationCount = 0;
-            DispatcherPostCount = 0;
+            Volatile.Write(ref _dispatcherPostCount, 0);
         }
 
         internal ManagedLibreHandleRegistry Handles { get; }
@@ -3653,13 +3834,13 @@ public class CanonicalLifecycleTests
             _initialFramebufferScale = framebufferScale;
         }
 
-        public int ManagedThreadId => Environment.CurrentManagedThreadId;
+        public int ManagedThreadId => _managedThreadId;
 
-        public bool CheckAccess() => true;
+        public bool CheckAccess() => Environment.CurrentManagedThreadId == _managedThreadId;
 
         public void Post(Action callback)
         {
-            DispatcherPostCount++;
+            Interlocked.Increment(ref _dispatcherPostCount);
             _queue.Enqueue(callback);
         }
 
@@ -3701,7 +3882,7 @@ public class CanonicalLifecycleTests
 
         public void RequestExit() => _exitRequested = true;
 
-        internal int DispatcherPostCount { get; private set; }
+        internal int DispatcherPostCount => Volatile.Read(ref _dispatcherPostCount);
 
         public IDisposable Start(TimeSpan interval, bool repeating, Action callback)
         {

@@ -3680,6 +3680,29 @@ public unsafe partial class Control :
     /// </summary>
     private unsafe void WaitForWaitHandle(WaitHandle waitHandle)
     {
+#if LIBREWINFORMS_PORTABLE
+        while (!waitHandle.WaitOne(10, false))
+        {
+            if (AppDomain.CurrentDomain.IsFinalizingForUnload())
+            {
+                throw new InvalidAsynchronousStateException(SR.ThreadNoLongerValid);
+            }
+
+            if (IsDisposed && _threadCallbackList is not null && _threadCallbackList.Count > 0)
+            {
+                lock (_threadCallbackList)
+                {
+                    Exception ex = new ObjectDisposedException(GetType().Name);
+                    while (_threadCallbackList.Count > 0)
+                    {
+                        ThreadMethodEntry entry = _threadCallbackList.Dequeue();
+                        entry._exception = ex;
+                        entry.Complete();
+                    }
+                }
+            }
+        }
+#else
         uint threadId = CreateThreadId;
         Application.ThreadContext? ctx = Application.ThreadContext.FromId(threadId);
         if (ctx is null)
@@ -3733,6 +3756,7 @@ public unsafe partial class Control :
 
             processed = waitHandle.WaitOne(1000, false);
         }
+#endif
     }
 
     /// <summary>
@@ -5281,7 +5305,11 @@ public unsafe partial class Control :
         if (!asyncResult.IsCompleted)
         {
             Control marshaler = FindMarshalingControl();
+#if LIBREWINFORMS_PORTABLE
+            if (LibrePlatform.Current.Dispatcher.CheckAccess())
+#else
             if (PInvokeCore.GetWindowThreadProcessId(marshaler, out _) == PInvokeCore.GetCurrentThreadId())
+#endif
             {
                 marshaler.InvokeMarshaledCallbacks();
             }
