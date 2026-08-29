@@ -66,6 +66,7 @@ require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets "<ProjectRe
 require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'PackageReference Include="LibreWinForms.System.Windows.Forms" Version="$(LibreWinFormsCanonicalPackageVersion)"'
 require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'PackageReference Include="LibreWinForms.ProGPU" Version="$(LibreWinFormsProGpuBackendPackageVersion)"'
 require_text packaging/LibreWinForms.ProGPU/LibreWinForms.ProGPU.Package.csproj '<PackageId>LibreWinForms.ProGPU</PackageId>'
+require_text packaging/LibreWinForms.ProGPU/LibreWinForms.ProGPU.Package.csproj '<CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>'
 require_text packaging/LibreWinForms.ProGPU/LibreWinForms.ProGPU.Package.csproj '<PackageVersion Include="ProGPU.System.Drawing.Common" Version="$(LibreWinFormsProGpuPackageVersion)" />'
 require_text packaging/LibreWinForms.ProGPU/LibreWinForms.ProGPU.Package.csproj '<PackageReference Include="ProGPU.System.Drawing.Common" />'
 require_text packaging/LibreWinForms.ProGPU/LibreWinForms.ProGPU.Package.csproj '-p:NetCurrent=&quot;$(TargetFramework)&quot;'

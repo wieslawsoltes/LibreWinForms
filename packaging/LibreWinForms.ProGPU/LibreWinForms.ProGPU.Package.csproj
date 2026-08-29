@@ -4,6 +4,7 @@
     <EnableDefaultItems>false</EnableDefaultItems>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <IsPackable>true</IsPackable>
+    <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
     <PackageId>LibreWinForms.ProGPU</PackageId>
     <Title>LibreWinForms ProGPU platform backend</Title>
     <Description>Typed ProGPU and Silk.NET platform backend for source-built cross-platform System.Windows.Forms.</Description>
