@@ -1934,6 +1934,94 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void DataGridViewColumnLookupUsesCanonicalNamesAndTypedIndexes()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var grid = new DataGridView { AllowUserToAddRows = false };
+        var nameColumn = new DataGridViewTextBoxColumn { Name = "nameColumn" };
+        var valueColumn = new DataGridViewTextBoxColumn { Name = "valueColumn" };
+        grid.Columns.AddRange(nameColumn, valueColumn);
+
+        grid.Columns["nameColumn"].Should().BeSameAs(nameColumn);
+        grid.Columns["VALUECOLUMN"].Should().BeSameAs(valueColumn);
+        grid.Columns["missing"].Should().BeNull();
+        grid.Columns.Contains("NAMECOLUMN").Should().BeTrue();
+        grid.Columns.IndexOf(valueColumn).Should().Be(1);
+        nameColumn.DataGridView.Should().BeSameAs(grid);
+        valueColumn.DataGridView.Should().BeSameAs(grid);
+    }
+
+    [Fact]
+    public void DataGridViewSortPreservesStableRowsAndNewRowPlaceholder()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var grid = new DataGridView { Size = new Size(240, 120) };
+        var nameColumn = new DataGridViewTextBoxColumn
+        {
+            Name = "name",
+            SortMode = DataGridViewColumnSortMode.Programmatic,
+        };
+        grid.Columns.Add(nameColumn);
+        int betaIndex = grid.Rows.Add("beta");
+        int nullIndex = grid.Rows.Add();
+        int alphaIndex = grid.Rows.Add("Alpha");
+        int secondAlphaIndex = grid.Rows.Add("Alpha");
+        DataGridViewRow beta = grid.Rows[betaIndex];
+        DataGridViewRow nullRow = grid.Rows[nullIndex];
+        DataGridViewRow alpha = grid.Rows[alphaIndex];
+        DataGridViewRow secondAlpha = grid.Rows[secondAlphaIndex];
+        DataGridViewRow placeholder = grid.Rows[grid.NewRowIndex];
+        int rowsAdded = 0;
+        int rowsRemoved = 0;
+        int sorted = 0;
+        grid.RowsAdded += (_, _) => rowsAdded++;
+        grid.RowsRemoved += (_, _) => rowsRemoved++;
+        grid.Sorted += (_, _) => sorted++;
+
+        grid.Sort(nameColumn, ListSortDirection.Ascending);
+
+        grid.Rows[0].Should().BeSameAs(nullRow);
+        grid.Rows[1].Should().BeSameAs(alpha);
+        grid.Rows[2].Should().BeSameAs(secondAlpha);
+        grid.Rows[3].Should().BeSameAs(beta);
+        grid.NewRowIndex.Should().Be(4);
+        grid.Rows[4].Should().BeSameAs(placeholder);
+        placeholder.IsNewRow.Should().BeTrue();
+        grid.Rows.Cast<DataGridViewRow>().Select((row, index) => row.Index == index).Should().OnlyContain(value => value);
+        grid.SortedColumn.Should().BeSameAs(nameColumn);
+        grid.SortOrder.Should().Be(SortOrder.Ascending);
+
+        grid.Sort(nameColumn, ListSortDirection.Descending);
+
+        grid.Rows[0].Should().BeSameAs(beta);
+        grid.Rows[1].Should().BeSameAs(alpha);
+        grid.Rows[2].Should().BeSameAs(secondAlpha);
+        grid.Rows[3].Should().BeSameAs(nullRow);
+        grid.NewRowIndex.Should().Be(4);
+        grid.Rows[4].Should().BeSameAs(placeholder);
+        grid.SortedColumn.Should().BeSameAs(nameColumn);
+        grid.SortOrder.Should().Be(SortOrder.Descending);
+        rowsAdded.Should().Be(0);
+        rowsRemoved.Should().Be(0);
+        sorted.Should().Be(2);
+    }
+
+    [Fact]
+    public void DataGridViewSortRejectsForeignColumnsAndInvalidDirections()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var grid = new DataGridView { AllowUserToAddRows = false };
+        var ownColumn = new DataGridViewTextBoxColumn();
+        grid.Columns.Add(ownColumn);
+        grid.Rows.Add("value");
+
+        FluentActions.Invoking(() => grid.Sort(new DataGridViewTextBoxColumn(), ListSortDirection.Ascending))
+            .Should().Throw<ArgumentException>();
+        FluentActions.Invoking(() => grid.Sort(ownColumn, (ListSortDirection)42))
+            .Should().Throw<InvalidEnumArgumentException>();
+    }
+
+    [Fact]
     public void ProfessionalColorsUseManagedLayoutGraphicsWithoutScreenHdc()
     {
         UseHeadlessPlatform(autoCloseWindows: false);
