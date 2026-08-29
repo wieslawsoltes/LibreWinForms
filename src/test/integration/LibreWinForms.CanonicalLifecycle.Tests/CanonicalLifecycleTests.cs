@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -360,6 +361,72 @@ public class CanonicalLifecycleTests
 
         form.TopMost = true;
         platform.LastWindowTopMost.Should().BeTrue();
+    }
+
+    [Fact]
+    public void FormOwnershipAndKeysConverter_PreserveCanonicalWinFormsContracts()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form owner = new() { Name = "owner" };
+        using Form child = new() { Name = "child", TopMost = true };
+        int shownCount = 0;
+        int closedCount = 0;
+        CloseReason closedReason = CloseReason.None;
+        child.Shown += (_, _) => shownCount++;
+        child.FormClosed += (_, e) =>
+        {
+            closedCount++;
+            closedReason = e.CloseReason;
+        };
+
+        owner.Show();
+        child.Show(owner);
+        platform.PumpOnce();
+        platform.PumpOnce();
+
+        child.Owner.Should().BeSameAs(owner);
+        owner.OwnedForms.Should().ContainSingle().Which.Should().BeSameAs(child);
+        platform.GetWindowOwner(child).Should().Be(new LibreHandle(owner.Handle, LibreHandleKind.Window));
+        child.Visible.Should().BeTrue();
+        shownCount.Should().Be(1);
+        platform.LastWindowTopMost.Should().BeTrue();
+
+        child.TopMost = false;
+        platform.LastWindowTopMost.Should().BeFalse();
+        child.TopMost = true;
+        platform.LastWindowTopMost.Should().BeTrue();
+
+        Action showWithSelfOwner = () => child.Show(child);
+        showWithSelfOwner.Should().Throw<InvalidOperationException>();
+
+        owner.Close();
+        closedCount.Should().Be(1);
+        closedReason.Should().Be(CloseReason.FormOwnerClosing);
+
+        var converter = new KeysConverter();
+        TypeDescriptor.GetConverter(typeof(Keys)).Should().BeOfType<KeysConverter>();
+        converter.ConvertFromInvariantString("Control+Shift+F").Should().Be(Keys.Control | Keys.Shift | Keys.F);
+        converter.ConvertFromInvariantString("Ctrl+Alt+H").Should().Be(Keys.Control | Keys.Alt | Keys.H);
+        converter.ConvertFromInvariantString("Control + H").Should().Be(Keys.Control | Keys.H);
+        converter.ConvertFromInvariantString("F3").Should().Be(Keys.F3);
+        converter.ConvertFromInvariantString("0").Should().Be(Keys.D0);
+        converter.ConvertFromInvariantString("None").Should().Be(Keys.None);
+        converter.ConvertFromInvariantString("(none)").Should().Be(Keys.None);
+        converter.ConvertToInvariantString(Keys.Control | Keys.Alt | Keys.Shift | Keys.F1)
+            .Should().Be("Ctrl+Alt+Shift+F1");
+        converter.ConvertToInvariantString(Keys.Control | Keys.H).Should().Be("Ctrl+H");
+        converter.ConvertToInvariantString(Keys.None).Should().Be("(none)");
+        converter.ConvertFrom(
+                context: null,
+                CultureInfo.InvariantCulture,
+                new Enum[] { Keys.Control, Keys.Shift, Keys.F })
+            .Should().Be(Keys.Control | Keys.Shift | Keys.F);
+        converter.ConvertFromInvariantString("   ").Should().BeNull();
+
+        Action unknownKey = () => converter.ConvertFromInvariantString("Control+DefinitelyNotAKey");
+        unknownKey.Should().Throw<ArgumentException>();
+        Action multipleKeys = () => converter.ConvertFromInvariantString("A+B");
+        multipleKeys.Should().Throw<FormatException>();
     }
 
     [Fact]

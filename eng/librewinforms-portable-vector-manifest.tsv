@@ -11,7 +11,7 @@ DataGridViewLookupSortBehaviorTests.cs	migrate	src/test/integration/LibreWinForm
 DataGridViewNewRowBehaviorTests.cs	migrate	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Retain new-row placeholder lifecycle and row-addition vectors.
 DispatcherInvocationBehaviorTests.cs	migrate	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Retain Invoke, BeginInvoke, EndInvoke, exception, and disposal vectors.
 DragDropHostBehaviorTests.cs	migrate	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Retain typed drag source, target routing, effects, cancellation, and cleanup vectors.
-FormOwnerKeysBehaviorTests.cs	migrate	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Owner/modal behavior is covered; migrate key preview, routing, and owned-form edge cases.
+FormOwnerKeysBehaviorTests.cs	covered	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Canonical lifecycle owns modeless ownership, owner-close, TopMost, and KeysConverter contracts; keyboard routing has separate canonical coverage.
 FormsDesignerEventBindingBehaviorTests.cs	migrate	src/System.Windows.Forms.Design/tests/UnitTests	Move event binding and CodeDom serialization vectors to canonical design tests.
 FormsDesignerLayoutBehaviorTests.cs	migrate	src/System.Windows.Forms.Design/tests/UnitTests	Move selection, layout, toolbox, adorners, and smoke-source assertions to canonical owners.
 FormsDesignerMenuCommandBehaviorTests.cs	migrate	src/System.Windows.Forms.Design/tests/UnitTests	Move verb merge, command lookup, cache, and disposal vectors to canonical design tests.
