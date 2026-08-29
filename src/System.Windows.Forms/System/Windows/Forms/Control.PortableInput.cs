@@ -12,6 +12,9 @@ public unsafe partial class Control
     private static Keys s_portableModifierKeys;
 
     [ThreadStatic]
+    private static HashSet<Keys>? s_portableKeysDown;
+
+    [ThreadStatic]
     private static MouseButtons s_portableMouseButtons;
 
     [ThreadStatic]
@@ -36,12 +39,16 @@ public unsafe partial class Control
                 root.SetPortableWindowFocus(focused: true);
                 break;
             case LibreInputEventKind.FocusLost:
+                s_portableModifierKeys = Keys.None;
+                s_portableKeysDown?.Clear();
                 root.SetPortableWindowFocus(focused: false);
                 break;
             case LibreInputEventKind.KeyDown:
+                SetPortableKeyState(inputEvent.Key, isDown: true);
                 root.DispatchPortableKey(inputEvent.Key, PInvokeCore.WM_KEYDOWN);
                 break;
             case LibreInputEventKind.KeyUp:
+                SetPortableKeyState(inputEvent.Key, isDown: false);
                 root.DispatchPortableKey(inputEvent.Key, PInvokeCore.WM_KEYUP);
                 break;
             case LibreInputEventKind.TextInput:
@@ -53,6 +60,24 @@ public unsafe partial class Control
             case LibreInputEventKind.PointerWheel:
                 root.DispatchPortablePointer(inputEvent);
                 break;
+        }
+    }
+
+    private static void SetPortableKeyState(LibreKey key, bool isDown)
+    {
+        Keys keyCode = ToKeys(key);
+        if (keyCode == Keys.None)
+        {
+            return;
+        }
+
+        if (isDown)
+        {
+            (s_portableKeysDown ??= []).Add(keyCode);
+        }
+        else
+        {
+            s_portableKeysDown?.Remove(keyCode);
         }
     }
 

@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 using System.Buffers.Binary;
 using System.ComponentModel;
+using System.Data;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -1577,6 +1578,115 @@ public class CanonicalLifecycleTests
         comboBounds.Should().NotBe(Rectangle.Empty);
         platform.TextMeasureCount.Should().BeGreaterThan(measurementsBefore);
         grid.IsHandleCreated.Should().BeFalse();
+    }
+
+    [Fact]
+    public void MaskedTextBoxPreservesCanonicalMaskAndValidationContracts()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var textBox = new MaskedTextBox("000-00")
+        {
+            TextMaskFormat = MaskFormat.IncludeLiterals,
+            Text = "12345",
+        };
+
+        textBox.Text.Should().Be("123-45");
+        textBox.MaskCompleted.Should().BeTrue();
+        textBox.MaskFull.Should().BeTrue();
+
+        textBox.TextMaskFormat = MaskFormat.ExcludePromptAndLiterals;
+        textBox.Text.Should().Be("12345");
+        textBox.ValidatingType = typeof(int);
+        textBox.ValidateText().Should().Be(12345);
+
+        textBox.Mask = string.Empty;
+        textBox.Text = "canonical";
+        textBox.Text.Should().Be("canonical");
+        textBox.MaskCompleted.Should().BeTrue();
+        textBox.IsHandleCreated.Should().BeFalse();
+    }
+
+    [Fact]
+    public void DataGridViewCustomCellCreatesCanonicalEditingControl()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var grid = new DataGridView { AllowUserToAddRows = false };
+        var column = new CanonicalEditingColumn();
+        grid.Columns.Add(column);
+        grid.Rows.Add("value");
+
+        DataGridViewCell cell = grid.Rows.SharedRow(0).Cells[0];
+        cell.Should().BeOfType<CanonicalEditingCell>();
+        cell.OwningColumn.Should().BeSameAs(column);
+        column.ValueType.Should().Be(typeof(string));
+
+        grid.CurrentCell = cell;
+        grid.BeginEdit(selectAll: false).Should().BeTrue();
+        grid.EditingControl.Should().BeOfType<CanonicalEditingControl>();
+        ((CanonicalEditingCell)cell).Initialized.Should().BeTrue();
+        grid.EndEdit().Should().BeTrue();
+    }
+
+    [Fact]
+    public void DataGridViewDataTableBindingPreservesCanonicalMetadataAndValues()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        var table = new DataTable();
+        table.Columns.Add("Name", typeof(string));
+        table.Columns.Add("Count", typeof(int));
+        table.Rows.Add("alpha", 3);
+        table.Rows.Add("beta", 7);
+
+        using var grid = new DataGridView
+        {
+            AllowUserToAddRows = false,
+            BindingContext = new BindingContext(),
+            DataSource = table,
+        };
+
+        grid.ColumnCount.Should().Be(2);
+        grid.RowCount.Should().Be(2);
+        grid.Columns[0].Name.Should().Be("Name");
+        grid.Columns[1].ValueType.Should().Be(typeof(int));
+        grid.Rows[0].Cells[0].Value.Should().Be("alpha");
+        grid.Rows[1].Cells[1].Value.Should().Be(7);
+        grid.Columns.Add("Extra", "Extra header").Should().Be(2);
+        grid.Columns["Extra"]!.HeaderText.Should().Be("Extra header");
+    }
+
+    [Fact]
+    public void DataGridViewCellPaintingReplaysThroughManagedSystemDrawing()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var grid = new DataGridView
+        {
+            Size = new Size(160, 80),
+            AllowUserToAddRows = false,
+        };
+        grid.Columns.Add("Value", "Value");
+        grid.Rows.Add("painted");
+
+        using var bitmap = new Bitmap(160, 80);
+        using Graphics graphics = Graphics.FromImage(bitmap);
+        var args = new DataGridViewCellPaintingEventArgs(
+            grid,
+            graphics,
+            new Rectangle(0, 0, 160, 80),
+            grid.GetCellDisplayRectangle(0, 0, false),
+            0,
+            0,
+            DataGridViewElementStates.Visible,
+            "painted",
+            "painted",
+            errorText: null,
+            grid.DefaultCellStyle,
+            grid.AdvancedCellBorderStyle,
+            DataGridViewPaintParts.All);
+
+        args.Paint(args.CellBounds, DataGridViewPaintParts.All);
+
+        args.Graphics.Should().BeSameAs(graphics);
+        args.Value.Should().Be("painted");
     }
 
     [Fact]
@@ -3578,6 +3688,35 @@ public class CanonicalLifecycleTests
                 return completed.IsSet;
             },
             TimeSpan.FromSeconds(10)).Should().BeTrue();
+    }
+
+    private sealed class CanonicalEditingColumn : DataGridViewColumn
+    {
+        internal CanonicalEditingColumn()
+            : base(new CanonicalEditingCell())
+        {
+            ValueType = typeof(string);
+        }
+    }
+
+    private sealed class CanonicalEditingCell : DataGridViewTextBoxCell
+    {
+        internal bool Initialized { get; private set; }
+
+        public override Type EditType => typeof(CanonicalEditingControl);
+
+        public override void InitializeEditingControl(
+            int rowIndex,
+            object? initialFormattedValue,
+            DataGridViewCellStyle dataGridViewCellStyle)
+        {
+            base.InitializeEditingControl(rowIndex, initialFormattedValue, dataGridViewCellStyle);
+            Initialized = DataGridView?.EditingControl is CanonicalEditingControl;
+        }
+    }
+
+    private sealed class CanonicalEditingControl : DataGridViewTextBoxEditingControl
+    {
     }
 
     private sealed class InputProbeControl : Control

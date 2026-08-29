@@ -65,7 +65,7 @@ run_test_project \
 echo "Testing unchanged canonical Application.Run(Form) against a typed headless backend."
 run_test_project \
   "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
-  80 \
+  84 \
   -p:LibreWinFormsUseProGpuSystemDrawing=true \
   -p:LibreWinFormsReferenceMode=Project
 

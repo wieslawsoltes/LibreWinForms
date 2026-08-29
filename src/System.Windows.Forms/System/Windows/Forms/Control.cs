@@ -204,8 +204,6 @@ public unsafe partial class Control :
     private const byte RequiredScalingEnabledMask = 0x10;
     private const byte RequiredScalingMask = 0x0F;
 
-    private const byte HighOrderBitMask = 0x80;
-
     private static Font? s_defaultFont;
 
     internal ControlCollection? ChildControls { get; private set; }
@@ -13758,8 +13756,19 @@ public unsafe partial class Control :
 
     internal static unsafe bool AreCommonNavigationalKeysDown()
     {
+#if LIBREWINFORMS_PORTABLE
+        return s_portableKeysDown is { } keysDown
+            && (keysDown.Contains(Keys.Tab)
+                || keysDown.Contains(Keys.Up)
+                || keysDown.Contains(Keys.Down)
+                || keysDown.Contains(Keys.Left)
+                || keysDown.Contains(Keys.Right)
+                || keysDown.Contains(Keys.Menu)
+                || keysDown.Contains(Keys.F10)
+                || keysDown.Contains(Keys.Escape));
+#else
         static bool IsKeyDown(Keys key, ReadOnlySpan<byte> stateArray)
-            => (stateArray[(int)key] & HighOrderBitMask) != 0;
+            => (stateArray[(int)key] & 0x80) != 0;
 
         ReadOnlySpan<byte> stateArray = stackalloc byte[256];
 
@@ -13776,6 +13785,7 @@ public unsafe partial class Control :
                 || IsKeyDown(Keys.F10, stateArray)
                 || IsKeyDown(Keys.Escape, stateArray);
         }
+#endif
     }
 
     internal virtual ToolInfoWrapper<Control> GetToolInfoWrapper(TOOLTIP_FLAGS flags, string? caption, ToolTip tooltip)
