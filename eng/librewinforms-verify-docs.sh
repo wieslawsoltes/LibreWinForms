@@ -61,6 +61,8 @@ require_text src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj 'LibreWinForms.Sdk.V
 require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets "global::LibreWinForms.ProGPU.ProGpuPlatform.Register()"
 require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'ProjectReference Include="$(LibreWinFormsSourceRoot)src/System.Windows.Forms/System.Windows.Forms.csproj"'
 require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'ProjectReference Include="$(LibreWinFormsSourceRoot)src/LibreWinForms.ProGPU/LibreWinForms.ProGPU.csproj"'
+require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'AfterTargets="IncludeTransitiveProjectReferences"'
+require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets "<ProjectReference Include=\"@(_LibreWinFormsCanonicalProjectReference->'%(FullPath)')\" />"
 require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'PackageReference Include="LibreWinForms.System.Windows.Forms" Version="$(LibreWinFormsCanonicalPackageVersion)"'
 require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'PackageReference Include="LibreWinForms.ProGPU" Version="$(LibreWinFormsProGpuBackendPackageVersion)"'
 require_text packaging/LibreWinForms.ProGPU/LibreWinForms.ProGPU.Package.csproj '<PackageId>LibreWinForms.ProGPU</PackageId>'

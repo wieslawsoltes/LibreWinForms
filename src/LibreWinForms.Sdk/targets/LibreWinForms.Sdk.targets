@@ -27,6 +27,25 @@
                       AdditionalProperties="LibreWinFormsReferenceMode=Project;LibreWinFormsUseProGpuSystemDrawing=true;MicrosoftNETCoreAppRefPackageVersion=" />
   </ItemGroup>
 
+  <!--
+    NuGet's IncludeTransitiveProjectReferences target writes projects outside the
+    consumer tree as relative paths. MSBuild 11 preview builds on macOS can later
+    resolve those paths against a referenced project rather than the consumer,
+    even though restore resolved the same graph successfully. Re-materialize the
+    complete list from FullPath before AssignProjectConfiguration consumes it.
+  -->
+  <Target Name="_LibreWinFormsNormalizeCanonicalProjectReferences"
+          AfterTargets="IncludeTransitiveProjectReferences"
+          BeforeTargets="AssignProjectConfiguration"
+          Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseCanonicalRuntime)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Project' And '@(ProjectReference)' != ''">
+    <ItemGroup>
+      <_LibreWinFormsCanonicalProjectReference Include="@(ProjectReference)" />
+      <ProjectReference Remove="@(ProjectReference)" />
+      <ProjectReference Include="@(_LibreWinFormsCanonicalProjectReference->'%(FullPath)')" />
+      <_LibreWinFormsCanonicalProjectReference Remove="@(_LibreWinFormsCanonicalProjectReference)" />
+    </ItemGroup>
+  </Target>
+
   <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseCanonicalRuntime)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Package' And '$(ManagePackageVersionsCentrally)' != 'true'">
     <PackageReference Include="LibreWinForms.System.Windows.Forms" Version="$(LibreWinFormsCanonicalPackageVersion)" />
     <PackageReference Include="LibreWinForms.ProGPU" Version="$(LibreWinFormsProGpuBackendPackageVersion)" />
