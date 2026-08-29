@@ -14,6 +14,7 @@
          validated ref/ asset group and packages.config is not supported. -->
     <NoWarn>$(NoWarn);NU5131</NoWarn>
     <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == ''">0.1.0-preview.62</LibreWinFormsProGpuPackageVersion>
+    <LibreWinFormsPortableSupportPackageVersion Condition="'$(LibreWinFormsPortableSupportPackageVersion)' == ''">10.0.10</LibreWinFormsPortableSupportPackageVersion>
     <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);CollectCanonicalWinFormsPackageFiles</TargetsForTfmSpecificContentInPackage>
     <CanonicalWinFormsProject>$(RepoRoot)src/System.Windows.Forms/System.Windows.Forms.csproj</CanonicalWinFormsProject>
     <CanonicalWinFormsOutput>$(ArtifactsDir)bin/System.Windows.Forms/$(Configuration)/$(TargetFramework)/</CanonicalWinFormsOutput>
