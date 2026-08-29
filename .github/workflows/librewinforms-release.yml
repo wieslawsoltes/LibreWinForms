@@ -106,16 +106,14 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Bind canonical LibreWPF to qualified ProGPU source
+      - name: Align canonical LibreWPF ProGPU checkout
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p wpf-canonical/external
-          if [[ -d wpf-canonical/external/ProGPU && ! -L wpf-canonical/external/ProGPU ]]; then
-            rmdir wpf-canonical/external/ProGPU
-          fi
-          test ! -e wpf-canonical/external/ProGPU
-          ln -s "${GITHUB_WORKSPACE}/external/ProGPU" wpf-canonical/external/ProGPU
+          qualified_progpu_commit="$(git -C external/ProGPU rev-parse HEAD)"
+          git -C wpf-canonical submodule update --init external/ProGPU
+          git -C wpf-canonical/external/ProGPU fetch --depth=1 origin "${qualified_progpu_commit}"
+          git -C wpf-canonical/external/ProGPU checkout --detach "${qualified_progpu_commit}"
           test "$(git -C wpf-canonical/external/ProGPU rev-parse HEAD)" = "$(git -C external/ProGPU rev-parse HEAD)"
 
       - name: Verify docs
