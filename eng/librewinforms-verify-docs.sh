@@ -74,6 +74,7 @@ require_text packaging/LibreWinForms.System.Windows.Forms/LibreWinForms.System.W
 require_text packaging/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj 'System.Windows.Forms.Design.dll'
 require_text packaging/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj '<PackageReference Include="System.CodeDom" />'
 require_text packaging/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj '-p:NetCurrent=&quot;$(TargetFramework)&quot;'
+require_text packaging/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj '--no-incremental'
 require_text packaging/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj '-p:SystemCodeDomPackageVersion=&quot;$(LibreWinFormsPortableSupportPackageVersion)&quot;'
 require_text packaging/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj '<LibreWinFormsPortableSupportPackageVersion Condition='
 require_text packaging/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj '<PackageVersion Update="System.Resources.Extensions" Version="$(LibreWinFormsPortableSupportPackageVersion)" />'
