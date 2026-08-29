@@ -29,6 +29,10 @@
 
   <ItemGroup>
     <PackageVersion Include="ProGPU.System.Drawing.Common" Version="$(LibreWinFormsProGpuPackageVersion)" />
+    <PackageVersion Update="System.Configuration.ConfigurationManager" Version="$(LibreWinFormsPortableSupportPackageVersion)" />
+    <PackageVersion Update="System.Formats.Nrbf" Version="$(LibreWinFormsPortableSupportPackageVersion)" />
+    <PackageVersion Update="System.Resources.Extensions" Version="$(LibreWinFormsPortableSupportPackageVersion)" />
+    <PackageVersion Update="System.Windows.Extensions" Version="$(LibreWinFormsPortableSupportPackageVersion)" />
     <PackageReference Include="ProGPU.System.Drawing.Common" />
     <PackageReference Include="System.Configuration.ConfigurationManager" />
     <PackageReference Include="System.Resources.Extensions" />

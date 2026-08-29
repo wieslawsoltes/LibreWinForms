@@ -71,6 +71,7 @@ require_text packaging/LibreWinForms.ProGPU/LibreWinForms.ProGPU.Package.csproj 
 require_text packaging/LibreWinForms.ProGPU/LibreWinForms.ProGPU.Package.csproj '-p:NetCurrent=&quot;$(TargetFramework)&quot;'
 require_text packaging/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj 'System.Private.Windows.GdiPlus.dll'
 require_text packaging/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj '-p:NetCurrent=&quot;$(TargetFramework)&quot;'
+require_text packaging/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj '<PackageVersion Update="System.Resources.Extensions" Version="$(LibreWinFormsPortableSupportPackageVersion)" />'
 require_text Directory.Build.props '<LibreWinFormsPortableNetCoreAppRefVersion Condition="'\''$(LibreWinFormsPortableNetCoreAppRefVersion)'\'' == '\'''\''">10.0.5</LibreWinFormsPortableNetCoreAppRefVersion>'
 require_text Directory.Build.props '<LibreWinFormsPortableSupportPackageVersion Condition="'\''$(LibreWinFormsPortableSupportPackageVersion)'\'' == '\'''\''">10.0.10</LibreWinFormsPortableSupportPackageVersion>'
 require_text eng/librewinforms-pack-source-first.sh 'PROGPU_PACKAGE_GROUP=drawing-runtime'
