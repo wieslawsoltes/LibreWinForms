@@ -3,7 +3,6 @@
 librewinforms_preview_package_ids=(
   LibreWinForms.System.Windows.Forms
   LibreWinForms.ProGPU
-  LibreWinForms.Compatibility.System.Windows.Forms
   LibreWinForms.WindowsFormsIntegration
   LibreWinForms.Sdk
 )

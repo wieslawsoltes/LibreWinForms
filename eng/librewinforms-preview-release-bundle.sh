@@ -38,7 +38,7 @@ This preview bundle contains the package set for running WinForms-shaped applica
 - \`LibreWinForms.Sdk.${dev_package_version}.nupkg\` is the custom MSBuild SDK package.
 - \`LibreWinForms.System.Windows.Forms.${dev_package_version}.nupkg\` provides source-built canonical System.Windows.Forms.
 - \`LibreWinForms.ProGPU.${dev_package_version}.nupkg\` provides the typed cross-platform backend.
-- \`LibreWinForms.Compatibility.System.Windows.Forms.${dev_package_version}.nupkg\` and \`LibreWinForms.WindowsFormsIntegration.${dev_package_version}.nupkg\` are explicit transitional packages for the LibreWPF/SharpDevelop cutover.
+- \`LibreWinForms.WindowsFormsIntegration.${dev_package_version}.nupkg\` contains the real LibreWPF WindowsFormsIntegration reference and runtime assemblies qualified against the byte-identical canonical Forms payload.
 - The ProGPU drawing-runtime closure is built from the pinned submodule at version \`${progpu_package_version}\`.
 
 Verify the archive with the adjacent checksum file:

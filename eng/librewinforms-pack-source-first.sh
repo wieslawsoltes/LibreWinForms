@@ -11,6 +11,8 @@ export DOTNET_ROLL_FORWARD="${DOTNET_ROLL_FORWARD:-Major}"
 export DOTNET_ROLL_FORWARD_TO_PRERELEASE="${DOTNET_ROLL_FORWARD_TO_PRERELEASE:-1}"
 
 configuration="${LIBREWINFORMS_CONFIGURATION:-Release}"
+package_target_framework="net10.0"
+package_netcore_ref_version="10.0.5"
 package_version="${LIBREWINFORMS_SOURCE_FIRST_PACKAGE_VERSION:-0.1.0-source-first}"
 sdk_package_version="${LIBREWINFORMS_SOURCE_FIRST_SDK_PACKAGE_VERSION:-${package_version}}"
 backend_package_version="${LIBREWINFORMS_SOURCE_FIRST_BACKEND_PACKAGE_VERSION:-${package_version}}"
@@ -42,6 +44,9 @@ NUGET_PACKAGES="${smoke_root}/canonical-packages" "${dotnet}" restore \
   --configfile "${canonical_pack_config}" \
   --force \
   --no-cache \
+  -p:NetCurrent="${package_target_framework}" \
+  -p:LibreWinFormsUseProGpuSystemDrawing=true \
+  -p:MicrosoftNETCoreAppRefPackageVersion="${package_netcore_ref_version}" \
   -p:LibreWinFormsProGpuPackageVersion="${progpu_package_version}"
 NUGET_PACKAGES="${smoke_root}/canonical-packages" "${dotnet}" pack \
   "${repo_root}/packaging/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj" \
@@ -50,14 +55,16 @@ NUGET_PACKAGES="${smoke_root}/canonical-packages" "${dotnet}" pack \
   --no-restore \
   -p:PackageVersion="${package_version}" \
   -p:Version="${package_version}" \
+  -p:NetCurrent="${package_target_framework}" \
+  -p:MicrosoftNETCoreAppRefPackageVersion="${package_netcore_ref_version}" \
   -p:LibreWinFormsReferenceMode=Project \
   -p:LibreWinFormsUseProGpuSystemDrawing=true \
   -p:LibreWinFormsProGpuPackageVersion="${progpu_package_version}" \
   -p:ContinuousIntegrationBuild=true
 
-canonical_hash="$(sha256sum "${repo_root}/artifacts/bin/System.Windows.Forms/${configuration}/net11.0/System.Windows.Forms.dll" | cut -d' ' -f1)"
-canonical_design_hash="$(sha256sum "${repo_root}/artifacts/bin/System.Windows.Forms.Design/${configuration}/net11.0/System.Windows.Forms.Design.dll" | cut -d' ' -f1)"
-platform_canonical_hash="$(sha256sum "${repo_root}/artifacts/bin/LibreWinForms.Platform/${configuration}/net11.0/LibreWinForms.Platform.dll" | cut -d' ' -f1)"
+canonical_hash="$(sha256sum "${repo_root}/artifacts/bin/System.Windows.Forms/${configuration}/${package_target_framework}/System.Windows.Forms.dll" | cut -d' ' -f1)"
+canonical_design_hash="$(sha256sum "${repo_root}/artifacts/bin/System.Windows.Forms.Design/${configuration}/${package_target_framework}/System.Windows.Forms.Design.dll" | cut -d' ' -f1)"
+platform_canonical_hash="$(sha256sum "${repo_root}/artifacts/bin/LibreWinForms.Platform/${configuration}/${package_target_framework}/LibreWinForms.Platform.dll" | cut -d' ' -f1)"
 
 backend_pack_config="${smoke_root}/backend-NuGet.config"
 cp "${repo_root}/NuGet.config" "${backend_pack_config}"
@@ -69,6 +76,9 @@ NUGET_PACKAGES="${smoke_root}/backend-packages" "${dotnet}" restore \
   --configfile "${backend_pack_config}" \
   --force \
   --no-cache \
+  -p:NetCurrent="${package_target_framework}" \
+  -p:LibreWinFormsUseProGpuSystemDrawing=true \
+  -p:MicrosoftNETCoreAppRefPackageVersion="${package_netcore_ref_version}" \
   -p:LibreWinFormsCanonicalPackageVersion="${package_version}" \
   -p:LibreWinFormsProGpuPackageVersion="${progpu_package_version}"
 NUGET_PACKAGES="${smoke_root}/backend-packages" "${dotnet}" pack \
@@ -78,6 +88,8 @@ NUGET_PACKAGES="${smoke_root}/backend-packages" "${dotnet}" pack \
   --no-restore \
   -p:PackageVersion="${backend_package_version}" \
   -p:Version="${backend_package_version}" \
+  -p:NetCurrent="${package_target_framework}" \
+  -p:MicrosoftNETCoreAppRefPackageVersion="${package_netcore_ref_version}" \
   -p:LibreWinFormsCanonicalPackageVersion="${package_version}" \
   -p:LibreWinFormsProGpuPackageVersion="${progpu_package_version}" \
   -p:ContinuousIntegrationBuild=true
@@ -122,26 +134,26 @@ if ! grep -Fq "<LibreWinFormsPackagedRuntimeVersion>${package_version}</LibreWin
 fi
 
 required_entries=(
-  "lib/net11.0/System.Windows.Forms.dll"
-  "lib/net11.0/System.Windows.Forms.xml"
-  "lib/net11.0/System.Windows.Forms.Design.dll"
-  "lib/net11.0/System.Windows.Forms.Design.xml"
-  "lib/net11.0/System.Windows.Forms.Primitives.dll"
-  "lib/net11.0/System.Windows.Forms.Primitives.xml"
-  "lib/net11.0/System.Private.Windows.Core.dll"
-  "lib/net11.0/System.Private.Windows.Core.xml"
-  "lib/net11.0/System.Private.Windows.GdiPlus.dll"
-  "lib/net11.0/System.Private.Windows.GdiPlus.xml"
-  "lib/net11.0/Accessibility.dll"
-  "lib/net11.0/LibreWinForms.Platform.dll"
-  "lib/net11.0/LibreWinForms.Platform.xml"
-  "ref/net11.0/System.Windows.Forms.dll"
-  "ref/net11.0/System.Windows.Forms.Design.dll"
-  "ref/net11.0/System.Windows.Forms.Primitives.dll"
-  "ref/net11.0/System.Private.Windows.Core.dll"
-  "ref/net11.0/System.Private.Windows.GdiPlus.dll"
-  "ref/net11.0/Accessibility.dll"
-  "ref/net11.0/LibreWinForms.Platform.dll"
+  "lib/${package_target_framework}/System.Windows.Forms.dll"
+  "lib/${package_target_framework}/System.Windows.Forms.xml"
+  "lib/${package_target_framework}/System.Windows.Forms.Design.dll"
+  "lib/${package_target_framework}/System.Windows.Forms.Design.xml"
+  "lib/${package_target_framework}/System.Windows.Forms.Primitives.dll"
+  "lib/${package_target_framework}/System.Windows.Forms.Primitives.xml"
+  "lib/${package_target_framework}/System.Private.Windows.Core.dll"
+  "lib/${package_target_framework}/System.Private.Windows.Core.xml"
+  "lib/${package_target_framework}/System.Private.Windows.GdiPlus.dll"
+  "lib/${package_target_framework}/System.Private.Windows.GdiPlus.xml"
+  "lib/${package_target_framework}/Accessibility.dll"
+  "lib/${package_target_framework}/LibreWinForms.Platform.dll"
+  "lib/${package_target_framework}/LibreWinForms.Platform.xml"
+  "ref/${package_target_framework}/System.Windows.Forms.dll"
+  "ref/${package_target_framework}/System.Windows.Forms.Design.dll"
+  "ref/${package_target_framework}/System.Windows.Forms.Primitives.dll"
+  "ref/${package_target_framework}/System.Private.Windows.Core.dll"
+  "ref/${package_target_framework}/System.Private.Windows.GdiPlus.dll"
+  "ref/${package_target_framework}/Accessibility.dll"
+  "ref/${package_target_framework}/LibreWinForms.Platform.dll"
 )
 
 package_entries="$(unzip -Z1 "${package_file}")"
@@ -152,24 +164,24 @@ for required_entry in "${required_entries[@]}"; do
   fi
 done
 
-if grep -Eq '^lib/net11\.0/(ProGPU\.|System\.Drawing\.Common)' <<<"${package_entries}"; then
+if grep -Eq "^lib/${package_target_framework}/(ProGPU\\.|System\\.Drawing\\.Common)" <<<"${package_entries}"; then
   echo "Canonical source-first package embeds ProGPU dependencies instead of declaring package dependencies." >&2
   exit 1
 fi
 
-implementation_hash="$(unzip -p "${package_file}" lib/net11.0/System.Windows.Forms.dll | sha256sum | cut -d' ' -f1)"
+implementation_hash="$(unzip -p "${package_file}" "lib/${package_target_framework}/System.Windows.Forms.dll" | sha256sum | cut -d' ' -f1)"
 if [[ "${implementation_hash}" != "${canonical_hash}" ]]; then
   echo "Packed System.Windows.Forms.dll is not the current canonical build output." >&2
   exit 1
 fi
 
-design_implementation_hash="$(unzip -p "${package_file}" lib/net11.0/System.Windows.Forms.Design.dll | sha256sum | cut -d' ' -f1)"
+design_implementation_hash="$(unzip -p "${package_file}" "lib/${package_target_framework}/System.Windows.Forms.Design.dll" | sha256sum | cut -d' ' -f1)"
 if [[ "${design_implementation_hash}" != "${canonical_design_hash}" ]]; then
   echo "Packed System.Windows.Forms.Design.dll is not the current canonical build output." >&2
   exit 1
 fi
 
-platform_implementation_hash="$(unzip -p "${package_file}" lib/net11.0/LibreWinForms.Platform.dll | sha256sum | cut -d' ' -f1)"
+platform_implementation_hash="$(unzip -p "${package_file}" "lib/${package_target_framework}/LibreWinForms.Platform.dll" | sha256sum | cut -d' ' -f1)"
 if [[ "${platform_implementation_hash}" != "${platform_canonical_hash}" ]]; then
   echo "Packed LibreWinForms.Platform.dll is not the current source build output." >&2
   exit 1
@@ -189,16 +201,16 @@ fi
 
 backend_entries="$(unzip -Z1 "${backend_package_file}")"
 for required_entry in \
-  "lib/net11.0/LibreWinForms.ProGPU.dll" \
-  "lib/net11.0/LibreWinForms.ProGPU.xml" \
-  "ref/net11.0/LibreWinForms.ProGPU.dll"; do
+  "lib/${package_target_framework}/LibreWinForms.ProGPU.dll" \
+  "lib/${package_target_framework}/LibreWinForms.ProGPU.xml" \
+  "ref/${package_target_framework}/LibreWinForms.ProGPU.dll"; do
   if ! grep -Fxq "${required_entry}" <<<"${backend_entries}"; then
     echo "Source-first ProGPU backend package is missing ${required_entry}." >&2
     exit 1
   fi
 done
 
-if grep -Eq '^lib/net11\.0/(ProGPU\.|System\.Drawing\.Common|LibreWinForms\.Platform)' <<<"${backend_entries}"; then
+if grep -Eq "^lib/${package_target_framework}/(ProGPU\\.|System\\.Drawing\\.Common|LibreWinForms\\.Platform)" <<<"${backend_entries}"; then
   echo "Source-first ProGPU backend package embeds dependency assemblies." >&2
   exit 1
 fi
@@ -210,8 +222,8 @@ if ! grep -Fq "id=\"LibreWinForms.System.Windows.Forms\" version=\"${package_ver
   exit 1
 fi
 
-backend_implementation_hash="$(unzip -p "${backend_package_file}" lib/net11.0/LibreWinForms.ProGPU.dll | sha256sum | cut -d' ' -f1)"
-backend_source_hash="$(sha256sum "${repo_root}/artifacts/bin/LibreWinForms.ProGPU/${configuration}/net11.0/LibreWinForms.ProGPU.dll" | cut -d' ' -f1)"
+backend_implementation_hash="$(unzip -p "${backend_package_file}" "lib/${package_target_framework}/LibreWinForms.ProGPU.dll" | sha256sum | cut -d' ' -f1)"
+backend_source_hash="$(sha256sum "${repo_root}/artifacts/bin/LibreWinForms.ProGPU/${configuration}/${package_target_framework}/LibreWinForms.ProGPU.dll" | cut -d' ' -f1)"
 if [[ "${backend_implementation_hash}" != "${backend_source_hash}" ]]; then
   echo "Packed LibreWinForms.ProGPU.dll is not the current source build output." >&2
   exit 1

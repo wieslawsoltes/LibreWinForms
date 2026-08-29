@@ -2,76 +2,21 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-dotnet="${repo_root}/.dotnet/dotnet"
-if [[ ! -x "${dotnet}" ]]; then
-  dotnet="dotnet"
-fi
-
-export DOTNET_ROLL_FORWARD="${DOTNET_ROLL_FORWARD:-Major}"
-export DOTNET_ROLL_FORWARD_TO_PRERELEASE="${DOTNET_ROLL_FORWARD_TO_PRERELEASE:-1}"
-
 package_output="${LIBREWINFORMS_PACKAGE_OUTPUT:-${repo_root}/artifacts/packages/Release/NonShipping}"
+canonical_wfi_package_source="${LIBREWINFORMS_CANONICAL_WFI_PACKAGE_SOURCE:-}"
+canonical_wfi_commit="${LIBREWINFORMS_CANONICAL_WFI_COMMIT:-}"
 dev_package_version="${LIBREWINFORMS_DEV_PACKAGE_VERSION:-0.1.0-preview.45}"
-bridge_package_version="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION:-${dev_package_version}}"
 progpu_package_version="${LIBREWINFORMS_PROGPU_PACKAGE_VERSION:-0.1.0-preview.62}"
-compatibility_progpu_package_version="${LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION:-0.1.0-preview.55}"
 configuration="${LIBREWINFORMS_CONFIGURATION:-Release}"
-restore_sources="${LIBREWINFORMS_RESTORE_SOURCES:-}"
-nuget_packages="${LIBREWINFORMS_NUGET_PACKAGES:-${NUGET_PACKAGES:-${repo_root}/artifacts/nuget/librewinforms-pack}}"
-strong_name_key_file="${LIBREWINFORMS_STRONG_NAME_KEY_FILE:-}"
 require_clean="${LIBREWINFORMS_REQUIRE_CLEAN:-0}"
 source "${repo_root}/eng/librewinforms-package-list.sh"
-extra_pack_args=("$@")
+
 mkdir -p "${package_output}"
-export NUGET_PACKAGES="${nuget_packages}"
 
 if [[ "${require_clean}" == "1" && -n "$(git -C "${repo_root}" status --porcelain --untracked-files=normal)" ]]; then
   echo "LibreWinForms release packing requires a clean source tree." >&2
   exit 1
 fi
-
-if [[ -n "${strong_name_key_file}" && ! -f "${strong_name_key_file}" ]]; then
-  echo "LibreWinForms strong-name key was not found: ${strong_name_key_file}" >&2
-  exit 1
-fi
-
-bridge_package_ids=(
-  LibreWPF.ProGPU
-  LibreWPF.Transport
-)
-
-package_cache_id() {
-  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
-}
-
-clean_restore_cache() {
-  local package_id
-  local package_cache_path
-
-  for package_id in "${bridge_package_ids[@]}"; do
-    package_cache_path="${NUGET_PACKAGES}/$(package_cache_id "${package_id}")/${bridge_package_version}"
-    rm -rf "${package_cache_path}"
-  done
-
-  for package_id in "${librewinforms_preview_progpu_package_ids[@]}"; do
-    package_cache_path="${NUGET_PACKAGES}/$(package_cache_id "${package_id}")/${progpu_package_version}"
-    rm -rf "${package_cache_path}"
-  done
-
-
-  if [[ "${compatibility_progpu_package_version}" != "${progpu_package_version}" ]]; then
-    for package_id in "${librewinforms_preview_progpu_package_ids[@]}"; do
-      package_cache_path="${NUGET_PACKAGES}/$(package_cache_id "${package_id}")/${compatibility_progpu_package_version}"
-      rm -rf "${package_cache_path}"
-    done
-  fi
-
-  for package_id in "${librewinforms_preview_package_ids[@]}"; do
-    package_cache_path="${NUGET_PACKAGES}/$(package_cache_id "${package_id}")/${dev_package_version}"
-    rm -rf "${package_cache_path}"
-  done
-
-}
 
 clean_release_artifacts() {
   rm -f \
@@ -81,6 +26,7 @@ clean_release_artifacts() {
     "${package_output}/README.md" \
     "${package_output}/NuGet.config"
 
+  local package_id
   for package_id in "${librewinforms_preview_package_ids[@]}"; do
     rm -f \
       "${package_output}/${package_id}.${dev_package_version}.nupkg" \
@@ -94,10 +40,10 @@ clean_release_artifacts() {
 }
 
 is_expected_package_file() {
-  local package_file="$1"
   local package_name
-  package_name="$(basename "${package_file}")"
+  package_name="$(basename "$1")"
 
+  local package_id
   for package_id in "${librewinforms_preview_package_ids[@]}"; do
     if [[ "${package_name}" == "${package_id}.${dev_package_version}.nupkg" ||
           "${package_name}" == "${package_id}.${dev_package_version}.snupkg" ]]; then
@@ -114,6 +60,96 @@ is_expected_package_file() {
   return 1
 }
 
+stage_canonical_wfi_package() {
+  if [[ -z "${canonical_wfi_package_source}" ]]; then
+    echo "Set LIBREWINFORMS_CANONICAL_WFI_PACKAGE_SOURCE to the output of the qualified LibreWPF canonical WFI source gate." >&2
+    exit 1
+  fi
+  if [[ -z "${canonical_wfi_commit}" ]]; then
+    echo "Set LIBREWINFORMS_CANONICAL_WFI_COMMIT to the exact LibreWPF source commit that produced canonical WFI." >&2
+    exit 1
+  fi
+  if [[ "${canonical_wfi_package_source%/}" == "${package_output%/}" ]]; then
+    echo "Canonical WFI source packages must be staged outside the LibreWinForms release output so their qualified Forms payload can be compared." >&2
+    exit 1
+  fi
+
+  local wfi_package="${canonical_wfi_package_source}/LibreWinForms.WindowsFormsIntegration.${dev_package_version}.nupkg"
+  local qualified_forms_package="${canonical_wfi_package_source}/LibreWinForms.System.Windows.Forms.${dev_package_version}.nupkg"
+  local release_forms_package="${package_output}/LibreWinForms.System.Windows.Forms.${dev_package_version}.nupkg"
+  local package_file
+  for package_file in "${wfi_package}" "${qualified_forms_package}" "${release_forms_package}"; do
+    if [[ ! -f "${package_file}" ]]; then
+      echo "Canonical WFI handoff is missing ${package_file}." >&2
+      exit 1
+    fi
+  done
+
+  local wfi_entries
+  wfi_entries="$(unzip -Z1 "${wfi_package}")"
+  local expected_entry
+  for expected_entry in \
+    "lib/net10.0/WindowsFormsIntegration.dll" \
+    "ref/net10.0/WindowsFormsIntegration.dll"; do
+    if ! grep -Fxq "${expected_entry}" <<<"${wfi_entries}"; then
+      echo "Canonical WFI package is missing ${expected_entry}." >&2
+      exit 1
+    fi
+  done
+
+  local wfi_nuspec
+  wfi_nuspec="$(unzip -p "${wfi_package}" '*.nuspec')"
+  if ! grep -Fq "dependency id=\"LibreWinForms.System.Windows.Forms\" version=\"${dev_package_version}\"" <<<"${wfi_nuspec}"; then
+    echo "Canonical WFI package does not depend on the exact canonical Forms version ${dev_package_version}." >&2
+    exit 1
+  fi
+  if grep -Fq "LibreWinForms.Compatibility.System.Windows.Forms" <<<"${wfi_nuspec}"; then
+    echo "Canonical WFI package still depends on the retired compatibility Forms identity." >&2
+    exit 1
+  fi
+  if ! grep -Fq "commit=\"${canonical_wfi_commit}\"" <<<"${wfi_nuspec}"; then
+    echo "Canonical WFI package does not record expected LibreWPF commit ${canonical_wfi_commit}." >&2
+    exit 1
+  fi
+
+  local qualified_forms_nuspec
+  local release_forms_commit
+  qualified_forms_nuspec="$(unzip -p "${qualified_forms_package}" '*.nuspec')"
+  release_forms_commit="$(git -C "${repo_root}" rev-parse HEAD)"
+  if ! grep -Fq "commit=\"${release_forms_commit}\"" <<<"${qualified_forms_nuspec}"; then
+    echo "Canonical WFI was not qualified against LibreWinForms commit ${release_forms_commit}." >&2
+    exit 1
+  fi
+  if ! grep -Fq "dependency id=\"ProGPU.System.Drawing.Common\" version=\"${progpu_package_version}\"" <<<"${qualified_forms_nuspec}"; then
+    echo "Canonical WFI was not qualified against ProGPU drawing version ${progpu_package_version}." >&2
+    exit 1
+  fi
+
+  # The upstream WinForms graph is not currently byte reproducible: independent
+  # ContinuousIntegrationBuild invocations at the same commit can emit different
+  # PE metadata while preserving the same managed contract. Compare the exact
+  # source/dependency provenance above and the deterministic generated API
+  # documentation below instead of treating incidental PE bytes as provenance.
+  local contract_entry
+  local qualified_contract_hash
+  local release_contract_hash
+  for contract_entry in \
+    "lib/net10.0/System.Windows.Forms.xml" \
+    "lib/net10.0/System.Windows.Forms.Design.xml" \
+    "lib/net10.0/System.Windows.Forms.Primitives.xml" \
+    "lib/net10.0/System.Private.Windows.Core.xml" \
+    "lib/net10.0/LibreWinForms.Platform.xml"; do
+    qualified_contract_hash="$(unzip -p "${qualified_forms_package}" "${contract_entry}" | sha256sum | cut -d' ' -f1)"
+    release_contract_hash="$(unzip -p "${release_forms_package}" "${contract_entry}" | sha256sum | cut -d' ' -f1)"
+    if [[ "${qualified_contract_hash}" != "${release_contract_hash}" ]]; then
+      echo "Canonical WFI was qualified against a different managed contract at ${contract_entry}." >&2
+      exit 1
+    fi
+  done
+
+  cp "${wfi_package}" "${package_output}/LibreWinForms.WindowsFormsIntegration.${dev_package_version}.nupkg"
+}
+
 verify_package_outputs() {
   local package_id
   for package_id in "${librewinforms_preview_package_ids[@]}"; do
@@ -122,7 +158,6 @@ verify_package_outputs() {
       exit 1
     fi
   done
-
   for package_id in "${librewinforms_preview_progpu_package_ids[@]}"; do
     if [[ ! -f "${package_output}/${package_id}.${progpu_package_version}.nupkg" ]]; then
       echo "Missing package ${package_output}/${package_id}.${progpu_package_version}.nupkg." >&2
@@ -133,10 +168,10 @@ verify_package_outputs() {
   local package_file
   shopt -s nullglob
   for package_file in \
-    "${package_output}"/*.${dev_package_version}.nupkg \
-    "${package_output}"/*.${dev_package_version}.snupkg \
-    "${package_output}"/*.${progpu_package_version}.nupkg \
-    "${package_output}"/*.${progpu_package_version}.snupkg; do
+    "${package_output}"/*."${dev_package_version}".nupkg \
+    "${package_output}"/*."${dev_package_version}".snupkg \
+    "${package_output}"/*."${progpu_package_version}".nupkg \
+    "${package_output}"/*."${progpu_package_version}".snupkg; do
     if ! is_expected_package_file "${package_file}"; then
       echo "Unexpected current-version package artifact: ${package_file}." >&2
       exit 1
@@ -145,43 +180,7 @@ verify_package_outputs() {
   shopt -u nullglob
 }
 
-pack_project() {
-  local project="$1"
-  local package_id="$2"
-
-  local args=(
-    pack "${repo_root}/${project}"
-    -c "${configuration}"
-    -o "${package_output}"
-    -v:minimal
-    -p:Version="${dev_package_version}"
-    -p:PackageVersion="${dev_package_version}"
-    -p:LibreWinFormsVersion="${dev_package_version}"
-    -p:LibreWinFormsBridgePackageVersion="${bridge_package_version}"
-    -p:LibreWinFormsProGpuPackageVersion="${compatibility_progpu_package_version}"
-    -p:ContinuousIntegrationBuild=true
-  )
-
-  if [[ -n "${strong_name_key_file}" ]]; then
-    args+=(
-      -p:SignAssembly=true
-      -p:AssemblyOriginatorKeyFile="${strong_name_key_file}"
-    )
-  fi
-
-  if [[ -n "${restore_sources}" ]]; then
-    args+=("-p:RestoreSources=${restore_sources}")
-  fi
-
-  if [[ "${#extra_pack_args[@]}" -gt 0 ]]; then
-    args+=("${extra_pack_args[@]}")
-  fi
-
-  "${dotnet}" "${args[@]}"
-}
-
 clean_release_artifacts
-clean_restore_cache
 
 LIBREWINFORMS_CONFIGURATION="${configuration}" \
 LIBREWINFORMS_SOURCE_FIRST_PACKAGE_VERSION="${dev_package_version}" \
@@ -191,11 +190,9 @@ LIBREWINFORMS_SOURCE_FIRST_PROGPU_PACKAGE_VERSION="${progpu_package_version}" \
 LIBREWINFORMS_SOURCE_FIRST_PACKAGE_OUTPUT="${package_output}" \
   "${repo_root}/eng/librewinforms-pack-source-first.sh"
 
-pack_project "src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj" "LibreWinForms.Compatibility.System.Windows.Forms"
-pack_project "src/LibreWinForms.Portable/LibreWinForms.WindowsFormsIntegration/LibreWinForms.WindowsFormsIntegration.csproj" "LibreWinForms.WindowsFormsIntegration"
-
+stage_canonical_wfi_package
 verify_package_outputs
 "${repo_root}/eng/librewinforms-verify-docs.sh"
 "${repo_root}/eng/librewinforms-preview-release-bundle.sh"
 
-echo "LibreWinForms packages written to ${package_output}."
+echo "LibreWinForms canonical packages written to ${package_output}."

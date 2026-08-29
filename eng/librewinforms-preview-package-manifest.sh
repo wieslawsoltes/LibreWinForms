@@ -59,7 +59,7 @@ for package_id in "${all_package_ids[@]}"; do
 done
 
 repo_commit="$(git -C "${repo_root}" rev-parse --verify HEAD 2>/dev/null || printf 'unknown')"
-bridge_commit="${LIBREWINFORMS_BRIDGE_COMMIT:-unknown}"
+canonical_wfi_commit="${LIBREWINFORMS_CANONICAL_WFI_COMMIT:-unknown}"
 progpu_commit="${LIBREWINFORMS_PROGPU_COMMIT:-unknown}"
 if [[ -z "$(git -C "${repo_root}" status --porcelain --untracked-files=normal)" ]]; then
   repo_is_dirty=false
@@ -69,12 +69,12 @@ fi
 
 {
   printf '{\n'
-  printf '  "schemaVersion": 2,\n'
+  printf '  "schemaVersion": 3,\n'
   printf '  "version": "%s",\n' "$(json_escape "${dev_package_version}")"
   printf '  "source": {\n'
   printf '    "winFormsCommit": "%s",\n' "$(json_escape "${repo_commit}")"
   printf '    "winFormsIsDirty": %s,\n' "${repo_is_dirty}"
-  printf '    "libreWpfBridgeCommit": "%s",\n' "$(json_escape "${bridge_commit}")"
+  printf '    "libreWpfCanonicalWfiCommit": "%s",\n' "$(json_escape "${canonical_wfi_commit}")"
   printf '    "proGpuCommit": "%s"\n' "$(json_escape "${progpu_commit}")"
   printf '  },\n'
   printf '  "packageDirectory": ".",\n'

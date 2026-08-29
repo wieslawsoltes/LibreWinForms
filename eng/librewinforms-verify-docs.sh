@@ -35,17 +35,18 @@ require_text README.md "LibreWPF.Transport"
 require_text README.md "ProGPU.System.Drawing.Common"
 require_text README.md "## Original Upstream README"
 require_text docs/librewinforms-release.md "LibreWinForms.Sdk"
-require_text docs/librewinforms-release.md "LIBREWINFORMS_BRIDGE_PACKAGE_VERSION"
 require_text docs/librewinforms-release.md "LIBREWINFORMS_PROGPU_PACKAGE_VERSION"
+require_text docs/librewinforms-release.md "LIBREWINFORMS_CANONICAL_WFI_PACKAGE_SOURCE"
+require_text docs/librewinforms-release.md "LIBREWINFORMS_CANONICAL_WFI_COMMIT"
 require_text docs/librewinforms-release.md "0.1.0-preview.45"
 require_text docs/librewinforms-release.md "gh release create --generate-notes"
 require_text docs/librewinforms-release.md "librewinforms-v<version>"
 require_text README.md "fails if a stale or unexpected current-version"
-require_text README.md "Release order matters"
+require_text README.md "Release order is source-qualified"
 require_text docs/librewinforms-release.md "unexpected current-version package artifact"
 require_text eng/librewinforms-package-list.sh "LibreWinForms.System.Windows.Forms"
 require_text eng/librewinforms-package-list.sh "LibreWinForms.ProGPU"
-require_text eng/librewinforms-package-list.sh "LibreWinForms.Compatibility.System.Windows.Forms"
+reject_text eng/librewinforms-package-list.sh "LibreWinForms.Compatibility.System.Windows.Forms"
 require_text eng/librewinforms-package-list.sh "LibreWinForms.WindowsFormsIntegration"
 require_text eng/librewinforms-package-list.sh "LibreWinForms.Sdk"
 require_text NuGet.config "https://api.nuget.org/v3/index.json"
@@ -97,6 +98,14 @@ require_text Directory.Build.props '<LibreWinFormsPortableSupportPackageVersion 
 require_text eng/librewinforms-source-first.sh 'portable_net_current="net10.0"'
 require_text eng/librewinforms-source-first.sh '-p:NetCurrent="${portable_net_current}"'
 require_text eng/librewinforms-pack-source-first.sh 'PROGPU_PACKAGE_GROUP=drawing-runtime'
+require_text eng/librewinforms-pack-source-first.sh 'package_target_framework="net10.0"'
+require_text eng/librewinforms-build-canonical-wfi.sh 'PROGPU_WPF_CANONICAL_LIBREWINFORMS_ROOT'
+require_text eng/librewinforms-build-canonical-wfi.sh 'LIBREWINFORMS_CANONICAL_WFI_EXPECTED_COMMIT'
+require_text eng/librewinforms-pack.sh 'Canonical WFI was not qualified against LibreWinForms commit'
+require_text eng/librewinforms-pack.sh 'Canonical WFI was qualified against a different managed contract at'
+require_text eng/librewinforms-pack.sh 'commit=\"${canonical_wfi_commit}\"'
+reject_text eng/librewinforms-pack.sh 'src/LibreWinForms.Portable'
+require_text eng/librewinforms-pack.sh 'Canonical WFI package still depends on the retired compatibility Forms identity.'
 require_text docs/librewinforms/api-compatibility-gap-analysis.md 'exact source-package closure'
 require_text docs/librewinforms/source-first-cross-platform-plan.md 'Exact package-mode checkpoint'
 require_text packaging/LibreWinForms.Sdk.SourceFirstSmoke/LibreWinForms.Sdk.SourceFirstSmoke.csproj '<Project Sdk="LibreWinForms.Sdk/0.1.0-source-first-sdk">'
@@ -108,7 +117,10 @@ require_text .github/workflows/librewinforms-ci.yml 'libglfw3'
 require_text .github/workflows/librewinforms-ci.yml 'LIBREWINFORMS_VISIBLE_DOTNET: dotnet'
 require_text eng/librewinforms-source-first-visible-smoke.sh 'LIBREWINFORMS_VISIBLE_DOTNET'
 require_text eng/librewinforms-source-first-visible-smoke.sh 'cygpath -w'
-require_text packaging/LibreWinForms.Sdk.CompatibilitySmoke/Program.cs "namespace LibreWinForms.SdkSmoke;"
+require_text packaging/LibreWinForms.CanonicalWfiSmoke/Program.cs "namespace LibreWinForms.CanonicalWfiSmoke;"
+require_text packaging/LibreWinForms.CanonicalWfiSmoke/Program.cs 'WindowsFormsHost { Child = panel }'
+reject_text eng/librewinforms-package-smoke.sh 'LibreWinForms.Sdk.CompatibilitySmoke'
+reject_text eng/librewinforms-package-smoke.sh 'LibreWinForms.Compatibility.System.Windows.Forms" Version'
 if [[ -e src/LibreWinForms.Portable/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj ]]; then
   echo "LibreWinForms.Sdk project must remain outside the frozen Portable source tree." >&2
   exit 1
@@ -119,16 +131,14 @@ if [[ -e src/LibreWinForms.Portable/LibreWinForms.SdkSmoke/Program.cs ]]; then
 fi
 require_text .github/workflows/librewinforms-ci.yml "LibreWinForms Build"
 require_text .github/workflows/librewinforms-ci.yml "Stage immutable LibreWPF bridge packages"
+require_text .github/workflows/librewinforms-ci.yml "Build canonical WindowsFormsIntegration from LibreWPF source"
+require_text .github/workflows/librewinforms-ci.yml "./eng/librewinforms-build-canonical-wfi.sh"
 require_text .github/workflows/librewinforms-ci.yml "librewpf-v0.1.0-preview.45"
 require_text .github/workflows/librewinforms-ci.yml "LIBREWINFORMS_PROGPU_PACKAGE_VERSION"
-require_text .github/workflows/librewinforms-ci.yml "LibreWinFormsReferenceMode=Package"
-require_text .github/workflows/librewinforms-ci.yml 'restore_sources="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping;https://api.nuget.org/v3/index.json"'
-require_text .github/workflows/librewinforms-ci.yml '-p:LibreWinFormsBridgePackageVersion="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION}"'
-require_text .github/workflows/librewinforms-ci.yml '-p:LibreWinFormsProGpuPackageVersion="${LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION}"'
-require_text eng/librewinforms-package-smoke.sh '<ProGpuPackageVersion>${compatibility_progpu_version}</ProGpuPackageVersion>'
-require_text .github/workflows/librewinforms-ci.yml '-p:RestoreSources="${restore_sources}"'
+require_text .github/workflows/librewinforms-ci.yml 'LIBREWINFORMS_CANONICAL_WFI_PACKAGE_SOURCE='
+reject_text .github/workflows/librewinforms-ci.yml 'LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION'
 require_text .github/workflows/librewinforms-ci.yml "Run package-mode SDK smoke"
-require_text .github/workflows/librewinforms-ci.yml 'src/test/compatibility/LibreWinForms.Portable.Tests/LibreWinForms.Portable.Tests.csproj'
+reject_text .github/workflows/librewinforms-ci.yml 'src/test/compatibility/LibreWinForms.Portable.Tests/LibreWinForms.Portable.Tests.csproj'
 require_text .github/workflows/librewinforms-docs.yml "LibreWinForms Docs"
 require_text .github/workflows/librewinforms-docs.yml "docs/**"
 require_text .github/workflows/librewinforms-public-package-smoke.yml "LibreWinForms Public Package Smoke"
@@ -141,14 +151,13 @@ require_text .github/workflows/librewinforms-release.yml "LibreWinForms Release"
 require_text .github/workflows/librewinforms-release.yml "LIBREWINFORMS_BRIDGE_PACKAGE_VERSION"
 require_text .github/workflows/librewinforms-release.yml "LIBREWINFORMS_PROGPU_PACKAGE_VERSION"
 require_text .github/workflows/librewinforms-release.yml "LIBREWINFORMS_BRIDGE_REF"
+require_text .github/workflows/librewinforms-release.yml "LIBREWINFORMS_CANONICAL_WFI_REF"
 require_text .github/workflows/librewinforms-release.yml "Stage immutable LibreWPF bridge packages"
-require_text .github/workflows/librewinforms-release.yml "LibreWinFormsReferenceMode=Package"
-require_text .github/workflows/librewinforms-release.yml 'restore_sources="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping;https://api.nuget.org/v3/index.json"'
-require_text .github/workflows/librewinforms-release.yml '-p:LibreWinFormsBridgePackageVersion="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION}"'
-require_text .github/workflows/librewinforms-release.yml '-p:LibreWinFormsProGpuPackageVersion="${LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION}"'
-require_text .github/workflows/librewinforms-release.yml '-p:RestoreSources="${restore_sources}"'
+require_text .github/workflows/librewinforms-release.yml "Build canonical WindowsFormsIntegration from LibreWPF source"
+require_text .github/workflows/librewinforms-release.yml "./eng/librewinforms-build-canonical-wfi.sh"
+reject_text .github/workflows/librewinforms-release.yml 'LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION'
 require_text .github/workflows/librewinforms-release.yml "Run package-mode SDK smoke"
-require_text .github/workflows/librewinforms-release.yml 'src/test/compatibility/LibreWinForms.Portable.Tests/LibreWinForms.Portable.Tests.csproj'
+reject_text .github/workflows/librewinforms-release.yml 'src/test/compatibility/LibreWinForms.Portable.Tests/LibreWinForms.Portable.Tests.csproj'
 require_text .github/workflows/librewinforms-release.yml "librewinforms-v*"
 require_text .github/workflows/librewinforms-release.yml "refs/tags/librewinforms-v"
 require_text .github/workflows/librewinforms-release.yml "Create GitHub Release"

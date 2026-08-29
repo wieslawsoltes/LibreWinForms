@@ -13,14 +13,12 @@ export DOTNET_ROLL_FORWARD_TO_PRERELEASE="${DOTNET_ROLL_FORWARD_TO_PRERELEASE:-1
 package_version="${LIBREWINFORMS_DEV_PACKAGE_VERSION:-0.1.0-preview.45}"
 bridge_version="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION:-${package_version}}"
 progpu_version="${LIBREWINFORMS_PROGPU_PACKAGE_VERSION:-0.1.0-preview.62}"
-compatibility_progpu_version="${LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION:-0.1.0-preview.55}"
 package_output="${LIBREWINFORMS_PACKAGE_OUTPUT:-${repo_root}/artifacts/packages/Release/NonShipping}"
 bridge_output="${LIBREWINFORMS_BRIDGE_PACKAGE_OUTPUT:-${repo_root}/../../artifacts/packages/Release/NonShipping}"
 
 required_packages=(
   "${package_output}/LibreWinForms.System.Windows.Forms.${package_version}.nupkg"
   "${package_output}/LibreWinForms.ProGPU.${package_version}.nupkg"
-  "${package_output}/LibreWinForms.Compatibility.System.Windows.Forms.${package_version}.nupkg"
   "${package_output}/LibreWinForms.WindowsFormsIntegration.${package_version}.nupkg"
   "${package_output}/LibreWinForms.Sdk.${package_version}.nupkg"
   "${bridge_output}/LibreWPF.Sdk.${bridge_version}.nupkg"
@@ -67,12 +65,12 @@ cat >"${project_dir}/LibreWinForms.PackageSmoke.csproj" <<EOF
     <GenerateDependencyFile>true</GenerateDependencyFile>
     <ProGpuWpfUsePortableWinFormsCompat>false</ProGpuWpfUsePortableWinFormsCompat>
     <ProGpuWpfUseLibreWinForms>false</ProGpuWpfUseLibreWinForms>
-    <ProGpuWpfLibreWinFormsPackageVersion>${package_version}</ProGpuWpfLibreWinFormsPackageVersion>
-    <ProGpuPackageVersion>${compatibility_progpu_version}</ProGpuPackageVersion>
+    <ProGpuPackageVersion>${progpu_version}</ProGpuPackageVersion>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="${repo_root}/packaging/LibreWinForms.Sdk.CompatibilitySmoke/Program.cs" Link="Program.cs" />
-    <PackageReference Include="LibreWinForms.Compatibility.System.Windows.Forms" Version="${package_version}" />
+    <Compile Include="${repo_root}/packaging/LibreWinForms.CanonicalWfiSmoke/Program.cs" Link="Program.cs" />
+    <PackageReference Include="LibreWinForms.System.Windows.Forms" Version="${package_version}" />
+    <PackageReference Include="LibreWinForms.ProGPU" Version="${package_version}" />
     <PackageReference Include="LibreWinForms.WindowsFormsIntegration" Version="${package_version}" />
   </ItemGroup>
 </Project>
@@ -82,6 +80,21 @@ project="${project_dir}/LibreWinForms.PackageSmoke.csproj"
 export NUGET_PACKAGES="${LIBREWINFORMS_SMOKE_NUGET_PACKAGES:-${work_root}/nuget}"
 "${dotnet}" restore "${project}" --configfile "${project_dir}/NuGet.config" --force --no-cache
 "${dotnet}" build "${project}" --configuration Release --no-restore
+
+package_smoke_assets="${project_dir}/obj/project.assets.json"
+for package_identity in \
+  "LibreWinForms.System.Windows.Forms/${package_version}" \
+  "LibreWinForms.ProGPU/${package_version}" \
+  "LibreWinForms.WindowsFormsIntegration/${package_version}"; do
+  if ! grep -Fq "\"${package_identity}\"" "${package_smoke_assets}"; then
+    echo "Canonical WFI package smoke did not resolve ${package_identity}." >&2
+    exit 1
+  fi
+done
+if grep -Fq 'LibreWinForms.Compatibility.System.Windows.Forms/' "${package_smoke_assets}"; then
+  echo "Canonical WFI package smoke restored the retired compatibility runtime." >&2
+  exit 1
+fi
 
 smoke_dll="${project_dir}/bin/Release/net10.0-windows/LibreWinForms.PackageSmoke.dll"
 if [[ ! -f "${smoke_dll}" ]]; then
@@ -183,34 +196,6 @@ if [[ ! -f "${sdk_template_deps}" ]] \
   exit 1
 fi
 
-modes=(
-  --run-form
-  --run-thread-loop
-  --run-dialog
-  --run-modeless-owner
-  --run-designer
-  --run-message-box
-  --run-checkables
-  --run-listview
-  --run-custom-paint
-  --run-paint-surface-retirement
-  --run-render-allocation
-  --run-layout-allocation
-  --run-create-graphics
-  --run-text-renderer
-  --run-keyboard
-  --run-classdiagram
-  --run-hexeditor-host
-  --run-cross-framework-drag
-  --run-native-popup
-  --run-host-double-click
-)
-if [[ -n "${LIBREWINFORMS_SMOKE_MODES:-}" ]]; then
-  read -r -a modes <<<"${LIBREWINFORMS_SMOKE_MODES}"
-fi
+"${dotnet}" "${smoke_dll}"
 
-for mode in "${modes[@]}"; do
-  "${dotnet}" "${smoke_dll}" "${mode}"
-done
-
-echo "LibreWinForms package-mode SDK smoke succeeded for ${package_version}."
+echo "LibreWinForms canonical WFI and SDK package smokes succeeded for ${package_version}."

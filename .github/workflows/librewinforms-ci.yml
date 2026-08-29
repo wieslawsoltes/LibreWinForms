@@ -136,14 +136,14 @@ jobs:
 
   packages:
     name: Package lane
-    runs-on: macos-15
-    timeout-minutes: 120
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
     env:
       LIBREWINFORMS_DEV_PACKAGE_VERSION: 0.1.0-preview.45
       LIBREWINFORMS_BRIDGE_PACKAGE_VERSION: 0.1.0-preview.45
       LIBREWINFORMS_PROGPU_PACKAGE_VERSION: 0.1.0-preview.62
-      LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION: 0.1.0-preview.55
       LIBREWINFORMS_BRIDGE_REF: librewpf-v0.1.0-preview.45
+      LIBREWINFORMS_CANONICAL_WFI_REF: feature/canonical-wfi-source-build
 
     steps:
       - name: Checkout
@@ -159,10 +159,29 @@ jobs:
           path: wpf-bridge
           submodules: recursive
 
+      - name: Checkout canonical LibreWPF WFI source
+        uses: actions/checkout@v4
+        with:
+          repository: wieslawsoltes/LibreWPF
+          ref: ${{ env.LIBREWINFORMS_CANONICAL_WFI_REF }}
+          path: wpf-canonical
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+
+      - name: Build canonical WindowsFormsIntegration from LibreWPF source
+        shell: bash
+        run: |
+          set -euo pipefail
+          canonical_wfi_commit="$(git -C wpf-canonical rev-parse HEAD)"
+          LIBREWINFORMS_CANONICAL_WFI_SOURCE_ROOT="${GITHUB_WORKSPACE}/wpf-canonical" \
+          LIBREWINFORMS_CANONICAL_WFI_EXPECTED_COMMIT="${canonical_wfi_commit}" \
+          LIBREWINFORMS_CANONICAL_WFI_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/wpf-canonical/artifacts/packages/CanonicalWinForms" \
+          ./eng/librewinforms-build-canonical-wfi.sh
+          echo "LIBREWINFORMS_CANONICAL_WFI_COMMIT=${canonical_wfi_commit}" >> "${GITHUB_ENV}"
+          echo "LIBREWINFORMS_CANONICAL_WFI_PACKAGE_SOURCE=${GITHUB_WORKSPACE}/wpf-canonical/artifacts/packages/CanonicalWinForms" >> "${GITHUB_ENV}"
 
       - name: Stage immutable LibreWPF bridge packages
         shell: bash
@@ -172,26 +191,10 @@ jobs:
           LIBREWINFORMS_BRIDGE_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping" \
           ./eng/librewinforms-fetch-librewpf-packages.sh
 
-      - name: Run LibreWinForms behavior tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          restore_sources="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping;https://api.nuget.org/v3/index.json"
-          dotnet run \
-            --project src/test/compatibility/LibreWinForms.Portable.Tests/LibreWinForms.Portable.Tests.csproj \
-            --configuration Release \
-            -p:LibreWinFormsReferenceMode=Package \
-            -p:LibreWinFormsBridgePackageVersion="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION}" \
-            -p:LibreWinFormsProGpuPackageVersion="${LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION}" \
-            -p:RestoreSources="${restore_sources}"
-
       - name: Pack LibreWinForms
         shell: bash
         run: |
           set -euo pipefail
-          export LIBREWINFORMS_RESTORE_SOURCES="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping;https://api.nuget.org/v3/index.json"
-          export LIBREWINFORMS_STRONG_NAME_KEY_FILE="${GITHUB_WORKSPACE}/wpf-bridge/external/ProGPU/eng/ProGPU.snk"
-          export LIBREWINFORMS_BRIDGE_COMMIT="$(git -C wpf-bridge rev-parse HEAD)"
           export LIBREWINFORMS_PROGPU_COMMIT="$(git -C external/ProGPU rev-parse HEAD)"
           export LIBREWINFORMS_REQUIRE_CLEAN=1
           ./eng/librewinforms-pack.sh

@@ -15,14 +15,14 @@ on:
         description: Version assigned to the ProGPU drawing closure built from the pinned submodule.
         required: false
         default: 0.1.0-preview.62
-      compatibility_progpu_version:
-        description: Historical ProGPU ABI used by the transitional LibreWPF bridge packages.
-        required: false
-        default: 0.1.0-preview.55
       bridge_ref:
-        description: Immutable LibreWPF tag or commit to build against. Defaults to librewpf-v<bridge_version>.
+        description: Immutable LibreWPF tag or commit supplying the LibreWPF SDK package smoke. Defaults to librewpf-v<bridge_version>.
         required: false
         default: ''
+      canonical_wfi_ref:
+        description: Immutable LibreWPF commit or tag containing the canonical WindowsFormsIntegration source gate.
+        required: true
+        default: feature/canonical-wfi-source-build
       publish:
         description: Push packages to NuGet.org after validation.
         required: true
@@ -38,7 +38,7 @@ permissions:
 jobs:
   preview:
     name: Build preview packages
-    runs-on: macos-15
+    runs-on: ubuntu-24.04
     timeout-minutes: 180
 
     steps:
@@ -65,25 +65,26 @@ jobs:
           if [[ -z "${progpu_version}" ]]; then
             progpu_version="0.1.0-preview.62"
           fi
-          compatibility_progpu_version="${{ inputs.compatibility_progpu_version }}"
-          if [[ -z "${compatibility_progpu_version}" ]]; then
-            compatibility_progpu_version="0.1.0-preview.55"
-          fi
           bridge_ref="${{ inputs.bridge_ref }}"
           if [[ -z "${bridge_ref}" ]]; then
             bridge_ref="librewpf-v${bridge_version}"
           fi
+          canonical_wfi_ref="${{ inputs.canonical_wfi_ref }}"
+          if [[ -z "${canonical_wfi_ref}" ]]; then
+            canonical_wfi_ref="librewpf-v${bridge_version}"
+          fi
           echo "LIBREWINFORMS_DEV_PACKAGE_VERSION=${version}" >> "${GITHUB_ENV}"
           echo "LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=${bridge_version}" >> "${GITHUB_ENV}"
           echo "LIBREWINFORMS_PROGPU_PACKAGE_VERSION=${progpu_version}" >> "${GITHUB_ENV}"
-          echo "LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION=${compatibility_progpu_version}" >> "${GITHUB_ENV}"
           echo "LIBREWINFORMS_BRIDGE_REF=${bridge_ref}" >> "${GITHUB_ENV}"
+          echo "LIBREWINFORMS_CANONICAL_WFI_REF=${canonical_wfi_ref}" >> "${GITHUB_ENV}"
           echo "bridge_ref=${bridge_ref}" >> "${GITHUB_OUTPUT}"
+          echo "canonical_wfi_ref=${canonical_wfi_ref}" >> "${GITHUB_OUTPUT}"
           echo "Resolved LibreWinForms package version: ${version}"
           echo "Resolved LibreWPF bridge package version: ${bridge_version}"
           echo "Resolved immutable ProGPU package version: ${progpu_version}"
-          echo "Resolved transitional compatibility ProGPU package version: ${compatibility_progpu_version}"
           echo "Resolved immutable LibreWPF bridge ref: ${bridge_ref}"
+          echo "Resolved canonical LibreWPF WFI ref: ${canonical_wfi_ref}"
 
       - name: Checkout LibreWPF bridge packages
         uses: actions/checkout@v4
@@ -93,6 +94,13 @@ jobs:
           path: wpf-bridge
           submodules: recursive
 
+      - name: Checkout canonical LibreWPF WFI source
+        uses: actions/checkout@v4
+        with:
+          repository: wieslawsoltes/LibreWPF
+          ref: ${{ steps.release.outputs.canonical_wfi_ref }}
+          path: wpf-canonical
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -100,6 +108,18 @@ jobs:
 
       - name: Verify docs
         run: ./eng/librewinforms-verify-docs.sh
+
+      - name: Build canonical WindowsFormsIntegration from LibreWPF source
+        shell: bash
+        run: |
+          set -euo pipefail
+          canonical_wfi_commit="$(git -C wpf-canonical rev-parse HEAD)"
+          LIBREWINFORMS_CANONICAL_WFI_SOURCE_ROOT="${GITHUB_WORKSPACE}/wpf-canonical" \
+          LIBREWINFORMS_CANONICAL_WFI_EXPECTED_COMMIT="${canonical_wfi_commit}" \
+          LIBREWINFORMS_CANONICAL_WFI_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/wpf-canonical/artifacts/packages/CanonicalWinForms" \
+          ./eng/librewinforms-build-canonical-wfi.sh
+          echo "LIBREWINFORMS_CANONICAL_WFI_COMMIT=${canonical_wfi_commit}" >> "${GITHUB_ENV}"
+          echo "LIBREWINFORMS_CANONICAL_WFI_PACKAGE_SOURCE=${GITHUB_WORKSPACE}/wpf-canonical/artifacts/packages/CanonicalWinForms" >> "${GITHUB_ENV}"
 
       - name: Stage immutable LibreWPF bridge packages
         shell: bash
@@ -109,26 +129,10 @@ jobs:
           LIBREWINFORMS_BRIDGE_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping" \
           ./eng/librewinforms-fetch-librewpf-packages.sh
 
-      - name: Run LibreWinForms behavior tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          restore_sources="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping;https://api.nuget.org/v3/index.json"
-          dotnet run \
-            --project src/test/compatibility/LibreWinForms.Portable.Tests/LibreWinForms.Portable.Tests.csproj \
-            --configuration Release \
-            -p:LibreWinFormsReferenceMode=Package \
-            -p:LibreWinFormsBridgePackageVersion="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION}" \
-            -p:LibreWinFormsProGpuPackageVersion="${LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION}" \
-            -p:RestoreSources="${restore_sources}"
-
       - name: Build and pack
         shell: bash
         run: |
           set -euo pipefail
-          export LIBREWINFORMS_RESTORE_SOURCES="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping;https://api.nuget.org/v3/index.json"
-          export LIBREWINFORMS_STRONG_NAME_KEY_FILE="${GITHUB_WORKSPACE}/wpf-bridge/external/ProGPU/eng/ProGPU.snk"
-          export LIBREWINFORMS_BRIDGE_COMMIT="$(git -C wpf-bridge rev-parse HEAD)"
           export LIBREWINFORMS_PROGPU_COMMIT="$(git -C external/ProGPU rev-parse HEAD)"
           export LIBREWINFORMS_REQUIRE_CLEAN=1
           ./eng/librewinforms-pack.sh

@@ -92,12 +92,11 @@ The preview package set is defined in `eng/librewinforms-package-list.sh` and va
 | `LibreWinForms.Sdk` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.Sdk.svg)](https://www.nuget.org/packages/LibreWinForms.Sdk) | Custom MSBuild SDK that selects canonical WinForms and the ProGPU backend by default. |
 | `LibreWinForms.System.Windows.Forms` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.System.Windows.Forms.svg)](https://www.nuget.org/packages/LibreWinForms.System.Windows.Forms) | Canonical source-built `System.Windows.Forms` implementation and reference assets. |
 | `LibreWinForms.ProGPU` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.ProGPU.svg)](https://www.nuget.org/packages/LibreWinForms.ProGPU) | Typed ProGPU/Silk.NET platform backend for canonical WinForms. |
-| `LibreWinForms.Compatibility.System.Windows.Forms` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.Compatibility.System.Windows.Forms.svg)](https://www.nuget.org/packages/LibreWinForms.Compatibility.System.Windows.Forms) | Explicit transitional Portable runtime used only during the LibreWPF/SharpDevelop cutover. |
-| `LibreWinForms.WindowsFormsIntegration` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.WindowsFormsIntegration.svg)](https://www.nuget.org/packages/LibreWinForms.WindowsFormsIntegration) | Transitional WindowsFormsIntegration bridge for LibreWPF-hosted compatibility content. |
+| `LibreWinForms.WindowsFormsIntegration` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.WindowsFormsIntegration.svg)](https://www.nuget.org/packages/LibreWinForms.WindowsFormsIntegration) | Real LibreWPF `WindowsFormsIntegration` source built and qualified against canonical LibreWinForms. |
 
 ### Bridge Packages
 
-The canonical runtime and its ten-package ProGPU drawing closure are built from this repository and its pinned ProGPU submodule. Transitional WindowsFormsIntegration validation also consumes LibreWPF packages from the matching immutable LibreWPF preview.
+The canonical runtime and its ten-package ProGPU drawing closure are built from this repository and its pinned ProGPU submodule. `WindowsFormsIntegration` is built from the real LibreWPF source at a recorded commit; the release handoff requires exact LibreWinForms and ProGPU provenance, compares the generated managed-contract documents, and rejects the retired compatibility package identity.
 
 | Package | NuGet | Purpose |
 | --- | --- | --- |
@@ -111,37 +110,42 @@ The canonical runtime and its ten-package ProGPU drawing closure are built from 
 LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.45 ./eng/librewinforms-pack.sh
 ```
 
-The package lane builds canonical `LibreWinForms.System.Windows.Forms`, `LibreWinForms.ProGPU`, `LibreWinForms.Sdk`, the exact ten-package ProGPU drawing closure, and the two explicitly transitional compatibility packages. It verifies docs, writes the preview manifest, creates a release bundle with hashes and a local-feed `NuGet.config`, and fails if a stale or unexpected current-version package would be published.
+The package lane builds canonical `LibreWinForms.System.Windows.Forms`, `LibreWinForms.ProGPU`, `LibreWinForms.Sdk`, and the exact ten-package ProGPU drawing closure. It consumes only a separately qualified canonical WFI source package, verifies its exact source/dependency provenance and generated Forms contract, verifies docs, writes the preview manifest, creates a release bundle with hashes and a local-feed `NuGet.config`, and fails if a stale or unexpected current-version package would be published.
 
 The pack script restores through an isolated cache under `artifacts/nuget/librewinforms-pack` by default and clears current-version LibreWPF/ProGPU bridge packages from that cache before restore. This keeps package-mode validation tied to the bridge feed built for the same run instead of a stale same-version package from a user/global NuGet cache.
 
-When validating against unpublished LibreWPF/ProGPU bridge packages, build or restore those packages into a local feed and pass the LibreWPF bridge version, immutable ProGPU version, and restore source:
+Build canonical WFI from a LibreWPF checkout first, then pass the qualified source output and exact LibreWPF commit to the package lane. A matching LibreWPF SDK feed is used only by the mixed-desktop package smoke:
 
 ```bash
 LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.45 \
-LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=0.1.0-preview.45 \
 LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.62 \
-LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION=0.1.0-preview.55 \
-LIBREWINFORMS_RESTORE_SOURCES=/path/to/wpf/artifacts/packages/Release/NonShipping%3Bhttps://api.nuget.org/v3/index.json \
+LIBREWINFORMS_CANONICAL_WFI_SOURCE_ROOT=/path/to/LibreWPF \
+LIBREWINFORMS_CANONICAL_WFI_EXPECTED_COMMIT=<librewpf-commit> \
+./eng/librewinforms-build-canonical-wfi.sh
+
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.45 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.62 \
+LIBREWINFORMS_CANONICAL_WFI_PACKAGE_SOURCE=/path/to/LibreWPF/artifacts/packages/CanonicalWinForms \
+LIBREWINFORMS_CANONICAL_WFI_COMMIT=<librewpf-commit> \
 ./eng/librewinforms-pack.sh
 ```
 
-`LIBREWINFORMS_PROGPU_PACKAGE_VERSION` labels the current drawing closure built from the submodule. `LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION` keeps the temporary LibreWPF integration packages on their historical ABI until canonical WindowsFormsIntegration replaces them.
+`LIBREWINFORMS_PROGPU_PACKAGE_VERSION` labels the current drawing closure built from the submodule. Canonical Forms and backend packages target `net10.0`, so WFI and `net10.0` through later .NET consumers resolve one qualified assembly set.
 
 GitHub workflows:
 
-- `LibreWinForms Build` stages the matching immutable LibreWPF release feed, runs the preview package lane, and uploads package artifacts.
+- `LibreWinForms Build` compiles canonical WFI from LibreWPF source, stages a LibreWPF SDK feed for the mixed-desktop smoke, runs the preview package lane, and uploads package artifacts.
 - `LibreWinForms Docs` verifies README and release docs against the preview package list.
 - `LibreWinForms Public Package Smoke` restores only from NuGet.org and builds the unchanged `net11.0` WinForms template on Ubuntu and macOS after publication.
-- `LibreWinForms Release` resolves an immutable LibreWPF bridge tag or commit, records exact LibreWinForms/LibreWPF/ProGPU provenance, runs behavior and package-mode SDK smokes, builds preview packages/bundle artifacts, can publish to NuGet.org with `NUGET_API_KEY`, and creates a GitHub release for `librewinforms-v*` tags.
+- `LibreWinForms Release` resolves canonical WFI source and LibreWPF SDK refs, records exact LibreWinForms/LibreWPF/ProGPU provenance, runs canonical WFI and SDK package smokes, builds preview packages/bundle artifacts, can publish to NuGet.org with `NUGET_API_KEY`, and creates a GitHub release for `librewinforms-v*` tags.
 
-Release order matters for the transitional integration gate: the release publishes the ProGPU drawing closure and LibreWinForms packages from one manifest, while the matching LibreWPF bridge must already be available for WindowsFormsIntegration/SharpDevelop validation.
+Release order is source-qualified: canonical WFI must be built from the selected LibreWPF commit against this exact LibreWinForms checkout before the bundle can be created. SharpDevelop remains the downstream mixed-desktop consumer gate.
 
 See [docs/librewinforms-release.md](docs/librewinforms-release.md) and the ongoing port plan in [docs/librewinforms/progpu-port-plan.md](docs/librewinforms/progpu-port-plan.md).
 
 ## Performance Gates
 
-The package-mode SDK smoke includes deterministic Release workloads for hosted
+The historical mixed-desktop comparison smoke included deterministic Release workloads for hosted
 WinForms rendering, layout, paint-surface retirement, and render-resource
 ownership. The render workload records 100 labels for 2,000 frames after warming
 brush, text, clip, and retained-drawing caches. It reopens one persistent WPF
@@ -164,11 +168,15 @@ while keeping steady retained replay and mutation rebuild behavior unchanged.
 The count limits preserve text reuse for scrolling while the detach assertion
 prevents the bounded cache from becoming a lifetime leak.
 
-These figures measure managed allocation traffic, managed heap retention, and
+Those figures measure managed allocation traffic, managed heap retention, and
 CPU recording time, not process RSS, GPU residency, or device execution. Paint
 surface pixel ownership, retained resource counts, and zero-allocation layout
 passes are checked independently so an allocation improvement cannot hide an
-unbounded cache or graphics-resource leak.
+unbounded cache or graphics-resource leak. Current release gating places
+drawing correctness and allocation assertions in ProGPU's
+`System.Drawing.Common.Tests`; the canonical WFI package smoke owns assembly
+identity and host-child construction rather than retaining a second WinForms
+runtime solely to host benchmarks.
 
 ## Original Upstream README
 
