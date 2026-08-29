@@ -80,6 +80,7 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(LibreWinFormsUseProGpuSystemDrawing)' == 'true'">
+    <PackageReference Include="System.Configuration.ConfigurationManager" />
     <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\System.Drawing.Common\System.Drawing.Common.csproj" />
     <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\ProGPU.Backend\ProGPU.Backend.csproj" />
     <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\ProGPU.Scene\ProGPU.Scene.csproj" />
