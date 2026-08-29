@@ -2,7 +2,7 @@
 
 Date: 2026-08-29
 
-Implementation baseline: `c3b3aedd6c8ac44bb5b02aa3ac1201bc062379c4`
+Implementation baseline: `e711f56f65f26bf239d2b4a4e4f97c0b9cbcb1b0`
 
 Compared contract: .NET 10.0.11 `Microsoft.WindowsDesktop.App.Ref`
 
@@ -47,6 +47,14 @@ The proposed fix is now implemented in the source-first graph. The canonical tra
 3. Portable-only test helpers such as synthetic `RaiseMouse*` methods and `PropertyGrid.DisplayRows` are not framework APIs, so canonical smokes now use `IDesignerHost`, `IComponentChangeService`, `DesignerTransaction`, public properties, and `TypeDescriptor`; and
 4. carrying the backend package is not sufficient by itself: an executable host must run the typed `ProGpuPlatform.Register()` bootstrap before its first WinForms operation, or use the equivalent generated SDK initializer.
 
+### Production release and canonical WFI handoff checkpoint
+
+LibreWinForms commits `d8725bcfb68fb1254bc00329ff46fa6051d5c78b` and `e711f56f65f26bf239d2b4a4e4f97c0b9cbcb1b0` remove the compatibility runtime from the production package list, CI package lane, release workflow, bundle, and package smoke. Canonical WFI is now built from the real LibreWPF source at exact commit `f2630222356566e7b62accab3c1686cccad15257`, against this exact LibreWinForms checkout and ProGPU `d73cef34b92dfc71b40288dbc004d6f23c3b6fa8`. The handoff requires canonical `lib/net10.0` and `ref/net10.0` assets, exact Forms and ProGPU dependencies, recorded LibreWPF/LibreWinForms commits, and identical generated managed-contract documents. It rejects the compatibility package identity.
+
+Independent `ContinuousIntegrationBuild` invocations at the same source revision produced different PE hashes, including changes in incidental metadata, while all five generated contract documents remained identical. The release gate therefore does not claim byte reproducibility for source-built WinForms. It uses exact Git/dependency provenance plus deterministic managed-contract hashes; ProGPU's drawing payload retains its separate exact-source package and API/quality gates. Reproducible WinForms PE output remains useful build-engineering debt, but it is not papered over by accepting an arbitrary binary hash.
+
+The local release rehearsal produced canonical Forms, Design, backend, SDK, WFI, the ten-package ProGPU drawing closure, and WFI's source-built `LibreWPF.Interop`/`ProGPU.DirectX` dependencies. Fresh-cache project- and package-mode SDK consumers passed; explicit compatibility and local-artifact fallback requests failed. The separate mixed-desktop smoke restored only the qualified package feeds, loaded runtime identities `System.Windows.Forms`, `WindowsFormsIntegration`, and `LibreWinForms.ProGPU`, attached a real `Panel`/`Button` to `WindowsFormsHost`, and completed without the compatibility runtime. The remaining reason not to delete `src/LibreWinForms.Portable` is comparison-vector ownership, not production package selection.
+
 This evidence sharpens the root cause: the missing-property problem came from selecting the reduced implementation, while the remaining canonical failures are normal package, namespace, host-bootstrap, or platform-seam defects. They should be fixed at those boundaries, not by adding another compatibility declaration.
 
 The first full SharpDevelop launch also identifies a separate rendering qualification issue. After canonical package resolution and typed backend registration succeed, startup reaches `Application.Run` and creates both ProGPU surfaces. On the Linux ARM64 validation host, however, a cold llvmpipe/lavapipe first frame did not complete within 378 seconds. A debugger showed the UI thread inside `wgpuQueueSubmit` while the Mesa worker remained in LLVM register allocation (`llvm::SpillPlacement`). This is not a missing WinForms member or a dispatcher wake-up failure. The smoke's isolated `HOME` also isolates Mesa's cache, but explicitly reusing the host shader-cache directory did not make that cold submission complete within the bounded probes.
@@ -74,11 +82,11 @@ The 69-case canonical lifecycle suite now covers hidden initial cues, Alt/Menu k
 
 ## Implementation update: 2026-08-28 source-first SDK
 
-The SDK project and payload have moved from `src/LibreWinForms.Portable` to `src/LibreWinForms.Sdk`. Default consumers use canonical NuGet/package mode and receive a generated module initializer that calls typed `ProGpuPlatform.Register()`. Source development remains available with `LibreWinFormsReferenceMode=Project`; the old Portable runtime now requires `LibreWinFormsUseCanonicalRuntime=false` and has the explicit transitional package identity `LibreWinForms.Compatibility.System.Windows.Forms`.
+The SDK project and payload have moved from `src/LibreWinForms.Portable` to `src/LibreWinForms.Sdk`. Default consumers use canonical NuGet/package mode and receive a generated module initializer that calls typed `ProGpuPlatform.Register()`. Source development remains available with `LibreWinFormsReferenceMode=Project`. The earlier opt-in compatibility selection described at this historical checkpoint has since been removed from the SDK and production release graph; Portable remains only as frozen comparison source pending test-vector migration.
 
 The fresh-cache package gate installs the moved SDK into a disposable project and empty package cache, builds and runs the canonical consumer, rejects the official `System.Drawing.Common/11.0.0-dev` project from its dependency manifest, requires the ProGPU 10.0 drawing identity, and byte-compares the runtime drawing payload with the pinned ProGPU submodule output. Exact hosted workflow `33197186003` passes at implementation revision `30ed556495bafb0d8c1b15b52f5dd8e1b73e30b4`: platform 44/44, ProGPU adapter 46/46, lifecycle 68/68, drawing 392/392, and drawing ApiCompat at 0 missing types, 0 missing members, and 13 reviewed other differences. The canonical/source package lane, ordinary NuGet/package lane, AppKit lane, and docs workflow are all green.
 
-This is not yet permission to delete `src/LibreWinForms.Portable`. The default SDK and release graph are canonical, and visible installed-SDK `Application.Run(new Form())` smokes pass on Windows, Linux, and macOS, but the frozen comparison lane and transitional WindowsFormsIntegration/SharpDevelop integration still reference Portable. The authoritative remaining deletion gates and proposed fixes are recorded in the source-first plan.
+This checkpoint alone was not permission to delete `src/LibreWinForms.Portable`. The later canonical WFI/release handoff removes the production dependency; the frozen comparison lane and its unique-vector inventory remain the authoritative deletion gate recorded in the source-first plan.
 
 ## Implementation update: 2026-08-25
 
