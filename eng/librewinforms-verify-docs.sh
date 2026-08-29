@@ -81,6 +81,8 @@ require_text packaging/LibreWinForms.System.Windows.Forms/LibreWinForms.System.W
 require_text packaging/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj 'LibreWinFormsSkipCanonicalPackageBuild'
 require_text Directory.Build.props '<LibreWinFormsPortableNetCoreAppRefVersion Condition="'\''$(LibreWinFormsPortableNetCoreAppRefVersion)'\'' == '\'''\''">10.0.5</LibreWinFormsPortableNetCoreAppRefVersion>'
 require_text Directory.Build.props '<LibreWinFormsPortableSupportPackageVersion Condition="'\''$(LibreWinFormsPortableSupportPackageVersion)'\'' == '\'''\''">10.0.10</LibreWinFormsPortableSupportPackageVersion>'
+require_text eng/librewinforms-source-first.sh 'portable_net_current="net10.0"'
+require_text eng/librewinforms-source-first.sh '-p:NetCurrent="${portable_net_current}"'
 require_text eng/librewinforms-pack-source-first.sh 'PROGPU_PACKAGE_GROUP=drawing-runtime'
 require_text docs/librewinforms/api-compatibility-gap-analysis.md 'exact source-package closure'
 require_text docs/librewinforms/source-first-cross-platform-plan.md 'Exact package-mode checkpoint'

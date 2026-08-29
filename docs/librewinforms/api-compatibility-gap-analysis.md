@@ -915,6 +915,14 @@ The exact local gate passes native canonical 0 warnings/0 errors, ProGPU canonic
 
 Remaining work is typed platform integration rather than public API recovery: controlled full-chooser portal smokes on X11 and Wayland, exact custom-place/known-folder/client/pinned/recent/preview and prompt semantics where the portal permits them, and same-native-request behavior after `FileOk` rejection. AppKit follow-ups are a controlled visible-panel smoke, security-scoped/sandbox validation, and typed accessory support for Help, read-only, live filter switching, preview, and custom places. These gaps should stay explicit instead of being hidden by a reduced replacement assembly.
 
+## Canonical behavior follow-up: typed input languages
+
+Source checkpoint `b765d6a67fb121ef8d09f6ee70b65aef6d8fda64` keeps the complete upstream-derived `System.Windows.Forms.InputLanguage` API and replaces only its portable keyboard-layout dependency with `ILibreInputLanguageService`. The typed descriptor carries an opaque process-local token, BCP 47 language tag, layout identifier, and display name; the service owns current/default state, installed inventory, token resolution, and activation. Native Windows retains its original HKL, registry, and keyboard-layout branches.
+
+The default host implementation is deliberately conservative. It snapshots the registration culture and exposes exactly that one language instead of fabricating an operating-system inventory or claiming native layout switching. `ProGpuPlatform` creates this fallback at service-registration time. Hosts with XKB/IBus, macOS input-source, or another real desktop integration can replace it through the same narrow contract. IME composition, native inventory change notification, and backend keyboard-layout adapters remain explicit input-platform work.
+
+Local net10 validation passes the typed platform build with 0 warnings/0 errors and 47/47 tests, the canonical ProGPU build at its reviewed 608-warning/0-error baseline, and all 70/70 canonical lifecycle tests. The lifecycle case exercises unchanged public inventory, culture, layout name, handle identity, activation, null-to-default reset, and invalid-token rejection. Follow-up checkpoint `53dbe1b87a983896c7ebb6406b85f1f88a58d2ca` explicitly pins every ProGPU-backed source-first build/test invocation to `NetCurrent=net10.0`; this prevents an SDK upgrade from placing an official net11 `System.Drawing.Common` identity beside the pinned ProGPU net10 implementation. The documentation verifier protects that gate. No runtime source under `src/LibreWinForms.Portable` changed.
+
 ## Definition of done
 
 For an API group to be considered ported:

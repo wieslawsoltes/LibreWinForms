@@ -1201,6 +1201,12 @@ This makes the remaining `src/LibreWinForms.Portable` dependency inventory mecha
 
 Deletion should be one final commit after those substitutions, not a source move: remove `src/LibreWinForms.Portable`, the frozen compatibility test project, and the compatibility smoke; then run the canonical build, package/fresh-cache gates, installed visible smokes, canonical LibreWPF WFI gate, and SharpDevelop canonical gate. A failure must be fixed in canonical source or a typed platform adapter. Restoring compatibility declarations is not an allowed rollback path.
 
+### Typed input-language and drawing-identity checkpoint
+
+LibreWinForms checkpoint `b765d6a67fb121ef8d09f6ee70b65aef6d8fda64` routes canonical `InputLanguage` through a typed `ILibreInputLanguageService` while preserving the native Windows HKL/registry implementation. The backend-neutral inventory supplies opaque tokens, BCP 47 tags, layout IDs, names, current/default selection, and activation. The default ProGPU registration exposes only a registration-time culture snapshot; it does not invent installed layouts or claim an operating-system switch. Real Linux/macOS inventory, switching, change notification, and IME composition belong in typed host adapters behind this contract.
+
+Checkpoint `53dbe1b87a983896c7ebb6406b85f1f88a58d2ca` closes a related source-gate ambiguity by explicitly targeting net10 for every ProGPU-backed canonical build and test. This makes the intended single `System.Drawing.Common` identity independent of whichever preview SDK supplies upstream `NetCurrent`. The exact local net10 checkpoint passes platform 47/47, canonical lifecycle 70/70, the platform build with 0 warnings/0 errors, and the canonical ProGPU build at 608 reviewed warnings/0 errors. The normal NuGet consumer lane remains separate, the ProGPU submodule remains the source-development provider, and no frozen Portable runtime source changed.
+
 ## Major risks and controls
 
 | Risk | Control |
