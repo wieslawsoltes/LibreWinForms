@@ -1533,10 +1533,14 @@ public abstract partial class TextBoxBase : Control
         CommonProperties.xClearPreferredSizeCache(this);
         base.OnTextChanged(e);
 
+        // Portable controls have no native UIAutomationCore client registry. A future
+        // typed accessibility backend can publish the equivalent managed notification.
+#if !LIBREWINFORMS_PORTABLE
         if (PInvoke.UiaClientsAreListening())
         {
             RaiseAccessibilityTextChangedEvent();
         }
+#endif
     }
 
     private protected virtual void RaiseAccessibilityTextChangedEvent()

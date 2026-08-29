@@ -430,6 +430,237 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void ControlCollections_PreserveCanonicalParentingEventsAndOrdering()
+    {
+        using Control owner = new();
+        using Control first = new() { Name = "first" };
+        using Control second = new() { Name = "second" };
+        using Control replacement = new() { Name = "replacement" };
+        List<string> events = [];
+        owner.ControlAdded += (_, e) => events.Add("add:" + e.Control!.Name);
+        owner.ControlRemoved += (_, e) => events.Add("remove:" + e.Control!.Name);
+
+        owner.Controls.Add(first);
+        owner.Controls.Add(second);
+        owner.Controls.Remove(first);
+        owner.Controls.Add(replacement);
+        owner.Controls.Remove(second);
+        owner.Controls.Clear();
+
+        events.Should().Equal(
+            "add:first",
+            "add:second",
+            "remove:first",
+            "add:replacement",
+            "remove:second",
+            "remove:replacement");
+        first.Parent.Should().BeNull();
+        second.Parent.Should().BeNull();
+        replacement.Parent.Should().BeNull();
+
+        using Control oldParent = new();
+        using Control newParent = new();
+        using Control child = new() { Name = "child" };
+        events.Clear();
+        oldParent.ControlRemoved += (_, e) =>
+        {
+            events.Add("remove:" + e.Control!.Name);
+            e.Control.Parent.Should().BeNull();
+            oldParent.Controls.Contains(e.Control).Should().BeFalse();
+        };
+        newParent.ControlAdded += (_, e) =>
+        {
+            events.Add("add:" + e.Control!.Name);
+            e.Control.Parent.Should().BeSameAs(newParent);
+            newParent.Controls.Contains(e.Control).Should().BeTrue();
+        };
+
+        oldParent.Controls.Add(child);
+        newParent.Controls.Add(child);
+        oldParent.Controls.Count.Should().Be(0);
+        newParent.Controls.Count.Should().Be(1);
+        newParent.Controls[0].Should().BeSameAs(child);
+        child.Parent.Should().BeSameAs(newParent);
+        events.Should().Equal("remove:child", "add:child");
+
+        child.Parent = oldParent;
+        child.Parent = oldParent;
+        oldParent.Controls.Count.Should().Be(1);
+        oldParent.Controls[0].Should().BeSameAs(child);
+        child.Parent = newParent;
+        oldParent.Controls.Count.Should().Be(0);
+        newParent.Controls.Count.Should().Be(1);
+        newParent.Controls[0].Should().BeSameAs(child);
+        child.Parent = null;
+        newParent.Controls.Count.Should().Be(0);
+
+        using Control orderParent = new();
+        using Control orderFirst = new();
+        using Control orderSecond = new();
+        int added = 0;
+        int removed = 0;
+        orderParent.ControlAdded += (_, _) => added++;
+        orderParent.ControlRemoved += (_, _) => removed++;
+        orderParent.Controls.Add(orderFirst);
+        orderParent.Controls.Add(orderSecond);
+        orderParent.Controls.Add(orderFirst);
+        orderParent.Controls.Count.Should().Be(2);
+        orderParent.Controls[1].Should().BeSameAs(orderFirst);
+        orderParent.Controls.SetChildIndex(orderFirst, 0);
+        orderParent.Controls[0].Should().BeSameAs(orderFirst);
+        added.Should().Be(2);
+        removed.Should().Be(0);
+
+        using Control listParent = new();
+        using Control listChild = new();
+        ((System.Collections.IList)listParent.Controls).Add(listChild);
+        listParent.Controls.Count.Should().Be(1);
+        listParent.Controls[0].Should().BeSameAs(listChild);
+        listChild.Parent.Should().BeSameAs(listParent);
+
+        using TabControl oldTabs = new();
+        using TabControl newTabs = new();
+        using TabPage page = new();
+        oldTabs.TabPages.Add(page);
+        newTabs.Controls.Add(page);
+        oldTabs.Controls.Count.Should().Be(0);
+        oldTabs.TabPages.Count.Should().Be(0);
+        newTabs.Controls.Count.Should().Be(1);
+        newTabs.Controls[0].Should().BeSameAs(page);
+        newTabs.TabPages.Count.Should().Be(1);
+        newTabs.TabPages[0].Should().BeSameAs(page);
+        page.Parent.Should().BeSameAs(newTabs);
+
+        using Control cycleRoot = new();
+        using Control cycleChild = new();
+        cycleRoot.Controls.Add(cycleChild);
+        Action createCycle = () => cycleChild.Controls.Add(cycleRoot);
+        createCycle.Should().Throw<ArgumentException>();
+        cycleRoot.Parent.Should().BeNull();
+        cycleChild.Parent.Should().BeSameAs(cycleRoot);
+        cycleRoot.Controls.Count.Should().Be(1);
+        cycleRoot.Controls[0].Should().BeSameAs(cycleChild);
+        cycleChild.Controls.Count.Should().Be(0);
+    }
+
+    [Fact]
+    public void ControlTree_PreservesCanonicalSizingInvalidationAndHandleCleanup()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using Control sizing = new() { Size = new Size(-20, -30) };
+        sizing.Size.Should().Be(new Size(-20, -30));
+        sizing.SetBounds(4, 5, -6, 7);
+        sizing.Bounds.Should().Be(new Rectangle(4, 5, -6, 7));
+
+        using Control root = new();
+        using Control child = new();
+        using Control grandchild = new();
+        root.Controls.Add(child);
+        child.Controls.Add(grandchild);
+        root.CreateControl();
+        int rootInvalidated = 0;
+        int childInvalidated = 0;
+        int grandchildInvalidated = 0;
+        root.Invalidated += (_, _) => rootInvalidated++;
+        child.Invalidated += (_, _) => childInvalidated++;
+        grandchild.Invalidated += (_, _) => grandchildInvalidated++;
+
+        root.Invalidate(invalidateChildren: false);
+        (rootInvalidated, childInvalidated, grandchildInvalidated).Should().Be((1, 0, 0));
+        root.Invalidate(invalidateChildren: true);
+        // Upstream invalidates descendant native windows without raising a managed
+        // Invalidated event for every child; portable retained painting follows the
+        // root dirty region while preserving that public event behavior.
+        (rootInvalidated, childInvalidated, grandchildInvalidated).Should().Be((2, 0, 0));
+
+        using Control visual = new();
+        visual.CreateControl();
+        int visualInvalidated = 0;
+        int textChanged = 0;
+        visual.Invalidated += (_, _) => visualInvalidated++;
+        visual.TextChanged += (_, _) => textChanged++;
+        visual.Text = "Updated";
+        visual.BackColor = Color.AliceBlue;
+        visual.ForeColor = Color.DarkSlateGray;
+        // Upstream Control.Text raises TextChanged without a managed Invalidated event;
+        // BackColor and ForeColor each invalidate the created control once.
+        visualInvalidated.Should().Be(2);
+        textChanged.Should().Be(1);
+        visual.Text = "Updated";
+        visual.BackColor = Color.AliceBlue;
+        visual.ForeColor = Color.DarkSlateGray;
+        visualInvalidated.Should().Be(2);
+        textChanged.Should().Be(1);
+
+        nint childHandle = child.Handle;
+        nint grandchildHandle = grandchild.Handle;
+        root.Dispose();
+        root.IsDisposed.Should().BeTrue();
+        child.IsDisposed.Should().BeTrue();
+        grandchild.IsDisposed.Should().BeTrue();
+        root.Controls.Count.Should().Be(0);
+        child.Controls.Count.Should().Be(0);
+        child.Parent.Should().BeNull();
+        grandchild.Parent.Should().BeNull();
+        Control.FromChildHandle(childHandle).Should().BeNull();
+        Control.FromChildHandle(grandchildHandle).Should().BeNull();
+
+        using Control separateParent = new();
+        using Control separateChild = new();
+        separateParent.Controls.Add(separateChild);
+        separateChild.Dispose();
+        separateParent.Controls.Count.Should().Be(0);
+        separateChild.Parent.Should().BeNull();
+    }
+
+    [Fact]
+    public void DesignerInitializableControls_PreserveCanonicalSplitContainerContracts()
+    {
+        using SplitContainer split = new();
+        split.Should().BeAssignableTo<ISupportInitialize>();
+        split.Orientation.Should().Be(Orientation.Vertical);
+        split.SplitterDistance.Should().Be(50);
+        split.SplitterWidth.Should().Be(4);
+        split.Panel1MinSize.Should().Be(25);
+        split.Panel2MinSize.Should().Be(25);
+        split.Controls.Count.Should().Be(2);
+        split.Controls[0].Should().BeSameAs(split.Panel1);
+        split.Controls[1].Should().BeSameAs(split.Panel2);
+
+        ISupportInitialize initialization = split;
+        initialization.BeginInit();
+        split.Orientation = Orientation.Horizontal;
+        split.SplitterDistance = 42;
+        split.Panel1MinSize = 30;
+        split.Panel2MinSize = 35;
+        split.SplitterWidth = 6;
+        split.Orientation.Should().Be(Orientation.Horizontal);
+        split.SplitterDistance.Should().Be(42);
+        split.SplitterWidth.Should().Be(4);
+        split.Panel1MinSize.Should().Be(25);
+        split.Panel2MinSize.Should().Be(25);
+        initialization.EndInit();
+        split.SplitterWidth.Should().Be(6);
+        split.Panel1MinSize.Should().Be(30);
+        split.Panel2MinSize.Should().Be(35);
+
+        initialization.BeginInit();
+        split.SplitterWidth = 0;
+        split.SplitterWidth.Should().Be(6);
+        Action finishInvalidInitialization = initialization.EndInit;
+        finishInvalidInitialization.Should().Throw<ArgumentOutOfRangeException>();
+        split.SplitterWidth.Should().Be(6);
+        Action setInvalidWidth = () => split.SplitterWidth = 0;
+        setInvalidWidth.Should().Throw<ArgumentOutOfRangeException>();
+        split.SplitterWidth.Should().Be(6);
+
+        using NumericUpDown numeric = new();
+        using TrackBar track = new();
+        numeric.Should().BeAssignableTo<ISupportInitialize>();
+        track.Should().BeAssignableTo<ISupportInitialize>();
+    }
+
+    [Fact]
     public void FormWindowState_UsesTypedInitialLiveAndPlatformDrivenTransitions()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);

@@ -5459,6 +5459,11 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     public static Control? FromChildHandle(IntPtr handle)
     {
+#if LIBREWINFORMS_PORTABLE
+        // Every portable control owns a managed logical handle registered by NativeWindow.
+        // There is no OS HWND parent chain to traverse after a direct map miss.
+        return FromHandle(handle);
+#else
         HWND hwnd = (HWND)handle;
         while (!hwnd.IsNull)
         {
@@ -5472,6 +5477,7 @@ public unsafe partial class Control :
         }
 
         return null;
+#endif
     }
 
     /// <summary>
