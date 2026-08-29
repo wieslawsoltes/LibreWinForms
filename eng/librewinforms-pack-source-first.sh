@@ -56,6 +56,7 @@ NUGET_PACKAGES="${smoke_root}/canonical-packages" "${dotnet}" pack \
   -p:ContinuousIntegrationBuild=true
 
 canonical_hash="$(sha256sum "${repo_root}/artifacts/bin/System.Windows.Forms/${configuration}/net11.0/System.Windows.Forms.dll" | cut -d' ' -f1)"
+canonical_design_hash="$(sha256sum "${repo_root}/artifacts/bin/System.Windows.Forms.Design/${configuration}/net11.0/System.Windows.Forms.Design.dll" | cut -d' ' -f1)"
 platform_canonical_hash="$(sha256sum "${repo_root}/artifacts/bin/LibreWinForms.Platform/${configuration}/net11.0/LibreWinForms.Platform.dll" | cut -d' ' -f1)"
 
 backend_pack_config="${smoke_root}/backend-NuGet.config"
@@ -123,6 +124,8 @@ fi
 required_entries=(
   "lib/net11.0/System.Windows.Forms.dll"
   "lib/net11.0/System.Windows.Forms.xml"
+  "lib/net11.0/System.Windows.Forms.Design.dll"
+  "lib/net11.0/System.Windows.Forms.Design.xml"
   "lib/net11.0/System.Windows.Forms.Primitives.dll"
   "lib/net11.0/System.Windows.Forms.Primitives.xml"
   "lib/net11.0/System.Private.Windows.Core.dll"
@@ -133,6 +136,7 @@ required_entries=(
   "lib/net11.0/LibreWinForms.Platform.dll"
   "lib/net11.0/LibreWinForms.Platform.xml"
   "ref/net11.0/System.Windows.Forms.dll"
+  "ref/net11.0/System.Windows.Forms.Design.dll"
   "ref/net11.0/System.Windows.Forms.Primitives.dll"
   "ref/net11.0/System.Private.Windows.Core.dll"
   "ref/net11.0/System.Private.Windows.GdiPlus.dll"
@@ -156,6 +160,12 @@ fi
 implementation_hash="$(unzip -p "${package_file}" lib/net11.0/System.Windows.Forms.dll | sha256sum | cut -d' ' -f1)"
 if [[ "${implementation_hash}" != "${canonical_hash}" ]]; then
   echo "Packed System.Windows.Forms.dll is not the current canonical build output." >&2
+  exit 1
+fi
+
+design_implementation_hash="$(unzip -p "${package_file}" lib/net11.0/System.Windows.Forms.Design.dll | sha256sum | cut -d' ' -f1)"
+if [[ "${design_implementation_hash}" != "${canonical_design_hash}" ]]; then
+  echo "Packed System.Windows.Forms.Design.dll is not the current canonical build output." >&2
   exit 1
 fi
 
@@ -385,6 +395,7 @@ echo "Canonical source-first package validated: ${package_file}"
 echo "Source-first ProGPU backend package validated: ${backend_package_file}"
 echo "Source-first SDK package validated: ${sdk_package_file}"
 echo "System.Windows.Forms SHA-256: ${implementation_hash}"
+echo "System.Windows.Forms.Design SHA-256: ${design_implementation_hash}"
 echo "LibreWinForms.Platform SHA-256: ${platform_implementation_hash}"
 echo "LibreWinForms.ProGPU SHA-256: ${backend_implementation_hash}"
 echo "SDK smoke System.Drawing.Common SHA-256: ${sdk_smoke_drawing_hash}"

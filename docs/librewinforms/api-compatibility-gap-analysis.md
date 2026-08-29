@@ -30,6 +30,12 @@ The SDK's canonical package mode now references `LibreWinForms.System.Windows.Fo
 
 The local end-to-end gate passed with a fresh NuGet cache and warnings treated as errors. It produced and verified all ten ProGPU packages, built the canonical runtime/backend/SDK packages, and built and ran both project-mode and package-mode consumers. A production-version rehearsal emitted all 13 packages at `0.1.0-preview.9001`; the installed SDK selected canonical WinForms and ProGPU without opt-in properties, loaded drawing identity `10.0.0.0`, included the GDI+ support assembly, and rejected the official Windows drawing project.
 
+### Design-time source checkpoint
+
+SharpDevelop's canonical-package migration exposed a second form of the same packaging problem: the repository contained the complete upstream `System.Windows.Forms.Design` source, including `AnchorEditor`, but the canonical transport package shipped only `System.Windows.Forms` and its runtime foundations. The consumer therefore reported a missing design type even though its source was present.
+
+The proposed fix is now implemented in the source-first graph. The canonical transport builds `System.Windows.Forms.Design` from its real upstream project, includes its implementation/reference/resource assets, and declares the required `System.CodeDom` dependency. SDK project mode references the same design project. Five design drawing sites use WinForms' existing typed `IDeviceContext` adapter so ProGPU `Graphics` does not need an internal WinForms interface or a circular dependency; no reflection or design-shaped stub is introduced. The package smoke compiles `AnchorEditor` with warnings treated as errors, and the complete fresh-cache gate builds and runs project- and package-mode consumers. Local validation produced 0 errors and byte-checked `System.Windows.Forms.Design.dll` at SHA-256 `9fbb8fe9fe68b1e5ac7df23e09aaa1bc88091de1918a5ff8b2958a712cd6af20`.
+
 ### Issue interpretation and proposed fixes
 
 | Issues | What the report actually demonstrates | Proposed source-first fix |

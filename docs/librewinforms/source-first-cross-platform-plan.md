@@ -156,7 +156,9 @@ flowchart TD
     SDK --> Backend["LibreWinForms.ProGPU package"]
     SDK --> Drawing["ProGPU.System.Drawing.Common package"]
     Transport --> Forms["System.Windows.Forms.dll from canonical source"]
+    Transport --> Design["System.Windows.Forms.Design.dll from canonical source"]
     Transport --> Primitives["System.Windows.Forms.Primitives.dll from canonical source"]
+    Design --> Forms
     Forms --> Contracts["Typed WinForms platform contracts"]
     Primitives --> Contracts
     Forms --> Drawing
