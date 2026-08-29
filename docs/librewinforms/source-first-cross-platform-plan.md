@@ -1248,6 +1248,8 @@ The first checked inventory is `eng/librewinforms-portable-vector-manifest.tsv`,
 
 `DataGridViewLookupSortBehaviorTests.cs` is the twelfth move. Canonical lifecycle evidence now owns case-insensitive named-column lookup, missing-name behavior, typed column indexing and ownership, stable ascending/descending row identity, canonical null order, permanent last placement of the new-row placeholder, refreshed row indexes, sort metadata/events, and invalid direction or foreign-column rejection. The reduced runtime's `IndexOf(string)` helper is not an upstream API, and exact invalidation counts are not a public sorting guarantee, so both are excluded. The upstream managed implementation already satisfies the retained contract without a new platform seam. The complete canonical lifecycle floor is 91.
 
+`DataGridViewNewRowBehaviorTests.cs` is the thirteenth move. Canonical lifecycle evidence now owns placeholder creation, toggling and event timing, supported row-add/insert paths, shared-row unsharing, clear-time detachment and recreation, column-shape synchronization, detached row/cell state, and guarded placeholder removal. Writable row/column indexers, insertion after the uncommitted placeholder, forced detached-column index reset, placeholder identity reuse, and resurrection of detached rows after columns are re-added are reduced-runtime behaviors rather than upstream contracts and are excluded. The canonical managed implementation requires no new platform seam. The complete canonical lifecycle floor is 96.
+
 ## Major risks and controls
 
 | Risk | Control |

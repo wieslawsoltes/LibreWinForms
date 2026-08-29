@@ -2022,6 +2022,176 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void DataGridViewNewRowPlaceholderTracksColumnsAndAllowUserToAddRows()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var grid = new DataGridView();
+        int changed = 0;
+        grid.AllowUserToAddRowsChanged += (_, _) =>
+        {
+            changed++;
+            AssertCanonicalNewRowInvariant(grid);
+        };
+
+        grid.AllowUserToAddRows.Should().BeTrue();
+        AssertCanonicalNewRowInvariant(grid);
+        grid.Columns.Add(new DataGridViewTextBoxColumn());
+        grid.NewRowIndex.Should().Be(0);
+        grid.Rows[0].Cells[0].Should().BeOfType<DataGridViewTextBoxCell>();
+        AssertCanonicalNewRowInvariant(grid);
+
+        grid.AllowUserToAddRows = true;
+        changed.Should().Be(0);
+        DataGridViewRow oldPlaceholder = grid.Rows[grid.NewRowIndex];
+        grid.AllowUserToAddRows = false;
+        changed.Should().Be(1);
+        grid.Rows.Count.Should().Be(0);
+        grid.NewRowIndex.Should().Be(-1);
+        oldPlaceholder.DataGridView.Should().BeNull();
+        oldPlaceholder.Index.Should().Be(-1);
+        oldPlaceholder.IsNewRow.Should().BeFalse();
+
+        grid.AllowUserToAddRows = false;
+        changed.Should().Be(1);
+        grid.AllowUserToAddRows = true;
+        changed.Should().Be(2);
+        grid.Rows[grid.NewRowIndex].Should().NotBeSameAs(oldPlaceholder);
+        AssertCanonicalNewRowInvariant(grid);
+    }
+
+    [Fact]
+    public void DataGridViewRowAddPathsInsertBeforeTheCanonicalPlaceholder()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var grid = new DataGridView();
+        grid.Columns.Add(new DataGridViewTextBoxColumn());
+        grid.Columns.Add(new DataGridViewComboBoxColumn());
+
+        int valuesIndex = grid.Rows.Add("alpha", "one");
+        int emptyIndex = grid.Rows.Add();
+        var explicitRow = new DataGridViewRow();
+        int explicitIndex = grid.Rows.Add(explicitRow);
+        var insertedAtEnd = new DataGridViewRow();
+        grid.Rows.Insert(grid.NewRowIndex, insertedAtEnd);
+
+        valuesIndex.Should().Be(0);
+        emptyIndex.Should().Be(1);
+        explicitIndex.Should().Be(2);
+        grid.NewRowIndex.Should().Be(4);
+        grid.Rows.Count.Should().Be(5);
+        grid.Rows[2].Should().BeSameAs(explicitRow);
+        grid.Rows[3].Should().BeSameAs(insertedAtEnd);
+        explicitRow.Index.Should().Be(2);
+        insertedAtEnd.Index.Should().Be(3);
+        grid.Rows[0].Cells[0].Value.Should().Be("alpha");
+        grid.Rows[0].Cells[1].Value.Should().Be("one");
+        grid.Rows[0].Cells[1].Should().BeOfType<DataGridViewComboBoxCell>();
+        AssertCanonicalNewRowInvariant(grid);
+    }
+
+    [Fact]
+    public void DataGridViewRowsClearDetachesRowsAndRecreatesThePlaceholder()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using DataGridView grid = CreateCanonicalNewRowGrid();
+        var first = new DataGridViewRow();
+        var second = new DataGridViewRow();
+        grid.Rows.Add(first);
+        grid.Rows.Add(second);
+        DataGridViewRow oldPlaceholder = grid.Rows[grid.NewRowIndex];
+
+        grid.Rows.Clear();
+
+        grid.Rows.Count.Should().Be(1);
+        grid.NewRowIndex.Should().Be(0);
+        grid.Rows[0].Should().NotBeSameAs(oldPlaceholder);
+        first.DataGridView.Should().BeNull();
+        first.Index.Should().Be(-1);
+        second.DataGridView.Should().BeNull();
+        second.Index.Should().Be(-1);
+        oldPlaceholder.DataGridView.Should().BeNull();
+        oldPlaceholder.Index.Should().Be(-1);
+        oldPlaceholder.IsNewRow.Should().BeFalse();
+        AssertCanonicalNewRowInvariant(grid);
+    }
+
+    [Fact]
+    public void DataGridViewColumnMutationsSynchronizeRealAndPlaceholderRows()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var grid = new DataGridView();
+        var firstColumn = new DataGridViewTextBoxColumn { Name = "first" };
+        var lastColumn = new DataGridViewComboBoxColumn { Name = "last" };
+        grid.Columns.Add(firstColumn);
+        grid.Columns.Add(lastColumn);
+        int rowIndex = grid.Rows.Add("left", "right");
+        DataGridViewRow row = grid.Rows[rowIndex];
+        DataGridViewCell firstCell = row.Cells[0];
+        DataGridViewCell lastCell = row.Cells[1];
+
+        grid.Columns.Insert(1, new DataGridViewTextBoxColumn { Name = "middle" });
+        row.Cells.Count.Should().Be(3);
+        row.Cells[0].Should().BeSameAs(firstCell);
+        row.Cells[1].Should().BeOfType<DataGridViewTextBoxCell>();
+        row.Cells[1].Value.Should().BeNull();
+        row.Cells[2].Should().BeSameAs(lastCell);
+        row.Cells[0].Value.Should().Be("left");
+        row.Cells[2].Value.Should().Be("right");
+        AssertCanonicalNewRowInvariant(grid);
+
+        grid.Columns.RemoveAt(0);
+        row.Cells.Count.Should().Be(2);
+        row.Cells[1].Should().BeSameAs(lastCell);
+        row.Cells[1].Value.Should().Be("right");
+        firstColumn.DataGridView.Should().BeNull();
+        firstColumn.Index.Should().Be(0);
+        grid.Columns[0].Index.Should().Be(0);
+        grid.Columns[1].Index.Should().Be(1);
+        AssertCanonicalNewRowInvariant(grid);
+
+        DataGridViewRow oldPlaceholder = grid.Rows[grid.NewRowIndex];
+        grid.Columns.Clear();
+        grid.Columns.Count.Should().Be(0);
+        grid.NewRowIndex.Should().Be(-1);
+        grid.Rows.Count.Should().Be(0);
+        row.DataGridView.Should().BeNull();
+        row.Index.Should().Be(-1);
+        row.Cells.Count.Should().Be(2);
+        row.Cells[0].Should().BeOfType<DataGridViewTextBoxCell>();
+        row.Cells[0].Value.Should().BeNull();
+        row.Cells[1].Should().BeSameAs(lastCell);
+        row.Cells[1].Value.Should().Be("right");
+        oldPlaceholder.DataGridView.Should().BeNull();
+        oldPlaceholder.IsNewRow.Should().BeFalse();
+        AssertCanonicalNewRowInvariant(grid);
+
+        grid.Columns.Add(new DataGridViewComboBoxColumn());
+        row.Cells.Count.Should().Be(2);
+        grid.Rows.Count.Should().Be(1);
+        grid.NewRowIndex.Should().Be(0);
+        grid.Rows[0].Cells[0].Should().BeOfType<DataGridViewComboBoxCell>();
+        AssertCanonicalNewRowInvariant(grid);
+    }
+
+    [Fact]
+    public void DataGridViewNewRowPlaceholderCannotBeRemovedThroughPublicRowsApi()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using DataGridView grid = CreateCanonicalNewRowGrid();
+        grid.Rows.Add("real");
+        DataGridViewRow placeholder = grid.Rows[grid.NewRowIndex];
+
+        FluentActions.Invoking(() => grid.Rows.RemoveAt(grid.NewRowIndex))
+            .Should().Throw<InvalidOperationException>();
+        FluentActions.Invoking(() => grid.Rows.Remove(placeholder))
+            .Should().Throw<InvalidOperationException>();
+        grid.Rows.Count.Should().Be(2);
+        grid.NewRowIndex.Should().Be(1);
+        grid.Rows[1].Should().BeSameAs(placeholder);
+        AssertCanonicalNewRowInvariant(grid);
+    }
+
+    [Fact]
     public void ProfessionalColorsUseManagedLayoutGraphicsWithoutScreenHdc()
     {
         UseHeadlessPlatform(autoCloseWindows: false);
@@ -4067,6 +4237,34 @@ public class CanonicalLifecycleTests
         grid.Rows.Add("beta", "two");
         grid.CurrentCell = null;
         return grid;
+    }
+
+    private static DataGridView CreateCanonicalNewRowGrid()
+    {
+        var grid = new DataGridView();
+        grid.Columns.Add(new DataGridViewTextBoxColumn());
+        return grid;
+    }
+
+    private static void AssertCanonicalNewRowInvariant(DataGridView grid)
+    {
+        bool shouldHavePlaceholder = grid.AllowUserToAddRows && grid.Columns.Count > 0;
+        DataGridViewRow[] rows = grid.Rows.Cast<DataGridViewRow>().ToArray();
+
+        rows.Select((row, index) => row.Index == index).Should().OnlyContain(value => value);
+        rows.Should().OnlyContain(row => row.DataGridView == grid);
+        rows.Should().OnlyContain(row => row.Cells.Count == grid.Columns.Count);
+        if (shouldHavePlaceholder)
+        {
+            grid.NewRowIndex.Should().Be(grid.Rows.Count - 1);
+            rows.Count(row => row.IsNewRow).Should().Be(1);
+            grid.Rows[grid.NewRowIndex].IsNewRow.Should().BeTrue();
+        }
+        else
+        {
+            grid.NewRowIndex.Should().Be(-1);
+            rows.Should().NotContain(row => row.IsNewRow);
+        }
     }
 
     private sealed class InputProbeControl : Control
