@@ -41,7 +41,8 @@
     <None Include="$(RepoRoot)README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
-  <Target Name="BuildCanonicalWinFormsPackagePayload">
+  <Target Name="BuildCanonicalWinFormsPackagePayload"
+          Condition="'$(LibreWinFormsSkipCanonicalPackageBuild)' != 'true'">
     <!-- A separate process prevents Pack's inner TargetFramework global property from
          leaking into the canonical multi-project graph and its netstandard generator. -->
     <Exec WorkingDirectory="$(RepoRoot)"
