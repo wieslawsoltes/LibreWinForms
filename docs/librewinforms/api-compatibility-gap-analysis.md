@@ -1,8 +1,8 @@
 # LibreWinForms API Compatibility Gap Analysis
 
-Date: 2026-08-28
+Date: 2026-08-29
 
-Implementation baseline: `95b8363bd0105692d95bc3c99729eb66cdd57179`
+Implementation baseline: `c3b3aedd6c8ac44bb5b02aa3ac1201bc062379c4`
 
 Compared contract: .NET 10.0.11 `Microsoft.WindowsDesktop.App.Ref`
 
@@ -35,6 +35,19 @@ The local end-to-end gate passed with a fresh NuGet cache and warnings treated a
 SharpDevelop's canonical-package migration exposed a second form of the same packaging problem: the repository contained the complete upstream `System.Windows.Forms.Design` source, including `AnchorEditor`, but the canonical transport package shipped only `System.Windows.Forms` and its runtime foundations. The consumer therefore reported a missing design type even though its source was present.
 
 The proposed fix is now implemented in the source-first graph. The canonical transport builds `System.Windows.Forms.Design` from its real upstream project, includes its implementation/reference/resource assets, and declares the required `System.CodeDom` dependency. SDK project mode references the same design project. Five design drawing sites use WinForms' existing typed `IDeviceContext` adapter so ProGPU `Graphics` does not need an internal WinForms interface or a circular dependency; no reflection or design-shaped stub is introduced. The package smoke compiles `AnchorEditor` with warnings treated as errors, and the complete fresh-cache gate builds and runs project- and package-mode consumers. Local validation produced 0 errors and byte-checked `System.Windows.Forms.Design.dll` at SHA-256 `9fbb8fe9fe68b1e5ac7df23e09aaa1bc88091de1918a5ff8b2958a712cd6af20`.
+
+### Canonical LibreWPF and SharpDevelop consumer checkpoint
+
+[LibreWPF PR #121](https://github.com/wieslawsoltes/LibreWPF/pull/121) now builds the real `src/Microsoft.DotNet.Wpf/src/WindowsFormsIntegration` managed source against the canonical LibreWinForms packages and preserves the `WindowsFormsIntegration` runtime identity. Its package gate requires the exact canonical Forms, Design, ProGPU drawing, and `System.CodeDom` closure, builds with `--no-incremental`, and rejects a physical LibreWinForms checkout whose revision differs from the recorded gitlink. This closes the old bridge's reason to consume the reduced Portable runtime.
+
+[SharpDevelop PR #2](https://github.com/wieslawsoltes/SharpDevelop/pull/2) adds a separate canonical consumer lane. The complete executable graph compiles with the upstream WinForms public surface and Design assembly, ProGPU `System.Drawing.Common`, the canonical WFI package, and the typed `LibreWinForms.ProGPU` backend. Consumer migration found no need to add missing WinForms properties. Instead it found four integration categories that explain earlier reports and define reusable fixes:
+
+1. stale incremental producer outputs can silently preserve an older `System.CodeDom` reference, so canonical packaging must rebuild deterministically and verify the assembly reference and nuspec version;
+2. the real WinForms `Accessibility` namespace collides with NRefactory's `Accessibility` enum in legacy source, so consumers must use an explicit type alias rather than changing framework identity;
+3. Portable-only test helpers such as synthetic `RaiseMouse*` methods and `PropertyGrid.DisplayRows` are not framework APIs, so canonical smokes now use `IDesignerHost`, `IComponentChangeService`, `DesignerTransaction`, public properties, and `TypeDescriptor`; and
+4. carrying the backend package is not sufficient by itself: an executable host must run the typed `ProGpuPlatform.Register()` bootstrap before its first WinForms operation, or use the equivalent generated SDK initializer.
+
+This evidence sharpens the root cause: the missing-property problem came from selecting the reduced implementation, while the remaining canonical failures are normal package, namespace, host-bootstrap, or platform-seam defects. They should be fixed at those boundaries, not by adding another compatibility declaration.
 
 ### Issue interpretation and proposed fixes
 

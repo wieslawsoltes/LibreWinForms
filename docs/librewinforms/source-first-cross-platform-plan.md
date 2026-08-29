@@ -1174,6 +1174,22 @@ The canonical package ID and the old integration ABI are now deliberately separa
 
 This handoff prevents NuGet from unifying two different `System.Windows.Forms` implementations under the canonical package name. It does not make the compatibility bridge canonical and does not close the Portable deletion gate. The replacement must build the real LibreWPF `src/Microsoft.DotNet.Wpf/src/WindowsFormsIntegration` managed source against the canonical LibreWinForms implementation/reference assemblies, retain the runtime identity `WindowsFormsIntegration`, package it as `LibreWinForms.WindowsFormsIntegration`, and move only cross-platform HWND/HDC/input/painting operations behind typed LibreWPF/LibreWinForms seams. After that package passes the mixed-desktop and SharpDevelop gates, LibreWPF and SharpDevelop must switch back to `LibreWinForms.System.Windows.Forms`, and the compatibility package assertion becomes a rejection assertion.
 
+### Canonical WindowsFormsIntegration and SharpDevelop cutover checkpoint
+
+[LibreWPF PR #121](https://github.com/wieslawsoltes/LibreWPF/pull/121) implements the replacement package from the real WPF `WindowsFormsIntegration` source and binds it to canonical LibreWinForms. Its deterministic pack gate validates the exact Forms/Design/ProGPU/CodeDom closure, prevents stale incremental design outputs, and fails if the LibreWinForms source checkout disagrees with the pinned gitlink. [SharpDevelop PR #2](https://github.com/wieslawsoltes/SharpDevelop/pull/2) consumes that closure in a canonical lane, selects `LibreWinForms.ProGPU` in the executable graph, registers `ProGpuPlatform` before the first WinForms call, and replaces Portable-only designer instrumentation with public WinForms designer/component-model APIs.
+
+This makes the remaining `src/LibreWinForms.Portable` dependency inventory mechanical and reviewable. Outside that directory and its frozen compatibility tests, product/release references are limited to:
+
+| Remaining reference group | Removal action | Required proof |
+| --- | --- | --- |
+| `src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets` compatibility package branch | Delete `LibreWinFormsUseCanonicalRuntime=false` package selection and make canonical runtime/backend unconditional. | Installed SDK project- and package-mode smokes still restore one Forms provider and one ProGPU drawing provider. |
+| `eng/librewinforms-pack.sh`, package list/smoke, preview bundle, and release metadata | Stop producing/listing `LibreWinForms.Compatibility.System.Windows.Forms`; obtain canonical WFI from the LibreWPF source build. | Fresh-cache release bundle contains canonical Forms, Design, backend, drawing closure, and WFI with exact versions. |
+| `packaging/LibreWinForms.Sdk.CompatibilitySmoke` | Remove the compatibility smoke project; promote its still-relevant unchanged-app assertions into the canonical SDK smoke. | Canonical SDK smoke covers the retained API/behavior vectors without a second runtime. |
+| `src/test/compatibility/LibreWinForms.Portable.Tests` and the comparison portion of `eng/librewinforms-source-first.sh` | Delete the frozen implementation tests after mapping any unique behavior vectors to canonical lifecycle/API tests. | A checked manifest shows every retained vector's canonical test owner; CI has no Portable project reference. |
+| documentation verifier, CI/release workflow assertions, README compatibility package row | Invert presence assertions into rejection checks, then remove transitional documentation. | Repository-wide search outside historical release notes reports no Portable path or compatibility package ID. |
+
+Deletion should be one final commit after those substitutions, not a source move: remove `src/LibreWinForms.Portable`, the frozen compatibility test project, and the compatibility smoke; then run the canonical build, package/fresh-cache gates, installed visible smokes, canonical LibreWPF WFI gate, and SharpDevelop canonical gate. A failure must be fixed in canonical source or a typed platform adapter. Restoring compatibility declarations is not an allowed rollback path.
+
 ## Major risks and controls
 
 | Risk | Control |
