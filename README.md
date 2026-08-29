@@ -110,7 +110,7 @@ The canonical runtime and its ten-package ProGPU drawing closure are built from 
 LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.45 ./eng/librewinforms-pack.sh
 ```
 
-The package lane builds canonical `LibreWinForms.System.Windows.Forms`, `LibreWinForms.ProGPU`, `LibreWinForms.Sdk`, and the exact ten-package ProGPU drawing closure. It consumes only a separately qualified canonical WFI source package, verifies its exact source/dependency provenance and generated Forms contract, verifies docs, writes the preview manifest, creates a release bundle with hashes and a local-feed `NuGet.config`, and fails if a stale or unexpected current-version package would be published.
+The package lane builds canonical `LibreWinForms.System.Windows.Forms`, `LibreWinForms.ProGPU`, `LibreWinForms.Sdk`, and the exact ten-package ProGPU drawing closure. It consumes only a separately qualified canonical WFI source package plus its `LibreWPF.Interop` and `ProGPU.DirectX` source-built dependencies, verifies exact source/dependency provenance and the generated Forms contract, verifies docs, writes the preview manifest, creates a release bundle with hashes and a local-feed `NuGet.config`, and fails if a stale or unexpected current-version package would be published.
 
 The pack script restores through an isolated cache under `artifacts/nuget/librewinforms-pack` by default and clears current-version LibreWPF/ProGPU bridge packages from that cache before restore. This keeps package-mode validation tied to the bridge feed built for the same run instead of a stale same-version package from a user/global NuGet cache.
 

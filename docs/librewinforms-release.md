@@ -53,6 +53,8 @@ contain two Forms identities.
 The package lane writes:
 
 - `.nupkg` files for each public package and the ProGPU drawing closure;
+- the qualified `LibreWPF.Interop` and `ProGPU.DirectX` packages required by
+  canonical WFI at the same pinned ProGPU source version;
 - `librewinforms-preview-packages-<version>.json` with source commits, package
   sizes, and SHA-256 hashes;
 - `librewinforms-preview-<version>.tar.gz` plus `.sha256`; and

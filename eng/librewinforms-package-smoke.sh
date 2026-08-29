@@ -28,6 +28,9 @@ source "${repo_root}/eng/librewinforms-package-list.sh"
 for package_id in "${librewinforms_preview_progpu_package_ids[@]}"; do
   required_packages+=("${package_output}/${package_id}.${progpu_version}.nupkg")
 done
+for package_id in "${librewinforms_preview_wfi_dependency_package_ids[@]}"; do
+  required_packages+=("${package_output}/${package_id}.${progpu_version}.nupkg")
+done
 
 for package in "${required_packages[@]}"; do
   if [[ ! -f "${package}" ]]; then

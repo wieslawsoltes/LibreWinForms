@@ -38,8 +38,8 @@ This preview bundle contains the package set for running WinForms-shaped applica
 - \`LibreWinForms.Sdk.${dev_package_version}.nupkg\` is the custom MSBuild SDK package.
 - \`LibreWinForms.System.Windows.Forms.${dev_package_version}.nupkg\` provides source-built canonical System.Windows.Forms.
 - \`LibreWinForms.ProGPU.${dev_package_version}.nupkg\` provides the typed cross-platform backend.
-- \`LibreWinForms.WindowsFormsIntegration.${dev_package_version}.nupkg\` contains the real LibreWPF WindowsFormsIntegration reference and runtime assemblies qualified against the byte-identical canonical Forms payload.
-- The ProGPU drawing-runtime closure is built from the pinned submodule at version \`${progpu_package_version}\`.
+- \`LibreWinForms.WindowsFormsIntegration.${dev_package_version}.nupkg\` contains the real LibreWPF WindowsFormsIntegration reference and runtime assemblies qualified against the exact canonical Forms source and managed contract.
+- The ProGPU drawing-runtime closure and WFI's typed interop dependencies are built from the pinned submodule at version \`${progpu_package_version}\`.
 
 Verify the archive with the adjacent checksum file:
 
@@ -88,6 +88,16 @@ for package_id in "${librewinforms_preview_package_ids[@]}"; do
 done
 
 for package_id in "${librewinforms_preview_progpu_package_ids[@]}"; do
+  package_name="${package_id}.${progpu_package_version}.nupkg"
+  package_file="${package_output}/${package_name}"
+  if [[ ! -f "${package_file}" ]]; then
+    echo "Missing package ${package_file}." >&2
+    exit 1
+  fi
+  archive_entries+=("${package_name}")
+done
+
+for package_id in "${librewinforms_preview_wfi_dependency_package_ids[@]}"; do
   package_name="${package_id}.${progpu_package_version}.nupkg"
   package_file="${package_output}/${package_name}"
   if [[ ! -f "${package_file}" ]]; then

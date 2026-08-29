@@ -19,3 +19,11 @@ librewinforms_preview_progpu_package_ids=(
   ProGPU.SkiaSharp
   ProGPU.System.Drawing.Common
 )
+
+# Canonical WFI is built by LibreWPF against these additional packages from the
+# same pinned ProGPU source tree. They are staged from the qualified WFI handoff
+# rather than rebuilt by LibreWinForms' drawing-runtime package group.
+librewinforms_preview_wfi_dependency_package_ids=(
+  LibreWPF.Interop
+  ProGPU.DirectX
+)

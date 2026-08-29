@@ -37,6 +37,11 @@ clean_release_artifacts() {
       "${package_output}/${package_id}.${progpu_package_version}.nupkg" \
       "${package_output}/${package_id}.${progpu_package_version}.snupkg"
   done
+  for package_id in "${librewinforms_preview_wfi_dependency_package_ids[@]}"; do
+    rm -f \
+      "${package_output}/${package_id}.${progpu_package_version}.nupkg" \
+      "${package_output}/${package_id}.${progpu_package_version}.snupkg"
+  done
 }
 
 is_expected_package_file() {
@@ -51,6 +56,12 @@ is_expected_package_file() {
     fi
   done
   for package_id in "${librewinforms_preview_progpu_package_ids[@]}"; do
+    if [[ "${package_name}" == "${package_id}.${progpu_package_version}.nupkg" ||
+          "${package_name}" == "${package_id}.${progpu_package_version}.snupkg" ]]; then
+      return 0
+    fi
+  done
+  for package_id in "${librewinforms_preview_wfi_dependency_package_ids[@]}"; do
     if [[ "${package_name}" == "${package_id}.${progpu_package_version}.nupkg" ||
           "${package_name}" == "${package_id}.${progpu_package_version}.snupkg" ]]; then
       return 0
@@ -78,6 +89,7 @@ stage_canonical_wfi_package() {
   local qualified_forms_package="${canonical_wfi_package_source}/LibreWinForms.System.Windows.Forms.${dev_package_version}.nupkg"
   local release_forms_package="${package_output}/LibreWinForms.System.Windows.Forms.${dev_package_version}.nupkg"
   local package_file
+  local package_id
   for package_file in "${wfi_package}" "${qualified_forms_package}" "${release_forms_package}"; do
     if [[ ! -f "${package_file}" ]]; then
       echo "Canonical WFI handoff is missing ${package_file}." >&2
@@ -147,6 +159,15 @@ stage_canonical_wfi_package() {
     fi
   done
 
+  local dependency_package
+  for package_id in "${librewinforms_preview_wfi_dependency_package_ids[@]}"; do
+    dependency_package="${canonical_wfi_package_source}/${package_id}.${progpu_package_version}.nupkg"
+    if [[ ! -f "${dependency_package}" ]]; then
+      echo "Canonical WFI handoff is missing ${dependency_package}." >&2
+      exit 1
+    fi
+    cp "${dependency_package}" "${package_output}/${package_id}.${progpu_package_version}.nupkg"
+  done
   cp "${wfi_package}" "${package_output}/LibreWinForms.WindowsFormsIntegration.${dev_package_version}.nupkg"
 }
 
@@ -159,6 +180,12 @@ verify_package_outputs() {
     fi
   done
   for package_id in "${librewinforms_preview_progpu_package_ids[@]}"; do
+    if [[ ! -f "${package_output}/${package_id}.${progpu_package_version}.nupkg" ]]; then
+      echo "Missing package ${package_output}/${package_id}.${progpu_package_version}.nupkg." >&2
+      exit 1
+    fi
+  done
+  for package_id in "${librewinforms_preview_wfi_dependency_package_ids[@]}"; do
     if [[ ! -f "${package_output}/${package_id}.${progpu_package_version}.nupkg" ]]; then
       echo "Missing package ${package_output}/${package_id}.${progpu_package_version}.nupkg." >&2
       exit 1

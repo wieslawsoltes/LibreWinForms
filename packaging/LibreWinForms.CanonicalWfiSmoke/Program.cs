@@ -1,5 +1,6 @@
 using LibreWinForms.Platform;
 using LibreWinForms.ProGPU;
+using System;
 using System.Windows.Forms.Integration;
 
 namespace LibreWinForms.CanonicalWfiSmoke;

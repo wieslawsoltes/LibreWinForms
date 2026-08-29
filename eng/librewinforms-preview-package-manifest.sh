@@ -18,6 +18,12 @@ package_path() {
       break
     fi
   done
+  for progpu_package_id in "${librewinforms_preview_wfi_dependency_package_ids[@]}"; do
+    if [[ "${package_id}" == "${progpu_package_id}" ]]; then
+      package_version="${progpu_package_version}"
+      break
+    fi
+  done
   echo "${package_output}/${package_id}.${package_version}.nupkg"
 }
 
@@ -48,7 +54,11 @@ json_escape() {
 
 mkdir -p "$(dirname "${manifest_path}")"
 
-all_package_ids=("${librewinforms_preview_package_ids[@]}" "${librewinforms_preview_progpu_package_ids[@]}")
+all_package_ids=(
+  "${librewinforms_preview_package_ids[@]}"
+  "${librewinforms_preview_progpu_package_ids[@]}"
+  "${librewinforms_preview_wfi_dependency_package_ids[@]}"
+)
 
 for package_id in "${all_package_ids[@]}"; do
   package_file="$(package_path "${package_id}")"
