@@ -4336,6 +4336,57 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void ContextMenuStripUsesCanonicalPortablePopupLifecycleAndTypedCloseReasons()
+    {
+        _ = UseHeadlessPlatform(autoCloseWindows: false);
+        using Control owner = new();
+        using ContextMenuStrip menu = new();
+        int opening = 0;
+        int opened = 0;
+        int closing = 0;
+        int closed = 0;
+        ToolStripDropDownCloseReason reason = default;
+        menu.Opening += (_, _) => opening++;
+        menu.Opened += (_, _) => opened++;
+        menu.Closing += (_, e) =>
+        {
+            closing++;
+            reason = e.CloseReason;
+        };
+        menu.Closed += (_, e) =>
+        {
+            closed++;
+            reason = e.CloseReason;
+        };
+
+        menu.Show(owner, Point.Empty);
+        menu.Visible.Should().BeFalse();
+        opening.Should().Be(1);
+        opened.Should().Be(0);
+
+        menu.Items.Add("Open");
+        menu.Show(owner, Point.Empty);
+        menu.Visible.Should().BeTrue();
+        opening.Should().Be(2);
+        opened.Should().Be(1);
+
+        menu.Close(ToolStripDropDownCloseReason.ItemClicked);
+        menu.Close(ToolStripDropDownCloseReason.AppClicked);
+        menu.Visible.Should().BeFalse();
+        closing.Should().Be(1);
+        closed.Should().Be(1);
+        reason.Should().Be(ToolStripDropDownCloseReason.ItemClicked);
+
+        menu.Show(owner, Point.Empty);
+        menu.Close();
+        menu.Visible.Should().BeFalse();
+        opened.Should().Be(2);
+        closing.Should().Be(2);
+        closed.Should().Be(2);
+        reason.Should().Be(ToolStripDropDownCloseReason.CloseCalled);
+    }
+
+    [Fact]
     public void PreCreatedChildHandle_ReparentsThroughCanonicalManagedTreeWithoutNativeParenting()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -5929,6 +5980,16 @@ public class CanonicalLifecycleTests
                 && format.HasFlag(LibreTextFormat.NoPrefix))
             {
                 return new Size(Math.Max(1, text.Length * 7), font!.Height);
+            }
+
+            if (graphics is null && text != "headless")
+            {
+                int availableWidth = proposedSize.Width is > 0 and < int.MaxValue
+                    ? proposedSize.Width
+                    : Math.Max(1, text.Length * 7);
+                int width = Math.Min(Math.Max(1, text.Length * 7), availableWidth);
+                int lineCount = Math.Max(1, (Math.Max(1, text.Length * 7) + availableWidth - 1) / availableWidth);
+                return new Size(width, font!.Height * lineCount);
             }
 
             if (graphics is null)
