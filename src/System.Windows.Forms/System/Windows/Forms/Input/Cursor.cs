@@ -26,9 +26,13 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
 
     private readonly byte[]? _cursorData;
     private HCURSOR _handle;
+#if !LIBREWINFORMS_PORTABLE
     private readonly bool _freeHandle;
+#endif
 #if LIBREWINFORMS_PORTABLE
     private readonly LibreCursorShape? _portableShape;
+    private readonly Bitmap? _portableBitmap;
+    private bool _portableDisposed;
 #endif
 
     /// <summary>
@@ -39,7 +43,9 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     internal unsafe Cursor(PCWSTR nResourceId, string cursorsProperty)
     {
         GC.SuppressFinalize(this);
+#if !LIBREWINFORMS_PORTABLE
         _freeHandle = false;
+#endif
         CursorsProperty = cursorsProperty;
 #if LIBREWINFORMS_PORTABLE
         _portableShape = GetPortableShape(cursorsProperty);
@@ -59,7 +65,9 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     {
         GC.SuppressFinalize(this);
         CursorsProperty = cursorsProperty;
+#if !LIBREWINFORMS_PORTABLE
         _freeHandle = false;
+#endif
 #if LIBREWINFORMS_PORTABLE
         _portableShape = GetPortableShape(cursorsProperty);
 #endif
@@ -118,7 +126,9 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
             throw new ArgumentException(string.Format(SR.InvalidGDIHandle, (typeof(Cursor)).Name), nameof(handle));
         }
 
+#if !LIBREWINFORMS_PORTABLE
         _freeHandle = false;
+#endif
         _handle = (HCURSOR)handle;
     }
 
@@ -128,10 +138,16 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     public Cursor(string fileName)
     {
         _cursorData = File.ReadAllBytes(fileName);
+#if !LIBREWINFORMS_PORTABLE
         _freeHandle = true;
+#endif
+#if LIBREWINFORMS_PORTABLE
+        _portableBitmap = PortableCursorDecoder.Decode(_cursorData);
+#else
         LoadPicture(
             new ComManagedStream(new MemoryStream(_cursorData)),
             nameof(fileName));
+#endif
     }
 
     /// <summary>
@@ -159,13 +175,19 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
 
         stream.CopyTo(memoryStream);
         _cursorData = memoryStream.ToArray();
+#if !LIBREWINFORMS_PORTABLE
         _freeHandle = true;
+#endif
 
+#if LIBREWINFORMS_PORTABLE
+        _portableBitmap = PortableCursorDecoder.Decode(_cursorData);
+#else
         // stream.CopyTo causes both streams to advance. So reset it for LoadPicture.
         memoryStream.Position = 0;
         LoadPicture(
             new ComManagedStream(memoryStream),
             nameof(stream));
+#endif
     }
 
     /// <summary>
@@ -257,6 +279,14 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            ObjectDisposedException.ThrowIf(_portableDisposed, this);
+            if (_portableBitmap is not null)
+            {
+                return _portableBitmap.Size;
+            }
+#endif
+
             if (s_cursorSize.IsEmpty)
             {
                 s_cursorSize = SystemInformation.CursorSize;
@@ -293,11 +323,19 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     /// </summary>
     public void Dispose()
     {
+#if LIBREWINFORMS_PORTABLE
+        if (_portableBitmap is not null && !_portableDisposed)
+        {
+            _portableDisposed = true;
+            _portableBitmap.Dispose();
+        }
+#else
         if (!_handle.IsNull && _freeHandle)
         {
             PInvoke.DestroyCursor(_handle);
             _handle = HCURSOR.Null;
         }
+#endif
 
         GC.SuppressFinalize(this);
     }
@@ -312,6 +350,42 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     {
         ArgumentNullException.ThrowIfNull(graphics);
 
+#if LIBREWINFORMS_PORTABLE
+        ObjectDisposedException.ThrowIf(_portableDisposed, this);
+        if (_portableBitmap is null)
+        {
+            throw new NotSupportedException(
+                "Platform-provided cursors are rendered by the window host and do not expose bitmap pixels.");
+        }
+
+        int targetX = targetRect.IsEmpty ? 0 : targetRect.X;
+        int targetY = targetRect.IsEmpty ? 0 : targetRect.Y;
+        int targetWidth = targetRect.IsEmpty ? _portableBitmap.Width : Math.Max(0, targetRect.Width);
+        int targetHeight = targetRect.IsEmpty ? _portableBitmap.Height : Math.Max(0, targetRect.Height);
+        int sourceX = imageRect.IsEmpty ? 0 : imageRect.X;
+        int sourceY = imageRect.IsEmpty ? 0 : imageRect.Y;
+        int sourceWidth = imageRect.IsEmpty ? _portableBitmap.Width : Math.Max(0, imageRect.Width);
+        int sourceHeight = imageRect.IsEmpty ? _portableBitmap.Height : Math.Max(0, imageRect.Height);
+
+        if (!stretch)
+        {
+            targetWidth = Math.Min(targetWidth, sourceWidth);
+            targetHeight = Math.Min(targetHeight, sourceHeight);
+            sourceWidth = targetWidth;
+            sourceHeight = targetHeight;
+        }
+
+        if (targetWidth == 0 || targetHeight == 0 || sourceWidth == 0 || sourceHeight == 0)
+        {
+            return;
+        }
+
+        graphics.DrawImage(
+            _portableBitmap,
+            new Rectangle(targetX, targetY, targetWidth, targetHeight),
+            new Rectangle(sourceX, sourceY, sourceWidth, sourceHeight),
+            GraphicsUnit.Pixel);
+#else
         // Support GDI+ Translate method
         targetRect.X += (int)graphics.Transform.OffsetX;
         targetRect.Y += (int)graphics.Transform.OffsetY;
@@ -405,6 +479,7 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
 
         // Let GDI+ restore clipping
         return;
+#endif
     }
 
     /// <summary>

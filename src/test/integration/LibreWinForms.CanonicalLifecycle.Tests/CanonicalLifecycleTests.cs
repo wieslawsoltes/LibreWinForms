@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Collections.Concurrent;
+using System.Buffers.Binary;
 using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -1973,6 +1974,169 @@ public class CanonicalLifecycleTests
         TrackBarRenderer.DrawHorizontalTrack(graphics, new Rectangle(80, 0, 4, 20));
 
         platform.VisualStyleDrawCount.Should().BeGreaterThanOrEqualTo(5);
+    }
+
+    [Fact]
+    public void CursorFiles_DecodeManagedPngAndDibPayloadsAndFailClosed()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        string path = Path.Combine(Path.GetTempPath(), $"librewinforms-cursor-{Guid.NewGuid():N}.cur");
+
+        try
+        {
+            byte[] png;
+            using (Bitmap source = new(2, 2))
+            {
+                source.SetPixel(0, 0, Color.FromArgb(255, 220, 10, 20));
+                source.SetPixel(1, 0, Color.FromArgb(255, 20, 210, 30));
+                source.SetPixel(0, 1, Color.FromArgb(255, 30, 40, 200));
+                source.SetPixel(1, 1, Color.Transparent);
+                using MemoryStream stream = new();
+                source.Save(stream, ImageFormat.Png);
+                png = stream.ToArray();
+            }
+
+            File.WriteAllBytes(path, BuildCursorContainer(png, 2, 2));
+            using (Cursor cursor = new(path))
+            using (Bitmap target = new(4, 4))
+            {
+                cursor.Size.Should().Be(new Size(2, 2));
+                using (Graphics graphics = Graphics.FromImage(target))
+                {
+                    cursor.Draw(graphics, new Rectangle(1, 1, 2, 2));
+                }
+
+                target.GetPixel(1, 1).ToArgb().Should().Be(Color.FromArgb(255, 220, 10, 20).ToArgb());
+                target.GetPixel(2, 1).ToArgb().Should().Be(Color.FromArgb(255, 20, 210, 30).ToArgb());
+                target.GetPixel(2, 2).A.Should().Be(0);
+                target.GetPixel(0, 0).A.Should().Be(0);
+            }
+
+            Color[] alphaPixels =
+            [
+                Color.FromArgb(255, 255, 0, 0),
+                Color.FromArgb(128, 0, 255, 0),
+                Color.FromArgb(255, 0, 0, 255),
+                Color.FromArgb(255, 255, 255, 255),
+            ];
+            byte[] dib = BuildDibPayload(2, 2, alphaPixels, [false, false, false, true]);
+            using (MemoryStream stream = new(BuildCursorContainer(dib, 2, 2), writable: false))
+            using (Cursor cursor = new(stream))
+            using (Bitmap target = new(2, 2))
+            {
+                using (Graphics graphics = Graphics.FromImage(target))
+                {
+                    cursor.Draw(graphics, new Rectangle(0, 0, 2, 2));
+                }
+
+                target.GetPixel(0, 0).ToArgb().Should().Be(Color.FromArgb(255, 255, 0, 0).ToArgb());
+                target.GetPixel(1, 0).ToArgb().Should().Be(Color.FromArgb(128, 0, 255, 0).ToArgb());
+                target.GetPixel(0, 1).ToArgb().Should().Be(Color.FromArgb(255, 0, 0, 255).ToArgb());
+                target.GetPixel(1, 1).A.Should().Be(0);
+            }
+
+            byte[] unusedAlphaDib = BuildDibPayload(
+                2,
+                1,
+                [Color.FromArgb(0, 180, 30, 20), Color.FromArgb(0, 20, 180, 30)],
+                [false, true]);
+            using (MemoryStream stream = new(BuildCursorContainer(unusedAlphaDib, 2, 1), writable: false))
+            using (Cursor cursor = new(stream))
+            using (Bitmap target = new(2, 1))
+            {
+                using (Graphics graphics = Graphics.FromImage(target))
+                {
+                    cursor.Draw(graphics, new Rectangle(0, 0, 2, 1));
+                }
+
+                target.GetPixel(0, 0).ToArgb().Should().Be(Color.FromArgb(255, 180, 30, 20).ToArgb());
+                target.GetPixel(1, 0).A.Should().Be(0);
+            }
+
+            byte[] malformedBounds = BuildCursorContainer(new byte[40], 1, 1);
+            BinaryPrimitives.WriteUInt32LittleEndian(malformedBounds.AsSpan(18, 4), (uint)(malformedBounds.Length + 1));
+            Action malformedAction = () => new Cursor(new MemoryStream(malformedBounds, writable: false));
+            malformedAction.Should().Throw<InvalidDataException>().WithMessage("*outside the data bounds*");
+
+            byte[] truncatedDib = BuildDibPayload(1, 1, [Color.FromArgb(255, 1, 2, 3)], [false]);
+            Array.Resize(ref truncatedDib, truncatedDib.Length - 1);
+            Action truncatedAction = () => new Cursor(
+                new MemoryStream(BuildCursorContainer(truncatedDib, 1, 1), writable: false));
+            truncatedAction.Should().Throw<InvalidDataException>().WithMessage("*truncated*");
+
+            byte[] unsupportedBitDepth = BuildDibPayload(1, 1, [Color.FromArgb(255, 1, 2, 3)], [false]);
+            BinaryPrimitives.WriteUInt16LittleEndian(unsupportedBitDepth.AsSpan(14, 2), 24);
+            Action bitDepthAction = () => new Cursor(
+                new MemoryStream(BuildCursorContainer(unsupportedBitDepth, 1, 1), writable: false));
+            bitDepthAction.Should().Throw<NotSupportedException>().WithMessage("*bit depth 24*");
+
+            byte[] unsupportedCompression = BuildDibPayload(1, 1, [Color.FromArgb(255, 1, 2, 3)], [false]);
+            BinaryPrimitives.WriteUInt32LittleEndian(unsupportedCompression.AsSpan(16, 4), 3);
+            Action compressionAction = () => new Cursor(
+                new MemoryStream(BuildCursorContainer(unsupportedCompression, 1, 1), writable: false));
+            compressionAction.Should().Throw<NotSupportedException>().WithMessage("*compression mode 3*");
+
+            Cursor shared = Cursors.Default;
+            Size sharedSize = shared.Size;
+            shared.Dispose();
+            shared.Size.Should().Be(sharedSize);
+            sharedSize.Should().Be(SystemInformation.CursorSize);
+            Cursors.Default.Should().BeSameAs(shared);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+
+        static byte[] BuildCursorContainer(byte[] payload, int width, int height)
+        {
+            const int payloadOffset = 6 + 16;
+            byte[] container = new byte[payloadOffset + payload.Length];
+            BinaryPrimitives.WriteUInt16LittleEndian(container.AsSpan(2, 2), 2);
+            BinaryPrimitives.WriteUInt16LittleEndian(container.AsSpan(4, 2), 1);
+            container[6] = width == 256 ? (byte)0 : checked((byte)width);
+            container[7] = height == 256 ? (byte)0 : checked((byte)height);
+            BinaryPrimitives.WriteUInt32LittleEndian(container.AsSpan(14, 4), checked((uint)payload.Length));
+            BinaryPrimitives.WriteUInt32LittleEndian(container.AsSpan(18, 4), payloadOffset);
+            payload.CopyTo(container, payloadOffset);
+            return container;
+        }
+
+        static byte[] BuildDibPayload(int width, int height, Color[] pixels, bool[] mask)
+        {
+            const int headerSize = 40;
+            int colorStride = checked(width * 4);
+            int maskStride = checked(((width + 31) / 32) * 4);
+            int colorByteCount = checked(colorStride * height);
+            byte[] payload = new byte[checked(headerSize + colorByteCount + maskStride * height)];
+            BinaryPrimitives.WriteUInt32LittleEndian(payload, headerSize);
+            BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(4, 4), width);
+            BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(8, 4), checked(height * 2));
+            BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(12, 2), 1);
+            BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(14, 2), 32);
+            BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(20, 4), checked((uint)(colorByteCount + maskStride * height)));
+
+            int maskOffset = headerSize + colorByteCount;
+            for (int encodedRow = 0; encodedRow < height; encodedRow++)
+            {
+                int sourceY = height - 1 - encodedRow;
+                for (int x = 0; x < width; x++)
+                {
+                    Color color = pixels[sourceY * width + x];
+                    int colorOffset = headerSize + encodedRow * colorStride + x * 4;
+                    payload[colorOffset] = color.B;
+                    payload[colorOffset + 1] = color.G;
+                    payload[colorOffset + 2] = color.R;
+                    payload[colorOffset + 3] = color.A;
+                    if (mask[sourceY * width + x])
+                    {
+                        payload[maskOffset + encodedRow * maskStride + x / 8] |= (byte)(0x80 >> (x & 7));
+                    }
+                }
+            }
+
+            return payload;
+        }
     }
 
     [Fact]

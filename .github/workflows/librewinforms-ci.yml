@@ -171,6 +171,15 @@ jobs:
         with:
           global-json-file: global.json
 
+      - name: Bind canonical LibreWPF to qualified ProGPU source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p wpf-canonical/external
+          test ! -e wpf-canonical/external/ProGPU
+          ln -s "${GITHUB_WORKSPACE}/external/ProGPU" wpf-canonical/external/ProGPU
+          test "$(git -C wpf-canonical/external/ProGPU rev-parse HEAD)" = "$(git -C external/ProGPU rev-parse HEAD)"
+
       - name: Build canonical WindowsFormsIntegration from LibreWPF source
         shell: bash
         run: |
