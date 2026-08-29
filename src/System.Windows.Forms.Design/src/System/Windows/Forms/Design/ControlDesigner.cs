@@ -287,7 +287,11 @@ public partial class ControlDesigner : ComponentDesigner
         Point nativeOffset = default;
         if (Control.Parent is { } parent)
         {
+#if LIBREWINFORMS_PORTABLE
+            nativeOffset = parent.PointToClient(Control.PointToScreen(Point.Empty));
+#else
             PInvokeCore.MapWindowPoints(Control, parent, ref nativeOffset);
+#endif
         }
 
         Point offset = Control.Location;

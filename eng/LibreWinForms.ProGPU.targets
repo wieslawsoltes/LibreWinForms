@@ -11,13 +11,13 @@
   <!-- System.Private.Windows.GdiPlus is retained as the explicit Win32 HDC
        adapter and therefore carries a reference to Microsoft's Windows-only
        System.Drawing implementation. In the opt-in portable lane, canonical
-       WinForms must compile against the ProGPU implementation instead. Keep
+       WinForms and Design must compile against the ProGPU implementation instead. Keep
        the adapter assembly available, but remove only its transitive drawing
        reference from the compiler inputs. -->
   <Target Name="PreferProGpuSystemDrawingCompilerReference"
           AfterTargets="ResolveAssemblyReferences"
           BeforeTargets="CoreCompile"
-          Condition="'$(LibreWinFormsUseProGpuSystemDrawing)' == 'true' And ('$(MSBuildProjectName)' == 'System.Windows.Forms' Or '$(MSBuildProjectName)' == 'System.Windows.Forms.Primitives' Or '$(MSBuildProjectFullPath)' == '$(LibreWinFormsSdkConsumerProject)')">
+          Condition="'$(LibreWinFormsUseProGpuSystemDrawing)' == 'true' And ('$(MSBuildProjectName)' == 'System.Windows.Forms' Or '$(MSBuildProjectName)' == 'System.Windows.Forms.Primitives' Or '$(MSBuildProjectName)' == 'System.Windows.Forms.Design' Or '$(MSBuildProjectFullPath)' == '$(LibreWinFormsSdkConsumerProject)')">
     <ItemGroup>
       <_LibreWinFormsProGpuSystemDrawing Include="$(LibreWinFormsProGpuSourceRoot)src\System.Drawing.Common\bin\$(Configuration)\net10.0\System.Drawing.Common.dll"
           Condition="Exists('$(LibreWinFormsProGpuSourceRoot)src\System.Drawing.Common\bin\$(Configuration)\net10.0\System.Drawing.Common.dll')" />
@@ -44,7 +44,7 @@
 
   <Target Name="ValidateProGpuSystemDrawingRuntimePayload"
           AfterTargets="CopyFilesToOutputDirectory"
-          Condition="'$(LibreWinFormsUseProGpuSystemDrawing)' == 'true' And '$(IsCrossTargetingBuild)' != 'true' And ('$(MSBuildProjectName)' == 'System.Windows.Forms' Or '$(MSBuildProjectName)' == 'System.Windows.Forms.Primitives' Or '$(MSBuildProjectFullPath)' == '$(LibreWinFormsSdkConsumerProject)')">
+          Condition="'$(LibreWinFormsUseProGpuSystemDrawing)' == 'true' And '$(IsCrossTargetingBuild)' != 'true' And ('$(MSBuildProjectName)' == 'System.Windows.Forms' Or '$(MSBuildProjectName)' == 'System.Windows.Forms.Primitives' Or '$(MSBuildProjectName)' == 'System.Windows.Forms.Design' Or '$(MSBuildProjectFullPath)' == '$(LibreWinFormsSdkConsumerProject)')">
     <!-- ReferenceCopyLocalPaths is incremental and can retain an older build of
          the same strong-named assembly. In source/project mode the submodule
          output is the selected runtime payload, so copy that exact file before

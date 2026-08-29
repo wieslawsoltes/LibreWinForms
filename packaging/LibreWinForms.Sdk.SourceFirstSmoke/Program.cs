@@ -2,9 +2,11 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using LibreWinForms.Platform;
+using System.Collections;
 using System.ComponentModel;
 using System.ComponentModel.Design;
 using FormsDesign = System.Windows.Forms.Design;
+using FormsBehavior = System.Windows.Forms.Design.Behavior;
 
 namespace LibreWinForms.Sdk.SourceFirstSmoke;
 
@@ -27,6 +29,7 @@ internal static class Program
         VerifyHexEditorToolStripContracts();
         VerifyHexEditorDialogAndConverterContracts();
         VerifyFormsDesignerOptionContracts();
+        VerifyFormsDesignerSnapLineContracts();
 
         using Bitmap bitmap = new(64, 64);
         using (Graphics graphics = Graphics.FromImage(bitmap))
@@ -390,6 +393,132 @@ internal static class Program
         property.SetValue(service, value);
     }
 
+    private static void VerifyFormsDesignerSnapLineContracts()
+    {
+        if ((int)FormsBehavior.SnapLineType.Top != 0
+            || (int)FormsBehavior.SnapLineType.Bottom != 1
+            || (int)FormsBehavior.SnapLineType.Left != 2
+            || (int)FormsBehavior.SnapLineType.Right != 3
+            || (int)FormsBehavior.SnapLineType.Horizontal != 4
+            || (int)FormsBehavior.SnapLineType.Vertical != 5
+            || (int)FormsBehavior.SnapLineType.Baseline != 6
+            || (int)FormsBehavior.SnapLinePriority.Low != 1
+            || (int)FormsBehavior.SnapLinePriority.Medium != 2
+            || (int)FormsBehavior.SnapLinePriority.High != 3
+            || (int)FormsBehavior.SnapLinePriority.Always != 4)
+        {
+            throw new InvalidOperationException("Canonical snap-line enum values changed.");
+        }
+
+        var baseline = new FormsBehavior.SnapLine(
+            FormsBehavior.SnapLineType.Baseline,
+            7,
+            "Text",
+            FormsBehavior.SnapLinePriority.High);
+        baseline.AdjustOffset(-3);
+        if (!baseline.IsHorizontal
+            || baseline.IsVertical
+            || baseline.Offset != 4
+            || baseline.Filter != "Text"
+            || baseline.Priority != FormsBehavior.SnapLinePriority.High
+            || baseline.ToString() != "SnapLine: {type = Baseline, offset = 4, priority = High, filter = Text}")
+        {
+            throw new InvalidOperationException("Canonical SnapLine state, orientation, offset, or formatting changed.");
+        }
+
+        var top = new FormsBehavior.SnapLine(FormsBehavior.SnapLineType.Top, 0);
+        if (!FormsBehavior.SnapLine.ShouldSnap(top, new FormsBehavior.SnapLine(FormsBehavior.SnapLineType.Top, 10))
+            || FormsBehavior.SnapLine.ShouldSnap(top, new FormsBehavior.SnapLine(FormsBehavior.SnapLineType.Left, 0))
+            || FormsBehavior.SnapLine.ShouldSnap(top, new FormsBehavior.SnapLine(FormsBehavior.SnapLineType.Top, 2, "Text"))
+            || !FormsBehavior.SnapLine.ShouldSnap(
+                new FormsBehavior.SnapLine(FormsBehavior.SnapLineType.Baseline, 0, "Text"),
+                new FormsBehavior.SnapLine(FormsBehavior.SnapLineType.Baseline, 1, "Text"))
+            || FormsBehavior.SnapLine.ShouldSnap(
+                new FormsBehavior.SnapLine(FormsBehavior.SnapLineType.Baseline, 0, "Text"),
+                new FormsBehavior.SnapLine(FormsBehavior.SnapLineType.Baseline, 1, "Icon"))
+            || !FormsBehavior.SnapLine.ShouldSnap(
+                new FormsBehavior.SnapLine(FormsBehavior.SnapLineType.Vertical, 0, "Margin.Left"),
+                new FormsBehavior.SnapLine(FormsBehavior.SnapLineType.Vertical, 1, "Margin.Right"))
+            || !FormsBehavior.SnapLine.ShouldSnap(
+                new FormsBehavior.SnapLine(FormsBehavior.SnapLineType.Vertical, 0, "Padding.Left"),
+                new FormsBehavior.SnapLine(FormsBehavior.SnapLineType.Vertical, 1, "Margin.Left")))
+        {
+            throw new InvalidOperationException("Canonical SnapLine.ShouldSnap matching rules changed.");
+        }
+
+        using var control = new Control
+        {
+            Size = new Size(40, 30),
+            Margin = new Padding(1, 2, 3, 4),
+        };
+        using var designer = new FormsDesign.ControlDesigner();
+        designer.Initialize(control);
+        IList controlLines = designer.SnapLines;
+        if (!designer.ParticipatesWithSnapLines
+            || controlLines.Count != 8
+            || FindSnapLine(controlLines, FormsBehavior.SnapLineType.Top, filter: null).Offset != 0
+            || FindSnapLine(controlLines, FormsBehavior.SnapLineType.Bottom, filter: null).Offset != 29
+            || FindSnapLine(controlLines, FormsBehavior.SnapLineType.Left, filter: null).Offset != 0
+            || FindSnapLine(controlLines, FormsBehavior.SnapLineType.Right, filter: null).Offset != 39
+            || FindSnapLine(controlLines, FormsBehavior.SnapLineType.Horizontal, "Margin.Top").Offset != -2
+            || FindSnapLine(controlLines, FormsBehavior.SnapLineType.Horizontal, "Margin.Bottom").Offset != 34
+            || FindSnapLine(controlLines, FormsBehavior.SnapLineType.Vertical, "Margin.Left").Offset != -1
+            || FindSnapLine(controlLines, FormsBehavior.SnapLineType.Vertical, "Margin.Right").Offset != 43
+            || controlLines.Cast<FormsBehavior.SnapLine>().Take(4).Any(line => line.Priority != FormsBehavior.SnapLinePriority.Low)
+            || controlLines.Cast<FormsBehavior.SnapLine>().Skip(4).Any(line => line.Priority != FormsBehavior.SnapLinePriority.Always))
+        {
+            throw new InvalidOperationException("ControlDesigner edge or margin snap lines changed.");
+        }
+
+        using var parent = new Panel
+        {
+            Location = new Point(10, 20),
+            Size = new Size(100, 80),
+            Padding = new Padding(5, 6, 7, 8),
+        };
+        using var designerParent = new Panel { Size = new Size(200, 160) };
+        designerParent.Controls.Add(parent);
+        using var parentDesigner = new FormsDesign.ParentControlDesigner();
+        parentDesigner.Initialize(parent);
+        IList parentLines = parentDesigner.SnapLines;
+        if (parentLines.Count != 12
+            || FindSnapLine(parentLines, FormsBehavior.SnapLineType.Vertical, "Padding.Left").Offset != 5
+            || FindSnapLine(parentLines, FormsBehavior.SnapLineType.Vertical, "Padding.Right").Offset != 93
+            || FindSnapLine(parentLines, FormsBehavior.SnapLineType.Horizontal, "Padding.Top").Offset != 6
+            || FindSnapLine(parentLines, FormsBehavior.SnapLineType.Horizontal, "Padding.Bottom").Offset != 72)
+        {
+            string lines = string.Join(
+                "; ",
+                parentLines.Cast<FormsBehavior.SnapLine>().Select(
+                    line => $"{line.SnapLineType}:{line.Filter ?? "<null>"}={line.Offset}/{line.Priority}"));
+            throw new InvalidOperationException($"ParentControlDesigner padding snap lines changed: {lines}.");
+        }
+
+        var customLine = new FormsBehavior.SnapLine(
+            FormsBehavior.SnapLineType.Baseline,
+            13,
+            "Custom",
+            FormsBehavior.SnapLinePriority.Medium);
+        using var customControl = new Control();
+        using var customDesigner = new CustomSnapLineDesigner(customLine);
+        customDesigner.Initialize(customControl);
+        if (customDesigner.ParticipatesWithSnapLines
+            || customDesigner.SnapLines.Count != 1
+            || !ReferenceEquals(customDesigner.SnapLines[0], customLine)
+            || !FormsBehavior.SnapLine.ShouldSnap(
+                (FormsBehavior.SnapLine)customDesigner.SnapLines[0]!,
+                new FormsBehavior.SnapLine(FormsBehavior.SnapLineType.Baseline, 20, "Custom")))
+        {
+            throw new InvalidOperationException("Public ControlDesigner snap-line overrides changed.");
+        }
+    }
+
+    private static FormsBehavior.SnapLine FindSnapLine(
+        IList lines,
+        FormsBehavior.SnapLineType type,
+        string? filter)
+        => lines.Cast<FormsBehavior.SnapLine>().Single(line => line.SnapLineType == type && line.Filter == filter);
+
     private sealed class DoubleBufferedProbeControl : Control
     {
         public bool IsDoubleBuffered
@@ -448,5 +577,17 @@ internal static class Program
         public override bool SnapToGrid => _snapToGrid;
 
         public override bool UseSnapLines => _useSnapLines;
+    }
+
+    private sealed class CustomSnapLineDesigner : FormsDesign.ControlDesigner
+    {
+        private readonly IList _snapLines;
+
+        public CustomSnapLineDesigner(FormsBehavior.SnapLine snapLine)
+            => _snapLines = new ArrayList { snapLine };
+
+        public override bool ParticipatesWithSnapLines => false;
+
+        public override IList SnapLines => _snapLines;
     }
 }
