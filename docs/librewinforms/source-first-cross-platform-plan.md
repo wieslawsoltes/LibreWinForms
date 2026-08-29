@@ -1222,6 +1222,8 @@ Canonical WinForms is not yet byte reproducible across independent CI builds at 
 
 The remaining deletion sequence is now narrower: inventory the frozen comparison tests, move every still-relevant vector to a named canonical lifecycle/API/platform owner, remove `packaging/LibreWinForms.Sdk.CompatibilitySmoke` and its reused behavior program, then delete `src/LibreWinForms.Portable` and the compatibility test project. The final repository-wide gate must reject both the Portable path and compatibility package identity outside historical notes, followed by canonical LibreWinForms, LibreWPF WFI, and SharpDevelop consumer validation.
 
+The first checked inventory is `eng/librewinforms-portable-vector-manifest.tsv`, enforced by `eng/librewinforms-verify-portable-vector-manifest.sh` in both source-first and documentation gates. It covers all 26 frozen `*BehaviorTests.cs` files exactly once: 3 are already owned by canonical lifecycle coverage, 23 have an explicit existing migration owner, and 0 are approved for retirement. This count is a work queue rather than a parity claim; an entry may move from `migrate` to `covered` only with the named canonical test evidence in place.
+
 ## Major risks and controls
 
 | Risk | Control |

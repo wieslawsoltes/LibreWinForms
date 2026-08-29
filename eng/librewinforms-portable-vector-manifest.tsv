@@ -1,0 +1,27 @@
+source	disposition	canonical_owner	rationale
+ApplicationCompatibilityBehaviorTests.cs	covered	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Canonical lifecycle owns visual styles, DPI mode, and Application.Run behavior.
+ApplicationIdleHostBehaviorTests.cs	migrate	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Add canonical Idle scheduling and subscriber-removal vectors.
+ApplicationThreadLifecycleBehaviorTests.cs	migrate	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Add independent multi-thread ApplicationContext and ExitThread vectors.
+ControlCollectionBehaviorTests.cs	migrate	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Retain disposal, reparenting, collection events, and designer initialization vectors.
+CreateGraphicsHostBehaviorTests.cs	covered	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Canonical lifecycle owns CreateGraphics clipping, flush, and continued drawing.
+CursorBehaviorTests.cs	migrate	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Stock transport is covered; migrate owned PNG and DIB cursor decoding vectors.
+DataGridViewCompatibilityBehaviorTests.cs	migrate	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Retain mask, custom cell, binding, and paint vectors on canonical DataGridView.
+DataGridViewInteractionBehaviorTests.cs	migrate	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Retain geometry, hit test, current-cell, editing, and host vectors.
+DataGridViewLookupSortBehaviorTests.cs	migrate	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Retain named lookup, stable sort, placeholder, and guarded-sort vectors.
+DataGridViewNewRowBehaviorTests.cs	migrate	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Retain new-row placeholder lifecycle and row-addition vectors.
+DispatcherInvocationBehaviorTests.cs	migrate	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Retain Invoke, BeginInvoke, EndInvoke, exception, and disposal vectors.
+DragDropHostBehaviorTests.cs	migrate	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Retain typed drag source, target routing, effects, cancellation, and cleanup vectors.
+FormOwnerKeysBehaviorTests.cs	migrate	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Owner/modal behavior is covered; migrate key preview, routing, and owned-form edge cases.
+FormsDesignerEventBindingBehaviorTests.cs	migrate	src/System.Windows.Forms.Design/tests/UnitTests	Move event binding and CodeDom serialization vectors to canonical design tests.
+FormsDesignerLayoutBehaviorTests.cs	migrate	src/System.Windows.Forms.Design/tests/UnitTests	Move selection, layout, toolbox, adorners, and smoke-source assertions to canonical owners.
+FormsDesignerMenuCommandBehaviorTests.cs	migrate	src/System.Windows.Forms.Design/tests/UnitTests	Move verb merge, command lookup, cache, and disposal vectors to canonical design tests.
+FormsDesignerOptionsBehaviorTests.cs	migrate	src/System.Windows.Forms.Design/tests/UnitTests	Move designer option defaults, clamping, and property-setting vectors.
+FormsDesignerSnapLineBehaviorTests.cs	migrate	src/System.Windows.Forms.Design/tests/UnitTests	Move snap-line shape, matching, offsets, and designer override vectors.
+FormsDesignerTypedServiceBehaviorTests.cs	migrate	src/System.Windows.Forms.Design/tests/UnitTests	Move cleanup and keyboard-navigation behavior; retire only Portable service aliases.
+HexEditorContractBehaviorTests.cs	migrate	packaging/LibreWinForms.Sdk.SourceFirstSmoke/Program.cs	Keep unchanged-consumer cursor, buffering, input, menus, dialogs, and converter contracts.
+HexEditorInputScrollDtoBehaviorTests.cs	migrate	packaging/LibreWinForms.Sdk.SourceFirstSmoke/Program.cs	Keep Keys and ScrollEventArgs public DTO behavior in the canonical consumer smoke.
+KeyboardRoutingBehaviorTests.cs	migrate	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Retain ProcessCmdKey bubbling, modifiers, message filters, and removal behavior.
+ReportingDesignerBehaviorTests.cs	migrate	src/System.Windows.Forms.Design/tests/UnitTests	Move selection, loader, filtering, serialization, paint, and editor contracts.
+ScrollableControlBehaviorTests.cs	migrate	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Retain AutoScroll, coordinate, scaling, anchoring, and embedded-editor vectors.
+TextRendererBehaviorTests.cs	covered	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Canonical lifecycle and ProGPU tests own typed measurement and managed drawing.
+TreeViewBehaviorTests.cs	migrate	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Retain image metrics, shared layout geometry, hit testing, expansion, and selection vectors.

@@ -80,6 +80,7 @@ echo "Building the current comparison lane from the ProGPU submodule rather than
   -p:LibreWinFormsReferenceMode=Project
 
 echo "Testing relocated comparison source and designer audit contracts."
+"${repo_root}/eng/librewinforms-verify-portable-vector-manifest.sh"
 "${repo_root}/eng/common/dotnet.sh" build \
   "${repo_root}/src/test/compatibility/LibreWinForms.Portable.Tests/LibreWinForms.Portable.Tests.csproj" \
   --configuration "${configuration}" \

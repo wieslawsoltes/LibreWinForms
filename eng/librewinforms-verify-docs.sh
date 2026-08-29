@@ -108,6 +108,7 @@ reject_text eng/librewinforms-pack.sh 'src/LibreWinForms.Portable'
 require_text eng/librewinforms-pack.sh 'Canonical WFI package still depends on the retired compatibility Forms identity.'
 require_text docs/librewinforms/api-compatibility-gap-analysis.md 'exact source-package closure'
 require_text docs/librewinforms/source-first-cross-platform-plan.md 'Exact package-mode checkpoint'
+"${repo_root}/eng/librewinforms-verify-portable-vector-manifest.sh"
 require_text packaging/LibreWinForms.Sdk.SourceFirstSmoke/LibreWinForms.Sdk.SourceFirstSmoke.csproj '<Project Sdk="LibreWinForms.Sdk/0.1.0-source-first-sdk">'
 require_text packaging/LibreWinForms.Sdk.SourceFirstVisibleSmoke/LibreWinForms.Sdk.SourceFirstVisibleSmoke.csproj '<LibreWinFormsReferenceMode>Package</LibreWinFormsReferenceMode>'
 require_text packaging/LibreWinForms.Sdk.SourceFirstVisibleSmoke/Program.cs 'Application.Run(form)'
