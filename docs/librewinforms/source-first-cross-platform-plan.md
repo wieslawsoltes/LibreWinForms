@@ -1250,6 +1250,8 @@ The first checked inventory is `eng/librewinforms-portable-vector-manifest.tsv`,
 
 `DataGridViewNewRowBehaviorTests.cs` is the thirteenth move. Canonical lifecycle evidence now owns placeholder creation, toggling and event timing, supported row-add/insert paths, shared-row unsharing, clear-time detachment and recreation, column-shape synchronization, detached row/cell state, and guarded placeholder removal. Writable row/column indexers, insertion after the uncommitted placeholder, forced detached-column index reset, placeholder identity reuse, and resurrection of detached rows after columns are re-added are reduced-runtime behaviors rather than upstream contracts and are excluded. The canonical managed implementation requires no new platform seam. The complete canonical lifecycle floor is 96.
 
+`ScrollableControlBehaviorTests.cs` is the fourteenth move. Canonical lifecycle evidence now owns handle-backed scroll metrics and visibility, validated direct axis values, programmatic two-axis offsets, padding-aware display extents, displayed child coordinates, recursive and selected-bound scaling, and embedded editor placement. Reduced-runtime clamping, synthetic programmatic scroll events, logical child locations after handle-backed scrolling, away-from-zero scale rounding, and simplified TextBox height are not upstream contracts. Portable `ScrollProperties` keeps state without USER32 scrollbar synchronization, and portable `ScrollableControl` invalidates the managed surface and updates handle-created child bounds instead of calling `ScrollWindowEx`; native Windows is unchanged. The complete canonical lifecycle floor is 101.
+
 ## Major risks and controls
 
 | Risk | Control |

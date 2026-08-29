@@ -2192,6 +2192,138 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void ScrollableControlPublishesCanonicalAutoScrollMetricsAndOffsets()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var panel = new Panel
+        {
+            AutoScroll = true,
+            Size = new Size(100, 80),
+        };
+        using var canvas = new PictureBox { Bounds = new Rectangle(80, 70, 120, 90) };
+        panel.Controls.Add(canvas);
+        _ = panel.Handle;
+        _ = canvas.Handle;
+        panel.CreateControl();
+        panel.PerformLayout();
+
+        panel.HorizontalScroll.Visible.Should().BeTrue();
+        panel.VerticalScroll.Visible.Should().BeTrue();
+        panel.HorizontalScroll.Maximum.Should().Be(199);
+        panel.HorizontalScroll.LargeChange.Should().Be(100);
+        panel.VerticalScroll.Maximum.Should().Be(159);
+        panel.VerticalScroll.LargeChange.Should().Be(80);
+
+        int scrollEvents = 0;
+        panel.Scroll += (_, _) => scrollEvents++;
+        panel.HorizontalScroll.Value = 100;
+        panel.VerticalScroll.Value = 80;
+        panel.AutoScrollPosition.Should().Be(new Point(-100, -80));
+        panel.DisplayRectangle.Should().Be(new Rectangle(-100, -80, 200, 160));
+        scrollEvents.Should().Be(0);
+        FluentActions.Invoking(() => panel.HorizontalScroll.Value = 500)
+            .Should().Throw<ArgumentOutOfRangeException>();
+
+        panel.AutoScroll = false;
+        panel.PerformLayout();
+        panel.HorizontalScroll.Value.Should().Be(0);
+        panel.VerticalScroll.Value.Should().Be(0);
+        panel.HorizontalScroll.Visible.Should().BeFalse();
+        panel.VerticalScroll.Visible.Should().BeFalse();
+    }
+
+    [Fact]
+    public void ScrollableControlDisplayRectangleDeflatesPaddingAfterScrolling()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var panel = new Panel
+        {
+            AutoScroll = true,
+            Padding = new Padding(5, 6, 7, 8),
+            Size = new Size(100, 80),
+        };
+        using var child = new Control { Bounds = new Rectangle(80, 70, 120, 90) };
+        panel.Controls.Add(child);
+        _ = panel.Handle;
+        _ = child.Handle;
+        panel.CreateControl();
+        panel.PerformLayout();
+
+        panel.AutoScrollPosition = new Point(30, 25);
+
+        panel.DisplayRectangle.Should().Be(new Rectangle(-25, -19, 188, 146));
+    }
+
+    [Fact]
+    public void ScrollableControlCoordinateConversionIncludesManagedDisplayOffset()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var root = new Panel
+        {
+            AutoScroll = true,
+            Location = new Point(10, 20),
+            Size = new Size(100, 80),
+        };
+        using var child = new Control { Bounds = new Rectangle(80, 70, 120, 90) };
+        root.Controls.Add(child);
+        _ = root.Handle;
+        _ = child.Handle;
+        root.CreateControl();
+        root.PerformLayout();
+        root.HorizontalScroll.Value = 30;
+        root.VerticalScroll.Value = 25;
+
+        Point screen = child.PointToScreen(new Point(4, 5));
+        screen.Should().Be(new Point(64, 70));
+        child.PointToClient(screen).Should().Be(new Point(4, 5));
+        child.Location.Should().Be(new Point(50, 45));
+    }
+
+    [Fact]
+    public void ControlScalePreservesCanonicalBoundsSelectionAndDescendants()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var root = new CanonicalScaleProbeControl { Bounds = new Rectangle(3, 5, 100, 80) };
+        using var child = new Control { Bounds = new Rectangle(7, 9, 20, 14) };
+        root.Controls.Add(child);
+
+        root.Scale(new SizeF(1.5f, 2f));
+        root.Bounds.Should().Be(new Rectangle(4, 10, 150, 160));
+        child.Bounds.Should().Be(new Rectangle(10, 18, 30, 28));
+
+        root.ScaleSelected(new SizeF(2f, 0.5f), BoundsSpecified.Size);
+        root.Bounds.Should().Be(new Rectangle(4, 10, 300, 80));
+    }
+
+    [Fact]
+    public void ScrollableControlKeepsEmbeddedEditorAlignedWithScrollAndScale()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var panel = new Panel
+        {
+            AutoScroll = true,
+            Size = new Size(240, 160),
+        };
+        using var pictureBox = new PictureBox { Size = new Size(640, 480) };
+        panel.Controls.Add(pictureBox);
+        _ = panel.Handle;
+        _ = pictureBox.Handle;
+        panel.CreateControl();
+        panel.PerformLayout();
+        panel.AutoScrollPosition = new Point(75, 45);
+
+        using var editor = new TextBox { Bounds = new Rectangle(90, 70, 120, 24) };
+        editor.Scale(new SizeF(1.5f, 1.5f));
+        editor.Top -= panel.VerticalScroll.Value;
+        editor.Left -= panel.HorizontalScroll.Value;
+        panel.Controls.Add(editor);
+        panel.Controls.SetChildIndex(editor, 0);
+
+        editor.Bounds.Should().Be(new Rectangle(60, 60, 180, 70));
+        panel.Controls[0].Should().BeSameAs(editor);
+    }
+
+    [Fact]
     public void ProfessionalColorsUseManagedLayoutGraphicsWithoutScreenHdc()
     {
         UseHeadlessPlatform(autoCloseWindows: false);
@@ -4219,6 +4351,12 @@ public class CanonicalLifecycleTests
 
     private sealed class CanonicalEditingControl : DataGridViewTextBoxEditingControl
     {
+    }
+
+    private sealed class CanonicalScaleProbeControl : Control
+    {
+        internal void ScaleSelected(SizeF factor, BoundsSpecified specified)
+            => ScaleControl(factor, specified);
     }
 
     private static DataGridView CreateCanonicalDataGridView()

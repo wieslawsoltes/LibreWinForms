@@ -11651,6 +11651,15 @@ public unsafe partial class Control :
                 absoluteClip);
         }
     }
+
+    internal void OffsetPortableBounds(int xDelta, int yDelta)
+        => UpdateBounds(
+            checked(_x + xDelta),
+            checked(_y + yDelta),
+            _width,
+            _height,
+            _clientWidth,
+            _clientHeight);
 #endif
 
     /// <summary>
