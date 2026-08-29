@@ -91,7 +91,7 @@ jobs:
         with:
           repository: wieslawsoltes/wpf
           ref: ${{ steps.release.outputs.bridge_ref }}
-          path: wpf-bridge
+          path: artifacts/checkouts/wpf-bridge
           submodules: recursive
 
       - name: Checkout canonical LibreWPF WFI source
@@ -99,7 +99,7 @@ jobs:
         with:
           repository: wieslawsoltes/LibreWPF
           ref: ${{ steps.release.outputs.canonical_wfi_ref }}
-          path: wpf-canonical
+          path: artifacts/checkouts/wpf-canonical
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -111,10 +111,10 @@ jobs:
         run: |
           set -euo pipefail
           qualified_progpu_commit="$(git -C external/ProGPU rev-parse HEAD)"
-          git -C wpf-canonical submodule update --init external/ProGPU
-          git -C wpf-canonical/external/ProGPU fetch --depth=1 origin "${qualified_progpu_commit}"
-          git -C wpf-canonical/external/ProGPU checkout --detach "${qualified_progpu_commit}"
-          test "$(git -C wpf-canonical/external/ProGPU rev-parse HEAD)" = "$(git -C external/ProGPU rev-parse HEAD)"
+          git -C artifacts/checkouts/wpf-canonical submodule update --init external/ProGPU
+          git -C artifacts/checkouts/wpf-canonical/external/ProGPU fetch --depth=1 origin "${qualified_progpu_commit}"
+          git -C artifacts/checkouts/wpf-canonical/external/ProGPU checkout --detach "${qualified_progpu_commit}"
+          test "$(git -C artifacts/checkouts/wpf-canonical/external/ProGPU rev-parse HEAD)" = "$(git -C external/ProGPU rev-parse HEAD)"
 
       - name: Verify docs
         run: ./eng/librewinforms-verify-docs.sh
@@ -123,20 +123,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          canonical_wfi_commit="$(git -C wpf-canonical rev-parse HEAD)"
-          LIBREWINFORMS_CANONICAL_WFI_SOURCE_ROOT="${GITHUB_WORKSPACE}/wpf-canonical" \
+          canonical_wfi_commit="$(git -C artifacts/checkouts/wpf-canonical rev-parse HEAD)"
+          LIBREWINFORMS_CANONICAL_WFI_SOURCE_ROOT="${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-canonical" \
           LIBREWINFORMS_CANONICAL_WFI_EXPECTED_COMMIT="${canonical_wfi_commit}" \
-          LIBREWINFORMS_CANONICAL_WFI_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/wpf-canonical/artifacts/packages/CanonicalWinForms" \
+          LIBREWINFORMS_CANONICAL_WFI_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-canonical/artifacts/packages/CanonicalWinForms" \
           ./eng/librewinforms-build-canonical-wfi.sh
           echo "LIBREWINFORMS_CANONICAL_WFI_COMMIT=${canonical_wfi_commit}" >> "${GITHUB_ENV}"
-          echo "LIBREWINFORMS_CANONICAL_WFI_PACKAGE_SOURCE=${GITHUB_WORKSPACE}/wpf-canonical/artifacts/packages/CanonicalWinForms" >> "${GITHUB_ENV}"
+          echo "LIBREWINFORMS_CANONICAL_WFI_PACKAGE_SOURCE=${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-canonical/artifacts/packages/CanonicalWinForms" >> "${GITHUB_ENV}"
 
       - name: Stage immutable LibreWPF bridge packages
         shell: bash
         run: |
           set -euo pipefail
-          LIBREWINFORMS_BRIDGE_CHECKOUT="${GITHUB_WORKSPACE}/wpf-bridge" \
-          LIBREWINFORMS_BRIDGE_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping" \
+          LIBREWINFORMS_BRIDGE_CHECKOUT="${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-bridge" \
+          LIBREWINFORMS_BRIDGE_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-bridge/artifacts/packages/Release/NonShipping" \
           ./eng/librewinforms-fetch-librewpf-packages.sh
 
       - name: Build and pack
@@ -151,7 +151,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          export LIBREWINFORMS_BRIDGE_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping"
+          export LIBREWINFORMS_BRIDGE_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-bridge/artifacts/packages/Release/NonShipping"
           ./eng/librewinforms-package-smoke.sh
 
       - name: Upload preview packages
