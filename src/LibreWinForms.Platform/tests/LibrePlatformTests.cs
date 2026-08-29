@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
+using System.Globalization;
 using FluentAssertions;
 using Xunit;
 
@@ -378,6 +379,52 @@ public class LibrePlatformTests
     }
 
     [Fact]
+    public void ConstructorPublishesTypedInputLanguagesAndRejectsMissingCapability()
+    {
+        TestServices test = new();
+        using LibrePlatformServices services = new(
+            test, test, test.Handles, test, test, test, test, test, test, test,
+            test, test, test, test, test, test, test, test);
+
+        services.InputLanguages.Should().BeSameAs(test);
+        services.InputLanguages.Current.LanguageTag.Should().Be("en-US");
+        services.InputLanguages.Installed.Should().ContainSingle();
+        services.InputLanguages.TryActivate(0x0409).Should().BeTrue();
+        services.InputLanguages.TryActivate(0x0407).Should().BeFalse();
+        Action create = () => new LibrePlatformServices(
+            test, test, test.Handles, test, test, test, test, test, test, test,
+            test, test, test, test, test, test, test, null!);
+        create.Should().Throw<ArgumentNullException>().WithParameterName("inputLanguages");
+    }
+
+    [Fact]
+    public void DefaultInputLanguagesExposeOnlyTheSelectedManagedCulture()
+    {
+        DefaultLibreInputLanguageService service = new(CultureInfo.GetCultureInfo("pl-PL"));
+
+        service.Current.Should().Be(service.Default);
+        service.Installed.Should().ContainSingle().Which.Should().Be(service.Current);
+        service.Current.LanguageTag.Should().Be("pl-PL");
+        service.Current.LayoutId.Should().Be("00000415");
+        service.TryGet(service.Current.Token, out LibreInputLanguageDescriptor? found).Should().BeTrue();
+        found.Should().Be(service.Current);
+        service.TryActivate(service.Current.Token).Should().BeTrue();
+        service.TryActivate(0x0409).Should().BeFalse();
+    }
+
+    [Fact]
+    public void InputLanguageDescriptorRejectsInvalidContractValues()
+    {
+        Action zeroToken = () => new LibreInputLanguageDescriptor(0, "en-US", "00000409", "US");
+        Action invalidTag = () => new LibreInputLanguageDescriptor(0x0409, "invalid!culture", "00000409", "US");
+        Action emptyLayout = () => new LibreInputLanguageDescriptor(0x0409, "en-US", string.Empty, "US");
+
+        zeroToken.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("token");
+        invalidTag.Should().Throw<CultureNotFoundException>();
+        emptyLayout.Should().Throw<ArgumentException>().WithParameterName("layoutId");
+    }
+
+    [Fact]
     public void MonitorSelection_PrefersLargestIntersection()
     {
         LibreMonitor[] monitors = CreateMonitorInventory();
@@ -565,8 +612,12 @@ public class LibrePlatformTests
         ILibreMessageBoxService,
         ILibreColorDialogService,
         ILibreFontDialogService,
-        ILibreFileDialogService
+        ILibreFileDialogService,
+        ILibreInputLanguageService
     {
+        private static readonly LibreInputLanguageDescriptor s_inputLanguage =
+            new(0x0409, "en-US", "00000409", "US");
+
         public event EventHandler<LibreSystemSettingsChangedEventArgs>? SettingsChanged;
 
         public void RaiseSettingsChanged(LibreSystemSettingsChangeKind kind)
@@ -596,6 +647,26 @@ public class LibrePlatformTests
 
         public LibreFileDialogResult Show(in LibreFileDialogRequest request)
             => new(false, request.SelectedPaths.ToArray(), request.FilterIndex, false);
+
+        public LibreInputLanguageDescriptor Current => s_inputLanguage;
+
+        public LibreInputLanguageDescriptor Default => s_inputLanguage;
+
+        public IReadOnlyList<LibreInputLanguageDescriptor> Installed => [s_inputLanguage];
+
+        public bool TryGet(nint token, out LibreInputLanguageDescriptor descriptor)
+        {
+            if (token == s_inputLanguage.Token)
+            {
+                descriptor = s_inputLanguage;
+                return true;
+            }
+
+            descriptor = null!;
+            return false;
+        }
+
+        public bool TryActivate(nint token) => token == s_inputLanguage.Token;
 
         public LibrePlatformServices Create() => new(this, this, Handles, this, this, this);
 

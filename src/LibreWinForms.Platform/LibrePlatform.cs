@@ -320,6 +320,47 @@ public sealed class LibrePlatformServices : IDisposable
         ILibreColorDialogService colorDialogs,
         ILibreFontDialogService fontDialogs,
         ILibreFileDialogService fileDialogs)
+        : this(
+            dispatcher,
+            timers,
+            handles,
+            windows,
+            monitors,
+            painting,
+            desktopCapture,
+            nativeFonts,
+            nativeGraphics,
+            visualStyles,
+            systemSettings,
+            textRenderer,
+            powerStatus,
+            messageBoxes,
+            colorDialogs,
+            fontDialogs,
+            fileDialogs,
+            DefaultLibreInputLanguageService.Instance)
+    {
+    }
+
+    public LibrePlatformServices(
+        ILibreDispatcher dispatcher,
+        ILibreTimerService timers,
+        ILibreHandleRegistry handles,
+        ILibreWindowService windows,
+        ILibreMonitorService monitors,
+        ILibrePaintService painting,
+        ILibreDesktopCaptureService desktopCapture,
+        ILibreNativeFontInteropService nativeFonts,
+        ILibreNativeGraphicsInteropService nativeGraphics,
+        ILibreVisualStyleService visualStyles,
+        ILibreSystemSettingsService systemSettings,
+        ILibreTextRendererService textRenderer,
+        ILibrePowerStatusService powerStatus,
+        ILibreMessageBoxService messageBoxes,
+        ILibreColorDialogService colorDialogs,
+        ILibreFontDialogService fontDialogs,
+        ILibreFileDialogService fileDialogs,
+        ILibreInputLanguageService inputLanguages)
     {
         Dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         Timers = timers ?? throw new ArgumentNullException(nameof(timers));
@@ -338,6 +379,7 @@ public sealed class LibrePlatformServices : IDisposable
         ColorDialogs = colorDialogs ?? throw new ArgumentNullException(nameof(colorDialogs));
         FontDialogs = fontDialogs ?? throw new ArgumentNullException(nameof(fontDialogs));
         FileDialogs = fileDialogs ?? throw new ArgumentNullException(nameof(fileDialogs));
+        InputLanguages = inputLanguages ?? throw new ArgumentNullException(nameof(inputLanguages));
     }
 
     public ILibreDispatcher Dispatcher { get; }
@@ -374,6 +416,8 @@ public sealed class LibrePlatformServices : IDisposable
 
     public ILibreFileDialogService FileDialogs { get; }
 
+    public ILibreInputLanguageService InputLanguages { get; }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
@@ -382,6 +426,7 @@ public sealed class LibrePlatformServices : IDisposable
         }
 
         HashSet<IDisposable> disposed = new(ReferenceEqualityComparer.Instance);
+        DisposeService(InputLanguages, disposed);
         DisposeService(FileDialogs, disposed);
         DisposeService(FontDialogs, disposed);
         DisposeService(ColorDialogs, disposed);

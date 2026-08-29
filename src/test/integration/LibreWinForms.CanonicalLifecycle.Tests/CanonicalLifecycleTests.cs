@@ -20,6 +20,42 @@ namespace LibreWinForms.CanonicalLifecycle.Tests;
 public class CanonicalLifecycleTests
 {
     [Fact]
+    public void InputLanguageUsesTypedPortableInventoryAndActivation()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+
+        InputLanguageCollection installed = InputLanguage.InstalledInputLanguages;
+        installed.Cast<InputLanguage>().Select(language => language.Culture.Name)
+            .Should().Equal("en-US", "de-DE");
+        InputLanguage.DefaultInputLanguage.Culture.Name.Should().Be("en-US");
+        InputLanguage.CurrentInputLanguage.Culture.Name.Should().Be("en-US");
+        InputLanguage.CurrentInputLanguage.LayoutName.Should().Be("US");
+        InputLanguage.CurrentInputLanguage.Handle.Should().Be((nint)0x0409);
+
+        InputLanguage german = InputLanguage.FromCulture(CultureInfo.GetCultureInfo("de-DE"))!;
+        german.Should().NotBeNull();
+        german.LayoutName.Should().Be("German");
+        german.Handle.Should().Be((nint)0x0407);
+        InputLanguage.CurrentInputLanguage = german;
+
+        InputLanguage.CurrentInputLanguage.Should().Be(german);
+        platform.InputLanguageActivationCount.Should().Be(1);
+        InputLanguage.CurrentInputLanguage = null;
+        InputLanguage.CurrentInputLanguage.Should().Be(InputLanguage.DefaultInputLanguage);
+        platform.InputLanguageActivationCount.Should().Be(2);
+
+        InputLanguage invalid = (InputLanguage)Activator.CreateInstance(
+            typeof(InputLanguage),
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+            binder: null,
+            args: [(IntPtr)0x7777],
+            culture: null)!;
+        Action activateInvalid = () => InputLanguage.CurrentInputLanguage = invalid;
+        activateInvalid.Should().Throw<ArgumentException>().WithParameterName("value");
+        platform.InputLanguageActivationCount.Should().Be(2);
+    }
+
+    [Fact]
     public void KeyboardAndFocusCues_UseManagedPortableState()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2674,8 +2710,15 @@ public class CanonicalLifecycleTests
         ILibreMessageBoxService,
         ILibreColorDialogService,
         ILibreFontDialogService,
-        ILibreFileDialogService
+        ILibreFileDialogService,
+        ILibreInputLanguageService
     {
+        private static readonly LibreInputLanguageDescriptor[] s_inputLanguages =
+        [
+            new(0x0409, "en-US", "00000409", "US"),
+            new(0x0407, "de-DE", "00000407", "German"),
+        ];
+
         private readonly ConcurrentQueue<Action> _queue = new();
         private bool _autoCloseWindows;
         private readonly Dictionary<Form, LibreHandle> _formHandles = [];
@@ -2701,6 +2744,7 @@ public class CanonicalLifecycleTests
                 UnsupportedLibreDesktopCaptureService.Instance,
                 UnsupportedLibreNativeFontInteropService.Instance,
                 UnsupportedLibreNativeGraphicsInteropService.Instance,
+                this,
                 this,
                 this,
                 this,
@@ -2796,6 +2840,8 @@ public class CanonicalLifecycleTests
             FileDialogShowCount = 0;
             FileDialogOwnerDisabledDuringShow = false;
             InvokeFileDialogHelp = false;
+            _currentInputLanguageToken = s_inputLanguages[0].Token;
+            InputLanguageActivationCount = 0;
         }
 
         internal ManagedLibreHandleRegistry Handles { get; }
@@ -2806,6 +2852,44 @@ public class CanonicalLifecycleTests
             => SettingsChanged?.Invoke(this, new(kind));
 
         internal LibrePlatformServices Services { get; }
+
+        private nint _currentInputLanguageToken = s_inputLanguages[0].Token;
+
+        public LibreInputLanguageDescriptor Current
+            => s_inputLanguages.Single(language => language.Token == _currentInputLanguageToken);
+
+        public LibreInputLanguageDescriptor Default => s_inputLanguages[0];
+
+        public IReadOnlyList<LibreInputLanguageDescriptor> Installed => s_inputLanguages;
+
+        internal int InputLanguageActivationCount { get; private set; }
+
+        public bool TryGet(nint token, out LibreInputLanguageDescriptor descriptor)
+        {
+            foreach (LibreInputLanguageDescriptor language in s_inputLanguages)
+            {
+                if (language.Token == token)
+                {
+                    descriptor = language;
+                    return true;
+                }
+            }
+
+            descriptor = null!;
+            return false;
+        }
+
+        public bool TryActivate(nint token)
+        {
+            if (!TryGet(token, out _))
+            {
+                return false;
+            }
+
+            _currentInputLanguageToken = token;
+            InputLanguageActivationCount++;
+            return true;
+        }
 
         internal int WindowsCreated { get; private set; }
 
