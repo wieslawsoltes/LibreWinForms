@@ -31,7 +31,7 @@
 
   <Target Name="BuildLibreWinFormsProGpuPackagePayload">
     <Exec WorkingDirectory="$(RepoRoot)"
-          Command="&quot;$(_LibreWinFormsDotNet)&quot; build &quot;$(LibreWinFormsProGpuProject)&quot; --configuration &quot;$(Configuration)&quot; -p:LibreWinFormsReferenceMode=Project -p:LibreWinFormsUseProGpuSystemDrawing=true -p:MicrosoftNETCoreAppRefPackageVersion= -p:ContinuousIntegrationBuild=$(ContinuousIntegrationBuild)" />
+          Command="&quot;$(_LibreWinFormsDotNet)&quot; build &quot;$(LibreWinFormsProGpuProject)&quot; --configuration &quot;$(Configuration)&quot; -p:NetCurrent=&quot;$(TargetFramework)&quot; -p:LibreWinFormsReferenceMode=Project -p:LibreWinFormsUseProGpuSystemDrawing=true -p:MicrosoftNETCoreAppRefPackageVersion= -p:ContinuousIntegrationBuild=$(ContinuousIntegrationBuild)" />
   </Target>
 
   <Target Name="CollectLibreWinFormsProGpuPackageFiles"

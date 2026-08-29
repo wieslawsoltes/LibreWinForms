@@ -68,6 +68,7 @@ require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'PackageRef
 require_text packaging/LibreWinForms.ProGPU/LibreWinForms.ProGPU.Package.csproj '<PackageId>LibreWinForms.ProGPU</PackageId>'
 require_text packaging/LibreWinForms.ProGPU/LibreWinForms.ProGPU.Package.csproj '<PackageVersion Include="ProGPU.System.Drawing.Common" Version="$(LibreWinFormsProGpuPackageVersion)" />'
 require_text packaging/LibreWinForms.ProGPU/LibreWinForms.ProGPU.Package.csproj '<PackageReference Include="ProGPU.System.Drawing.Common" />'
+require_text packaging/LibreWinForms.ProGPU/LibreWinForms.ProGPU.Package.csproj '-p:NetCurrent=&quot;$(TargetFramework)&quot;'
 require_text packaging/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj 'System.Private.Windows.GdiPlus.dll'
 require_text packaging/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj '-p:NetCurrent=&quot;$(TargetFramework)&quot;'
 require_text Directory.Build.props '<LibreWinFormsPortableNetCoreAppRefVersion Condition="'\''$(LibreWinFormsPortableNetCoreAppRefVersion)'\'' == '\'''\''">10.0.5</LibreWinFormsPortableNetCoreAppRefVersion>'
