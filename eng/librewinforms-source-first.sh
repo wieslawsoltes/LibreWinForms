@@ -4,6 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 configuration="${CONFIGURATION:-Release}"
 progpu_root="${repo_root}/external/ProGPU"
+portable_net_current="net10.0"
 
 run_test_project() {
   local project="$1"
@@ -15,12 +16,14 @@ run_test_project() {
     --configuration "${configuration}" \
     --nologo \
     -t:Rebuild \
+    -p:NetCurrent="${portable_net_current}" \
     -p:MicrosoftNETCoreAppRefPackageVersion= \
     "$@"
   "${repo_root}/eng/common/dotnet.sh" run \
     --project "${project}" \
     --configuration "${configuration}" \
     --no-build \
+    -p:NetCurrent="${portable_net_current}" \
     -- \
     --minimum-expected-tests "${minimum_tests}"
 }
@@ -41,6 +44,7 @@ echo "Building canonical System.Windows.Forms against source-built ProGPU System
   "${repo_root}/src/System.Windows.Forms/System.Windows.Forms.csproj" \
   --configuration "${configuration}" \
   --nologo \
+  -p:NetCurrent="${portable_net_current}" \
   -p:LibreWinFormsUseProGpuSystemDrawing=true \
   -p:LibreWinFormsReferenceMode=Project
 
