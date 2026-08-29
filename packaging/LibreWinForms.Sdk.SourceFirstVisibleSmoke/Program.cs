@@ -48,7 +48,7 @@ internal static class Program
             shown = true;
             form.Invalidate();
             form.Update();
-            form.BeginInvoke((Action)form.Close);
+            form.Close();
         };
 
         try
