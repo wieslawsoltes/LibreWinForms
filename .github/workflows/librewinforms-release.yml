@@ -111,6 +111,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p wpf-canonical/external
+          if [[ -d wpf-canonical/external/ProGPU && ! -L wpf-canonical/external/ProGPU ]]; then
+            rmdir wpf-canonical/external/ProGPU
+          fi
           test ! -e wpf-canonical/external/ProGPU
           ln -s "${GITHUB_WORKSPACE}/external/ProGPU" wpf-canonical/external/ProGPU
           test "$(git -C wpf-canonical/external/ProGPU rev-parse HEAD)" = "$(git -C external/ProGPU rev-parse HEAD)"
