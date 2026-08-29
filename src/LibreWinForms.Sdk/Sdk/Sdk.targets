@@ -2,12 +2,10 @@
   <PropertyGroup>
     <LibreWinFormsUseSystemWindowsForms Condition="'$(LibreWinFormsUseSystemWindowsForms)' == '' And ('$(UseWindowsForms)' == 'true' Or '$(LibreWinFormsRequestedUseWindowsForms)' == 'true')">true</LibreWinFormsUseSystemWindowsForms>
     <LibreWinFormsUseSystemWindowsForms Condition="'$(LibreWinFormsUseSystemWindowsForms)' == ''">false</LibreWinFormsUseSystemWindowsForms>
-    <LibreWinFormsUseWindowsFormsIntegration Condition="'$(LibreWinFormsUseWindowsFormsIntegration)' == '' And ('$(UseWindowsForms)' == 'true' Or '$(LibreWinFormsRequestedUseWindowsForms)' == 'true') And '$(LibreWinFormsUseCanonicalRuntime)' != 'true'">true</LibreWinFormsUseWindowsFormsIntegration>
-    <LibreWinFormsUseWindowsFormsIntegration Condition="'$(LibreWinFormsUseWindowsFormsIntegration)' == ''">false</LibreWinFormsUseWindowsFormsIntegration>
-    <LibreWinFormsGenerateApplicationBootstrap Condition="'$(LibreWinFormsGenerateApplicationBootstrap)' == '' And ('$(LibreWinFormsUseWindowsFormsIntegration)' == 'true' Or '$(LibreWinFormsUseCanonicalRuntime)' == 'true')">true</LibreWinFormsGenerateApplicationBootstrap>
+    <LibreWinFormsGenerateApplicationBootstrap Condition="'$(LibreWinFormsGenerateApplicationBootstrap)' == '' And '$(LibreWinFormsUseSystemWindowsForms)' == 'true'">true</LibreWinFormsGenerateApplicationBootstrap>
     <LibreWinFormsGenerateApplicationBootstrap Condition="'$(LibreWinFormsGenerateApplicationBootstrap)' == ''">false</LibreWinFormsGenerateApplicationBootstrap>
-    <LibreWinFormsUseProGpuSystemDrawing Condition="'$(LibreWinFormsUseCanonicalRuntime)' == 'true'">true</LibreWinFormsUseProGpuSystemDrawing>
-    <MicrosoftNETCoreAppRefPackageVersion Condition="'$(LibreWinFormsUseCanonicalRuntime)' == 'true'"></MicrosoftNETCoreAppRefPackageVersion>
+    <LibreWinFormsUseProGpuSystemDrawing>true</LibreWinFormsUseProGpuSystemDrawing>
+    <MicrosoftNETCoreAppRefPackageVersion></MicrosoftNETCoreAppRefPackageVersion>
     <UseWindowsForms Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true'">false</UseWindowsForms>
   </PropertyGroup>
 

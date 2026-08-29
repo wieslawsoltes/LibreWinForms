@@ -1,18 +1,10 @@
-<Project>
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <OutputType>Exe</OutputType>
-    <UseWindowsForms>true</UseWindowsForms>
     <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
-    <LibreWinFormsUsePortableFrameworkReferences>true</LibreWinFormsUsePortableFrameworkReferences>
-    <LibreWinFormsUseCanonicalRuntime>false</LibreWinFormsUseCanonicalRuntime>
     <LibreWinFormsReferenceMode>Project</LibreWinFormsReferenceMode>
-    <LibreWinFormsUseSystemWindowsForms>true</LibreWinFormsUseSystemWindowsForms>
-    <LibreWinFormsUseWindowsFormsIntegration>true</LibreWinFormsUseWindowsFormsIntegration>
-    <LibreWinFormsGenerateApplicationBootstrap>true</LibreWinFormsGenerateApplicationBootstrap>
   </PropertyGroup>
-
-  <Import Project="..\..\src\LibreWinForms.Sdk\Sdk\Sdk.props" />
 
   <ItemGroup>
     <Reference Include="WindowsBase" HintPath="..\..\..\..\artifacts\bin\WindowsBase\$(Configuration)\$(TargetFramework)\WindowsBase.dll" Private="true" />
@@ -33,6 +25,4 @@
     <ProjectReference Include="..\..\src\LibreWinForms.Portable\LibreWinForms.WindowsFormsIntegration\LibreWinForms.WindowsFormsIntegration.csproj"
                       AdditionalProperties="LibreWinFormsReferenceMode=Project" />
   </ItemGroup>
-
-  <Import Project="..\..\src\LibreWinForms.Sdk\Sdk\Sdk.targets" />
 </Project>

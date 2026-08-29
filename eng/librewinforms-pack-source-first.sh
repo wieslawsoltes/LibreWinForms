@@ -309,6 +309,40 @@ NUGET_PACKAGES="${smoke_root}/sdk-packages" "${dotnet}" run \
   --no-restore \
   "${sdk_smoke_properties[@]}"
 
+sdk_compatibility_rejection_log="${smoke_root}/sdk-compatibility-rejection.log"
+if NUGET_PACKAGES="${smoke_root}/sdk-packages" "${dotnet}" build \
+  "${sdk_smoke_project}" \
+  --configuration "${configuration}" \
+  --no-restore \
+  "${sdk_smoke_properties[@]}" \
+  -p:LibreWinFormsUseCanonicalRuntime=false \
+  >"${sdk_compatibility_rejection_log}" 2>&1; then
+  echo "LibreWinForms.Sdk unexpectedly accepted LibreWinFormsUseCanonicalRuntime=false." >&2
+  exit 1
+fi
+if ! grep -Fq 'LibreWinForms.Sdk is canonical-only' "${sdk_compatibility_rejection_log}"; then
+  cat "${sdk_compatibility_rejection_log}" >&2
+  echo "LibreWinForms.Sdk compatibility rejection did not report the canonical-only contract." >&2
+  exit 1
+fi
+
+sdk_local_artifacts_rejection_log="${smoke_root}/sdk-local-artifacts-rejection.log"
+if NUGET_PACKAGES="${smoke_root}/sdk-packages" "${dotnet}" build \
+  "${sdk_smoke_project}" \
+  --configuration "${configuration}" \
+  --no-restore \
+  "${sdk_smoke_properties[@]}" \
+  -p:LibreWinFormsReferenceMode=LocalArtifacts \
+  >"${sdk_local_artifacts_rejection_log}" 2>&1; then
+  echo "LibreWinForms.Sdk unexpectedly accepted LibreWinFormsReferenceMode=LocalArtifacts." >&2
+  exit 1
+fi
+if ! grep -Fq 'supports only canonical Project or Package reference modes' "${sdk_local_artifacts_rejection_log}"; then
+  cat "${sdk_local_artifacts_rejection_log}" >&2
+  echo "LibreWinForms.Sdk LocalArtifacts rejection did not report the canonical reference-mode contract." >&2
+  exit 1
+fi
+
 sdk_package_smoke_root="${smoke_root}/sdk-package-project"
 sdk_package_smoke_project="${sdk_package_smoke_root}/LibreWinForms.Sdk.SourceFirstSmoke.csproj"
 sdk_package_smoke_config="${sdk_package_smoke_root}/NuGet.config"
@@ -403,3 +437,4 @@ echo "SDK package-mode System.Drawing.Common SHA-256: ${sdk_package_smoke_drawin
 echo "Fresh-cache canonical package consumer validated with warnings treated as errors."
 echo "Fresh-cache source-first SDK project-mode consumer built and ran with the ProGPU bootstrap."
 echo "Fresh-cache source-first SDK package-mode consumer built and ran with canonical packages and the pinned-source ProGPU bootstrap."
+echo "LibreWinForms.Sdk rejected compatibility-runtime and LocalArtifacts fallback selection."

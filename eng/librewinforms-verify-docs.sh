@@ -13,6 +13,15 @@ require_text() {
   fi
 }
 
+reject_text() {
+  local file="$1"
+  local text="$2"
+  if grep -qF -- "${text}" "${repo_root}/${file}"; then
+    echo "Unexpected '${text}' in ${file}." >&2
+    exit 1
+  fi
+}
+
 require_text README.md "# LibreWinForms ProGPU Port"
 require_text README.md "## Getting Started: Switch From WinForms To LibreWinForms"
 require_text README.md "## NuGet Packages"
@@ -57,6 +66,10 @@ require_text src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms/Libre
 require_text src/LibreWinForms.Portable/LibreWinForms.WindowsFormsIntegration/LibreWinForms.WindowsFormsIntegration.csproj "<PackageReadmeFile>README.md</PackageReadmeFile>"
 require_text src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj "<PackageReadmeFile>README.md</PackageReadmeFile>"
 require_text src/LibreWinForms.Sdk/Sdk/Sdk.props '<LibreWinFormsUseCanonicalRuntime Condition="'\''$(LibreWinFormsUseCanonicalRuntime)'\'' == '\'''\''">true</LibreWinFormsUseCanonicalRuntime>'
+require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'LibreWinForms.Sdk is canonical-only'
+reject_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'LibreWinForms.Compatibility.System.Windows.Forms'
+reject_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'WindowsFormsHost.EnableWindowsFormsInterop'
+reject_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'LibreWinFormsReferenceMode)'\'' == '\''LocalArtifacts'
 require_text src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj 'LibreWinForms.Sdk.Versions.props'
 require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets "global::LibreWinForms.ProGPU.ProGpuPlatform.Register()"
 require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'ProjectReference Include="$(LibreWinFormsSourceRoot)src/System.Windows.Forms/System.Windows.Forms.csproj"'

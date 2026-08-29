@@ -1,26 +1,17 @@
 <Project>
   <Target Name="_LibreWinFormsValidateCanonicalSdkConfiguration"
-          BeforeTargets="PrepareForBuild"
-          Condition="'$(LibreWinFormsUseCanonicalRuntime)' == 'true'">
+          BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(LibreWinFormsUseCanonicalRuntime)' != 'true'"
+           Text="LibreWinForms.Sdk is canonical-only; remove LibreWinFormsUseCanonicalRuntime=false and reference transitional compatibility packages explicitly if they are still required for comparison." />
+    <Error Condition="'$(LibreWinFormsReferenceMode)' != 'Project' And '$(LibreWinFormsReferenceMode)' != 'Package'"
+           Text="LibreWinForms.Sdk supports only canonical Project or Package reference modes." />
     <Error Condition="'$(TargetFramework)' != 'net11.0'"
            Text="The source-built LibreWinForms runtime currently targets net11.0; set TargetFramework to net11.0." />
     <Error Condition="'$(LibreWinFormsReferenceMode)' == 'Project' And '$(LibreWinFormsSourceRoot)' == ''"
            Text="LibreWinFormsReferenceMode=Project requires LibreWinFormsSourceRoot to identify a source checkout." />
   </Target>
 
-  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseCanonicalRuntime)' != 'true' And '$(LibreWinFormsReferenceMode)' == 'Package' And '$(ManagePackageVersionsCentrally)' != 'true'">
-    <PackageReference Include="LibreWinForms.Compatibility.System.Windows.Forms" Version="$(LibreWinFormsPackageVersion)" Condition="'$(LibreWinFormsUseSystemWindowsForms)' == 'true'" />
-    <PackageReference Include="LibreWinForms.WindowsFormsIntegration" Version="$(LibreWinFormsPackageVersion)" Condition="'$(LibreWinFormsUseWindowsFormsIntegration)' == 'true'" />
-    <PackageReference Include="ProGPU.System.Drawing.Common" Version="$(LibreWinFormsProGpuPackageVersion)" GeneratePathProperty="true" Condition="'$(LibreWinFormsUseSystemWindowsForms)' == 'true'" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseCanonicalRuntime)' != 'true' And '$(LibreWinFormsReferenceMode)' == 'Package' And '$(ManagePackageVersionsCentrally)' == 'true'">
-    <PackageReference Include="LibreWinForms.Compatibility.System.Windows.Forms" VersionOverride="$(LibreWinFormsPackageVersion)" Condition="'$(LibreWinFormsUseSystemWindowsForms)' == 'true'" />
-    <PackageReference Include="LibreWinForms.WindowsFormsIntegration" VersionOverride="$(LibreWinFormsPackageVersion)" Condition="'$(LibreWinFormsUseWindowsFormsIntegration)' == 'true'" />
-    <PackageReference Include="ProGPU.System.Drawing.Common" VersionOverride="$(LibreWinFormsProGpuPackageVersion)" GeneratePathProperty="true" Condition="'$(LibreWinFormsUseSystemWindowsForms)' == 'true'" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseCanonicalRuntime)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Project' And '$(LibreWinFormsSourceRoot)' != ''">
+  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Project' And '$(LibreWinFormsSourceRoot)' != ''">
     <ProjectReference Include="$(LibreWinFormsSourceRoot)src/System.Windows.Forms/System.Windows.Forms.csproj"
                       AdditionalProperties="LibreWinFormsReferenceMode=Project;LibreWinFormsUseProGpuSystemDrawing=true;MicrosoftNETCoreAppRefPackageVersion=" />
     <ProjectReference Include="$(LibreWinFormsSourceRoot)src/System.Windows.Forms.Design/src/System.Windows.Forms.Design.csproj"
@@ -39,7 +30,7 @@
   <Target Name="_LibreWinFormsNormalizeCanonicalProjectReferences"
           AfterTargets="IncludeTransitiveProjectReferences"
           BeforeTargets="AssignProjectConfiguration"
-          Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseCanonicalRuntime)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Project' And '@(ProjectReference)' != ''">
+          Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Project' And '@(ProjectReference)' != ''">
     <ItemGroup>
       <_LibreWinFormsCanonicalProjectReference Include="@(ProjectReference)" />
       <ProjectReference Remove="@(ProjectReference)" />
@@ -48,47 +39,14 @@
     </ItemGroup>
   </Target>
 
-  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseCanonicalRuntime)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Package' And '$(ManagePackageVersionsCentrally)' != 'true'">
+  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Package' And '$(ManagePackageVersionsCentrally)' != 'true'">
     <PackageReference Include="LibreWinForms.System.Windows.Forms" Version="$(LibreWinFormsCanonicalPackageVersion)" />
     <PackageReference Include="LibreWinForms.ProGPU" Version="$(LibreWinFormsProGpuBackendPackageVersion)" />
   </ItemGroup>
 
-  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseCanonicalRuntime)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Package' And '$(ManagePackageVersionsCentrally)' == 'true'">
+  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Package' And '$(ManagePackageVersionsCentrally)' == 'true'">
     <PackageReference Include="LibreWinForms.System.Windows.Forms" VersionOverride="$(LibreWinFormsCanonicalPackageVersion)" />
     <PackageReference Include="LibreWinForms.ProGPU" VersionOverride="$(LibreWinFormsProGpuBackendPackageVersion)" />
-  </ItemGroup>
-
-  <Target Name="_LibreWinFormsSelectProGpuSystemDrawing"
-          BeforeTargets="ResolveAssemblyReferences"
-          Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseCanonicalRuntime)' != 'true' And '$(LibreWinFormsUseSystemWindowsForms)' == 'true'">
-    <ItemGroup>
-      <Reference Remove="@(Reference)"
-                 Condition="'%(Reference.NuGetPackageId)' == 'System.Drawing.Common'" />
-      <Reference Include="$(PkgProGPU_System_Drawing_Common)/lib/net10.0/System.Drawing.Common.dll"
-                 Condition="Exists('$(PkgProGPU_System_Drawing_Common)/lib/net10.0/System.Drawing.Common.dll')">
-        <Private>true</Private>
-        <NuGetPackageId>ProGPU.System.Drawing.Common</NuGetPackageId>
-      </Reference>
-    </ItemGroup>
-  </Target>
-
-  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseWindowsFormsIntegration)' == 'true' And '$(ManagePackageVersionsCentrally)' != 'true'">
-    <PackageReference Include="System.Configuration.ConfigurationManager" Version="$(LibreWinFormsSystemConfigurationConfigurationManagerVersion)" />
-    <PackageReference Include="System.Formats.Nrbf" Version="$(LibreWinFormsSystemFormatsNrbfVersion)" />
-    <PackageReference Include="System.IO.Packaging" Version="$(LibreWinFormsSystemIOPackagingVersion)" />
-    <PackageReference Include="System.Windows.Extensions" Version="$(LibreWinFormsSystemWindowsExtensionsVersion)" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseWindowsFormsIntegration)' == 'true' And '$(ManagePackageVersionsCentrally)' == 'true'">
-    <PackageReference Include="System.Configuration.ConfigurationManager" VersionOverride="$(LibreWinFormsSystemConfigurationConfigurationManagerVersion)" />
-    <PackageReference Include="System.Formats.Nrbf" VersionOverride="$(LibreWinFormsSystemFormatsNrbfVersion)" />
-    <PackageReference Include="System.IO.Packaging" VersionOverride="$(LibreWinFormsSystemIOPackagingVersion)" />
-    <PackageReference Include="System.Windows.Extensions" VersionOverride="$(LibreWinFormsSystemWindowsExtensionsVersion)" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseCanonicalRuntime)' != 'true' And '$(LibreWinFormsReferenceMode)' == 'LocalArtifacts' And '$(LibreWinFormsReferenceRoot)' != ''">
-    <Reference Include="System.Windows.Forms" HintPath="$(LibreWinFormsReferenceRoot)System.Windows.Forms.dll" Private="true" Condition="Exists('$(LibreWinFormsReferenceRoot)System.Windows.Forms.dll')" />
-    <Reference Include="WindowsFormsIntegration" HintPath="$(LibreWinFormsReferenceRoot)WindowsFormsIntegration.dll" Private="true" Condition="'$(LibreWinFormsUseWindowsFormsIntegration)' == 'true' And Exists('$(LibreWinFormsReferenceRoot)WindowsFormsIntegration.dll')" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseSystemWindowsForms)' == 'true'">
@@ -117,10 +75,7 @@
       <_LibreWinFormsApplicationBootstrapLine Include="        [global::System.Runtime.CompilerServices.ModuleInitializer]" />
       <_LibreWinFormsApplicationBootstrapLine Include="        internal static void Initialize()" />
       <_LibreWinFormsApplicationBootstrapLine Include="        {" />
-      <_LibreWinFormsApplicationBootstrapLine Include="            global::LibreWinForms.ProGPU.ProGpuPlatform.Register()%3B"
-                                                Condition="'$(LibreWinFormsUseCanonicalRuntime)' == 'true'" />
-      <_LibreWinFormsApplicationBootstrapLine Include="            global::System.Windows.Forms.Integration.WindowsFormsHost.EnableWindowsFormsInterop()%3B"
-                                                Condition="'$(LibreWinFormsUseCanonicalRuntime)' != 'true'" />
+      <_LibreWinFormsApplicationBootstrapLine Include="            global::LibreWinForms.ProGPU.ProGpuPlatform.Register()%3B" />
       <_LibreWinFormsApplicationBootstrapLine Include="        }" />
       <_LibreWinFormsApplicationBootstrapLine Include="    }" />
       <_LibreWinFormsApplicationBootstrapLine Include="}" />

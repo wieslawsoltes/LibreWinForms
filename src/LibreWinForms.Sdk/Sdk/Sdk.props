@@ -8,8 +8,8 @@
     <LibreWinFormsSdkConsumerProject Condition="'$(LibreWinFormsSdkConsumerProject)' == ''">$(MSBuildProjectFullPath)</LibreWinFormsSdkConsumerProject>
     <LibreWinFormsUsePortableFrameworkReferences Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == ''">true</LibreWinFormsUsePortableFrameworkReferences>
     <LibreWinFormsUseCanonicalRuntime Condition="'$(LibreWinFormsUseCanonicalRuntime)' == ''">true</LibreWinFormsUseCanonicalRuntime>
-    <LibreWinFormsUseProGpuSystemDrawing Condition="'$(LibreWinFormsUseCanonicalRuntime)' == 'true'">true</LibreWinFormsUseProGpuSystemDrawing>
-    <MicrosoftNETCoreAppRefPackageVersion Condition="'$(LibreWinFormsUseCanonicalRuntime)' == 'true'"></MicrosoftNETCoreAppRefPackageVersion>
+    <LibreWinFormsUseProGpuSystemDrawing>true</LibreWinFormsUseProGpuSystemDrawing>
+    <MicrosoftNETCoreAppRefPackageVersion></MicrosoftNETCoreAppRefPackageVersion>
     <UseWindowsForms Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true'">false</UseWindowsForms>
     <EnableWindowsTargeting Condition="'$(EnableWindowsTargeting)' == ''">true</EnableWindowsTargeting>
     <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == '' And '$(LibreWinFormsPackagedRuntimeVersion)' != ''">$(LibreWinFormsPackagedRuntimeVersion)</LibreWinFormsVersion>
@@ -24,7 +24,6 @@
     <LibreWinFormsSystemFormatsNrbfVersion Condition="'$(LibreWinFormsSystemFormatsNrbfVersion)' == ''">11.0.0-preview.5.26302.115</LibreWinFormsSystemFormatsNrbfVersion>
     <LibreWinFormsSystemIOPackagingVersion Condition="'$(LibreWinFormsSystemIOPackagingVersion)' == ''">11.0.0-preview.5.26302.115</LibreWinFormsSystemIOPackagingVersion>
     <LibreWinFormsSystemWindowsExtensionsVersion Condition="'$(LibreWinFormsSystemWindowsExtensionsVersion)' == ''">11.0.0-preview.5.26302.115</LibreWinFormsSystemWindowsExtensionsVersion>
-    <LibreWinFormsReferenceMode Condition="'$(LibreWinFormsReferenceMode)' == '' And '$(LibreWinFormsReferenceRoot)' != ''">LocalArtifacts</LibreWinFormsReferenceMode>
     <LibreWinFormsReferenceMode Condition="'$(LibreWinFormsReferenceMode)' == ''">Package</LibreWinFormsReferenceMode>
     <CopyLocalLockFileAssemblies Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(CopyLocalLockFileAssemblies)' == ''">true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
