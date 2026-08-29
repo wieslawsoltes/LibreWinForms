@@ -12,7 +12,7 @@ internal interface IProGpuLoopParticipant
     void Pump();
 }
 
-public sealed class ProGpuDispatcher : ILibreDispatcher, IDisposable
+public sealed class ProGpuDispatcher : ILibreDispatcher, ILibreThreadDispatcherProvider, IDisposable
 {
     private readonly int _threadId = Environment.CurrentManagedThreadId;
     private readonly ConcurrentQueue<Action> _work = new();
@@ -25,6 +25,25 @@ public sealed class ProGpuDispatcher : ILibreDispatcher, IDisposable
     public int ManagedThreadId => _threadId;
 
     public bool CheckAccess() => Environment.CurrentManagedThreadId == _threadId;
+
+    public ILibreDispatcher GetForCurrentThread()
+    {
+        if (!CheckAccess())
+        {
+            throw new PlatformNotSupportedException(
+                "The ProGPU backend currently supports one WinForms UI thread per registered platform instance.");
+        }
+
+        return this;
+    }
+
+    public void Release(ILibreDispatcher dispatcher)
+    {
+        if (!ReferenceEquals(this, dispatcher))
+        {
+            throw new ArgumentException("The dispatcher was not created by this provider.", nameof(dispatcher));
+        }
+    }
 
     public void Post(Action callback)
     {

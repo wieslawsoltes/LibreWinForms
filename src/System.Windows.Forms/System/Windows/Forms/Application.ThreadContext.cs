@@ -74,6 +74,10 @@ public sealed partial class Application
         protected Form? CurrentForm { get; private set; }
         protected bool PostedQuit { get; private set; }
 
+#if LIBREWINFORMS_PORTABLE
+        internal ILibreDispatcher Dispatcher { get; }
+#endif
+
         /// <summary>
         ///  Creates a new thread context object.
         /// </summary>
@@ -82,6 +86,7 @@ public sealed partial class Application
 #if LIBREWINFORMS_PORTABLE
             _handle = default;
             _id = checked((uint)Environment.CurrentManagedThreadId);
+            Dispatcher = LibrePlatform.Current.ThreadDispatchers.GetForCurrentThread();
 #else
             HANDLE target;
 
@@ -306,6 +311,8 @@ public sealed partial class Application
                     {
                         t_currentThreadContext = null;
                     }
+
+                    LibrePlatform.Current.ThreadDispatchers.Release(Dispatcher);
                 }
             }
 #else
@@ -698,7 +705,7 @@ public sealed partial class Application
         {
 #if LIBREWINFORMS_PORTABLE
             PostedQuit = true;
-            LibrePlatform.Current.Dispatcher.RequestExit();
+            Dispatcher.RequestExit();
 #else
             // Per KB 183116: https://web.archive.org/web/20070510025823/http://support.microsoft.com/kb/183116
             //

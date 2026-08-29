@@ -15,6 +15,9 @@ public sealed class WindowsFormsSynchronizationContext : SynchronizationContext,
 {
     private Control? _controlToSendTo;
     private WeakReference<Thread>? _destinationThread;
+#if LIBREWINFORMS_PORTABLE
+    private readonly ILibreDispatcher _dispatcher;
+#endif
 
     // ThreadStatics won't get initialized per thread: easiest to just invert the value.
     [ThreadStatic]
@@ -30,16 +33,28 @@ public sealed class WindowsFormsSynchronizationContext : SynchronizationContext,
     {
         // Store the current thread to ensure it stays alive during an invoke.
         DestinationThread = Thread.CurrentThread;
-#if !LIBREWINFORMS_PORTABLE
+#if LIBREWINFORMS_PORTABLE
+        _dispatcher = Application.ThreadContext.FromCurrent().Dispatcher;
+#else
         _controlToSendTo = Application.ThreadContext.FromCurrent().MarshallingControl;
         Debug.Assert(_controlToSendTo.IsHandleCreated, "Marshaling control should have created its handle in its ctor.");
 #endif
     }
 
+#if LIBREWINFORMS_PORTABLE
+    private WindowsFormsSynchronizationContext(
+        Control? marshalingControl,
+        Thread? destinationThread,
+        ILibreDispatcher dispatcher)
+#else
     private WindowsFormsSynchronizationContext(Control? marshalingControl, Thread? destinationThread)
+#endif
     {
         _controlToSendTo = marshalingControl;
         DestinationThread = destinationThread;
+#if LIBREWINFORMS_PORTABLE
+        _dispatcher = dispatcher;
+#endif
         Debug.Assert(
             _controlToSendTo is null || _controlToSendTo.IsHandleCreated,
             "Marshaling control should have created its handle in its ctor.");
@@ -89,7 +104,7 @@ public sealed class WindowsFormsSynchronizationContext : SynchronizationContext,
         }
 
 #if LIBREWINFORMS_PORTABLE
-        LibrePlatform.Current.Dispatcher.Send(() => d(state));
+        _dispatcher.Send(() => d(state));
 #else
         _controlToSendTo?.Invoke(d, [state]);
 #endif
@@ -97,13 +112,19 @@ public sealed class WindowsFormsSynchronizationContext : SynchronizationContext,
 
     public override void Post(SendOrPostCallback d, object? state)
 #if LIBREWINFORMS_PORTABLE
-        => LibrePlatform.Current.Dispatcher.Post(() => d(state));
+        => _dispatcher.Post(() => d(state));
 #else
         => _controlToSendTo?.BeginInvoke(d, [state]);
 #endif
 
     public override SynchronizationContext CreateCopy()
-        => new WindowsFormsSynchronizationContext(_controlToSendTo, DestinationThread);
+#if LIBREWINFORMS_PORTABLE
+        => new WindowsFormsSynchronizationContext(_controlToSendTo, DestinationThread, _dispatcher);
+#else
+        => new WindowsFormsSynchronizationContext(
+            _controlToSendTo,
+            DestinationThread);
+#endif
 
     /// <summary>
     ///  Gets or sets a value indicating whether the <see cref="WindowsFormsSynchronizationContext"/> is installed when

@@ -1,7 +1,7 @@
 source	disposition	canonical_owner	rationale
 ApplicationCompatibilityBehaviorTests.cs	covered	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Canonical lifecycle owns visual styles, DPI mode, and Application.Run behavior.
 ApplicationIdleHostBehaviorTests.cs	covered	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Canonical PortableThreadContext coalesces typed dispatcher posts and honors subscriber removal.
-ApplicationThreadLifecycleBehaviorTests.cs	migrate	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Add independent multi-thread ApplicationContext and ExitThread vectors.
+ApplicationThreadLifecycleBehaviorTests.cs	covered	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Canonical ThreadContext and typed dispatcher providers own isolated concurrent loops, control marshaling, per-thread ExitThread, no-form loops, context disposal, and public exit events.
 ControlCollectionBehaviorTests.cs	covered	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Canonical lifecycle owns parenting/events/order, disposal and logical-handle cleanup, invalidation, and designer initialization; fake-only writable indexer and repaint semantics are excluded.
 CreateGraphicsHostBehaviorTests.cs	covered	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Canonical lifecycle owns CreateGraphics clipping, flush, and continued drawing.
 CursorBehaviorTests.cs	migrate	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Stock transport is covered; migrate owned PNG and DIB cursor decoding vectors.

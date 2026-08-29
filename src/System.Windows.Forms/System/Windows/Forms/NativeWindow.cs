@@ -70,6 +70,8 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
 #pragma warning restore CS0649, CS0414, IDE0044
 #endif
 #if LIBREWINFORMS_PORTABLE
+    private readonly ILibreDispatcher _portableDispatcher =
+        Application.ThreadContext.FromCurrent().Dispatcher;
     private LibreHandle _portableHandle;
     private ILibreWindow? _portableWindow;
     private LibreWindowCoordinateMode _portableCoordinateMode;
@@ -132,7 +134,7 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
 
         try
         {
-            LibrePlatform.Current.Dispatcher.Post(DestroyHandle);
+            _portableDispatcher.Post(DestroyHandle);
         }
         catch (InvalidOperationException)
         {

@@ -8,6 +8,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Globalization;
 using System.Numerics;
+using System.Runtime.ExceptionServices;
 using System.Windows.Forms;
 using System.Windows.Forms.VisualStyles;
 using FluentAssertions;
@@ -54,6 +55,111 @@ public class CanonicalLifecycleTests
         {
             Application.Idle -= first;
             Application.Idle -= second;
+        }
+    }
+
+    [Fact]
+    public void ApplicationThreads_OwnIndependentDispatchersAndExitContexts()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        ConcurrentQueue<ExceptionDispatchInfo> failures = new();
+        int threadExitCount = 0;
+        int applicationExitCount = 0;
+        EventHandler onThreadExit = (_, _) => Interlocked.Increment(ref threadExitCount);
+        EventHandler onApplicationExit = (_, _) => Interlocked.Increment(ref applicationExitCount);
+        Application.ThreadExit += onThreadExit;
+        Application.ApplicationExit += onApplicationExit;
+
+        try
+        {
+            ThreadLoopState first = StartThreadLoop("first");
+            ThreadLoopState second = StartThreadLoop("second");
+
+            first.Control.InvokeRequired.Should().BeTrue();
+            second.Control.InvokeRequired.Should().BeTrue();
+
+            first.Control.BeginInvoke((Action)(() =>
+            {
+                first.CallbackThreadId = Environment.CurrentManagedThreadId;
+                first.Control.Dispose();
+                Application.ExitThread();
+            }));
+
+            first.Thread.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
+            second.Thread.IsAlive.Should().BeTrue();
+            first.CallbackThreadId.Should().Be(first.Thread.ManagedThreadId);
+            first.Control.IsDisposed.Should().BeTrue();
+            first._contextDisposeCount.Should().Be(1);
+
+            second.Control.BeginInvoke((Action)Application.ExitThread);
+            second.Thread.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
+            second._contextDisposeCount.Should().Be(1);
+
+            using ManualResetEventSlim noFormStarted = new();
+            Thread noFormThread = new(() =>
+            {
+                try
+                {
+                    Application.Run();
+                }
+                catch (Exception exception)
+                {
+                    failures.Enqueue(ExceptionDispatchInfo.Capture(exception));
+                    noFormStarted.Set();
+                }
+            })
+            {
+                IsBackground = true,
+                Name = "Canonical no-form application loop test",
+            };
+            noFormThread.Start();
+            ILibreDispatcher noFormDispatcher = platform.WaitForThreadDispatcher(noFormThread.ManagedThreadId);
+            noFormDispatcher.Post(noFormStarted.Set);
+            noFormStarted.Wait(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken).Should().BeTrue();
+            noFormDispatcher.Post(Application.ExitThread);
+            noFormThread.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
+
+            failures.Should().BeEmpty();
+            threadExitCount.Should().Be(3);
+            applicationExitCount.Should().Be(2);
+
+            ThreadLoopState StartThreadLoop(string name)
+            {
+                ThreadLoopState state = new();
+                state.Thread = new Thread(() =>
+                {
+                    try
+                    {
+                        using Control control = new();
+                        TrackingApplicationContext context = new(
+                            () => Interlocked.Increment(ref state._contextDisposeCount));
+                        state.Control = control;
+                        control.CreateControl();
+                        state.Ready.Set();
+                        Application.Run(context);
+                    }
+                    catch (Exception exception)
+                    {
+                        failures.Enqueue(ExceptionDispatchInfo.Capture(exception));
+                        state.Ready.Set();
+                    }
+                })
+                {
+                    IsBackground = true,
+                    Name = $"Canonical {name} application loop test",
+                };
+                state.Thread.Start();
+                state.Ready.Wait(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken).Should().BeTrue();
+                failures.Should().BeEmpty();
+                state.Control.BeginInvoke((Action)state.LoopStarted.Set);
+                state.LoopStarted.Wait(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken).Should().BeTrue();
+                return state;
+            }
+        }
+        finally
+        {
+            Application.ThreadExit -= onThreadExit;
+            Application.ApplicationExit -= onApplicationExit;
         }
     }
 
@@ -3460,8 +3566,38 @@ public class CanonicalLifecycleTests
         }
     }
 
+    private sealed class ThreadLoopState
+    {
+        internal Thread Thread { get; set; } = null!;
+
+        internal Control Control { get; set; } = null!;
+
+        internal ManualResetEventSlim Ready { get; } = new(initialState: false);
+
+        internal ManualResetEventSlim LoopStarted { get; } = new(initialState: false);
+
+        internal int CallbackThreadId { get; set; }
+
+        internal int _contextDisposeCount;
+    }
+
+    private sealed class TrackingApplicationContext(Action disposed) : ApplicationContext
+    {
+        private int _disposed;
+
+        protected override void Dispose(bool disposing)
+        {
+            base.Dispose(disposing);
+            if (disposing && Interlocked.Exchange(ref _disposed, 1) == 0)
+            {
+                disposed();
+            }
+        }
+    }
+
     private sealed class HeadlessPlatform :
         ILibreDispatcher,
+        ILibreThreadDispatcherProvider,
         ILibreTimerService,
         ILibreWindowService,
         ILibreMonitorService,
@@ -3484,6 +3620,7 @@ public class CanonicalLifecycleTests
         ];
 
         private readonly ConcurrentQueue<Action> _queue = new();
+        private readonly ConcurrentDictionary<int, HeadlessThreadDispatcher> _threadDispatchers = new();
         private bool _autoCloseWindows;
         private readonly Dictionary<Form, LibreHandle> _formHandles = [];
         private bool _exitRequested;
@@ -3526,6 +3663,12 @@ public class CanonicalLifecycleTests
         internal void Reset(bool autoCloseWindows)
         {
             Handles.Count.Should().Be(0);
+            foreach (HeadlessThreadDispatcher dispatcher in _threadDispatchers.Values)
+            {
+                dispatcher.Release();
+            }
+
+            _threadDispatchers.Clear();
             _autoCloseWindows = autoCloseWindows;
             _managedThreadId = Environment.CurrentManagedThreadId;
             _exitRequested = false;
@@ -3999,6 +4142,51 @@ public class CanonicalLifecycleTests
         public int ManagedThreadId => _managedThreadId;
 
         public bool CheckAccess() => Environment.CurrentManagedThreadId == _managedThreadId;
+
+        public ILibreDispatcher GetForCurrentThread()
+        {
+            int threadId = Environment.CurrentManagedThreadId;
+            return threadId == _managedThreadId
+                ? this
+                : _threadDispatchers.GetOrAdd(
+                    threadId,
+                    id => new HeadlessThreadDispatcher(
+                        id,
+                        () => Interlocked.Increment(ref _dispatcherPostCount)));
+        }
+
+        public void Release(ILibreDispatcher dispatcher)
+        {
+            if (ReferenceEquals(dispatcher, this))
+            {
+                return;
+            }
+
+            if (dispatcher is not HeadlessThreadDispatcher threadDispatcher
+                || !_threadDispatchers.TryRemove(threadDispatcher.ManagedThreadId, out HeadlessThreadDispatcher? removed)
+                || !ReferenceEquals(threadDispatcher, removed))
+            {
+                throw new ArgumentException("The dispatcher was not created by this provider.", nameof(dispatcher));
+            }
+
+            threadDispatcher.Release();
+        }
+
+        internal ILibreDispatcher WaitForThreadDispatcher(int threadId)
+        {
+            DateTime deadline = DateTime.UtcNow.AddSeconds(5);
+            while (DateTime.UtcNow < deadline)
+            {
+                if (_threadDispatchers.TryGetValue(threadId, out HeadlessThreadDispatcher? dispatcher))
+                {
+                    return dispatcher;
+                }
+
+                Thread.Yield();
+            }
+
+            throw new TimeoutException($"Thread dispatcher {threadId} was not created.");
+        }
 
         public void Post(Action callback)
         {
@@ -5162,6 +5350,148 @@ public class CanonicalLifecycleTests
         private sealed class EmptyDisposable : IDisposable
         {
             public void Dispose() { }
+        }
+
+        private sealed class HeadlessThreadDispatcher(
+            int managedThreadId,
+            Action posted) : ILibreDispatcher, IDisposable
+        {
+            private readonly ConcurrentQueue<Action> _work = new();
+            private readonly AutoResetEvent _wake = new(initialState: false);
+            private volatile bool _exitRequested;
+            private volatile bool _releaseRequested;
+            private volatile bool _running;
+            private bool _disposed;
+
+            public int ManagedThreadId { get; } = managedThreadId;
+
+            public bool CheckAccess() => Environment.CurrentManagedThreadId == ManagedThreadId;
+
+            public void Post(Action callback)
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                ArgumentNullException.ThrowIfNull(callback);
+                posted();
+                _work.Enqueue(callback);
+                _wake.Set();
+            }
+
+            public void Send(Action callback)
+            {
+                ArgumentNullException.ThrowIfNull(callback);
+                if (CheckAccess())
+                {
+                    callback();
+                    return;
+                }
+
+                ExceptionDispatchInfo? error = null;
+                using ManualResetEventSlim completed = new();
+                Post(() =>
+                {
+                    try
+                    {
+                        callback();
+                    }
+                    catch (Exception exception)
+                    {
+                        error = ExceptionDispatchInfo.Capture(exception);
+                    }
+                    finally
+                    {
+                        completed.Set();
+                    }
+                });
+
+                if (!completed.Wait(TimeSpan.FromSeconds(5)))
+                {
+                    throw new TimeoutException("The headless dispatcher did not complete synchronous work.");
+                }
+
+                error?.Throw();
+            }
+
+            public void PumpOnce()
+            {
+                VerifyAccess();
+                if (_work.TryDequeue(out Action? callback))
+                {
+                    callback();
+                    return;
+                }
+
+                _wake.WaitOne(TimeSpan.FromMilliseconds(10));
+            }
+
+            public void Run(CancellationToken cancellationToken)
+            {
+                VerifyAccess();
+                _exitRequested = false;
+                _running = true;
+                try
+                {
+                    while (!_exitRequested)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        PumpOnce();
+                    }
+                }
+                finally
+                {
+                    _running = false;
+                    if (_releaseRequested)
+                    {
+                        Dispose();
+                    }
+                }
+            }
+
+            public void RunNested(Func<bool> continueCondition, CancellationToken cancellationToken)
+            {
+                VerifyAccess();
+                ArgumentNullException.ThrowIfNull(continueCondition);
+                while (continueCondition())
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    PumpOnce();
+                }
+            }
+
+            public void RequestExit()
+            {
+                _exitRequested = true;
+                _wake.Set();
+            }
+
+            internal void Release()
+            {
+                _releaseRequested = true;
+                RequestExit();
+                if (!_running)
+                {
+                    Dispose();
+                }
+            }
+
+            public void Dispose()
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                _disposed = true;
+                _wake.Dispose();
+            }
+
+            private void VerifyAccess()
+            {
+                ObjectDisposedException.ThrowIf(_disposed, this);
+                if (!CheckAccess())
+                {
+                    throw new InvalidOperationException("The headless dispatcher must be used from its owning thread.");
+                }
+            }
         }
 
         private sealed class HeadlessTimerRegistration(HeadlessPlatform owner, int generation) : IDisposable

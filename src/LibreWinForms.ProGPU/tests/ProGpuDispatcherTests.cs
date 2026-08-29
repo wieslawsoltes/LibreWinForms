@@ -16,6 +16,24 @@ public class ProGpuDispatcherTests
         LibrePlatformServices services = ProGpuPlatform.CreateServices();
 
         services.Dispatcher.Should().BeOfType<ProGpuDispatcher>();
+        services.ThreadDispatchers.Should().BeSameAs(services.Dispatcher);
+        services.ThreadDispatchers.GetForCurrentThread().Should().BeSameAs(services.Dispatcher);
+        Exception? secondaryThreadError = null;
+        Thread secondaryThread = new(() =>
+        {
+            try
+            {
+                services.ThreadDispatchers.GetForCurrentThread();
+            }
+            catch (Exception exception)
+            {
+                secondaryThreadError = exception;
+            }
+        });
+        secondaryThread.Start();
+        secondaryThread.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
+        secondaryThreadError.Should().BeOfType<PlatformNotSupportedException>();
+        services.ThreadDispatchers.Release(services.Dispatcher);
         services.Timers.Should().BeOfType<ProGpuTimerService>();
         services.Handles.Should().BeOfType<ManagedLibreHandleRegistry>();
         services.Windows.Should().BeOfType<SilkWindowService>();

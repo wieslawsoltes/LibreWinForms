@@ -35,6 +35,44 @@ public class LibrePlatformTests
     }
 
     [Fact]
+    public void ConstructorPublishesTypedThreadDispatcherProvider()
+    {
+        TestServices test = new();
+        using LibrePlatformServices services = test.Create();
+
+        services.ThreadDispatchers.Should().BeSameAs(test);
+        ILibreDispatcher dispatcher = services.ThreadDispatchers.GetForCurrentThread();
+        dispatcher.Should().BeSameAs(test);
+        services.ThreadDispatchers.Release(dispatcher);
+    }
+
+    [Fact]
+    public void DispatcherWithoutProviderFailsClosedOnASecondUiThread()
+    {
+        TestServices test = new();
+        BareDispatcher dispatcher = new();
+        using LibrePlatformServices services = new(
+            dispatcher, test, test.Handles, test, test, test);
+
+        services.ThreadDispatchers.GetForCurrentThread().Should().BeSameAs(dispatcher);
+        Exception? secondaryThreadError = null;
+        Thread secondaryThread = new(() =>
+        {
+            try
+            {
+                services.ThreadDispatchers.GetForCurrentThread();
+            }
+            catch (Exception exception)
+            {
+                secondaryThreadError = exception;
+            }
+        });
+        secondaryThread.Start();
+        secondaryThread.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
+        secondaryThreadError.Should().BeOfType<PlatformNotSupportedException>();
+    }
+
+    [Fact]
     public void ConstructorPublishesTypedDesktopCaptureAndRejectsMissingCapability()
     {
         TestServices test = new();
@@ -612,8 +650,38 @@ public class LibrePlatformTests
         new("secondary", new(-1280, 0, 1280, 1024), new(-1280, 0, 1280, 984), 1.5, false),
     ];
 
+    private sealed class BareDispatcher : ILibreDispatcher
+    {
+        private readonly int _managedThreadId = Environment.CurrentManagedThreadId;
+
+        public int ManagedThreadId => _managedThreadId;
+
+        public bool CheckAccess() => Environment.CurrentManagedThreadId == _managedThreadId;
+
+        public void Post(Action callback) => callback();
+
+        public void Send(Action callback) => callback();
+
+        public void PumpOnce()
+        {
+        }
+
+        public void Run(CancellationToken cancellationToken)
+        {
+        }
+
+        public void RunNested(Func<bool> continueCondition, CancellationToken cancellationToken)
+        {
+        }
+
+        public void RequestExit()
+        {
+        }
+    }
+
     private sealed class TestServices :
         ILibreDispatcher,
+        ILibreThreadDispatcherProvider,
         ILibreTimerService,
         ILibreWindowService,
         ILibreMonitorService,
@@ -687,6 +755,11 @@ public class LibrePlatformTests
         public LibrePlatformServices Create() => new(this, this, Handles, this, this, this);
 
         public int ManagedThreadId => Environment.CurrentManagedThreadId;
+
+        public ILibreDispatcher GetForCurrentThread() => this;
+
+        public void Release(ILibreDispatcher dispatcher)
+            => dispatcher.Should().BeSameAs(this);
 
         public bool CheckAccess() => true;
         public void Post(Action callback) => callback();

@@ -406,6 +406,8 @@ public sealed class LibrePlatformServices : IDisposable
         ILibreDragDropService dragDrop)
     {
         Dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+        ThreadDispatchers = dispatcher as ILibreThreadDispatcherProvider
+            ?? new SingleLibreThreadDispatcherProvider(dispatcher);
         Timers = timers ?? throw new ArgumentNullException(nameof(timers));
         Handles = handles ?? throw new ArgumentNullException(nameof(handles));
         Windows = windows ?? throw new ArgumentNullException(nameof(windows));
@@ -427,6 +429,8 @@ public sealed class LibrePlatformServices : IDisposable
     }
 
     public ILibreDispatcher Dispatcher { get; }
+
+    public ILibreThreadDispatcherProvider ThreadDispatchers { get; }
 
     public ILibreTimerService Timers { get; }
 

@@ -22,7 +22,7 @@ public sealed partial class Application
             }
 
             _idleScheduled = true;
-            LibrePlatform.Current.Dispatcher.Post(DispatchIdle);
+            Dispatcher.Post(DispatchIdle);
         }
 
         private void DispatchIdle()
@@ -37,7 +37,7 @@ public sealed partial class Application
         protected override bool RunMessageLoop(msoloop reason, bool fullModal)
         {
             _ = fullModal;
-            ILibreDispatcher dispatcher = LibrePlatform.Current.Dispatcher;
+            ILibreDispatcher dispatcher = Dispatcher;
             switch (reason)
             {
                 case msoloop.Main:

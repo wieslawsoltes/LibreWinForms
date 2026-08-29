@@ -1605,15 +1605,14 @@ public unsafe partial class Control :
     ///  handle for this control. If the control's handle hasn't been
     ///  created yet, this method will return the current thread's ID.
     /// </summary>
-#if LIBREWINFORMS_PORTABLE
-#pragma warning disable CA1822 // Portable builds compare the registered dispatcher, not an HWND owner thread.
-#endif
     internal uint CreateThreadId
     {
         get
         {
 #if LIBREWINFORMS_PORTABLE
-            return unchecked((uint)LibrePlatform.Current.Dispatcher.ManagedThreadId);
+            return IsHandleCreated
+                ? unchecked((uint)PortableDispatcher.ManagedThreadId)
+                : unchecked((uint)Environment.CurrentManagedThreadId);
 #else
             return IsHandleCreated
                 ? PInvokeCore.GetWindowThreadProcessId(this, out _)
@@ -1621,9 +1620,6 @@ public unsafe partial class Control :
 #endif
         }
     }
-#if LIBREWINFORMS_PORTABLE
-#pragma warning restore CA1822
-#endif
 
     /// <summary>
     ///  Retrieves the cursor that will be displayed when the mouse is over this
@@ -2496,7 +2492,7 @@ public unsafe partial class Control :
             }
 
 #if LIBREWINFORMS_PORTABLE
-            return !LibrePlatform.Current.Dispatcher.CheckAccess();
+            return !control.PortableDispatcher.CheckAccess();
 #else
             return PInvokeCore.GetWindowThreadProcessId(control, out _) != PInvokeCore.GetCurrentThreadId();
 #endif
@@ -5314,7 +5310,7 @@ public unsafe partial class Control :
         {
             Control marshaler = FindMarshalingControl();
 #if LIBREWINFORMS_PORTABLE
-            if (LibrePlatform.Current.Dispatcher.CheckAccess())
+            if (marshaler.PortableDispatcher.CheckAccess())
 #else
             if (PInvokeCore.GetWindowThreadProcessId(marshaler, out _) == PInvokeCore.GetCurrentThreadId())
 #endif
@@ -6812,7 +6808,7 @@ public unsafe partial class Control :
         // It is important that syncSameThread always be false for asynchronous calls.
         bool syncSameThread = synchronous
 #if LIBREWINFORMS_PORTABLE
-            && LibrePlatform.Current.Dispatcher.CheckAccess();
+            && PortableDispatcher.CheckAccess();
 #else
             && PInvokeCore.GetWindowThreadProcessId(this, out _) == PInvokeCore.GetCurrentThreadId();
 #endif
@@ -6858,7 +6854,7 @@ public unsafe partial class Control :
         else
         {
 #if LIBREWINFORMS_PORTABLE
-            LibrePlatform.Current.Dispatcher.Post(InvokeMarshaledCallbacks);
+            PortableDispatcher.Post(InvokeMarshaledCallbacks);
 #else
             PInvokeCore.PostMessage(this, s_threadCallbackMessage);
 #endif
