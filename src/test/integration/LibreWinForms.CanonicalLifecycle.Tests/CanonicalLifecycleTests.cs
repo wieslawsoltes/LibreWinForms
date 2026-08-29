@@ -55,6 +55,62 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void KeyboardRouting_PreservesModifiersParentBubblingAndMessageFilters()
+    {
+        const int wmKeyDown = 0x0100;
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new();
+        using CommandProbeControl parent = new() { Bounds = new Rectangle(4, 5, 100, 80) };
+        using Control child = new() { Bounds = new Rectangle(40, 30, 40, 30) };
+        parent.Controls.Add(child);
+        form.Controls.Add(parent);
+        form.Show();
+
+        Message childCommand = Message.Create(child.Handle, wmKeyDown, (nint)Keys.F6, 0);
+        child.PreProcessMessage(ref childCommand).Should().BeTrue();
+        parent.CommandCount.Should().Be(1);
+        parent.LastKeyData.Should().Be(Keys.F6);
+
+        parent.ResetCommands();
+        platform.SendInput(LibreInputEventKind.FocusGained);
+        platform.SendInput(
+            LibreInputEventKind.PointerDown,
+            position: new LibrePoint(10, 10),
+            button: LibrePointerButton.Primary);
+        platform.SendInput(
+            LibreInputEventKind.PointerUp,
+            position: new LibrePoint(10, 10),
+            button: LibrePointerButton.Primary);
+        platform.SendInput(
+            LibreInputEventKind.KeyDown,
+            modifiers: LibreInputModifiers.Control | LibreInputModifiers.Shift,
+            key: LibreKey.Delete);
+
+        parent.CommandCount.Should().Be(1);
+        parent.LastKeyData.Should().Be(Keys.Delete | Keys.Control | Keys.Shift);
+
+        var filter = new RecordingMessageFilter();
+        Message filtered = Message.Create(child.Handle, wmKeyDown, (nint)Keys.F2, 0);
+        Application.AddMessageFilter(filter);
+        try
+        {
+            Application.FilterMessage(ref filtered).Should().BeTrue();
+            filter.CallCount.Should().Be(1);
+            filter.LastHWnd.Should().Be(child.Handle);
+            filter.LastMessage.Should().Be(wmKeyDown);
+            filter.LastKeyCode.Should().Be(Keys.F2);
+        }
+        finally
+        {
+            Application.RemoveMessageFilter(filter);
+        }
+
+        Application.FilterMessage(ref filtered).Should().BeFalse();
+        filter.CallCount.Should().Be(1);
+        form.Close();
+    }
+
+    [Fact]
     public void InputLanguageUsesTypedPortableInventoryAndActivation()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2629,6 +2685,49 @@ public class CanonicalLifecycleTests
     {
         internal InputProbeControl()
             => SetStyle(ControlStyles.Selectable | ControlStyles.StandardClick | ControlStyles.UserPaint, true);
+    }
+
+    private sealed class CommandProbeControl : Control
+    {
+        internal CommandProbeControl()
+            => SetStyle(ControlStyles.Selectable | ControlStyles.StandardClick | ControlStyles.UserPaint, true);
+
+        internal int CommandCount { get; private set; }
+
+        internal Keys LastKeyData { get; private set; }
+
+        internal void ResetCommands()
+        {
+            CommandCount = 0;
+            LastKeyData = Keys.None;
+        }
+
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            CommandCount++;
+            LastKeyData = keyData;
+            return true;
+        }
+    }
+
+    private sealed class RecordingMessageFilter : IMessageFilter
+    {
+        internal int CallCount { get; private set; }
+
+        internal nint LastHWnd { get; private set; }
+
+        internal Keys LastKeyCode { get; private set; }
+
+        internal int LastMessage { get; private set; }
+
+        public bool PreFilterMessage(ref Message message)
+        {
+            CallCount++;
+            LastHWnd = message.HWnd;
+            LastMessage = message.Msg;
+            LastKeyCode = (Keys)message.WParam.ToInt32();
+            return true;
+        }
     }
 
     private sealed class CueProbeButton : Button

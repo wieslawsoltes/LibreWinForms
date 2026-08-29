@@ -119,7 +119,15 @@ public unsafe partial class Control
 
         Control target = _portableFocusedControl ?? this;
         Message message = Message.Create(target.Handle, (int)messageId, (nint)(int)keyCode, 0);
-        target.ProcessKeyMessage(ref message);
+        if (Application.FilterMessage(ref message))
+        {
+            return;
+        }
+
+        if (PreProcessControlMessageInternal(target, ref message) != PreProcessControlState.MessageProcessed)
+        {
+            target.ProcessKeyMessage(ref message);
+        }
     }
 
     private void DispatchPortableText(string? text)
@@ -133,7 +141,15 @@ public unsafe partial class Control
         foreach (char character in text)
         {
             Message message = Message.Create(target.Handle, (int)PInvokeCore.WM_CHAR, character, 0);
-            target.ProcessKeyMessage(ref message);
+            if (Application.FilterMessage(ref message))
+            {
+                continue;
+            }
+
+            if (PreProcessControlMessageInternal(target, ref message) != PreProcessControlState.MessageProcessed)
+            {
+                target.ProcessKeyMessage(ref message);
+            }
         }
     }
 

@@ -6577,11 +6577,18 @@ public unsafe partial class Control :
     /// </returns>
     protected virtual bool IsInputChar(char charCode)
     {
+#if LIBREWINFORMS_PORTABLE
+        // Portable windows do not have a native dialog procedure to answer WM_GETDLGCODE.
+        // Returning false preserves the base Control behavior: preprocessing gets a chance
+        // to handle dialog characters, then unhandled characters are dispatched normally.
+        return false;
+#else
         int mask = charCode == (char)(int)Keys.Tab
             ? (int)(PInvoke.DLGC_WANTCHARS | PInvoke.DLGC_WANTALLKEYS | PInvoke.DLGC_WANTTAB)
             : (int)(PInvoke.DLGC_WANTCHARS | PInvoke.DLGC_WANTALLKEYS);
 
         return ((int)PInvokeCore.SendMessage(this, PInvokeCore.WM_GETDLGCODE) & mask) != 0;
+#endif
     }
 
     /// <summary>
@@ -6604,6 +6611,12 @@ public unsafe partial class Control :
             return false;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        // Portable windows do not have a native dialog procedure to answer WM_GETDLGCODE.
+        // Derived controls can retain their typed IsInputKey overrides; the base control
+        // lets preprocessing try dialog-key routing before normal key dispatch.
+        return false;
+#else
         uint mask = PInvoke.DLGC_WANTALLKEYS;
         switch (keyData & Keys.KeyCode)
         {
@@ -6620,6 +6633,7 @@ public unsafe partial class Control :
 
         return IsHandleCreated
             && ((uint)PInvokeCore.SendMessage(this, PInvokeCore.WM_GETDLGCODE) & mask) != 0;
+#endif
     }
 
     /// <summary>
