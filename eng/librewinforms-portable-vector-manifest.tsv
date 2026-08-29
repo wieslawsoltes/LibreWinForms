@@ -19,7 +19,7 @@ FormsDesignerOptionsBehaviorTests.cs	migrate	src/System.Windows.Forms.Design/tes
 FormsDesignerSnapLineBehaviorTests.cs	migrate	src/System.Windows.Forms.Design/tests/UnitTests	Move snap-line shape, matching, offsets, and designer override vectors.
 FormsDesignerTypedServiceBehaviorTests.cs	migrate	src/System.Windows.Forms.Design/tests/UnitTests	Move cleanup and keyboard-navigation behavior; retire only Portable service aliases.
 HexEditorContractBehaviorTests.cs	migrate	packaging/LibreWinForms.Sdk.SourceFirstSmoke/Program.cs	Keep unchanged-consumer cursor, buffering, input, menus, dialogs, and converter contracts.
-HexEditorInputScrollDtoBehaviorTests.cs	migrate	packaging/LibreWinForms.Sdk.SourceFirstSmoke/Program.cs	Keep Keys and ScrollEventArgs public DTO behavior in the canonical consumer smoke.
+HexEditorInputScrollDtoBehaviorTests.cs	covered	packaging/LibreWinForms.Sdk.SourceFirstSmoke/Program.cs	Unchanged canonical SDK consumer owns KeyEventArgs masking/suppression and ScrollEventArgs constructor behavior; stale 0x5D assertion corrected to upstream's undefined 0xFF case.
 KeyboardRoutingBehaviorTests.cs	covered	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Canonical lifecycle owns ProcessCmdKey bubbling, typed modifiers, message filters, and removal behavior.
 ReportingDesignerBehaviorTests.cs	migrate	src/System.Windows.Forms.Design/tests/UnitTests	Move selection, loader, filtering, serialization, paint, and editor contracts.
 ScrollableControlBehaviorTests.cs	migrate	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Retain AutoScroll, coordinate, scaling, anchoring, and embedded-editor vectors.
