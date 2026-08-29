@@ -1,6 +1,6 @@
 source	disposition	canonical_owner	rationale
 ApplicationCompatibilityBehaviorTests.cs	covered	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Canonical lifecycle owns visual styles, DPI mode, and Application.Run behavior.
-ApplicationIdleHostBehaviorTests.cs	migrate	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Add canonical Idle scheduling and subscriber-removal vectors.
+ApplicationIdleHostBehaviorTests.cs	covered	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Canonical PortableThreadContext coalesces typed dispatcher posts and honors subscriber removal.
 ApplicationThreadLifecycleBehaviorTests.cs	migrate	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Add independent multi-thread ApplicationContext and ExitThread vectors.
 ControlCollectionBehaviorTests.cs	migrate	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Retain disposal, reparenting, collection events, and designer initialization vectors.
 CreateGraphicsHostBehaviorTests.cs	covered	src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/CanonicalLifecycleTests.cs	Canonical lifecycle owns CreateGraphics clipping, flush, and continued drawing.

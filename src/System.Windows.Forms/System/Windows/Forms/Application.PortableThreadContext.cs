@@ -12,6 +12,25 @@ public sealed partial class Application
     /// <summary>Routes canonical WinForms loop semantics through the registered portable dispatcher.</summary>
     internal sealed class PortableThreadContext : ThreadContext
     {
+        private bool _idleScheduled;
+
+        public override void EnsureReadyForIdle()
+        {
+            if (_idleScheduled)
+            {
+                return;
+            }
+
+            _idleScheduled = true;
+            LibrePlatform.Current.Dispatcher.Post(DispatchIdle);
+        }
+
+        private void DispatchIdle()
+        {
+            _idleScheduled = false;
+            _idleHandler?.Invoke(Thread.CurrentThread, EventArgs.Empty);
+        }
+
         protected override bool? GetMessageLoopInternal(bool mustBeActive, int loopCount)
             => loopCount > 0 ? true : null;
 

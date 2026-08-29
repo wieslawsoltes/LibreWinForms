@@ -20,6 +20,41 @@ namespace LibreWinForms.CanonicalLifecycle.Tests;
 public class CanonicalLifecycleTests
 {
     [Fact]
+    public void ApplicationIdle_CoalescesDispatcherPostAndHonorsSubscriberRemoval()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        int firstCalls = 0;
+        int secondCalls = 0;
+        EventHandler first = (_, _) => firstCalls++;
+        EventHandler second = (_, _) => secondCalls++;
+
+        try
+        {
+            Application.Idle += first;
+            Application.Idle += second;
+
+            platform.DispatcherPostCount.Should().Be(1);
+            platform.PumpOnce();
+            firstCalls.Should().Be(1);
+            secondCalls.Should().Be(1);
+
+            Application.Idle -= first;
+            Application.Idle -= second;
+            Application.Idle += first;
+
+            platform.DispatcherPostCount.Should().Be(2);
+            platform.PumpOnce();
+            firstCalls.Should().Be(2);
+            secondCalls.Should().Be(1);
+        }
+        finally
+        {
+            Application.Idle -= first;
+            Application.Idle -= second;
+        }
+    }
+
+    [Fact]
     public void InputLanguageUsesTypedPortableInventoryAndActivation()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2842,6 +2877,7 @@ public class CanonicalLifecycleTests
             InvokeFileDialogHelp = false;
             _currentInputLanguageToken = s_inputLanguages[0].Token;
             InputLanguageActivationCount = 0;
+            DispatcherPostCount = 0;
         }
 
         internal ManagedLibreHandleRegistry Handles { get; }
@@ -3224,7 +3260,11 @@ public class CanonicalLifecycleTests
 
         public bool CheckAccess() => true;
 
-        public void Post(Action callback) => _queue.Enqueue(callback);
+        public void Post(Action callback)
+        {
+            DispatcherPostCount++;
+            _queue.Enqueue(callback);
+        }
 
         public void Send(Action callback) => callback();
 
@@ -3263,6 +3303,8 @@ public class CanonicalLifecycleTests
         }
 
         public void RequestExit() => _exitRequested = true;
+
+        internal int DispatcherPostCount { get; private set; }
 
         public IDisposable Start(TimeSpan interval, bool repeating, Action callback)
         {
