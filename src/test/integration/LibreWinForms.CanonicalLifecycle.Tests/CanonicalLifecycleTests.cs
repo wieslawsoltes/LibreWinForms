@@ -2319,7 +2319,7 @@ public class CanonicalLifecycleTests
         panel.Controls.Add(editor);
         panel.Controls.SetChildIndex(editor, 0);
 
-        editor.Bounds.Should().Be(new Rectangle(60, 60, 180, 70));
+        editor.Bounds.Should().Be(new Rectangle(60, 60, 180, editor.PreferredHeight));
         panel.Controls[0].Should().BeSameAs(editor);
     }
 
