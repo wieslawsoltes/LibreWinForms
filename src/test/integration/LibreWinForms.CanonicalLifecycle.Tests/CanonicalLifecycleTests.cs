@@ -222,6 +222,160 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void DragDrop_UsesCanonicalEventsAndTypedPlatformSession()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new()
+        {
+            Bounds = new Rectangle(300, 400, 240, 180),
+            StartPosition = FormStartPosition.Manual
+        };
+        using Control source = new() { Name = "source", Location = new Point(7, 9) };
+        using Control parent = new() { Name = "parent", Location = new Point(20, 30), AllowDrop = true };
+        using Control child = new() { Name = "child", Location = new Point(4, 5) };
+        using Control second = new() { Name = "second", Location = new Point(70, 80), AllowDrop = true };
+        parent.Controls.Add(child);
+        form.Controls.AddRange([source, parent, second]);
+        form.Show();
+
+        LibreHandle sourceHandle = new(source.Handle, LibreHandleKind.LogicalControl);
+        LibreHandle parentHandle = new(parent.Handle, LibreHandleKind.LogicalControl);
+        LibreHandle childHandle = new(child.Handle, LibreHandleKind.LogicalControl);
+        LibreHandle secondHandle = new(second.Handle, LibreHandleKind.LogicalControl);
+        platform.DragDropTargets.Should().Contain(parentHandle).And.Contain(secondHandle);
+        platform.DragDropTargets.Should().NotContain(childHandle);
+
+        DataObject data = new();
+        data.SetData(DataFormats.FileDrop, new[] { "/tmp/Project.csproj", "/tmp/Readme.txt" });
+        data.SetData(DataFormats.UnicodeText, "canonical drag text");
+        List<string> sequence = [];
+        List<int> enterKeyStates = [];
+        int childEnterCalls = 0;
+        child.DragEnter += (_, _) => childEnterCalls++;
+        parent.DragEnter += (_, e) =>
+        {
+            sequence.Add("parent.enter");
+            e.Data.Should().BeSameAs(data);
+            enterKeyStates.Add(e.KeyState);
+            new Point(e.X, e.Y).Should().Be(new Point(640, 480));
+            e.Effect = DragDropEffects.Move;
+        };
+        parent.DragOver += (_, e) =>
+        {
+            sequence.Add("parent.over");
+            e.Effect.Should().Be(DragDropEffects.Move);
+            e.Effect = DragDropEffects.Copy;
+        };
+        parent.DragLeave += (_, _) => sequence.Add("parent.leave");
+        second.DragEnter += (_, e) =>
+        {
+            sequence.Add("second.enter");
+            e.Effect = DragDropEffects.Copy;
+        };
+        second.DragOver += (_, e) =>
+        {
+            sequence.Add("second.over");
+            e.Effect = DragDropEffects.Link;
+        };
+        second.DragDrop += (_, e) =>
+        {
+            sequence.Add("second.drop");
+            e.Effect.Should().Be(DragDropEffects.None);
+            e.Effect = DragDropEffects.Copy;
+        };
+
+        int queryContinueCalls = 0;
+        source.QueryContinueDrag += (_, e) =>
+        {
+            queryContinueCalls++;
+            e.KeyState.Should().Be(8);
+            e.Action = DragAction.Continue;
+        };
+        int feedbackCalls = 0;
+        source.GiveFeedback += (_, e) =>
+        {
+            feedbackCalls++;
+            e.Effect.Should().Be(DragDropEffects.Copy);
+            e.UseDefaultCursors = false;
+        };
+
+        platform.DragDropHandler = (request, session) =>
+        {
+            request.Source.Should().Be(sourceHandle);
+            request.AllowedEffects.Should().Be(LibreDragDropEffects.Copy | LibreDragDropEffects.Move);
+            request.Data.Formats.Should().BeEquivalentTo([DataFormats.FileDrop, DataFormats.UnicodeText]);
+            request.Data.Contains(DataFormats.UnicodeText, autoConvert: false).Should().BeTrue();
+            request.Data.GetData(DataFormats.UnicodeText, autoConvert: false).Should().Be("canonical drag text");
+            session.QueryContinue(keyState: 8, escapePressed: false).Should().Be(LibreDragAction.Continue);
+            session.GiveFeedback(LibreDragDropEffects.Copy).Should().BeFalse();
+
+            LibreDragTransition first = session.Enter(
+                childHandle,
+                keyState: 8,
+                new LibrePoint(640, 480),
+                LibreDragDropEffects.Copy);
+            first.Target.Should().Be(parentHandle);
+            first.Effect.Should().Be(LibreDragDropEffects.Move);
+            session.Over(parentHandle, 8, new LibrePoint(640, 480), first.Effect)
+                .Should().Be(LibreDragDropEffects.Copy);
+            session.Leave(parentHandle);
+
+            LibreDragTransition next = session.Enter(
+                secondHandle,
+                keyState: 8,
+                new LibrePoint(640, 480),
+                LibreDragDropEffects.Copy);
+            next.Target.Should().Be(secondHandle);
+            LibreDragDropEffects over = session.Over(
+                secondHandle,
+                keyState: 8,
+                new LibrePoint(640, 480),
+                next.Effect);
+            over.Should().Be(LibreDragDropEffects.None);
+            return session.Drop(secondHandle, 8, new LibrePoint(640, 480), over);
+        };
+
+        source.DoDragDrop(data, DragDropEffects.Copy | DragDropEffects.Move)
+            .Should().Be(DragDropEffects.Copy);
+        sequence.Should().Equal(
+            "parent.enter",
+            "parent.over",
+            "parent.leave",
+            "second.enter",
+            "second.over",
+            "second.drop");
+        childEnterCalls.Should().Be(0);
+        queryContinueCalls.Should().Be(1);
+        feedbackCalls.Should().Be(1);
+        enterKeyStates.Should().Equal(8);
+
+        child.PointToScreen(new Point(3, 4)).Should().Be(new Point(327, 439));
+        child.PointToClient(new Point(327, 439)).Should().Be(new Point(3, 4));
+
+        sequence.Clear();
+        platform.DragDropHandler = (_, session) =>
+        {
+            LibreDragTransition entered = session.Enter(
+                childHandle,
+                keyState: 0,
+                new LibrePoint(640, 480),
+                LibreDragDropEffects.Copy);
+            session.Leave(entered.Target);
+            return LibreDragDropEffects.None;
+        };
+        source.DoDragDrop(data, DragDropEffects.Copy).Should().Be(DragDropEffects.None);
+        sequence.Should().Equal("parent.enter", "parent.leave");
+        enterKeyStates.Should().Equal(8, 0);
+
+        platform.DragDropHandler = (request, _) =>
+        {
+            request.AllowedEffects.Should().Be(LibreDragDropEffects.None);
+            return (LibreDragDropEffects)0x100;
+        };
+        source.DoDragDrop("unhosted", (DragDropEffects)0x100).Should().Be(DragDropEffects.None);
+    }
+
+    [Fact]
     public void KeyboardRouting_PreservesModifiersParentBubblingAndMessageFilters()
     {
         const int wmKeyDown = 0x0100;
@@ -3320,7 +3474,8 @@ public class CanonicalLifecycleTests
         ILibreColorDialogService,
         ILibreFontDialogService,
         ILibreFileDialogService,
-        ILibreInputLanguageService
+        ILibreInputLanguageService,
+        ILibreDragDropService
     {
         private static readonly LibreInputLanguageDescriptor[] s_inputLanguages =
         [
@@ -3364,6 +3519,7 @@ public class CanonicalLifecycleTests
                 this,
                 this,
                 this,
+                this,
                 this);
         }
 
@@ -3380,6 +3536,8 @@ public class CanonicalLifecycleTests
             CaptionHeightValue = 29;
             MenuAccessKeysUnderlinedValue = true;
             _formHandles.Clear();
+            DragDropHandler = null;
+            DragDropTargets.Clear();
             while (_queue.TryDequeue(out _))
             {
             }
@@ -3459,6 +3617,10 @@ public class CanonicalLifecycleTests
         }
 
         internal ManagedLibreHandleRegistry Handles { get; }
+
+        internal Func<LibreDragDropRequest, ILibreDragDropSession, LibreDragDropEffects>? DragDropHandler { get; set; }
+
+        internal HashSet<LibreHandle> DragDropTargets { get; } = [];
 
         public event EventHandler<LibreSystemSettingsChangedEventArgs>? SettingsChanged;
 
@@ -3881,6 +4043,25 @@ public class CanonicalLifecycleTests
         }
 
         public void RequestExit() => _exitRequested = true;
+
+        public bool IsSupported => true;
+
+        public void SetTargetEnabled(LibreHandle target, bool enabled)
+        {
+            if (enabled)
+            {
+                DragDropTargets.Add(target);
+            }
+            else
+            {
+                DragDropTargets.Remove(target);
+            }
+        }
+
+        public LibreDragDropEffects DoDragDrop(
+            LibreDragDropRequest request,
+            ILibreDragDropSession session)
+            => DragDropHandler?.Invoke(request, session) ?? LibreDragDropEffects.None;
 
         internal int DispatcherPostCount => Volatile.Read(ref _dispatcherPostCount);
 

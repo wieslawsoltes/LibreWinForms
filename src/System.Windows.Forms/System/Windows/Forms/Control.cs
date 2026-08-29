@@ -19,10 +19,14 @@ using Windows.Win32.Graphics.Dwm;
 #if !LIBREWINFORMS_PROGPU_DRAWING
 using Windows.Win32.Graphics.GdiPlus;
 #endif
+#if !LIBREWINFORMS_PORTABLE
 using Windows.Win32.System.Ole;
+#endif
 using Windows.Win32.UI.Accessibility;
 using Windows.Win32.UI.Input.KeyboardAndMouse;
+#if !LIBREWINFORMS_PORTABLE
 using Com = Windows.Win32.System.Com;
+#endif
 using Encoding = System.Text.Encoding;
 
 namespace System.Windows.Forms;
@@ -5209,6 +5213,9 @@ public unsafe partial class Control :
     {
         DataObject dataObject = CreateRuntimeDataObjectForDrag(data);
 
+#if LIBREWINFORMS_PORTABLE
+        return DoPortableDragDrop(dataObject, allowedEffects, dragImage, cursorOffset, useDefaultDragImage);
+#else
         DROPEFFECT finalEffect;
 
         try
@@ -5230,6 +5237,7 @@ public unsafe partial class Control :
         }
 
         return (DragDropEffects)finalEffect;
+#endif
     }
 
     /// <summary>
@@ -7671,6 +7679,7 @@ public unsafe partial class Control :
     {
 #if LIBREWINFORMS_PORTABLE
         InitializePortableDpi();
+        SetAcceptDrops(AllowDrop);
         ((EventHandler?)Events[s_handleCreatedEvent])?.Invoke(this, e);
 #else
         if (IsHandleCreated)
@@ -7848,6 +7857,7 @@ public unsafe partial class Control :
         ((EventHandler?)Events[s_handleDestroyedEvent])?.Invoke(this, e);
 
 #if LIBREWINFORMS_PORTABLE
+        SetAcceptDrops(false);
         ReflectParent = null;
 #else
         // The Accessibility Object for this Control
@@ -10052,6 +10062,9 @@ public unsafe partial class Control :
 
         try
         {
+#if LIBREWINFORMS_PORTABLE
+            LibrePlatform.Current.DragDrop.SetTargetEnabled(_window.PortableHandle, accept);
+#else
             if (Application.OleRequired() != ApartmentState.STA)
             {
                 throw new ThreadStateException(SR.ThreadMustBeSTA);
@@ -10076,6 +10089,7 @@ public unsafe partial class Control :
                 }
             }
 
+#endif
             SetState(States.DropTarget, accept);
         }
         catch (Exception e)

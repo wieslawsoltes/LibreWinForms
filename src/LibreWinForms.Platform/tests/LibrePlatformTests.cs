@@ -398,6 +398,22 @@ public class LibrePlatformTests
     }
 
     [Fact]
+    public void ConstructorPublishesTypedDragDropAndRejectsMissingCapability()
+    {
+        TestServices test = new();
+        using LibrePlatformServices services = new(
+            test, test, test.Handles, test, test, test, test, test, test, test,
+            test, test, test, test, test, test, test, test, UnsupportedLibreDragDropService.Instance);
+
+        services.DragDrop.Should().BeSameAs(UnsupportedLibreDragDropService.Instance);
+        services.DragDrop.IsSupported.Should().BeFalse();
+        Action create = () => new LibrePlatformServices(
+            test, test, test.Handles, test, test, test, test, test, test, test,
+            test, test, test, test, test, test, test, test, null!);
+        create.Should().Throw<ArgumentNullException>().WithParameterName("dragDrop");
+    }
+
+    [Fact]
     public void DefaultInputLanguagesExposeOnlyTheSelectedManagedCulture()
     {
         DefaultLibreInputLanguageService service = new(CultureInfo.GetCultureInfo("pl-PL"));

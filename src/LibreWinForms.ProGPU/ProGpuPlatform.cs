@@ -104,7 +104,8 @@ public static class ProGpuPlatform
                 textRenderer,
                 new ProGpuFontCatalog()),
             fileDialogs,
-            new DefaultLibreInputLanguageService(CultureInfo.CurrentCulture));
+            new DefaultLibreInputLanguageService(CultureInfo.CurrentCulture),
+            UnsupportedLibreDragDropService.Instance);
     }
 
     public static void Register() => LibrePlatform.Register(CreateServices());

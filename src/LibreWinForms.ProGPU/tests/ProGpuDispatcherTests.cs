@@ -24,6 +24,8 @@ public class ProGpuDispatcherTests
         services.MessageBoxes.Should().BeOfType<ManagedLibreMessageBoxService>();
         services.ColorDialogs.Should().BeOfType<ManagedLibreColorDialogService>();
         services.FontDialogs.Should().BeOfType<ManagedLibreFontDialogService>();
+        services.DragDrop.Should().BeSameAs(UnsupportedLibreDragDropService.Instance);
+        services.DragDrop.IsSupported.Should().BeFalse();
         if (OperatingSystem.IsLinux())
         {
             services.FileDialogs.Should().BeOfType<PreferredLinuxLibreFileDialogService>();
