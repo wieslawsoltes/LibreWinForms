@@ -4588,7 +4588,11 @@ public partial class Form : ContainerControl
         {
             Control button = (Control)AcceptButton;
             Point pointToSnap = new(button.Left + button.Width / 2, button.Top + button.Height / 2);
+#if LIBREWINFORMS_PORTABLE
+            pointToSnap = PointToScreen(pointToSnap);
+#else
             PInvoke.ClientToScreen(this, ref pointToSnap);
+#endif
             if (!button.IsWindowObscured)
             {
                 Cursor.Position = pointToSnap;

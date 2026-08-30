@@ -717,11 +717,15 @@ public class ContainerControl : ScrollableControl, IContainerControl
     {
         if (GetTopLevel())
         {
+#if LIBREWINFORMS_PORTABLE
+            return RectangleToScreen(ClientRectangle);
+#else
             // Get window's client rectangle (i.e. without chrome) expressed in screen coordinates
             PInvokeCore.GetClientRect(this, out RECT clientRectangle);
             Point topLeftPoint = default;
             PInvoke.ClientToScreen(this, ref topLeftPoint);
             return new Rectangle(topLeftPoint.X, topLeftPoint.Y, clientRectangle.right, clientRectangle.bottom);
+#endif
         }
 
         return base.GetToolNativeScreenRectangle();

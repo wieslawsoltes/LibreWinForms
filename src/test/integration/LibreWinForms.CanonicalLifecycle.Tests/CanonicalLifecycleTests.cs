@@ -1988,6 +1988,25 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void NumericUpDownTranslatesChildPointerWithoutMapWindowPoints()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { ClientSize = new Size(240, 120) };
+        using NumericUpDown numeric = new() { Bounds = new Rectangle(20, 30, 120, 24) };
+        form.Controls.Add(numeric);
+        form.Show();
+        Point? observed = null;
+        numeric.MouseDown += (_, e) => observed = e.Location;
+
+        platform.SendInput(
+            LibreInputEventKind.PointerDown,
+            position: new LibrePoint(numeric.Left + 10, numeric.Top + 8),
+            button: LibrePointerButton.Primary);
+
+        observed.Should().Be(new Point(10, 8));
+    }
+
+    [Fact]
     public void DataGridViewColumnLookupUsesCanonicalNamesAndTypedIndexes()
     {
         UseHeadlessPlatform(autoCloseWindows: false);

@@ -627,7 +627,11 @@ internal sealed partial class PropertyGridView :
 
         // Translate rect to screen coordinates
         Point pt = new(rect.X, rect.Y);
+#if LIBREWINFORMS_PORTABLE
+        pt = PointToScreen(pt);
+#else
         PInvoke.ClientToScreen(this, ref pt);
+#endif
 
         Rectangle parent = gridEntry.OwnerGrid.GridViewAccessibleObject.Bounds;
 
