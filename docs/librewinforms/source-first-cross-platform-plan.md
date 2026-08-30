@@ -1344,6 +1344,12 @@ ProGPU continuation `c796ca047be3407c037f9e26130b9b4b5e67816b` removes another b
 
 The regression performs two overlapping copies in opposite directions with nearest-neighbor sampling and `CompositingMode.SourceCopy`; exact final pixels prove sequential snapshot semantics and state restoration. The complete drawing suite rises to 393/393, drawing tests and benchmarks build with 0 warnings/0 errors, and ApiCompat remains at 0 missing types, 0 missing members, and 13 reviewed differences. A dedicated 64x64 in-process ShortRun reports a 703.071 microsecond mean, 851.876 microsecond median, 323.506 microsecond standard deviation, and 17.28 KB allocated. Its three high-variance measurements are a coarse flush/readback checkpoint, not a universal latency claim. The coordinated source pin advances to this exact commit; immutable NuGet consumer mode remains unchanged, and hosted publication remains pending behind the same GitHub DNS failure.
 
+### ProGPU typed WMF ellipse checkpoint
+
+ProGPU continuation `9f979b0d8c1981f067bb559edfa9f9707882b4d9` extends the partial portable metafile player with official 16-bit `META_ELLIPSE` parameter ordering and the existing typed selected-brush/selected-pen lowering path. A reusable bottom/right/top/left decoder validates ordered bounds before any command can publish. Exact pixels cover the selected green fill and black outline; malformed bounds and a later unsupported `META_TEXTOUT` record each prove transactional rollback. Text, DIB, path, and nonstructural EMF+ drawing remain explicit later families rather than silent approximations.
+
+The complete drawing suite passes 394/394, test and benchmark builds retain 0 warnings/0 errors, and ApiCompat remains at 0 missing types, 0 missing members, and 13 reviewed differences. `Playback256WmfEllipsesToRetainedCommands` measures a 1.060 millisecond median (1.109 millisecond mean, 0.115 millisecond standard deviation) and 622.14 KB allocated for 256 filled/stroked ellipses in the three-iteration ARM64/.NET 10.0.11 in-process ShortRun. This is coarse retained-command evidence and a visible optimization target. The coordinated submodule advances to this exact commit; ordinary NuGet development remains unchanged, and hosted publication is still pending behind GitHub DNS.
+
 ## Major risks and controls
 
 | Risk | Control |
