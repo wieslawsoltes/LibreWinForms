@@ -51,6 +51,7 @@ public partial class ErrorProvider
             _parent.MouseMove += OnPortableParentMouseMove;
             _parent.MouseLeave += OnPortableParentMouseLeave;
             _parent.MouseDown += OnPortableParentMouseDown;
+            _parent.HandleCreated += OnPortableParentHandleCreated;
             _parent.HandleDestroyed += OnPortableParentHandleDestroyed;
 #endif
         }
@@ -97,6 +98,7 @@ public partial class ErrorProvider
             _parent.MouseMove -= OnPortableParentMouseMove;
             _parent.MouseLeave -= OnPortableParentMouseLeave;
             _parent.MouseDown -= OnPortableParentMouseDown;
+            _parent.HandleCreated -= OnPortableParentHandleCreated;
             _parent.HandleDestroyed -= OnPortableParentHandleDestroyed;
 #endif
             EnsureDestroyed();
@@ -578,6 +580,17 @@ public partial class ErrorProvider
             _ = sender;
             _ = e;
             EnsureDestroyed();
+            _portableHoverItem = null;
+        }
+
+        private void OnPortableParentHandleCreated(object? sender, EventArgs e)
+        {
+            _ = sender;
+            _ = e;
+            if (_items.Count > 0)
+            {
+                Update(timerCaused: false);
+            }
         }
 
         private ToolTip EnsurePortableToolTip()

@@ -2251,6 +2251,63 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void PortablePopupStateRebindsAcrossOwnerHandleRecreation()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using RecreatingForm form = new() { ClientSize = new Size(340, 180) };
+        using Button button = new() { Bounds = new Rectangle(20, 30, 100, 28) };
+        using TextBox textBox = new() { Bounds = new Rectangle(20, 80, 120, 24) };
+        form.Controls.AddRange(button, textBox);
+        form.Show();
+        using var toolTip = new ToolTip { InitialDelay = 0, AutoPopDelay = 100 };
+        using ErrorProvider provider = new()
+        {
+            ContainerControl = form,
+            BlinkStyle = ErrorBlinkStyle.NeverBlink,
+        };
+        toolTip.SetToolTip(button, "Recreated tooltip");
+        provider.SetError(textBox, "Recreated error");
+        LibreHandle firstOwner = platform.GetWindowHandle(form);
+
+        platform.SendInput(
+            LibreInputEventKind.PointerMove,
+            position: new LibrePoint(button.Left + 5, button.Top + 6));
+        platform.Popups.Values.Single().Request.Owner.Should().Be(firstOwner);
+
+        form.RecreatePortableHandle();
+
+        LibreHandle secondOwner = platform.GetWindowHandle(form);
+        secondOwner.Should().NotBe(firstOwner);
+        platform.Popups.Should().BeEmpty();
+        platform.HasActiveTimer.Should().BeFalse();
+        platform.Adorners.Values.Single().Owner.Should().Be(secondOwner);
+
+        platform.SendInput(LibreInputEventKind.PointerMove, position: new LibrePoint(5, 5));
+        platform.SendInput(
+            LibreInputEventKind.PointerMove,
+            position: new LibrePoint(button.Left + 5, button.Top + 6));
+        platform.Popups.Values.Single().Request.Owner.Should().Be(secondOwner);
+        platform.SendInput(LibreInputEventKind.PointerMove, position: new LibrePoint(5, 5));
+
+        LibreRectangle iconBounds = platform.Adorners.Values.Single().Bounds;
+        platform.SendInput(
+            LibreInputEventKind.PointerMove,
+            position: new LibrePoint(
+                iconBounds.X + iconBounds.Width / 2,
+                iconBounds.Y + iconBounds.Height / 2));
+        platform.FireTimer();
+        platform.Popups.Values.Single().Request.Owner.Should().Be(secondOwner);
+
+        form.RecreatePortableHandle();
+
+        LibreHandle thirdOwner = platform.GetWindowHandle(form);
+        thirdOwner.Should().NotBe(secondOwner);
+        platform.Popups.Should().BeEmpty();
+        platform.HasActiveTimer.Should().BeFalse();
+        platform.Adorners.Values.Single().Owner.Should().Be(thirdOwner);
+    }
+
+    [Fact]
     public void ExplicitToolTipUsesNonActivatingPortablePopupAndTypedTimer()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -6890,7 +6947,9 @@ public class CanonicalLifecycleTests
                 "Keyboard tip" or
                 "Invalid hover value" or
                 "Owner tooltip" or
-                "Owner error")
+                "Owner error" or
+                "Recreated tooltip" or
+                "Recreated error")
             {
                 bounds.Width.Should().BeGreaterThan(0);
                 bounds.Height.Should().BeGreaterThan(0);

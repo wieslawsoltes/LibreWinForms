@@ -60,6 +60,7 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
     private readonly LibrePopupId _portablePopupId = new(Interlocked.Increment(ref s_nextPortablePopupId));
     private IWin32Window? _portablePopupWindow;
     private LibreHandle _portablePopupOwner;
+    private Form? _portablePopupForm;
     private Control? _portableHoverControl;
     private Point _portableHoverPoint;
 #endif
@@ -1578,12 +1579,7 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
         _portablePopupOwner = owner;
         _portablePopupWindow = window;
         IsActivatedByKeyboard = keyboardTool is not null;
-        Form? form = associatedControl.FindForm();
-        if (form is not null)
-        {
-            form.Deactivate -= BaseFormDeactivate;
-            form.Deactivate += BaseFormDeactivate;
-        }
+        SetPortablePopupForm(associatedControl.FindForm());
 
         StopTimer();
         if (duration > 0)
@@ -1789,18 +1785,44 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
         StopTimer();
         if (_portablePopupOwner.IsNull)
         {
+            SetPortablePopupForm(form: null);
             return;
         }
 
         LibrePlatform.Current.Popups.Hide(_portablePopupOwner, _portablePopupId);
-        if (_portablePopupWindow is Control control && control.FindForm() is Form form)
-        {
-            form.Deactivate -= BaseFormDeactivate;
-        }
+        SetPortablePopupForm(form: null);
 
         _portablePopupOwner = default;
         _portablePopupWindow = null;
         IsActivatedByKeyboard = false;
+    }
+
+    private void SetPortablePopupForm(Form? form)
+    {
+        if (ReferenceEquals(_portablePopupForm, form))
+        {
+            return;
+        }
+
+        if (_portablePopupForm is not null)
+        {
+            _portablePopupForm.Deactivate -= BaseFormDeactivate;
+            _portablePopupForm.HandleDestroyed -= PortablePopupOwnerHandleDestroyed;
+        }
+
+        _portablePopupForm = form;
+        if (form is not null)
+        {
+            form.Deactivate += BaseFormDeactivate;
+            form.HandleDestroyed += PortablePopupOwnerHandleDestroyed;
+        }
+    }
+
+    private void PortablePopupOwnerHandleDestroyed(object? sender, EventArgs e)
+    {
+        _ = sender;
+        _ = e;
+        HidePortable(window: null);
     }
 #endif
 
