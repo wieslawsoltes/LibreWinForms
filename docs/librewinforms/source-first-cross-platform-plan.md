@@ -1352,6 +1352,8 @@ The complete drawing suite passes 394/394, test and benchmark builds retain 0 wa
 
 Follow-up ProGPU continuation `d9f57a965944f20da961fd4b1970485355df4a8d` adds `META_RECTANGLE` through the same validated ordered-box decoder and typed selected brush/pen path. The shared playback fixture verifies the green fill independently from the ellipse. Its dedicated 256-record ShortRun measured a 757.639 microsecond median (753.507 microsecond mean, 139.549 microsecond standard deviation) and 622.08 KB allocated. Full drawing remains 394/394 and ApiCompat remains 0/0/13. The source-development pin advances to this exact follow-up; normal NuGet mode and the explicit remaining metafile boundaries do not change.
 
+ProGPU continuation `55cb5c6ff5e4ef2f60f6556c727c64c11744e1ee` adds `META_INTERSECTCLIPRECT` and `META_EXCLUDECLIPRECT` through that shared ordered-box decoder and the existing typed Region-backed `Graphics` clip seam. Exact pixels prove content recorded before the exclude remains visible, the excluded rectangle hole is transparent, and the intersection clips later rectangle/ellipse content. A later unsupported text record still rolls back the entire temporary stream. The clipped 256-rectangle ShortRun measured an 840.428 microsecond median (847.766 microsecond mean, 125.202 microsecond standard deviation) and 626.08 KB allocated; full drawing remains 394/394 and ApiCompat remains 0/0/13. Other clip shapes, text, DIB, path, and EMF+ drawing remain explicit debt. Only the coordinated source pin advances; NuGet consumer mode remains unchanged.
+
 ## Major risks and controls
 
 | Risk | Control |
