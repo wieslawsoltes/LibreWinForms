@@ -13818,8 +13818,12 @@ public unsafe partial class Control :
 
     internal virtual Rectangle GetToolNativeScreenRectangle()
     {
+#if LIBREWINFORMS_PORTABLE
+        return RectangleToScreen(ClientRectangle);
+#else
         PInvokeCore.GetWindowRect(this, out var rect);
         return rect;
+#endif
     }
 
     internal virtual bool AllowsKeyboardToolTip()

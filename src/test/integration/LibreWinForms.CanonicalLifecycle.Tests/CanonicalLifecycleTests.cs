@@ -2236,6 +2236,56 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void KeyboardToolTipUsesCanonicalFocusStateMachineAndPortablePopup()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { ClientSize = new Size(340, 150) };
+        using Button firstButton = new() { Bounds = new Rectangle(20, 40, 100, 28), Text = "First" };
+        using Button secondButton = new() { Bounds = new Rectangle(140, 40, 100, 28), Text = "Second" };
+        form.Controls.AddRange(firstButton, secondButton);
+        form.Show();
+        platform.SendInput(LibreInputEventKind.FocusGained);
+        firstButton.Focus().Should().BeTrue();
+        using var toolTip = new ToolTip
+        {
+            InitialDelay = 35,
+            ReshowDelay = 20,
+            AutoPopDelay = 80,
+        };
+        toolTip.SetToolTip(secondButton, "Keyboard tip");
+
+        platform.SendInput(LibreInputEventKind.KeyDown, key: LibreKey.Tab);
+
+        secondButton.Focused.Should().BeTrue();
+        platform.HasActiveTimer.Should().BeTrue();
+        platform.LastTimerInterval.Should().Be(TimeSpan.FromMilliseconds(35));
+        platform.Popups.Should().BeEmpty();
+        platform.SendInput(LibreInputEventKind.KeyUp, key: LibreKey.Tab);
+
+        platform.FireTimer();
+
+        platform.Popups.Should().ContainSingle();
+        PopupSnapshot popup = platform.Popups.Values.Single();
+        Rectangle toolBounds = secondButton.RectangleToScreen(secondButton.ClientRectangle);
+        LibreRectangle retainedBounds = popup.Request.ScreenBounds;
+        Rectangle popupBounds = new(
+            retainedBounds.X,
+            retainedBounds.Y,
+            retainedBounds.Width,
+            retainedBounds.Height);
+        popupBounds.IntersectsWith(toolBounds).Should().BeFalse();
+        popup.Request.InputTransparent.Should().BeTrue();
+        popup.CommandCount.Should().BeGreaterThan(0);
+        platform.HasActiveTimer.Should().BeTrue();
+        platform.LastTimerInterval.Should().Be(TimeSpan.FromMilliseconds(80));
+
+        platform.FireTimer();
+
+        platform.Popups.Should().BeEmpty();
+        platform.HasActiveTimer.Should().BeFalse();
+    }
+
+    [Fact]
     public void DataGridViewColumnLookupUsesCanonicalNamesAndTypedIndexes()
     {
         UseHeadlessPlatform(autoCloseWindows: false);
@@ -6719,7 +6769,7 @@ public class CanonicalLifecycleTests
                 backColor.Should().Be(Color.Empty);
                 format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
             }
-            else if (text == "Automatic tip")
+            else if (text is "Automatic tip" or "Keyboard tip")
             {
                 bounds.Width.Should().BeGreaterThan(0);
                 bounds.Height.Should().BeGreaterThan(0);

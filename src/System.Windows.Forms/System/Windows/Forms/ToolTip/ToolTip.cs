@@ -126,6 +126,7 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
                 if (!value)
                 {
                     StopTimer();
+                    KeyboardToolTipStateMachine.Instance.ResetStateMachine(this);
                     HidePortable(window: null);
                 }
 #else
@@ -659,6 +660,7 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
         Control control = (Control)sender!;
 #if LIBREWINFORMS_PORTABLE
         HookPortableTool(control);
+        KeyboardToolTipStateMachine.Instance.Hook(control, this);
 #else
         CreateRegion(control);
         SetToolTipToControl(control);
@@ -672,6 +674,7 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
         Control control = (Control)sender!;
 #if LIBREWINFORMS_PORTABLE
         UnhookPortableTool(control);
+        KeyboardToolTipStateMachine.Instance.Unhook(control, this);
         HidePortable(control);
 #else
         DestroyRegion(control);
@@ -1188,6 +1191,7 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
         {
 #if LIBREWINFORMS_PORTABLE
             UnhookPortableTool(control);
+            KeyboardToolTipStateMachine.Instance.Unhook(control, this);
             HidePortable(control);
 #else
             if (control.IsHandleCreated)
@@ -1208,9 +1212,7 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
         ClearTopLevelControlEvents();
         _topLevelControl = null;
 
-#if !LIBREWINFORMS_PORTABLE
         KeyboardToolTipStateMachine.Instance.ResetStateMachine(this);
-#endif
     }
 
     /// <summary>
@@ -1437,7 +1439,12 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
     }
 
 #if LIBREWINFORMS_PORTABLE
-    private void ShowPortable(string? text, IWin32Window window, Point? position, int duration)
+    private void ShowPortable(
+        string? text,
+        IWin32Window window,
+        Point? position,
+        int duration,
+        IKeyboardToolTip? keyboardTool = null)
     {
         ArgumentNullException.ThrowIfNull(window);
         if (!_active || !IsWindowActive(window))
@@ -1510,9 +1517,15 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
         Size popupSize = new(
             Math.Max(1, popupEvent.ToolTipSize.Width),
             Math.Max(1, popupEvent.ToolTipSize.Height));
-        Point screenPosition = position is Point localPosition
-            ? associatedControl.PointToScreen(localPosition)
-            : GetPortableDefaultPosition(associatedControl);
+        Point screenPosition = keyboardTool is not null
+            ? GetOptimalToolTipPosition(
+                keyboardTool,
+                keyboardTool.GetNativeScreenRectangle(),
+                popupSize.Width,
+                popupSize.Height)
+            : position is Point localPosition
+                ? associatedControl.PointToScreen(localPosition)
+                : GetPortableDefaultPosition(associatedControl);
         Rectangle workingArea = Screen.FromPoint(screenPosition).WorkingArea;
         screenPosition.X = Math.Clamp(
             screenPosition.X,
@@ -1564,6 +1577,7 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
 
         _portablePopupOwner = owner;
         _portablePopupWindow = window;
+        IsActivatedByKeyboard = keyboardTool is not null;
         Form? form = associatedControl.FindForm();
         if (form is not null)
         {
@@ -1921,6 +1935,13 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
         ArgumentNullException.ThrowIfNull(tool);
         ArgumentOutOfRangeException.ThrowIfNegative(duration);
 
+#if LIBREWINFORMS_PORTABLE
+        IWin32Window? ownerWindow = tool.GetOwnerWindow();
+        if (ownerWindow is not null)
+        {
+            ShowPortable(text, ownerWindow, position: null, duration: duration, keyboardTool: tool);
+        }
+#else
         Rectangle toolRectangle = tool.GetNativeScreenRectangle();
 
         // At first, place the tooltip at the middle of the tool (default location).
@@ -1962,6 +1983,7 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
         {
             StartTimer(ownerWindow, duration);
         }
+#endif
     }
 
     private bool TryGetBubbleSize(IWin32Window ownerWindow, out Size bubbleSize)
@@ -2037,7 +2059,13 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
 
         // Calculate area of possible locations within top level control rectangle
         long[] locationWithinTopControlAreas = new long[LocationTotal];
+#if LIBREWINFORMS_PORTABLE
+        Rectangle topContainerBounds = tool.GetOwnerWindow() is Control ownerControl
+            ? ((IKeyboardToolTip)(ownerControl.TopLevelControl ?? ownerControl)).GetNativeScreenRectangle()
+            : Rectangle.Empty;
+#else
         Rectangle topContainerBounds = ((IKeyboardToolTip?)TopLevelControl)?.GetNativeScreenRectangle() ?? Rectangle.Empty;
+#endif
         if (!topContainerBounds.IsEmpty)
         {
             for (int i = 0; i < possibleLocations.Length; i++)
