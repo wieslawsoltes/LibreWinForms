@@ -1338,6 +1338,12 @@ The replacement regression draws a horizontal path with an offset triangular end
 
 This pin changes only coordinated source-development mode. Ordinary consumers still resolve the immutable ProGPU NuGet closure. The commit is based on the exact reviewed ProGPU continuation because the current sandbox cannot resolve GitHub to fetch or publish; the cached `origin/main` is older and is not presented as proof of current remote `main`. Hosted PR and downstream qualification therefore remain pending for this exact pin.
 
+### ProGPU overlapping bitmap self-draw checkpoint
+
+ProGPU continuation `c796ca047be3407c037f9e26130b9b4b5e67816b` removes another behavior-only restriction: canonical `Graphics.DrawImage` can now use its target bitmap as the source. Before retaining the source, the recorder balances its clip and source-copy state, flushes prior target commands into an owned bitmap clone, restores the state, and transfers that clone's same-device texture lease into the deferred command context. The draw therefore samples a stable snapshot rather than the active render target, and later self-draws observe earlier self-draw results in order.
+
+The regression performs two overlapping copies in opposite directions with nearest-neighbor sampling and `CompositingMode.SourceCopy`; exact final pixels prove sequential snapshot semantics and state restoration. The complete drawing suite rises to 393/393, drawing tests and benchmarks build with 0 warnings/0 errors, and ApiCompat remains at 0 missing types, 0 missing members, and 13 reviewed differences. A dedicated 64x64 in-process ShortRun reports a 703.071 microsecond mean, 851.876 microsecond median, 323.506 microsecond standard deviation, and 17.28 KB allocated. Its three high-variance measurements are a coarse flush/readback checkpoint, not a universal latency claim. The coordinated source pin advances to this exact commit; immutable NuGet consumer mode remains unchanged, and hosted publication remains pending behind the same GitHub DNS failure.
+
 ## Major risks and controls
 
 | Risk | Control |
