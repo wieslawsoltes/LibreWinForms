@@ -2135,6 +2135,62 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void ExplicitToolTipUsesNonActivatingPortablePopupAndTypedTimer()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { Bounds = new Rectangle(40, 50, 300, 180) };
+        using Button button = new() { Bounds = new Rectangle(20, 30, 100, 28) };
+        form.Controls.Add(button);
+        form.Show();
+        using var toolTip = new ToolTip { OwnerDraw = true };
+        int popupCount = 0;
+        int drawCount = 0;
+        toolTip.Popup += (_, e) =>
+        {
+            popupCount++;
+            e.ToolTipSize = new Size(140, 45);
+        };
+        toolTip.Draw += (_, e) =>
+        {
+            drawCount++;
+            using var brush = new SolidBrush(Color.MediumPurple);
+            e.Graphics.FillRectangle(brush, e.Bounds);
+        };
+        Point localPosition = new(7, 9);
+        Point screenPosition = button.PointToScreen(localPosition);
+
+        toolTip.Show("Portable tip", button, localPosition, duration: 25);
+
+        popupCount.Should().Be(1);
+        drawCount.Should().Be(1);
+        platform.Popups.Should().ContainSingle();
+        PopupSnapshot popup = platform.Popups.Values.Single();
+        popup.Request.Owner.Should().Be(platform.GetWindowHandle(form));
+        popup.Request.ScreenBounds.Should().Be(new LibreRectangle(
+            screenPosition.X,
+            screenPosition.Y,
+            140,
+            45));
+        popup.Request.InputTransparent.Should().BeTrue();
+        popup.Request.DismissalPolicy.Should().Be(LibrePopupDismissalPolicy.Explicit);
+        popup.CommandCount.Should().BeGreaterThan(0);
+        platform.HasActiveTimer.Should().BeTrue();
+        platform.LastTimerInterval.Should().Be(TimeSpan.FromMilliseconds(25));
+
+        platform.FireTimer();
+
+        platform.Popups.Should().BeEmpty();
+        platform.PopupHideCount.Should().Be(1);
+        platform.HasActiveTimer.Should().BeFalse();
+
+        toolTip.Show("Portable tip", button, localPosition);
+        platform.Popups.Should().ContainSingle();
+        toolTip.Active = false;
+        platform.Popups.Should().BeEmpty();
+        platform.PopupHideCount.Should().Be(2);
+    }
+
+    [Fact]
     public void DataGridViewColumnLookupUsesCanonicalNamesAndTypedIndexes()
     {
         UseHeadlessPlatform(autoCloseWindows: false);
@@ -5381,6 +5437,10 @@ public class CanonicalLifecycleTests
         LibreRectangle ClipRectangle,
         int CommandCount);
 
+    private readonly record struct PopupSnapshot(
+        LibrePopupSurfaceRequest Request,
+        int CommandCount);
+
     private sealed class HeadlessPlatform :
         ILibreDispatcher,
         ILibreThreadDispatcherProvider,
@@ -5390,6 +5450,7 @@ public class CanonicalLifecycleTests
         ILibreMonitorService,
         ILibrePaintService,
         ILibreAdornerService,
+        ILibrePopupSurfaceService,
         ILibreReversibleDrawingService,
         ILibreVisualStyleService,
         ILibreSystemSettingsService,
@@ -5447,6 +5508,7 @@ public class CanonicalLifecycleTests
                 this,
                 this,
                 this,
+                this,
                 this);
         }
 
@@ -5475,6 +5537,8 @@ public class CanonicalLifecycleTests
             ReversibleDrawCalls.Clear();
             Adorners.Clear();
             AdornerRemoveCount = 0;
+            Popups.Clear();
+            PopupHideCount = 0;
             while (_queue.TryDequeue(out _))
             {
             }
@@ -5569,6 +5633,10 @@ public class CanonicalLifecycleTests
 
         internal int AdornerRemoveCount { get; private set; }
 
+        internal Dictionary<LibrePopupId, PopupSnapshot> Popups { get; } = [];
+
+        internal int PopupHideCount { get; private set; }
+
         public Graphics CreateGraphics(
             LibreHandle owner,
             LibreAdornerId adorner,
@@ -5600,6 +5668,30 @@ public class CanonicalLifecycleTests
             _ = owner;
             Adorners.Remove(adorner);
             AdornerRemoveCount++;
+        }
+
+        public Graphics CreateGraphics(in LibrePopupSurfaceRequest request)
+        {
+            Handles.TryGet(request.Owner, out HeadlessWindow? window).Should().BeTrue();
+            window.Should().NotBeNull();
+            LibrePopupSurfaceRequest snapshot = request;
+            DrawingContext recording = new();
+            return Graphics.FromProGpuDrawingContext(
+                recording,
+                new RectangleF(0, 0, snapshot.ScreenBounds.Width, snapshot.ScreenBounds.Height),
+                Matrix4x4.Identity,
+                () =>
+                {
+                    Popups[snapshot.Popup] = new(snapshot, recording.Commands.Count);
+                    recording.Clear();
+                });
+        }
+
+        public void Hide(LibreHandle owner, LibrePopupId popup)
+        {
+            _ = owner;
+            Popups.Remove(popup);
+            PopupHideCount++;
         }
 
         public void DrawFrame(LibreRectangle rectangle, LibreArgbColor backColor, LibreReversibleFrameStyle style)
