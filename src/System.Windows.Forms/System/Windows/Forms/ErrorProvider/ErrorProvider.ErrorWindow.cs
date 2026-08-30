@@ -2,6 +2,9 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#endif
 #if !LIBREWINFORMS_PROGPU_DRAWING
 using Windows.Win32.Graphics.GdiPlus;
 #endif
@@ -27,6 +30,10 @@ public partial class ErrorProvider
         private Rectangle _windowBounds;
         private Timer? _timer;
         private NativeWindow? _tipWindow;
+#if LIBREWINFORMS_PORTABLE
+        private static long s_nextAdornerId;
+        private readonly LibreAdornerId _adornerId = new(Interlocked.Increment(ref s_nextAdornerId));
+#endif
 
         /// <summary>
         ///  Construct an error window for this provider and control parent.
@@ -80,6 +87,9 @@ public partial class ErrorProvider
         /// </summary>
         private unsafe bool EnsureCreated()
         {
+#if LIBREWINFORMS_PORTABLE
+            return _parent.IsHandleCreated;
+#else
             if (Handle != 0)
             {
                 return true;
@@ -133,6 +143,7 @@ public partial class ErrorProvider
             PInvokeCore.SendMessage(_tipWindow, PInvoke.TTM_SETDELAYTIME, (WPARAM)PInvoke.TTDT_INITIAL);
 
             return true;
+#endif
         }
 
         /// <summary>
@@ -142,6 +153,17 @@ public partial class ErrorProvider
         {
             _timer?.Dispose();
             _timer = null;
+
+#if LIBREWINFORMS_PORTABLE
+            Control root = _parent.TopLevelControl ?? _parent;
+            if (root.IsHandleCreated)
+            {
+                LibrePlatform.Current.Adorners.Remove(root.PortableHandle, _adornerId);
+            }
+
+            _parent.Invalidate(true);
+            return;
+#else
 
             _tipWindow?.DestroyHandle();
             _tipWindow = null;
@@ -158,6 +180,7 @@ public partial class ErrorProvider
                 SET_WINDOW_POS_FLAGS.SWP_HIDEWINDOW | SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOMOVE);
             _parent?.Invalidate(true);
             DestroyHandle();
+#endif
         }
 
         private unsafe void MirrorDcIfNeeded(HDC hdc)
@@ -301,6 +324,9 @@ public partial class ErrorProvider
         {
             IconRegion iconRegion = _provider.Region;
             Size size = iconRegion.Size;
+#if LIBREWINFORMS_PORTABLE
+            UpdatePortable(timerCaused, iconRegion, size);
+#else
             _windowBounds = Rectangle.Empty;
             for (int i = 0; i < _items.Count; i++)
             {
@@ -389,7 +415,86 @@ public partial class ErrorProvider
                 SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
 
             PInvoke.InvalidateRect(this, lpRect: null, bErase: false);
+#endif
         }
+
+#if LIBREWINFORMS_PORTABLE
+        private void UpdatePortable(bool timerCaused, IconRegion iconRegion, Size size)
+        {
+            _windowBounds = Rectangle.Empty;
+            List<Rectangle> visible = [];
+            for (int index = 0; index < _items.Count; index++)
+            {
+                ControlItem item = _items[index];
+                Rectangle iconBounds = item.GetIconBounds(size);
+                _windowBounds = _windowBounds.IsEmpty
+                    ? iconBounds
+                    : Rectangle.Union(_windowBounds, iconBounds);
+                if (ShouldShowIcon(item, index))
+                {
+                    visible.Add(iconBounds);
+                }
+
+                if (timerCaused && item.BlinkPhase > 0)
+                {
+                    item.BlinkPhase--;
+                }
+            }
+
+            if (timerCaused)
+            {
+                _provider.ShowIcon = !_provider.ShowIcon;
+            }
+
+            Control root = _parent.TopLevelControl ?? _parent;
+            if (!root.IsHandleCreated)
+            {
+                return;
+            }
+
+            if (visible.Count == 0 || _windowBounds.Width <= 0 || _windowBounds.Height <= 0)
+            {
+                LibrePlatform.Current.Adorners.Remove(root.PortableHandle, _adornerId);
+                return;
+            }
+
+            Point parentOrigin = root.PointToClient(_parent.PointToScreen(Point.Empty));
+            Rectangle ownerBounds = _windowBounds;
+            ownerBounds.Offset(parentOrigin);
+            using Graphics graphics = LibrePlatform.Current.Adorners.CreateGraphics(
+                root.PortableHandle,
+                _adornerId,
+                new LibreRectangle(ownerBounds.X, ownerBounds.Y, ownerBounds.Width, ownerBounds.Height),
+                new LibreRectangle(ownerBounds.X, ownerBounds.Y, ownerBounds.Width, ownerBounds.Height));
+            foreach (Rectangle iconBounds in visible)
+            {
+                graphics.DrawIcon(
+                    iconRegion.Icon,
+                    new Rectangle(
+                        iconBounds.X - _windowBounds.X,
+                        iconBounds.Y - _windowBounds.Y,
+                        iconBounds.Width,
+                        iconBounds.Height));
+            }
+        }
+
+        private bool ShouldShowIcon(ControlItem item, int index)
+        {
+            if (item.ToolTipShown)
+            {
+                return true;
+            }
+
+            return _provider.BlinkStyle switch
+            {
+                ErrorBlinkStyle.NeverBlink => true,
+                ErrorBlinkStyle.BlinkIfDifferentError => item.BlinkPhase == 0
+                    || (item.BlinkPhase > 0 && (item.BlinkPhase & 1) == (index & 1)),
+                ErrorBlinkStyle.AlwaysBlink => ((index & 1) == 0) == _provider.ShowIcon,
+                _ => throw new InvalidOperationException($"Unknown error blink style: {_provider.BlinkStyle}."),
+            };
+        }
+#endif
 
         /// <summary>
         ///  Handles the WM_GETOBJECT message. Used for accessibility.

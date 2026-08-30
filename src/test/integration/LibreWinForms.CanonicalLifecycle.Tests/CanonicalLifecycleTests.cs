@@ -2090,6 +2090,51 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void ErrorProviderUsesRetainedPortableAdornerWithoutNativeChildWindows()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { ClientSize = new Size(280, 160) };
+        using TextBox textBox = new() { Bounds = new Rectangle(20, 30, 120, 24) };
+        form.Controls.Add(textBox);
+        form.Show();
+        using ErrorProvider provider = new()
+        {
+            ContainerControl = form,
+            BlinkStyle = ErrorBlinkStyle.NeverBlink,
+        };
+
+        provider.SetError(textBox, "Invalid value");
+
+        platform.Adorners.Should().ContainSingle();
+        AdornerSnapshot initial = platform.Adorners.Values.Single();
+        initial.Owner.Should().Be(platform.GetWindowHandle(form));
+        initial.Bounds.Should().Be(new LibreRectangle(
+            textBox.Right,
+            textBox.Top + (textBox.Height - provider.Icon.Height) / 2,
+            provider.Icon.Width,
+            provider.Icon.Height));
+        initial.ClipRectangle.Should().Be(initial.Bounds);
+        initial.CommandCount.Should().BeGreaterThan(0);
+
+        provider.SetIconAlignment(textBox, ErrorIconAlignment.MiddleLeft);
+        provider.SetIconPadding(textBox, 3);
+
+        platform.Adorners.Should().ContainSingle();
+        AdornerSnapshot updated = platform.Adorners.Values.Single();
+        updated.Id.Should().Be(initial.Id);
+        updated.Bounds.Should().Be(new LibreRectangle(
+            textBox.Left - provider.Icon.Width - 3,
+            textBox.Top + (textBox.Height - provider.Icon.Height) / 2,
+            provider.Icon.Width,
+            provider.Icon.Height));
+
+        provider.SetError(textBox, string.Empty);
+
+        platform.Adorners.Should().BeEmpty();
+        platform.AdornerRemoveCount.Should().Be(1);
+    }
+
+    [Fact]
     public void DataGridViewColumnLookupUsesCanonicalNamesAndTypedIndexes()
     {
         UseHeadlessPlatform(autoCloseWindows: false);
@@ -5329,6 +5374,13 @@ public class CanonicalLifecycleTests
         LibreArgbColor BackColor,
         LibreReversibleFrameStyle FrameStyle);
 
+    private readonly record struct AdornerSnapshot(
+        LibreHandle Owner,
+        LibreAdornerId Id,
+        LibreRectangle Bounds,
+        LibreRectangle ClipRectangle,
+        int CommandCount);
+
     private sealed class HeadlessPlatform :
         ILibreDispatcher,
         ILibreThreadDispatcherProvider,
@@ -5337,6 +5389,7 @@ public class CanonicalLifecycleTests
         ILibreExternalWindowOwnerService,
         ILibreMonitorService,
         ILibrePaintService,
+        ILibreAdornerService,
         ILibreReversibleDrawingService,
         ILibreVisualStyleService,
         ILibreSystemSettingsService,
@@ -5420,6 +5473,8 @@ public class CanonicalLifecycleTests
             DragDropHandler = null;
             DragDropTargets.Clear();
             ReversibleDrawCalls.Clear();
+            Adorners.Clear();
+            AdornerRemoveCount = 0;
             while (_queue.TryDequeue(out _))
             {
             }
@@ -5509,6 +5564,43 @@ public class CanonicalLifecycleTests
         internal HashSet<LibreHandle> DragDropTargets { get; } = [];
 
         internal List<ReversibleDrawCall> ReversibleDrawCalls { get; } = [];
+
+        internal Dictionary<LibreAdornerId, AdornerSnapshot> Adorners { get; } = [];
+
+        internal int AdornerRemoveCount { get; private set; }
+
+        public Graphics CreateGraphics(
+            LibreHandle owner,
+            LibreAdornerId adorner,
+            LibreRectangle bounds,
+            LibreRectangle clipRectangle)
+        {
+            Handles.TryGet(owner, out HeadlessWindow? window).Should().BeTrue();
+            window.Should().NotBeNull();
+            adorner.IsNull.Should().BeFalse();
+            DrawingContext recording = new();
+            return Graphics.FromProGpuDrawingContext(
+                recording,
+                new RectangleF(0, 0, bounds.Width, bounds.Height),
+                Matrix4x4.Identity,
+                () =>
+                {
+                    Adorners[adorner] = new(
+                        owner,
+                        adorner,
+                        bounds,
+                        clipRectangle,
+                        recording.Commands.Count);
+                    recording.Clear();
+                });
+        }
+
+        public void Remove(LibreHandle owner, LibreAdornerId adorner)
+        {
+            _ = owner;
+            Adorners.Remove(adorner);
+            AdornerRemoveCount++;
+        }
 
         public void DrawFrame(LibreRectangle rectangle, LibreArgbColor backColor, LibreReversibleFrameStyle style)
             => ReversibleDrawCalls.Add(new(

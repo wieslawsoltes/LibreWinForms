@@ -455,8 +455,16 @@ internal static partial class ScaleHelper
     /// </summary>
     internal static Icon ScaleSmallIconToDpi(Icon icon, int dpi, bool alwaysCreateNew = false)
     {
+#if LIBREWINFORMS_PORTABLE
+        // The portable window service supplies monitor DPI, but there is no
+        // USER32 small-icon metric to query. WinForms' documented baseline is
+        // 16 logical pixels, so scale that value deterministically.
+        int width = ScaleToDpi(16, dpi);
+        int height = ScaleToDpi(16, dpi);
+#else
         int width = PInvoke.GetCurrentSystemMetrics(SYSTEM_METRICS_INDEX.SM_CXSMICON, (uint)dpi);
         int height = PInvoke.GetCurrentSystemMetrics(SYSTEM_METRICS_INDEX.SM_CYSMICON, (uint)dpi);
+#endif
 
         return (icon.Width == width && icon.Height == height && !alwaysCreateNew) ? icon : new(icon, width, height);
     }

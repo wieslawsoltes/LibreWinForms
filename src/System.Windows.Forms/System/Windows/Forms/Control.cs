@@ -11725,6 +11725,8 @@ public unsafe partial class Control :
             _height,
             _clientWidth,
             _clientHeight);
+
+    internal LibreHandle PortableHandle => _window.PortableHandle;
 #endif
 
     /// <summary>

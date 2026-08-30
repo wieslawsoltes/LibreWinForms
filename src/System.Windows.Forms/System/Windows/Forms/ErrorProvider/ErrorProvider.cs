@@ -781,6 +781,7 @@ public partial class ErrorProvider : Component, IExtenderProvider, ISupportIniti
         }
 
         Debug.Assert(_errorCount >= 0, "Error count should not be less than zero");
+#if !LIBREWINFORMS_PORTABLE
         if (PInvoke.UiaClientsAreListening())
         {
             control.AccessibilityObject.RaiseAutomationNotification(
@@ -788,6 +789,7 @@ public partial class ErrorProvider : Component, IExtenderProvider, ISupportIniti
                 Automation.AutomationNotificationProcessing.All,
                 value);
         }
+#endif
     }
 
     /// <summary>
