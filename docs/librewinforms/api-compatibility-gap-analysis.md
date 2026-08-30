@@ -12,6 +12,8 @@ LibreWinForms contains the full upstream WinForms source tree, but historically 
 
 Therefore, the statement “the repository contains the full WinForms source” was always true, but the old portable product did not use that source as its runtime. The production source-first graph now does: runtime API identity remains `System.Windows.Forms`, public package branding remains `LibreWinForms.*`, and portable behavior is implemented at typed platform and drawing seams.
 
+The latest typed-adorner checkpoints `5f18e9f9d` and `64de5ffb7` demonstrate the repair model on canonical `ErrorProvider`: ProGPU owns independently replaceable retained owner-window drawings, while upstream-derived ErrorProvider retains its public API, items, alignment, padding, blink state, and icon rendering. The portable branch no longer needs a native child window, USER32 small-icon metrics, or a UIAutomationCore client probe to display and update an error icon. Platform tests pass 51/51, the ProGPU adapter passes 50 cases with two environment-dependent skips, and the complete canonical lifecycle suite passes 124/124. ToolTip and ErrorProvider tooltip text still require the separate non-activating popup capability documented in the source-first plan; the adorner service is intentionally not stretched into an off-window popup abstraction.
+
 The properties reported in issues [#10](https://github.com/wieslawsoltes/LibreWinForms/issues/10) through [#18](https://github.com/wieslawsoltes/LibreWinForms/issues/18) are not isolated omissions. They expose three structural problems:
 
 1. The portable assembly is a separately authored compatibility surface, so upstream APIs do not arrive automatically.
