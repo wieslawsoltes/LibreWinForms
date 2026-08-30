@@ -9013,6 +9013,17 @@ public unsafe partial class Control :
 #endif
     }
 
+    internal bool IsMousePointerDirectlyOver(Point clientPosition)
+    {
+#if LIBREWINFORMS_PORTABLE
+        Control root = GetPortableTopLevelControl();
+        Point rootPosition = root.PointToClient(PointToScreen(clientPosition));
+        return root.PortableHitTest(rootPosition) == this;
+#else
+        return PInvoke.WindowFromPoint(PointToScreen(clientPosition)) == HWND;
+#endif
+    }
+
     /// <summary>
     ///  This method is called by the application's message loop to pre-process input messages before they
     ///  are dispatched. If this method processes the message it must return true, in which case the message
@@ -12574,7 +12585,7 @@ public unsafe partial class Control :
             bool fireClick = _controlStyle.HasFlag(ControlStyles.StandardClick)
                 && GetState(States.MousePressed)
                 && !IsDisposed
-                && PInvoke.WindowFromPoint(screenLocation) == HWND;
+                && IsMousePointerDirectlyOver(location);
 
             if (fireClick && !ValidationCancelled)
             {

@@ -2447,7 +2447,7 @@ public partial class ListBox : ListControl
             case PInvokeCore.WM_LBUTTONUP:
                 Point point = PARAM.ToPoint(m.LParamInternal);
                 bool captured = Capture;
-                if (captured && PInvoke.WindowFromPoint(PointToScreen(point)) == HWND)
+                if (captured && IsMousePointerDirectlyOver(point))
                 {
                     if (!_doubleClickFired && !ValidationCancelled)
                     {
@@ -2487,7 +2487,7 @@ public partial class ListBox : ListControl
                 break;
 
             case PInvokeCore.WM_RBUTTONUP:
-                if (Capture && PInvoke.WindowFromPoint(PointToScreen((Point)m.LParamInternal)) == HWND)
+                if (Capture && IsMousePointerDirectlyOver((Point)m.LParamInternal))
                 {
                     _selectedItems?.Dirty();
                 }

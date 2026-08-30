@@ -1996,14 +1996,70 @@ public class CanonicalLifecycleTests
         form.Controls.Add(numeric);
         form.Show();
         Point? observed = null;
+        int clickCount = 0;
+        int mouseClickCount = 0;
         numeric.MouseDown += (_, e) => observed = e.Location;
+        numeric.Click += (_, _) => clickCount++;
+        numeric.MouseClick += (_, _) => mouseClickCount++;
 
         platform.SendInput(
             LibreInputEventKind.PointerDown,
             position: new LibrePoint(numeric.Left + 10, numeric.Top + 8),
             button: LibrePointerButton.Primary);
+        platform.SendInput(
+            LibreInputEventKind.PointerUp,
+            position: new LibrePoint(numeric.Left + 10, numeric.Top + 8),
+            button: LibrePointerButton.Primary);
 
         observed.Should().Be(new Point(10, 8));
+        clickCount.Should().Be(1);
+        mouseClickCount.Should().Be(1);
+    }
+
+    [Fact]
+    public void StockControlsCompletePortableClicksWithoutWindowFromPoint()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { ClientSize = new Size(280, 180) };
+        using Button button = new() { Bounds = new Rectangle(10, 10, 80, 24), Text = "Button" };
+        using CheckBox checkBox = new() { Bounds = new Rectangle(10, 45, 100, 24), Text = "Check" };
+        using RadioButton radioButton = new() { Bounds = new Rectangle(10, 80, 100, 24), Text = "Radio" };
+        using TextBox textBox = new() { Bounds = new Rectangle(10, 115, 120, 24) };
+        form.Controls.AddRange([button, checkBox, radioButton, textBox]);
+        form.Show();
+        int buttonClicks = 0;
+        int checkBoxClicks = 0;
+        int radioButtonClicks = 0;
+        int textBoxClicks = 0;
+        button.Click += (_, _) => buttonClicks++;
+        checkBox.Click += (_, _) => checkBoxClicks++;
+        radioButton.Click += (_, _) => radioButtonClicks++;
+        textBox.Click += (_, _) => textBoxClicks++;
+
+        Click(button);
+        Click(checkBox);
+        Click(radioButton);
+        Click(textBox);
+
+        buttonClicks.Should().Be(1);
+        checkBoxClicks.Should().Be(1);
+        radioButtonClicks.Should().Be(1);
+        textBoxClicks.Should().Be(1);
+        checkBox.Checked.Should().BeTrue();
+        radioButton.Checked.Should().BeTrue();
+
+        void Click(Control control)
+        {
+            var position = new LibrePoint(control.Left + 5, control.Top + 5);
+            platform.SendInput(
+                LibreInputEventKind.PointerDown,
+                position: position,
+                button: LibrePointerButton.Primary);
+            platform.SendInput(
+                LibreInputEventKind.PointerUp,
+                position: position,
+                button: LibrePointerButton.Primary);
+        }
     }
 
     [Fact]

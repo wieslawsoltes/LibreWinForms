@@ -490,7 +490,7 @@ public partial class RadioButton : ButtonBase
         if (mevent.Button == MouseButtons.Left
             && GetStyle(ControlStyles.UserPaint)
             && MouseIsDown
-            && PInvoke.WindowFromPoint(PointToScreen(mevent.Location)) == HWND)
+            && IsMousePointerDirectlyOver(mevent.Location))
         {
             // Paint in raised state.
             ResetFlagsandPaint();

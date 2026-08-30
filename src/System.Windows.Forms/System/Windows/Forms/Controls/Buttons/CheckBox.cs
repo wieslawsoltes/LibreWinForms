@@ -512,7 +512,7 @@ public partial class CheckBox : ButtonBase
         if (mevent.Button == MouseButtons.Left
             && MouseIsPressed
             && MouseIsDown
-            && PInvoke.WindowFromPoint(PointToScreen(mevent.Location)) == HWND)
+            && IsMousePointerDirectlyOver(mevent.Location))
         {
             // Paint in raised state.
             ResetFlagsandPaint();

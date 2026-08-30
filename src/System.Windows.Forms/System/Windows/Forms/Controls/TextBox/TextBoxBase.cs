@@ -1498,7 +1498,7 @@ public abstract partial class TextBoxBase : Control
     {
         if (mevent is not null && mevent.Button == MouseButtons.Left)
         {
-            if (!ValidationCancelled && PInvoke.WindowFromPoint(PointToScreen(mevent.Location)) == HWND)
+            if (!ValidationCancelled && IsMousePointerDirectlyOver(mevent.Location))
             {
                 if (!_doubleClickFired)
                 {

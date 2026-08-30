@@ -719,7 +719,7 @@ public abstract partial class UpDownBase : ContainerControl
     {
         if (mevent.Button == MouseButtons.Left)
         {
-            if (PInvoke.WindowFromPoint(PointToScreen(mevent.Location)) == HWND && !ValidationCancelled)
+            if (IsMousePointerDirectlyOver(mevent.Location) && !ValidationCancelled)
             {
                 if (!_doubleClickFired)
                 {
