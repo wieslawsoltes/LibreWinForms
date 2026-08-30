@@ -4571,12 +4571,10 @@ public partial class Form : ContainerControl
         // user has specified that the mouse should snap to the
         // Accept button using the Mouse applet in the control panel,
         // we have to respect that setting each time our form is made visible.
-        bool data = false;
         if (IsHandleCreated
             && Visible
             && (AcceptButton is not null)
-            && PInvokeCore.SystemParametersInfo(SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETSNAPTODEFBUTTON, ref data)
-            && data)
+            && SystemInformation.IsSnapToDefaultEnabled)
         {
             Control button = (Control)AcceptButton;
             Point pointToSnap = new(button.Left + button.Width / 2, button.Top + button.Height / 2);

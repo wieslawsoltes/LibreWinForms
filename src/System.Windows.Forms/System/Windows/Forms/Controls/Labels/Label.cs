@@ -1265,10 +1265,14 @@ public partial class Label : Control, IAutomationLiveRegion
         }
 
         Color color;
+#if LIBREWINFORMS_PORTABLE
+        color = Enabled ? ForeColor : DisabledColor;
+#else
         using (DeviceContextHdcScope hdc = new(e))
         {
             color = hdc.FindNearestColor(Enabled ? ForeColor : DisabledColor);
         }
+#endif
 
         // Do actual drawing
 

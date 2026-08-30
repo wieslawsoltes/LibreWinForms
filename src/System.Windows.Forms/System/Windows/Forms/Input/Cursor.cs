@@ -33,6 +33,10 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     private readonly LibreCursorShape? _portableShape;
     private readonly Bitmap? _portableBitmap;
     private bool _portableDisposed;
+    [ThreadStatic]
+    private static Cursor? s_portableCurrent;
+    [ThreadStatic]
+    private static bool s_portableCurrentInitialized;
 #endif
 
     /// <summary>
@@ -234,11 +238,32 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return s_portableCurrentInitialized ? s_portableCurrent : Cursors.Default;
+#else
             HCURSOR cursor = PInvoke.GetCursor();
             return cursor.IsNull ? null : new Cursor(cursor);
+#endif
         }
-        set => PInvoke.SetCursor(value?._handle ?? HCURSOR.Null);
+        set
+        {
+#if LIBREWINFORMS_PORTABLE
+            s_portableCurrent = value;
+            s_portableCurrentInitialized = true;
+            Control.ApplyPortableCursorOverride(value);
+#else
+            PInvoke.SetCursor(value?._handle ?? HCURSOR.Null);
+#endif
+        }
     }
+
+#if LIBREWINFORMS_PORTABLE
+    internal static void SetPortableCurrentFromInput(Cursor cursor)
+    {
+        s_portableCurrent = cursor;
+        s_portableCurrentInitialized = true;
+    }
+#endif
 
     /// <summary>
     ///  Gets the Win32 handle for this <see cref="Cursor"/>.
@@ -277,10 +302,21 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return Control.MousePosition;
+#else
             PInvoke.GetCursorPos(out Point p);
             return p;
+#endif
         }
-        set => PInvoke.SetCursorPos(value.X, value.Y);
+        set
+        {
+#if LIBREWINFORMS_PORTABLE
+            throw new PlatformNotSupportedException("Cursor positioning requires a typed platform pointer-warp service.");
+#else
+            PInvoke.SetCursorPos(value.X, value.Y);
+#endif
+        }
     }
 
     /// <summary>

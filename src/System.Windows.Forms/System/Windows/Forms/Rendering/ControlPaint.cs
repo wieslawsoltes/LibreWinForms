@@ -1056,6 +1056,9 @@ public static unsafe partial class ControlPaint
     {
         ArgumentNullException.ThrowIfNull(graphics);
 
+#if LIBREWINFORMS_PORTABLE
+        DrawPortableBorder3D(graphics, new Rectangle(x, y, width, height), style, sides);
+#else
         DRAWEDGE_FLAGS edge = (DRAWEDGE_FLAGS)((uint)style & 0x0F);
         DRAW_EDGE_FLAGS flags = (DRAW_EDGE_FLAGS)sides | (DRAW_EDGE_FLAGS)((uint)style & ~0x0F);
 
@@ -1077,7 +1080,116 @@ public static unsafe partial class ControlPaint
         // Get Win32 dc with Graphics properties applied to it.
         using DeviceContextHdcScope hdc = graphics.ToHdcScope();
         PInvoke.DrawEdge(hdc, ref rc, edge, flags);
+#endif
     }
+
+#if LIBREWINFORMS_PORTABLE
+    private static void DrawPortableBorder3D(
+        Graphics graphics,
+        Rectangle bounds,
+        Border3DStyle style,
+        Border3DSide sides)
+    {
+        if (((uint)style & (uint)Border3DStyle.Adjust) != 0)
+        {
+            Size border = SystemInformation.Border3DSize;
+            bounds.Inflate(border.Width, border.Height);
+        }
+
+        int edge = (int)style & 0x0F;
+        bool flat = ((uint)style & (uint)DRAW_EDGE_FLAGS.BF_FLAT) != 0;
+        if (flat)
+        {
+            DrawPortableBorder3DLayer(graphics, ref bounds, sides, SystemPens.ControlDark, SystemPens.ControlDark);
+        }
+        else
+        {
+            if ((edge & (int)DRAWEDGE_FLAGS.BDR_RAISEDOUTER) != 0)
+            {
+                DrawPortableBorder3DLayer(
+                    graphics,
+                    ref bounds,
+                    sides,
+                    SystemPens.ControlLightLight,
+                    SystemPens.ControlDarkDark);
+            }
+            else if ((edge & (int)DRAWEDGE_FLAGS.BDR_SUNKENOUTER) != 0)
+            {
+                DrawPortableBorder3DLayer(
+                    graphics,
+                    ref bounds,
+                    sides,
+                    SystemPens.ControlDarkDark,
+                    SystemPens.ControlLightLight);
+            }
+
+            if ((edge & (int)DRAWEDGE_FLAGS.BDR_RAISEDINNER) != 0)
+            {
+                DrawPortableBorder3DLayer(
+                    graphics,
+                    ref bounds,
+                    sides,
+                    SystemPens.ControlLight,
+                    SystemPens.ControlDark);
+            }
+            else if ((edge & (int)DRAWEDGE_FLAGS.BDR_SUNKENINNER) != 0)
+            {
+                DrawPortableBorder3DLayer(
+                    graphics,
+                    ref bounds,
+                    sides,
+                    SystemPens.ControlDark,
+                    SystemPens.ControlLight);
+            }
+        }
+
+        if ((sides & Border3DSide.Middle) != 0 && bounds.Width > 0 && bounds.Height > 0)
+        {
+            graphics.FillRectangle(SystemBrushes.Control, bounds);
+        }
+    }
+
+    private static void DrawPortableBorder3DLayer(
+        Graphics graphics,
+        ref Rectangle bounds,
+        Border3DSide sides,
+        Pen topLeft,
+        Pen bottomRight)
+    {
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            return;
+        }
+
+        int right = bounds.Right - 1;
+        int bottom = bounds.Bottom - 1;
+        if ((sides & Border3DSide.Top) != 0)
+        {
+            graphics.DrawLine(topLeft, bounds.Left, bounds.Top, right, bounds.Top);
+            bounds.Y++;
+            bounds.Height--;
+        }
+
+        if ((sides & Border3DSide.Left) != 0)
+        {
+            graphics.DrawLine(topLeft, bounds.Left, bounds.Top, bounds.Left, bottom);
+            bounds.X++;
+            bounds.Width--;
+        }
+
+        if ((sides & Border3DSide.Right) != 0)
+        {
+            graphics.DrawLine(bottomRight, right, bounds.Top, right, bottom);
+            bounds.Width--;
+        }
+
+        if ((sides & Border3DSide.Bottom) != 0)
+        {
+            graphics.DrawLine(bottomRight, bounds.Left, bottom, right, bottom);
+            bounds.Height--;
+        }
+    }
+#endif
 
     /// <summary>
     ///  Helper function that draws a more complex border. This is used by DrawBorder for less common

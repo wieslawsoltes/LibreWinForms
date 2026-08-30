@@ -20,6 +20,9 @@ public unsafe partial class Control
     [ThreadStatic]
     private static Point s_portableMousePosition;
 
+    [ThreadStatic]
+    private static Control? s_portablePointerRoot;
+
     private Control? _portableFocusedControl;
     private Control? _portableHoveredControl;
     private Control? _portableCapturedControl;
@@ -31,6 +34,7 @@ public unsafe partial class Control
     internal void DispatchPortableInput(in LibreInputEvent inputEvent)
     {
         Control root = GetPortableTopLevelControl();
+        s_portablePointerRoot = root;
         s_portableModifierKeys = ToKeys(inputEvent.Modifiers);
 
         switch (inputEvent.Kind)
@@ -266,7 +270,8 @@ public unsafe partial class Control
     {
         Control root = GetPortableTopLevelControl();
         Control? target = root._portableCapturedControl ?? root._portableHoveredControl;
-        LibreCursorShape shape = (target?.Cursor ?? Cursors.Default).PortableShape;
+        Cursor cursor = target?.Cursor ?? Cursors.Default;
+        LibreCursorShape shape = cursor.PortableShape;
         if (!force && root._portableAppliedCursorShape == shape)
         {
             return;
@@ -274,6 +279,19 @@ public unsafe partial class Control
 
         root._window.SetPortableCursor(shape);
         root._portableAppliedCursorShape = shape;
+        Cursor.SetPortableCurrentFromInput(cursor);
+    }
+
+    internal static void ApplyPortableCursorOverride(Cursor? cursor)
+    {
+        if (cursor is null || s_portablePointerRoot is null)
+        {
+            return;
+        }
+
+        LibreCursorShape shape = cursor.PortableShape;
+        s_portablePointerRoot._window.SetPortableCursor(shape);
+        s_portablePointerRoot._portableAppliedCursorShape = shape;
     }
 
     private Control? PortableHitTest(Point position)

@@ -317,9 +317,19 @@ internal static partial class ScaleHelper
         ? logicalSize
         : new(ScaleToDpi(logicalSize.Width, dpi), ScaleToDpi(logicalSize.Height, dpi));
 
-    internal static Size SystemIconSize => new(
-        PInvokeCore.GetSystemMetrics(SYSTEM_METRICS_INDEX.SM_CXICON),
-        PInvokeCore.GetSystemMetrics(SYSTEM_METRICS_INDEX.SM_CYICON));
+    internal static Size SystemIconSize
+    {
+        get
+        {
+#if LIBREWINFORMS_PORTABLE
+            return new(32, 32);
+#else
+            return new(
+                PInvokeCore.GetSystemMetrics(SYSTEM_METRICS_INDEX.SM_CXICON),
+                PInvokeCore.GetSystemMetrics(SYSTEM_METRICS_INDEX.SM_CYICON));
+#endif
+        }
+    }
 
     internal static Size LogicalSmallSystemIconSize => s_logicalSmallSystemIconSize ??= OsVersion.IsWindows10_1607OrGreater()
         ? new(
