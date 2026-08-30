@@ -2,7 +2,7 @@
 
 ## Decision
 
-Remove `src/LibreWinForms.Portable` after its consumers, tests, and the few useful typed host contracts have moved to the source-first runtime.
+`src/LibreWinForms.Portable` has been removed after its consumers, tests, and useful typed host contracts moved to the source-first runtime. It must not return as a second WinForms-shaped object model.
 
 The portable product must be built from the canonical WinForms sources already present in this repository:
 
@@ -15,7 +15,21 @@ The portable product must be built from the canonical WinForms sources already p
 
 This is the LibreWPF model applied to WinForms: modify the real managed framework implementation at explicit platform seams and package those assemblies. Do not grow a second WinForms-shaped object model.
 
-The deletion is a cutover result, not the first migration step. Deleting the current directory before the canonical graph can build and run would discard working SharpDevelop coverage without producing a usable replacement.
+The deletion was a cutover result, not the first migration step. The historical checkpoints below document how the canonical graph reached that gate.
+
+## Current source-first status: 2026-08-30
+
+The production SDK now uses source-built `System.Windows.Forms` and `System.Windows.Forms.Design`, ProGPU `System.Drawing.*`, the typed `LibreWinForms.ProGPU` backend, and source-built canonical `WindowsFormsIntegration`. The retired Portable runtime, package, tests, and SDK selection path are absent and checked by the migration ledger. Normal development can consume the coordinated NuGet closure; repository development can select the exact ProGPU submodule with project references.
+
+The latest real-consumer qualification uses LibreWinForms `c956e43a45514aff8c96a00d372b2395828e3211`, ProGPU `d2e603f35986f2b131b2dc20913be38480bffd07`, and LibreWPF `4f94820b789b4d786aaf9042688672e6e15371a0`. SharpDevelop's complete Search and Replace smoke succeeds in both modes, verifies shortcuts, observes one identical live owner handle through WPF and WinForms, closes the UI, and exits cleanly. The work repaired five reusable platform boundaries rather than adding compatibility members:
+
+1. WPF publishes typed portable window ownership before root attachment and startup callbacks, and a stopped nested dispatcher frame no longer drains lower-priority work.
+2. Portable check and radio buttons retain canonical managed state without `BM_SETCHECK`.
+3. portable control-style changes use the existing typed `WindowStyle` abstraction rather than direct USER32 access.
+4. transparent child backgrounds compose through managed parent painting instead of HDC translation.
+5. classic buttons, checks, radio buttons, menu/caption glyphs, and scroll arrows render through managed ProGPU `Graphics` rather than native `DrawFrameControl`.
+
+The ProGPU-backed canonical build has 0 errors at the reviewed 608-warning baseline. The focused regressions pass 3/3 and the complete canonical lifecycle suite passes 115/115. Remaining work is qualification and hardening—hosted OS matrices, unsupported local-OS services, visual fidelity baselines, performance gates, and release/package provenance—not restoration of the deleted compatibility runtime.
 
 ## 2026-08-22 implementation checkpoint
 

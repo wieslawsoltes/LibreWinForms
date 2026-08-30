@@ -1,16 +1,16 @@
 # LibreWinForms API Compatibility Gap Analysis
 
-Date: 2026-08-29
+Date: 2026-08-30
 
-Implementation baseline: `e711f56f65f26bf239d2b4a4e4f97c0b9cbcb1b0`
+Implementation baseline: `c956e43a45514aff8c96a00d372b2395828e3211`
 
 Compared contract: .NET 10.0.11 `Microsoft.WindowsDesktop.App.Ref`
 
 ## Executive conclusion
 
-LibreWinForms contains the full upstream WinForms source tree, but historically shipped a separate, approximately 26,000-line compatibility implementation under `src/LibreWinForms.Portable`; that divergence is why so many public properties were missing. The SDK now defaults to canonical source-built WinForms and ProGPU `System.Drawing.Common` through an exact package closure, with coordinated project mode for source development. The current ProGPU contract gate reports zero missing types and zero missing members, with 13 reviewed non-breaking shape differences.
+LibreWinForms contains the full upstream WinForms source tree, but historically shipped a separate, approximately 26,000-line compatibility implementation under `src/LibreWinForms.Portable`; that divergence is why so many public properties were missing. The reduced implementation, its package, and its compatibility tests are now removed. The SDK defaults to canonical source-built WinForms and ProGPU `System.Drawing.Common` through an exact package closure, with coordinated project mode for source development. The current ProGPU contract gate reports zero missing types and zero missing members, with 13 reviewed non-breaking shape differences.
 
-Therefore, the statement “the repository contains the full WinForms source” is true, while the stronger statement “the portable package is the full WinForms source with platform-specific implementations” is currently false.
+Therefore, the statement “the repository contains the full WinForms source” was always true, but the old portable product did not use that source as its runtime. The production source-first graph now does: runtime API identity remains `System.Windows.Forms`, public package branding remains `LibreWinForms.*`, and portable behavior is implemented at typed platform and drawing seams.
 
 The properties reported in issues [#10](https://github.com/wieslawsoltes/LibreWinForms/issues/10) through [#18](https://github.com/wieslawsoltes/LibreWinForms/issues/18) are not isolated omissions. They expose three structural problems:
 
@@ -18,7 +18,7 @@ The properties reported in issues [#10](https://github.com/wieslawsoltes/LibreWi
 2. Important upstream inheritance spines, especially `DataGridViewElement` and `DataGridViewBand`, are absent. Properties inherited from those types disappear together.
 3. CI exercises selected applications and behavior scenarios but does not enforce the official WinForms public contract.
 
-The correct direction is defined in the [source-first cross-platform plan](./source-first-cross-platform-plan.md): replace the copied compatibility implementation with builds of the canonical managed source and put platform behavior behind typed seams. The immediate fix should be to make that direction measurable with an API-compatibility gate, then migrate APIs by coherent source-owned subsystems.
+The implemented direction is defined in the [source-first cross-platform plan](./source-first-cross-platform-plan.md): the copied compatibility implementation was replaced with builds of the canonical managed source, with platform behavior behind typed seams. API compatibility is enforced as a gate, and remaining behavior gaps are repaired in their canonical source-owned subsystem rather than by adding properties to a second object model.
 
 ## Implementation update: 2026-08-28 exact source-package closure
 
@@ -46,6 +46,14 @@ The proposed fix is now implemented in the source-first graph. The canonical tra
 2. the real WinForms `Accessibility` namespace collides with NRefactory's `Accessibility` enum in legacy source, so consumers must use an explicit type alias rather than changing framework identity;
 3. Portable-only test helpers such as synthetic `RaiseMouse*` methods and `PropertyGrid.DisplayRows` are not framework APIs, so canonical smokes now use `IDesignerHost`, `IComponentChangeService`, `DesignerTransaction`, public properties, and `TypeDescriptor`; and
 4. carrying the backend package is not sufficient by itself: an executable host must run the typed `ProGpuPlatform.Register()` bootstrap before its first WinForms operation, or use the equivalent generated SDK initializer.
+
+### SharpDevelop runtime qualification checkpoint
+
+LibreWinForms commit `c956e43a45514aff8c96a00d372b2395828e3211`, ProGPU commit `d2e603f35986f2b131b2dc20913be38480bffd07`, and LibreWPF commit `4f94820b789b4d786aaf9042688672e6e15371a0` close the first real SharpDevelop Search and Replace runtime path. The test launches the complete SharpDevelop executable rather than a compatibility fixture, opens the WPF-owned WinForms search UI, verifies both search and replace modes plus keyboard shortcuts, closes the UI, and exits the process through the normal workbench timer. It reports `Success mode=1 searchReady=True replaceReady=True shortcuts=True closed=True` and the same live external owner handle (`88335939141633`) through WPF and WinForms.
+
+The qualification exposed platform leaks that API comparison alone cannot find. LibreWPF was draining lower-priority dispatcher work after a nested frame had stopped and published the portable presentation source too late for startup reentrancy, so the WPF owner was unavailable when WinForms showed its form. The fix preserves dispatcher priority semantics and publishes the typed external owner before root attachment and startup callbacks. In canonical WinForms, check and radio state still sent `BM_SETCHECK`, `RadioButton.TabStop` still reached USER32 style access, transparent ToolStrip corners still requested an HDC, and classic frame glyphs still called native `DrawFrameControl`. Portable branches now retain button state in the upstream managed fields, update styles through the existing `WindowStyle` abstraction, compose transparent backgrounds through managed parent painting, and render standard frame-control glyphs through ProGPU `Graphics`; native Windows branches remain source-preserved.
+
+The exact ProGPU-backed canonical build completed with 0 errors and the reviewed 608-warning baseline. Three focused regressions pass 3/3, and the complete canonical lifecycle suite passes 115/115. This evidence demonstrates why “all properties compile” and “full source is present” are necessary but insufficient: a source-first port must also gate native-call reachability and exercise representative real consumers.
 
 ### Production release and canonical WFI handoff checkpoint
 
