@@ -13,6 +13,7 @@ using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.WebGPU;
 using Silk.NET.Windowing;
+using DrawingColor = System.Drawing.Color;
 
 namespace LibreWinForms.ProGPU;
 
@@ -21,6 +22,9 @@ public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindo
     private readonly ProGpuDispatcher _dispatcher;
     private readonly ILibreHandleRegistry _handles;
     private readonly ILibreMonitorService _monitors;
+    private readonly Lock _windowSync = new();
+    private readonly HashSet<SilkLibreWindow> _windows = [];
+    private readonly ProGpuReversibleDrawingStore _reversibleDrawing = new();
 
     public SilkWindowService(ProGpuDispatcher dispatcher, ILibreHandleRegistry handles)
         : this(dispatcher, handles, new SilkMonitorService())
@@ -50,7 +54,93 @@ public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindo
                 nameof(options));
         }
 
-        return new SilkLibreWindow(dispatcher, _handles, _monitors, options, events);
+        SilkLibreWindow window = new(this, dispatcher, _handles, _monitors, options, events);
+        IReadOnlyList<ProGpuReversibleDrawingOperation> operations;
+        lock (_windowSync)
+        {
+            _windows.Add(window);
+            operations = _reversibleDrawing.Snapshot();
+        }
+
+        try
+        {
+            if (operations.Count > 0)
+            {
+                window.UpdateReversibleDrawing(operations);
+            }
+
+            return window;
+        }
+        catch
+        {
+            window.Dispose();
+            throw;
+        }
+    }
+
+    internal void ToggleReversibleDrawing(ProGpuReversibleDrawingOperation operation)
+    {
+        SilkLibreWindow[] windows;
+        IReadOnlyList<ProGpuReversibleDrawingOperation> operations;
+        lock (_windowSync)
+        {
+            operations = _reversibleDrawing.Toggle(operation);
+            windows = [.. _windows];
+        }
+
+        foreach (SilkLibreWindow window in windows)
+        {
+            UpdateReversibleDrawing(window, operations);
+        }
+    }
+
+    internal void Unregister(SilkLibreWindow window)
+    {
+        lock (_windowSync)
+        {
+            _windows.Remove(window);
+        }
+    }
+
+    internal void RefreshReversibleDrawing(SilkLibreWindow window)
+    {
+        IReadOnlyList<ProGpuReversibleDrawingOperation> operations;
+        lock (_windowSync)
+        {
+            operations = _reversibleDrawing.Snapshot();
+        }
+
+        if (operations.Count > 0)
+        {
+            UpdateReversibleDrawing(window, operations);
+        }
+    }
+
+    private static void UpdateReversibleDrawing(
+        SilkLibreWindow window,
+        IReadOnlyList<ProGpuReversibleDrawingOperation> operations)
+    {
+        if (window.IsDisposed)
+        {
+            return;
+        }
+
+        ProGpuDispatcher dispatcher = window.Dispatcher;
+        try
+        {
+            if (dispatcher.CheckAccess())
+            {
+                window.UpdateReversibleDrawing(operations);
+            }
+            else
+            {
+                dispatcher.Send(() => window.UpdateReversibleDrawing(operations));
+            }
+        }
+        catch (ObjectDisposedException)
+        {
+            // A window can close between the inventory snapshot and dispatch.
+        }
     }
 
     public bool IsLive(LibreHandle owner)
@@ -104,6 +194,7 @@ public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindo
 
 internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
 {
+    private readonly SilkWindowService _service;
     private readonly ProGpuDispatcher _dispatcher;
     private readonly ILibreHandleRegistry _handles;
     private readonly ILibreMonitorService _monitors;
@@ -114,6 +205,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private readonly ContainerVisual _paintRoot = new();
     private readonly DrawingVisual _fallbackPaintVisual = new();
     private readonly DrawingVisual _transientPaintVisual = new();
+    private readonly DrawingVisual _reversiblePaintVisual = new();
     private readonly Dictionary<LibreHandle, DrawingVisual> _paintLayers = [];
     private IInputContext? _input;
     private volatile WgpuContext? _wgpuContext;
@@ -139,12 +231,14 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private volatile bool _disposed;
 
     internal SilkLibreWindow(
+        SilkWindowService service,
         ProGpuDispatcher dispatcher,
         ILibreHandleRegistry handles,
         ILibreMonitorService monitors,
         in LibreWindowCreateOptions options,
         ILibreWindowEvents events)
     {
+        _service = service;
         _dispatcher = dispatcher;
         _handles = handles;
         _monitors = monitors;
@@ -154,6 +248,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         ValidateOpacity(options.Opacity);
         _paintRoot.AddChild(_fallbackPaintVisual);
         _paintRoot.AddTopmostChild(_transientPaintVisual);
+        _paintRoot.AddTopmostChild(_reversiblePaintVisual);
         LibreRectangle nativeBounds = LibreWindowCoordinates.ToNative(
             options.Bounds,
             _coordinateMode,
@@ -217,6 +312,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     internal NativeWindowHandle NativeHandle => _controller.Handle;
 
     internal ProGpuDispatcher Dispatcher => _dispatcher;
+
+    internal bool IsDisposed => _disposed;
 
     public LibreWindowCoordinateMode CoordinateMode => _coordinateMode;
 
@@ -509,6 +606,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
 
         VerifyAccess();
         _disposed = true;
+        _service.Unregister(this);
         _dispatcher.Unregister(this);
         _input?.Dispose();
         foreach (DrawingVisual visual in _paintLayers.Values)
@@ -519,6 +617,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _paintLayers.Clear();
         _fallbackPaintVisual.Context.Clear();
         _transientPaintVisual.Context.Clear();
+        _reversiblePaintVisual.Context.Clear();
         _paintRoot.ClearChildren();
         _compositor?.Dispose();
         _wgpuContext?.Dispose();
@@ -542,6 +641,106 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
 
         _paintQueued = true;
         _dispatcher.Wake();
+    }
+
+    internal void UpdateReversibleDrawing(
+        IReadOnlyList<ProGpuReversibleDrawingOperation> operations)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        VerifyAccess();
+        _reversiblePaintVisual.Context.Clear();
+
+        LibreRectangle windowBounds = Bounds;
+        if (windowBounds.Width > 0 && windowBounds.Height > 0 && operations.Count > 0)
+        {
+            using Graphics graphics = Graphics.FromProGpuDrawingContext(
+                _reversiblePaintVisual.Context,
+                new RectangleF(0f, 0f, windowBounds.Width, windowBounds.Height));
+            graphics.SetClip(new RectangleF(0f, 0f, windowBounds.Width, windowBounds.Height));
+
+            foreach (ProGpuReversibleDrawingOperation operation in operations)
+            {
+                DrawReversibleOperation(graphics, windowBounds, operation);
+            }
+        }
+
+        _reversiblePaintVisual.Size = new Vector2(windowBounds.Width, windowBounds.Height);
+        _reversiblePaintVisual.Invalidate();
+        _presentationQueued = true;
+        _dispatcher.Wake();
+    }
+
+    private static void DrawReversibleOperation(
+        Graphics graphics,
+        LibreRectangle windowBounds,
+        ProGpuReversibleDrawingOperation operation)
+    {
+        DrawingColor backColor = DrawingColor.FromArgb(operation.BackColor.Value);
+        DrawingColor feedbackColor = backColor.GetBrightness() < 0.5f ? DrawingColor.White : DrawingColor.Black;
+
+        switch (operation.Kind)
+        {
+            case ProGpuReversibleDrawingKind.Frame:
+                DrawReversibleFrame(graphics, windowBounds, operation, feedbackColor);
+                break;
+            case ProGpuReversibleDrawingKind.Line:
+                using (Pen pen = new(feedbackColor))
+                {
+                    graphics.DrawLine(
+                        pen,
+                        operation.Start.X - windowBounds.X,
+                        operation.Start.Y - windowBounds.Y,
+                        operation.End.X - windowBounds.X,
+                        operation.End.Y - windowBounds.Y);
+                }
+
+                break;
+            case ProGpuReversibleDrawingKind.FillRectangle:
+                if (operation.Rectangle.Width <= 0 || operation.Rectangle.Height <= 0)
+                {
+                    break;
+                }
+
+                using (HatchBrush brush = new(HatchStyle.Percent50, feedbackColor, DrawingColor.Transparent))
+                {
+                    graphics.FillRectangle(
+                        brush,
+                        operation.Rectangle.X - windowBounds.X,
+                        operation.Rectangle.Y - windowBounds.Y,
+                        operation.Rectangle.Width,
+                        operation.Rectangle.Height);
+                }
+
+                break;
+            default:
+                throw new InvalidOperationException($"Unknown reversible drawing kind: {operation.Kind}.");
+        }
+    }
+
+    private static void DrawReversibleFrame(
+        Graphics graphics,
+        LibreRectangle windowBounds,
+        ProGpuReversibleDrawingOperation operation,
+        DrawingColor feedbackColor)
+    {
+        if (operation.Rectangle.Width <= 0 || operation.Rectangle.Height <= 0)
+        {
+            return;
+        }
+
+        float width = operation.FrameStyle == LibreReversibleFrameStyle.Thick ? 2f : 1f;
+        using Pen pen = new(feedbackColor, width);
+        if (operation.FrameStyle == LibreReversibleFrameStyle.Dashed)
+        {
+            pen.DashStyle = DashStyle.Dot;
+        }
+
+        graphics.DrawRectangle(
+            pen,
+            operation.Rectangle.X - windowBounds.X,
+            operation.Rectangle.Y - windowBounds.Y,
+            Math.Max(0, operation.Rectangle.Width - 1),
+            Math.Max(0, operation.Rectangle.Height - 1));
     }
 
     public void PresentPendingPaint()
@@ -837,6 +1036,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         if (!_initializing && !_updatingPresentationGeometry)
         {
             _events.BoundsChanged(Bounds);
+            _service.RefreshReversibleDrawing(this);
         }
     }
 
@@ -868,6 +1068,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
             dpiChanged);
         ApplySizeConstraints();
         _events.BoundsChanged(Bounds);
+        _service.RefreshReversibleDrawing(this);
 
         if (dpiChanged)
         {
@@ -1017,6 +1218,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
                     _paintRoot,
                     _fallbackPaintVisual,
                     _transientPaintVisual,
+                    _reversiblePaintVisual,
                     _paintLayers,
                     surfaceBounds,
                     dirty);

@@ -35,7 +35,7 @@ public static class ProGpuPlatform
         ProGpuTimerService timers = new(dispatcher);
         SilkMonitorService monitors = new();
         SilkWindowService windows = new(dispatcher, handles, monitors);
-        ProGpuPaintService painting = new(dispatcher, handles);
+        ProGpuPaintService painting = new(dispatcher, handles, windows);
         ProGpuTextRendererService textRenderer = new();
         ILibreFileDialogService fileDialogs = OperatingSystem.IsLinux()
             ? new PreferredLinuxLibreFileDialogService(

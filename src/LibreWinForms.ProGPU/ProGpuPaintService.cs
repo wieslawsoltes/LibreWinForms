@@ -5,15 +5,26 @@ using LibreWinForms.Platform;
 
 namespace LibreWinForms.ProGPU;
 
-public sealed class ProGpuPaintService : ILibrePaintService
+public sealed class ProGpuPaintService : ILibrePaintService, ILibreReversibleDrawingService
 {
     private readonly ILibreDispatcher _fallbackDispatcher;
     private readonly ILibreHandleRegistry _handles;
+    private readonly SilkWindowService? _windows;
 
     public ProGpuPaintService(ILibreDispatcher dispatcher, ILibreHandleRegistry handles)
     {
         _fallbackDispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         _handles = handles ?? throw new ArgumentNullException(nameof(handles));
+    }
+
+    public ProGpuPaintService(
+        ILibreDispatcher dispatcher,
+        ILibreHandleRegistry handles,
+        SilkWindowService windows)
+    {
+        _fallbackDispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+        _handles = handles ?? throw new ArgumentNullException(nameof(handles));
+        _windows = windows ?? throw new ArgumentNullException(nameof(windows));
     }
 
     public System.Drawing.Graphics CreateGraphics(
@@ -58,6 +69,21 @@ public sealed class ProGpuPaintService : ILibrePaintService
         }
     }
 
+    public void DrawFrame(
+        LibreRectangle rectangle,
+        LibreArgbColor backColor,
+        LibreReversibleFrameStyle style)
+        => GetWindowService().ToggleReversibleDrawing(
+            ProGpuReversibleDrawingOperation.CreateFrame(rectangle, backColor, style));
+
+    public void DrawLine(LibrePoint start, LibrePoint end, LibreArgbColor backColor)
+        => GetWindowService().ToggleReversibleDrawing(
+            ProGpuReversibleDrawingOperation.CreateLine(start, end, backColor));
+
+    public void FillRectangle(LibreRectangle rectangle, LibreArgbColor backColor)
+        => GetWindowService().ToggleReversibleDrawing(
+            ProGpuReversibleDrawingOperation.CreateFillRectangle(rectangle, backColor));
+
     private void Schedule(LibreHandle target, LibreRectangle? dirtyRectangle)
     {
         SilkLibreWindow window = Resolve(target);
@@ -81,4 +107,9 @@ public sealed class ProGpuPaintService : ILibrePaintService
         => _handles.TryGet(target, out ILibreWindow? window)
             ? window
             : throw new ArgumentException("The handle does not identify a live platform window.", nameof(target));
+
+    private SilkWindowService GetWindowService()
+        => _windows
+            ?? throw new PlatformNotSupportedException(
+                "This ProGPU paint service was created without a Silk window service for screen-space overlays.");
 }

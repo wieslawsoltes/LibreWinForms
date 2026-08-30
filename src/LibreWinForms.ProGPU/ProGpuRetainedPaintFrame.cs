@@ -13,6 +13,7 @@ internal sealed class ProGpuRetainedPaintFrame : ILibreRetainedPaintFrame
     private readonly ContainerVisual _root;
     private readonly DrawingVisual _fallbackVisual;
     private readonly DrawingVisual _transientVisual;
+    private readonly DrawingVisual _reversibleVisual;
     private readonly Dictionary<LibreHandle, DrawingVisual> _layers;
     private readonly List<DrawingVisual> _orderedLayers = [];
     private readonly HashSet<LibreHandle> _visited = [];
@@ -22,6 +23,7 @@ internal sealed class ProGpuRetainedPaintFrame : ILibreRetainedPaintFrame
         ContainerVisual root,
         DrawingVisual fallbackVisual,
         DrawingVisual transientVisual,
+        DrawingVisual reversibleVisual,
         Dictionary<LibreHandle, DrawingVisual> layers,
         LibreRectangle surfaceBounds,
         LibreRectangle dirtyRectangle)
@@ -29,6 +31,7 @@ internal sealed class ProGpuRetainedPaintFrame : ILibreRetainedPaintFrame
         _root = root;
         _fallbackVisual = fallbackVisual;
         _transientVisual = transientVisual;
+        _reversibleVisual = reversibleVisual;
         _layers = layers;
         SurfaceBounds = surfaceBounds;
         DirtyRectangle = dirtyRectangle;
@@ -125,15 +128,17 @@ internal sealed class ProGpuRetainedPaintFrame : ILibreRetainedPaintFrame
             }
 
             _root.AddTopmostChild(_transientVisual);
+            _root.AddTopmostChild(_reversibleVisual);
         }
     }
 
     private bool HasExpectedVisualOrder()
     {
         IReadOnlyList<Visual> children = _root.Children;
-        if (children.Count != _orderedLayers.Count + 2
+        if (children.Count != _orderedLayers.Count + 3
             || !ReferenceEquals(children[0], _fallbackVisual)
-            || !ReferenceEquals(children[^1], _transientVisual))
+            || !ReferenceEquals(children[^2], _transientVisual)
+            || !ReferenceEquals(children[^1], _reversibleVisual))
         {
             return false;
         }
