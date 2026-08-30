@@ -2135,6 +2135,67 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void ErrorProviderIconHoverUsesTypedTimerAndPortableToolTipPopup()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { Bounds = new Rectangle(40, 50, 300, 180) };
+        using TextBox textBox = new() { Bounds = new Rectangle(20, 30, 120, 24) };
+        form.Controls.Add(textBox);
+        form.Show();
+        using ErrorProvider provider = new()
+        {
+            ContainerControl = form,
+            BlinkStyle = ErrorBlinkStyle.NeverBlink,
+        };
+        provider.SetError(textBox, "Invalid hover value");
+        AdornerSnapshot icon = platform.Adorners.Values.Single();
+        LibreRectangle iconBounds = icon.Bounds;
+
+        platform.SendInput(
+            LibreInputEventKind.PointerMove,
+            position: new LibrePoint(
+                iconBounds.X + iconBounds.Width / 2,
+                iconBounds.Y + iconBounds.Height / 2));
+
+        platform.HasActiveTimer.Should().BeTrue();
+        platform.LastTimerInterval.Should().Be(TimeSpan.FromMilliseconds(500));
+        platform.Popups.Should().BeEmpty();
+
+        platform.FireTimer();
+
+        platform.Popups.Should().ContainSingle();
+        PopupSnapshot popup = platform.Popups.Values.Single();
+        Point expectedPosition = form.PointToScreen(new Point(iconBounds.Right + 2, iconBounds.Bottom + 2));
+        popup.Request.ScreenBounds.X.Should().Be(expectedPosition.X);
+        popup.Request.ScreenBounds.Y.Should().Be(expectedPosition.Y);
+        popup.Request.InputTransparent.Should().BeTrue();
+        popup.CommandCount.Should().BeGreaterThan(0);
+        platform.Adorners.Should().ContainSingle();
+        platform.HasActiveTimer.Should().BeTrue();
+        platform.LastTimerInterval.Should().Be(TimeSpan.FromMilliseconds(5000));
+
+        platform.FireTimer();
+
+        platform.Popups.Should().BeEmpty();
+        platform.Adorners.Should().ContainSingle();
+        platform.HasActiveTimer.Should().BeFalse();
+        platform.SendInput(LibreInputEventKind.PointerMove, position: new LibrePoint(5, 5));
+        platform.SendInput(
+            LibreInputEventKind.PointerMove,
+            position: new LibrePoint(
+                iconBounds.X + iconBounds.Width / 2,
+                iconBounds.Y + iconBounds.Height / 2));
+        platform.FireTimer();
+        platform.Popups.Should().ContainSingle();
+
+        provider.SetError(textBox, string.Empty);
+
+        platform.Popups.Should().BeEmpty();
+        platform.Adorners.Should().BeEmpty();
+        platform.HasActiveTimer.Should().BeFalse();
+    }
+
+    [Fact]
     public void ExplicitToolTipUsesNonActivatingPortablePopupAndTypedTimer()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -6769,7 +6830,7 @@ public class CanonicalLifecycleTests
                 backColor.Should().Be(Color.Empty);
                 format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
             }
-            else if (text is "Automatic tip" or "Keyboard tip")
+            else if (text is "Automatic tip" or "Keyboard tip" or "Invalid hover value")
             {
                 bounds.Width.Should().BeGreaterThan(0);
                 bounds.Height.Should().BeGreaterThan(0);
