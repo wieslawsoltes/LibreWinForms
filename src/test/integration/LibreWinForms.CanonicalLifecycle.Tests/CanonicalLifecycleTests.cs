@@ -2196,6 +2196,61 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void PortablePopupOwnersTearDownAutomaticToolTipAndErrorProviderState()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using (Form form = new() { ClientSize = new Size(280, 160) })
+        using (Button button = new() { Bounds = new Rectangle(20, 30, 100, 28) })
+        using (var toolTip = new ToolTip { InitialDelay = 0, AutoPopDelay = 100 })
+        {
+            form.Controls.Add(button);
+            form.Show();
+            toolTip.SetToolTip(button, "Owner tooltip");
+            platform.SendInput(
+                LibreInputEventKind.PointerMove,
+                position: new LibrePoint(button.Left + 5, button.Top + 6));
+            platform.Popups.Should().ContainSingle();
+            platform.HasActiveTimer.Should().BeTrue();
+
+            form.Close();
+
+            platform.Popups.Should().BeEmpty();
+            platform.HasActiveTimer.Should().BeFalse();
+            platform.Handles.Count.Should().Be(0);
+        }
+
+        using (Form form = new() { ClientSize = new Size(280, 160) })
+        using (TextBox textBox = new() { Bounds = new Rectangle(20, 30, 120, 24) })
+        using (ErrorProvider provider = new()
+        {
+            ContainerControl = form,
+            BlinkStyle = ErrorBlinkStyle.NeverBlink,
+        })
+        {
+            form.Controls.Add(textBox);
+            form.Show();
+            provider.SetError(textBox, "Owner error");
+            LibreRectangle iconBounds = platform.Adorners.Values.Single().Bounds;
+            platform.SendInput(
+                LibreInputEventKind.PointerMove,
+                position: new LibrePoint(
+                    iconBounds.X + iconBounds.Width / 2,
+                    iconBounds.Y + iconBounds.Height / 2));
+            platform.FireTimer();
+            platform.Popups.Should().ContainSingle();
+            platform.Adorners.Should().ContainSingle();
+            platform.HasActiveTimer.Should().BeTrue();
+
+            form.Close();
+
+            platform.Popups.Should().BeEmpty();
+            platform.Adorners.Should().BeEmpty();
+            platform.HasActiveTimer.Should().BeFalse();
+            platform.Handles.Count.Should().Be(0);
+        }
+    }
+
+    [Fact]
     public void ExplicitToolTipUsesNonActivatingPortablePopupAndTypedTimer()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -6830,7 +6885,12 @@ public class CanonicalLifecycleTests
                 backColor.Should().Be(Color.Empty);
                 format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
             }
-            else if (text is "Automatic tip" or "Keyboard tip" or "Invalid hover value")
+            else if (text is
+                "Automatic tip" or
+                "Keyboard tip" or
+                "Invalid hover value" or
+                "Owner tooltip" or
+                "Owner error")
             {
                 bounds.Width.Should().BeGreaterThan(0);
                 bounds.Height.Should().BeGreaterThan(0);

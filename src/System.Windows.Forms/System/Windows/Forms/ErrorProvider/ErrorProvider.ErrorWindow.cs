@@ -51,6 +51,7 @@ public partial class ErrorProvider
             _parent.MouseMove += OnPortableParentMouseMove;
             _parent.MouseLeave += OnPortableParentMouseLeave;
             _parent.MouseDown += OnPortableParentMouseDown;
+            _parent.HandleDestroyed += OnPortableParentHandleDestroyed;
 #endif
         }
 
@@ -96,6 +97,7 @@ public partial class ErrorProvider
             _parent.MouseMove -= OnPortableParentMouseMove;
             _parent.MouseLeave -= OnPortableParentMouseLeave;
             _parent.MouseDown -= OnPortableParentMouseDown;
+            _parent.HandleDestroyed -= OnPortableParentHandleDestroyed;
 #endif
             EnsureDestroyed();
         }
@@ -569,6 +571,13 @@ public partial class ErrorProvider
             _ = e;
             HidePortableToolTip(updateIcon: true);
             _portableHoverItem = null;
+        }
+
+        private void OnPortableParentHandleDestroyed(object? sender, EventArgs e)
+        {
+            _ = sender;
+            _ = e;
+            EnsureDestroyed();
         }
 
         private ToolTip EnsurePortableToolTip()
