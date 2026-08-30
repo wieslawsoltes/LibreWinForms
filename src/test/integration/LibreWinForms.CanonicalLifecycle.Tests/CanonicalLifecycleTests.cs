@@ -3003,6 +3003,32 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void ControlPaintFlatCheckBoxUsesManagedProGpuDrawingWithoutHdc()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var target = new Bitmap(34, 16, PixelFormat.Format32bppArgb);
+        using (Graphics graphics = Graphics.FromImage(target))
+        {
+            graphics.Clear(Color.Transparent);
+            ControlPaint.DrawCheckBox(graphics, new Rectangle(0, 0, 16, 16), ButtonState.Flat);
+            ControlPaint.DrawCheckBox(
+                graphics,
+                new Rectangle(18, 0, 16, 16),
+                ButtonState.Flat | ButtonState.Checked);
+        }
+
+        target.GetPixel(8, 8).ToArgb().Should().Be(SystemColors.Window.ToArgb());
+        Color checkedPixel = target.GetPixel(26, 8);
+        checkedPixel.A.Should().Be(byte.MaxValue);
+        checkedPixel.GetBrightness().Should().BeLessThan(0.1f);
+        Color uncheckedBorder = target.GetPixel(1, 1);
+        Color checkedBorder = target.GetPixel(19, 1);
+        uncheckedBorder.A.Should().Be(byte.MaxValue);
+        checkedBorder.ToArgb().Should().Be(uncheckedBorder.ToArgb());
+        uncheckedBorder.ToArgb().Should().NotBe(SystemColors.Window.ToArgb());
+    }
+
+    [Fact]
     public void CursorFiles_DecodeManagedPngAndDibPayloadsAndFailClosed()
     {
         UseHeadlessPlatform(autoCloseWindows: false);

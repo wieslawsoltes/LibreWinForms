@@ -15,8 +15,10 @@ namespace System.Windows.Forms;
 /// </summary>
 public static unsafe partial class ControlPaint
 {
+#if !LIBREWINFORMS_PORTABLE
     [ThreadStatic]
     private static Bitmap? t_checkImage;         // image used to render checkmarks
+#endif
 
     [ThreadStatic]
     private static Pen? t_focusPen;              // pen used to draw a focus rectangle
@@ -1501,6 +1503,10 @@ public static unsafe partial class ControlPaint
 
         if ((state & ButtonState.Checked) == ButtonState.Checked)
         {
+#if LIBREWINFORMS_PORTABLE
+            rectangle.X += 1;
+            DrawPortableMenuGlyph(graphics, rectangle, foreground, controlKind: 0x01);
+#else
             if (t_checkImage is null || t_checkImage.Width != rectangle.Width || t_checkImage.Height != rectangle.Height)
             {
                 t_checkImage?.Dispose();
@@ -1522,6 +1528,7 @@ public static unsafe partial class ControlPaint
 
             rectangle.X += 1;
             DrawImageColorized(graphics, t_checkImage, rectangle, foreground);
+#endif
         }
 
         // Surrounding border. We inset this by one pixel so we match how the 3D checkbox is drawn.
@@ -1811,7 +1818,6 @@ public static unsafe partial class ControlPaint
 
     private static void DrawPortableMenuGlyph(Graphics graphics, Rectangle bounds, Color foreground, int controlKind)
     {
-        using SolidBrush brush = new(foreground);
         Rectangle glyph = Rectangle.Inflate(bounds, -Math.Max(1, bounds.Width / 4), -Math.Max(1, bounds.Height / 4));
         if (glyph.Width <= 0 || glyph.Height <= 0)
         {
@@ -1832,16 +1838,24 @@ public static unsafe partial class ControlPaint
 
                 break;
             case 0x02: // DFCS_MENUBULLET
-                graphics.FillEllipse(brush, glyph);
+                using (SolidBrush brush = new(foreground))
+                {
+                    graphics.FillEllipse(brush, glyph);
+                }
+
                 break;
             default: // DFCS_MENUARROW
-                graphics.FillPolygon(
-                    brush,
-                    [
-                        new(glyph.Left, glyph.Top),
-                        new(glyph.Right - 1, glyph.Top + (glyph.Height / 2)),
-                        new(glyph.Left, glyph.Bottom - 1),
-                    ]);
+                using (SolidBrush brush = new(foreground))
+                {
+                    graphics.FillPolygon(
+                        brush,
+                        [
+                            new(glyph.Left, glyph.Top),
+                            new(glyph.Right - 1, glyph.Top + (glyph.Height / 2)),
+                            new(glyph.Left, glyph.Bottom - 1),
+                        ]);
+                }
+
                 break;
         }
     }
