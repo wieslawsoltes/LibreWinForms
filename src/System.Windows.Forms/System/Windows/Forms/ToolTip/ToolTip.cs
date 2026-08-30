@@ -60,6 +60,8 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
     private readonly LibrePopupId _portablePopupId = new(Interlocked.Increment(ref s_nextPortablePopupId));
     private IWin32Window? _portablePopupWindow;
     private LibreHandle _portablePopupOwner;
+    private Control? _portableHoverControl;
+    private Point _portableHoverPoint;
 #endif
 
     /// <summary>
@@ -123,6 +125,7 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
 #if LIBREWINFORMS_PORTABLE
                 if (!value)
                 {
+                    StopTimer();
                     HidePortable(window: null);
                 }
 #else
@@ -654,18 +657,27 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
         _topLevelControl = null;
 
         Control control = (Control)sender!;
+#if LIBREWINFORMS_PORTABLE
+        HookPortableTool(control);
+#else
         CreateRegion(control);
         SetToolTipToControl(control);
 
         KeyboardToolTipStateMachine.Instance.Hook(control, this);
+#endif
     }
 
     private void HandleDestroyed(object? sender, EventArgs eventargs)
     {
         Control control = (Control)sender!;
+#if LIBREWINFORMS_PORTABLE
+        UnhookPortableTool(control);
+        HidePortable(control);
+#else
         DestroyRegion(control);
 
         KeyboardToolTipStateMachine.Instance.Unhook(control, this);
+#endif
     }
 
     /// <summary>
@@ -1174,6 +1186,10 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
         Control[] controls = [.. _tools.Keys];
         foreach (Control control in controls)
         {
+#if LIBREWINFORMS_PORTABLE
+            UnhookPortableTool(control);
+            HidePortable(control);
+#else
             if (control.IsHandleCreated)
             {
                 DestroyRegion(control);
@@ -1183,6 +1199,7 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
             control.HandleDestroyed -= HandleDestroyed;
 
             KeyboardToolTipStateMachine.Instance.Unhook(control, toolTip: this);
+#endif
         }
 
         _created.Clear();
@@ -1191,7 +1208,9 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
         ClearTopLevelControlEvents();
         _topLevelControl = null;
 
+#if !LIBREWINFORMS_PORTABLE
         KeyboardToolTipStateMachine.Instance.ResetStateMachine(this);
+#endif
     }
 
     /// <summary>
@@ -1253,6 +1272,26 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
             _tools[control] = info!;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        if (!empty && !exists)
+        {
+            control.HandleCreated += HandleCreated;
+            control.HandleDestroyed += HandleDestroyed;
+            if (control.IsHandleCreated)
+            {
+                HandleCreated(control, EventArgs.Empty);
+            }
+        }
+        else if (empty && exists)
+        {
+            control.HandleCreated -= HandleCreated;
+            control.HandleDestroyed -= HandleDestroyed;
+            UnhookPortableTool(control);
+            HidePortable(control);
+        }
+
+        return;
+#else
         if (!empty && !exists)
         {
             control.HandleCreated += HandleCreated;
@@ -1288,6 +1327,7 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
                 _created.Remove(control);
             }
         }
+#endif
     }
 
     private void SetToolTipToControl(Control associatedControl)
@@ -1611,10 +1651,129 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
             TextFormatFlags.Left | TextFormatFlags.WordBreak | TextFormatFlags.HidePrefix);
     }
 
+    private void HookPortableTool(Control control)
+    {
+        control.MouseEnter -= PortableToolMouseEnter;
+        control.MouseEnter += PortableToolMouseEnter;
+        control.MouseMove -= PortableToolMouseMove;
+        control.MouseMove += PortableToolMouseMove;
+        control.MouseLeave -= PortableToolMouseLeave;
+        control.MouseLeave += PortableToolMouseLeave;
+        control.MouseDown -= PortableToolMouseDown;
+        control.MouseDown += PortableToolMouseDown;
+    }
+
+    private void UnhookPortableTool(Control control)
+    {
+        control.MouseEnter -= PortableToolMouseEnter;
+        control.MouseMove -= PortableToolMouseMove;
+        control.MouseLeave -= PortableToolMouseLeave;
+        control.MouseDown -= PortableToolMouseDown;
+        if (ReferenceEquals(_portableHoverControl, control))
+        {
+            _portableHoverControl = null;
+            StopTimer();
+        }
+    }
+
+    private void PortableToolMouseEnter(object? sender, EventArgs e)
+    {
+        if (!_active || sender is not Control control || string.IsNullOrEmpty(GetToolTip(control)))
+        {
+            return;
+        }
+
+        _portableHoverControl = control;
+        _portableHoverPoint = control.PointToClient(Cursor.Position);
+        StartPortableInitialTimer(control);
+    }
+
+    private void PortableToolMouseMove(object? sender, MouseEventArgs e)
+    {
+        if (sender is Control control && ReferenceEquals(_portableHoverControl, control))
+        {
+            _portableHoverPoint = e.Location;
+        }
+    }
+
+    private void PortableToolMouseLeave(object? sender, EventArgs e)
+    {
+        if (sender is not Control control)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(_portableHoverControl, control))
+        {
+            _portableHoverControl = null;
+        }
+
+        StopTimer();
+        HidePortable(control);
+    }
+
+    private void PortableToolMouseDown(object? sender, MouseEventArgs e)
+    {
+        _ = e;
+        if (sender is Control control)
+        {
+            StopTimer();
+            HidePortable(control);
+        }
+    }
+
+    private void StartPortableInitialTimer(Control control)
+    {
+        StopTimer();
+        int delay = InitialDelay;
+        if (delay == 0)
+        {
+            ShowPortableHover(control);
+            return;
+        }
+
+        _timer = new ToolTipTimer(control);
+        _timer.Tick += PortableInitialTimerHandler;
+        _timer.Interval = delay;
+        _timer.Start();
+    }
+
+    private void PortableInitialTimerHandler(object? source, EventArgs e)
+    {
+        _ = e;
+        Control? control = (source as ToolTipTimer)?.Host as Control;
+        StopTimer();
+        if (control is not null && ReferenceEquals(_portableHoverControl, control))
+        {
+            ShowPortableHover(control);
+        }
+    }
+
+    private void ShowPortableHover(Control control)
+    {
+        string? caption = GetToolTip(control);
+        if (string.IsNullOrEmpty(caption) || !ReferenceEquals(_portableHoverControl, control))
+        {
+            return;
+        }
+
+        int duration = IsPersistent ? 0 : AutoPopDelay;
+        ShowPortable(
+            caption,
+            control,
+            new Point(_portableHoverPoint.X + 16, _portableHoverPoint.Y + 20),
+            duration);
+    }
+
     private void HidePortable(IWin32Window? window)
     {
-        if (_portablePopupOwner.IsNull
-            || (window is not null && !ReferenceEquals(window, _portablePopupWindow)))
+        if (window is not null && !ReferenceEquals(window, _portablePopupWindow))
+        {
+            return;
+        }
+
+        StopTimer();
+        if (_portablePopupOwner.IsNull)
         {
             return;
         }
@@ -1627,7 +1786,6 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
 
         _portablePopupOwner = default;
         _portablePopupWindow = null;
-        StopTimer();
         IsActivatedByKeyboard = false;
     }
 #endif

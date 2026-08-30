@@ -2191,6 +2191,51 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void AutomaticToolTipUsesCanonicalMouseAndDelayStateWithoutNativeSubclassing()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { ClientSize = new Size(260, 150) };
+        using Button button = new() { Bounds = new Rectangle(20, 30, 100, 28) };
+        form.Controls.Add(button);
+        form.Show();
+        using var toolTip = new ToolTip
+        {
+            InitialDelay = 35,
+            AutoPopDelay = 80,
+        };
+        int popupCount = 0;
+        toolTip.Popup += (_, _) => popupCount++;
+        toolTip.SetToolTip(button, "Automatic tip");
+
+        platform.SendInput(
+            LibreInputEventKind.PointerMove,
+            position: new LibrePoint(button.Left + 5, button.Top + 6));
+
+        platform.HasActiveTimer.Should().BeTrue();
+        platform.LastTimerInterval.Should().Be(TimeSpan.FromMilliseconds(35));
+        platform.Popups.Should().BeEmpty();
+
+        platform.FireTimer();
+
+        popupCount.Should().Be(1);
+        platform.Popups.Should().ContainSingle();
+        PopupSnapshot popup = platform.Popups.Values.Single();
+        Point expectedPosition = button.PointToScreen(new Point(21, 26));
+        popup.Request.ScreenBounds.X.Should().Be(expectedPosition.X);
+        popup.Request.ScreenBounds.Y.Should().Be(expectedPosition.Y);
+        popup.Request.InputTransparent.Should().BeTrue();
+        popup.CommandCount.Should().BeGreaterThan(0);
+        platform.HasActiveTimer.Should().BeTrue();
+        platform.LastTimerInterval.Should().Be(TimeSpan.FromMilliseconds(80));
+
+        platform.FireTimer();
+
+        platform.Popups.Should().BeEmpty();
+        platform.HasActiveTimer.Should().BeFalse();
+        toolTip.SetToolTip(button, null);
+    }
+
+    [Fact]
     public void DataGridViewColumnLookupUsesCanonicalNamesAndTypedIndexes()
     {
         UseHeadlessPlatform(autoCloseWindows: false);
@@ -6673,6 +6718,12 @@ public class CanonicalLifecycleTests
                 bounds.Should().BeOneOf(new Rectangle(5, 6, 60, 18), new Rectangle(4, 5, 60, 18));
                 backColor.Should().Be(Color.Empty);
                 format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
+            }
+            else if (text == "Automatic tip")
+            {
+                bounds.Width.Should().BeGreaterThan(0);
+                bounds.Height.Should().BeGreaterThan(0);
+                format.Should().Be(LibreTextFormat.WordBreak | LibreTextFormat.HidePrefix);
             }
             else
             {
