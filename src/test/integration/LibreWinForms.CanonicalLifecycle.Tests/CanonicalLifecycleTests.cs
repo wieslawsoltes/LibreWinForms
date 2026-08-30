@@ -3029,6 +3029,95 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void ControlPaintTiledBackgroundUsesManagedProGpuDrawingWithoutHdc()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var tile = new Bitmap(2, 2, PixelFormat.Format32bppArgb);
+        tile.SetPixel(0, 0, Color.Red);
+        tile.SetPixel(1, 0, Color.Green);
+        tile.SetPixel(0, 1, Color.Blue);
+        tile.SetPixel(1, 1, Color.Yellow);
+
+        using var control = new BackgroundPaintingControl
+        {
+            Size = new Size(6, 6),
+            BackgroundImage = tile,
+            BackgroundImageLayout = ImageLayout.Tile,
+        };
+        using var target = new Bitmap(6, 6, PixelFormat.Format32bppArgb);
+        using (Graphics graphics = Graphics.FromImage(target))
+        {
+            control.PaintBackgroundTo(graphics);
+        }
+
+        target.GetPixel(0, 0).A.Should().Be(byte.MaxValue);
+        target.GetPixel(0, 0).ToArgb().Should().Be(target.GetPixel(2, 0).ToArgb());
+        target.GetPixel(1, 0).ToArgb().Should().Be(target.GetPixel(3, 0).ToArgb());
+        target.GetPixel(0, 1).ToArgb().Should().Be(target.GetPixel(2, 3).ToArgb());
+        target.GetPixel(0, 0).ToArgb().Should().NotBe(target.GetPixel(1, 0).ToArgb());
+    }
+
+    [Fact]
+    public void ControlPaintBordersUseManagedProGpuDrawingWithoutHdc()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var target = new Bitmap(48, 16, PixelFormat.Format32bppArgb);
+        using (Graphics graphics = Graphics.FromImage(target))
+        {
+            graphics.Clear(Color.Transparent);
+            ControlPaint.DrawBorder(graphics, new Rectangle(0, 0, 12, 12), Color.Red, ButtonBorderStyle.Solid);
+            ControlPaint.DrawBorder(
+                graphics,
+                new Rectangle(16, 0, 12, 12),
+                Color.Blue, 1, ButtonBorderStyle.Solid,
+                Color.Green, 1, ButtonBorderStyle.Solid,
+                Color.Yellow, 1, ButtonBorderStyle.Solid,
+                Color.Magenta, 1, ButtonBorderStyle.Solid);
+            ControlPaint.DrawBorder(
+                graphics,
+                new Rectangle(32, 0, 12, 12),
+                Color.Gray, 2, ButtonBorderStyle.Inset,
+                Color.Gray, 2, ButtonBorderStyle.Outset,
+                Color.Gray, 2, ButtonBorderStyle.Inset,
+                Color.Gray, 2, ButtonBorderStyle.Outset);
+        }
+
+        Color simpleLeft = target.GetPixel(0, 6);
+        simpleLeft.A.Should().BeGreaterThan((byte)240);
+        simpleLeft.R.Should().BeGreaterThan((byte)240);
+        simpleLeft.G.Should().BeLessThan((byte)16);
+        simpleLeft.B.Should().BeLessThan((byte)16);
+
+        Color top = target.GetPixel(22, 0);
+        top.A.Should().BeGreaterThan((byte)100);
+        top.G.Should().BeGreaterThan((byte)100);
+        top.R.Should().BeLessThan((byte)16);
+        top.B.Should().BeLessThan((byte)16);
+
+        Color left = target.GetPixel(16, 6);
+        left.A.Should().BeGreaterThan((byte)100);
+        left.B.Should().BeGreaterThan((byte)240);
+        left.R.Should().BeLessThan((byte)16);
+        left.G.Should().BeLessThan((byte)16);
+
+        Color right = target.GetPixel(27, 6);
+        right.A.Should().BeGreaterThan((byte)100);
+        right.R.Should().BeGreaterThan((byte)240);
+        right.G.Should().BeGreaterThan((byte)240);
+        right.B.Should().BeLessThan((byte)16);
+
+        Color bottom = target.GetPixel(22, 11);
+        bottom.A.Should().BeGreaterThan((byte)100);
+        bottom.R.Should().BeGreaterThan((byte)240);
+        bottom.G.Should().BeLessThan((byte)16);
+        bottom.B.Should().BeGreaterThan((byte)240);
+        target.GetPixel(38, 0).A.Should().BeGreaterThan((byte)100);
+        target.GetPixel(32, 6).A.Should().BeGreaterThan((byte)100);
+        target.GetPixel(43, 6).A.Should().BeGreaterThan((byte)100);
+        target.GetPixel(38, 11).A.Should().BeGreaterThan((byte)100);
+    }
+
+    [Fact]
     public void CursorFiles_DecodeManagedPngAndDibPayloadsAndFailClosed()
     {
         UseHeadlessPlatform(autoCloseWindows: false);
@@ -4996,6 +5085,15 @@ public class CanonicalLifecycleTests
         protected override void OnPaint(PaintEventArgs e)
         {
             ForegroundPaintCount++;
+        }
+    }
+
+    private sealed class BackgroundPaintingControl : Control
+    {
+        internal void PaintBackgroundTo(Graphics graphics)
+        {
+            using var e = new PaintEventArgs(graphics, ClientRectangle);
+            OnPaintBackground(e);
         }
     }
 

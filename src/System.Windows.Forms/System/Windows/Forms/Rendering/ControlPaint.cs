@@ -465,12 +465,14 @@ public static unsafe partial class ControlPaint
 
             g.FillRectangle(textureBrush, clipRect);
 
+#if !LIBREWINFORMS_PORTABLE
             // If the Graphics backing HDC has an offset origin (SetViewportOrgEx), drawing with a texture brush will
             // reset it. Getting the HDC and releasing it will restore the offset.
             //
             // See https://github.com/dotnet/winforms/issues/13784 for a repro.
             g.GetHdc();
             g.ReleaseHdc();
+#endif
         }
         else
         {
@@ -747,6 +749,7 @@ public static unsafe partial class ControlPaint
             case ButtonBorderStyle.Dashed:
             case ButtonBorderStyle.Solid:
                 {
+#if !LIBREWINFORMS_PORTABLE
                     if (!topColor.HasTransparency() && topStyle == ButtonBorderStyle.Solid)
                     {
                         using DeviceContextHdcScope hdc = deviceContext.ToHdcScope();
@@ -757,7 +760,9 @@ public static unsafe partial class ControlPaint
                             hdc.DrawLine(hpen, topLineLefts[i], bounds.Y + i, topLineRights[i] + 1, bounds.Y + i);
                         }
                     }
-                    else if (deviceContext.TryGetGraphics(create: true) is Graphics graphics)
+                    else
+#endif
+                    if (deviceContext.TryGetGraphics(create: true) is Graphics graphics)
                     {
                         using var pen = topColor.CreateStaticPen(
                         topStyle switch
@@ -781,6 +786,19 @@ public static unsafe partial class ControlPaint
                 {
                     HLSColor hlsColor = new(topColor);
                     float inc = InfinityToOne(1.0f / (topWidth - 1));
+#if LIBREWINFORMS_PORTABLE
+                    if (deviceContext.TryGetGraphics(create: true) is Graphics graphics)
+                    {
+                        for (int i = 0; i < topWidth; i++)
+                        {
+                            Color color = topStyle == ButtonBorderStyle.Inset
+                                ? hlsColor.Darker(1.0f - i * inc)
+                                : hlsColor.Lighter(1.0f - i * inc);
+                            using var pen = color.GetCachedPenScope();
+                            graphics.DrawLine(pen, topLineLefts[i], bounds.Y + i, topLineRights[i], bounds.Y + i);
+                        }
+                    }
+#else
                     using DeviceContextHdcScope hdc = deviceContext.ToHdcScope();
                     for (int i = 0; i < topWidth; i++)
                     {
@@ -792,6 +810,7 @@ public static unsafe partial class ControlPaint
                         // Need to add one to the destination point for GDI to render the same as GDI+
                         hdc.DrawLine(hpen, topLineLefts[i], bounds.Y + i, topLineRights[i] + 1, bounds.Y + i);
                     }
+#endif
 
                     break;
                 }
@@ -806,6 +825,7 @@ public static unsafe partial class ControlPaint
             case ButtonBorderStyle.Dashed:
             case ButtonBorderStyle.Solid:
                 {
+#if !LIBREWINFORMS_PORTABLE
                     if (!leftColor.HasTransparency() && leftStyle == ButtonBorderStyle.Solid)
                     {
                         using DeviceContextHdcScope hdc = deviceContext.ToHdcScope();
@@ -816,7 +836,9 @@ public static unsafe partial class ControlPaint
                             hdc.DrawLine(hpen, bounds.X + i, leftLineTops[i], bounds.X + i, leftLineBottoms[i] + 1);
                         }
                     }
-                    else if (deviceContext.TryGetGraphics(create: true) is Graphics graphics)
+                    else
+#endif
+                    if (deviceContext.TryGetGraphics(create: true) is Graphics graphics)
                     {
                         using var pen = leftColor.CreateStaticPen(
                             leftStyle switch
@@ -840,6 +862,19 @@ public static unsafe partial class ControlPaint
                 {
                     HLSColor hlsColor = new(leftColor);
                     float inc = InfinityToOne(1.0f / (leftWidth - 1));
+#if LIBREWINFORMS_PORTABLE
+                    if (deviceContext.TryGetGraphics(create: true) is Graphics graphics)
+                    {
+                        for (int i = 0; i < leftWidth; i++)
+                        {
+                            Color color = leftStyle == ButtonBorderStyle.Inset
+                                ? hlsColor.Darker(1.0f - i * inc)
+                                : hlsColor.Lighter(1.0f - i * inc);
+                            using var pen = color.GetCachedPenScope();
+                            graphics.DrawLine(pen, bounds.X + i, leftLineTops[i], bounds.X + i, leftLineBottoms[i]);
+                        }
+                    }
+#else
                     using DeviceContextHdcScope hdc = deviceContext.ToHdcScope();
                     for (int i = 0; i < leftWidth; i++)
                     {
@@ -851,6 +886,7 @@ public static unsafe partial class ControlPaint
                         // Need to add one to the destination point for GDI to render the same as GDI+
                         hdc.DrawLine(hpen, bounds.X + i, leftLineTops[i], bounds.X + i, leftLineBottoms[i] + 1);
                     }
+#endif
 
                     break;
                 }
@@ -865,6 +901,7 @@ public static unsafe partial class ControlPaint
             case ButtonBorderStyle.Dashed:
             case ButtonBorderStyle.Solid:
                 {
+#if !LIBREWINFORMS_PORTABLE
                     if (!bottomColor.HasTransparency() && bottomStyle == ButtonBorderStyle.Solid)
                     {
                         using DeviceContextHdcScope hdc = deviceContext.ToHdcScope();
@@ -880,7 +917,9 @@ public static unsafe partial class ControlPaint
                                 bounds.Y + bounds.Height - 1 - i);
                         }
                     }
-                    else if (deviceContext.TryGetGraphics(create: true) is Graphics graphics)
+                    else
+#endif
+                    if (deviceContext.TryGetGraphics(create: true) is Graphics graphics)
                     {
                         using var pen = bottomColor.CreateStaticPen(
                             bottomStyle switch
@@ -909,6 +948,24 @@ public static unsafe partial class ControlPaint
                 {
                     HLSColor hlsColor = new(bottomColor);
                     float inc = InfinityToOne(1.0f / (bottomWidth - 1));
+#if LIBREWINFORMS_PORTABLE
+                    if (deviceContext.TryGetGraphics(create: true) is Graphics graphics)
+                    {
+                        for (int i = 0; i < bottomWidth; i++)
+                        {
+                            Color color = bottomStyle != ButtonBorderStyle.Inset
+                                ? hlsColor.Darker(1.0f - i * inc)
+                                : hlsColor.Lighter(1.0f - i * inc);
+                            using var pen = color.GetCachedPenScope();
+                            graphics.DrawLine(
+                                pen,
+                                bottomLineLefts[i],
+                                bounds.Y + bounds.Height - 1 - i,
+                                bottomLineRights[i],
+                                bounds.Y + bounds.Height - 1 - i);
+                        }
+                    }
+#else
                     using DeviceContextHdcScope hdc = deviceContext.ToHdcScope();
                     for (int i = 0; i < bottomWidth; i++)
                     {
@@ -925,6 +982,7 @@ public static unsafe partial class ControlPaint
                             bottomLineRights[i] + 1,
                             bounds.Y + bounds.Height - 1 - i);
                     }
+#endif
 
                     break;
                 }
@@ -939,6 +997,7 @@ public static unsafe partial class ControlPaint
             case ButtonBorderStyle.Dashed:
             case ButtonBorderStyle.Solid:
                 {
+#if !LIBREWINFORMS_PORTABLE
                     if (!rightColor.HasTransparency() && rightStyle == ButtonBorderStyle.Solid)
                     {
                         using DeviceContextHdcScope hdc = deviceContext.ToHdcScope();
@@ -954,7 +1013,9 @@ public static unsafe partial class ControlPaint
                                 rightLineBottoms[i] + 1);
                         }
                     }
-                    else if (deviceContext.TryGetGraphics(create: true) is Graphics graphics)
+                    else
+#endif
+                    if (deviceContext.TryGetGraphics(create: true) is Graphics graphics)
                     {
                         using var pen = rightColor.CreateStaticPen(
                             rightStyle switch
@@ -983,6 +1044,24 @@ public static unsafe partial class ControlPaint
                 {
                     HLSColor hlsColor = new(rightColor);
                     float inc = InfinityToOne(1.0f / (rightWidth - 1));
+#if LIBREWINFORMS_PORTABLE
+                    if (deviceContext.TryGetGraphics(create: true) is Graphics graphics)
+                    {
+                        for (int i = 0; i < rightWidth; i++)
+                        {
+                            Color color = rightStyle != ButtonBorderStyle.Inset
+                                ? hlsColor.Darker(1.0f - i * inc)
+                                : hlsColor.Lighter(1.0f - i * inc);
+                            using var pen = color.GetCachedPenScope();
+                            graphics.DrawLine(
+                                pen,
+                                bounds.X + bounds.Width - 1 - i,
+                                rightLineTops[i],
+                                bounds.X + bounds.Width - 1 - i,
+                                rightLineBottoms[i]);
+                        }
+                    }
+#else
                     using DeviceContextHdcScope hdc = deviceContext.ToHdcScope();
                     for (int i = 0; i < rightWidth; i++)
                     {
@@ -998,6 +1077,7 @@ public static unsafe partial class ControlPaint
                             bounds.X + bounds.Width - 1 - i,
                             rightLineBottoms[i] + 1);
                     }
+#endif
 
                     break;
                 }
@@ -1291,6 +1371,27 @@ public static unsafe partial class ControlPaint
     {
         ArgumentNullException.ThrowIfNull(context);
 
+#if LIBREWINFORMS_PORTABLE
+        // GDI+ right and bottom DrawRectangle borders are one pixel greater than GDI.
+        bounds = new Rectangle(bounds.X, bounds.Y, bounds.Width - 1, bounds.Height - 1);
+        if (context.TryGetGraphics(create: true) is Graphics graphics)
+        {
+            if (style == ButtonBorderStyle.Solid)
+            {
+                using var pen = color.GetCachedPenScope();
+                graphics.DrawRectangle(pen, bounds);
+            }
+            else
+            {
+                using var pen = color.CreateStaticPen(BorderStyleToDashStyle(style));
+                graphics.DrawRectangle(pen, bounds);
+            }
+
+            return;
+        }
+
+        throw new PlatformNotSupportedException("Portable border rendering requires a managed Graphics context.");
+#else
         if (color.HasTransparency() || style != ButtonBorderStyle.Solid)
         {
             // GDI+ right and bottom DrawRectangle border are 1 greater than GDI
@@ -1317,6 +1418,7 @@ public static unsafe partial class ControlPaint
         using DeviceContextHdcScope hdc = context.ToHdcScope();
         using CreatePenScope hpen = new(color);
         hdc.DrawRectangle(bounds, hpen);
+#endif
     }
 
     /// <summary>
