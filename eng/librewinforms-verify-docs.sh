@@ -52,19 +52,9 @@ require_text eng/librewinforms-package-list.sh "LibreWinForms.Sdk"
 require_text NuGet.config "https://api.nuget.org/v3/index.json"
 require_text eng/librewinforms-fetch-librewpf-packages.sh "librewpf-v"
 require_text eng/librewinforms-fetch-librewpf-packages.sh 'commit=\"${bridge_commit}\"'
-require_text src/LibreWinForms.Portable/Directory.Build.props "<PackageProjectUrl>https://github.com/wieslawsoltes/winforms</PackageProjectUrl>"
-require_text src/LibreWinForms.Portable/Directory.Build.props "<RepositoryUrl>https://github.com/wieslawsoltes/winforms</RepositoryUrl>"
-require_text src/LibreWinForms.Portable/Directory.Build.props "<PackageTags>librewinforms;progpu;silk.net;winforms;cross-platform</PackageTags>"
-require_text src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj "<PackageId>LibreWinForms.Compatibility.System.Windows.Forms</PackageId>"
-require_text src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj "<Description>Transitional LibreWinForms portable System.Windows.Forms compatibility surface"
-require_text src/LibreWinForms.Portable/LibreWinForms.WindowsFormsIntegration/LibreWinForms.WindowsFormsIntegration.csproj "<PackageId>LibreWinForms.WindowsFormsIntegration</PackageId>"
-require_text src/LibreWinForms.Portable/LibreWinForms.WindowsFormsIntegration/LibreWinForms.WindowsFormsIntegration.csproj "<Description>LibreWinForms portable WindowsFormsIntegration host surface"
-require_text src/LibreWinForms.Portable/LibreWinForms.WindowsFormsIntegration/LibreWinForms.WindowsFormsIntegration.csproj "<PackageTags>librewinforms;windowsformsintegration;librewpf;progpu;cross-platform</PackageTags>"
 require_text src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj "<PackageId>LibreWinForms.Sdk</PackageId>"
 require_text src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj "<Description>SDK package for cross-platform WinForms applications"
 require_text src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj "<PackageTags>librewinforms;winforms;sdk;progpu;silk.net;cross-platform;source-built</PackageTags>"
-require_text src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj "<PackageReadmeFile>README.md</PackageReadmeFile>"
-require_text src/LibreWinForms.Portable/LibreWinForms.WindowsFormsIntegration/LibreWinForms.WindowsFormsIntegration.csproj "<PackageReadmeFile>README.md</PackageReadmeFile>"
 require_text src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj "<PackageReadmeFile>README.md</PackageReadmeFile>"
 require_text src/LibreWinForms.Sdk/Sdk/Sdk.props '<LibreWinFormsUseCanonicalRuntime Condition="'\''$(LibreWinFormsUseCanonicalRuntime)'\'' == '\'''\''">true</LibreWinFormsUseCanonicalRuntime>'
 require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'LibreWinForms.Sdk is canonical-only'
@@ -122,14 +112,6 @@ require_text packaging/LibreWinForms.CanonicalWfiSmoke/Program.cs "namespace Lib
 require_text packaging/LibreWinForms.CanonicalWfiSmoke/Program.cs 'WindowsFormsHost { Child = panel }'
 reject_text eng/librewinforms-package-smoke.sh 'LibreWinForms.Sdk.CompatibilitySmoke'
 reject_text eng/librewinforms-package-smoke.sh 'LibreWinForms.Compatibility.System.Windows.Forms" Version'
-if [[ -e src/LibreWinForms.Portable/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj ]]; then
-  echo "LibreWinForms.Sdk project must remain outside the frozen Portable source tree." >&2
-  exit 1
-fi
-if [[ -e src/LibreWinForms.Portable/LibreWinForms.SdkSmoke/Program.cs ]]; then
-  echo "LibreWinForms SDK compatibility smoke must remain outside the frozen Portable source tree." >&2
-  exit 1
-fi
 require_text .github/workflows/librewinforms-ci.yml "LibreWinForms Build"
 require_text .github/workflows/librewinforms-ci.yml "Stage immutable LibreWPF bridge packages"
 require_text .github/workflows/librewinforms-ci.yml "Build canonical WindowsFormsIntegration from LibreWPF source"
@@ -165,13 +147,6 @@ require_text .github/workflows/librewinforms-release.yml "Create GitHub Release"
 require_text .github/workflows/librewinforms-release.yml "gh release create"
 require_text .github/workflows/librewinforms-release.yml "--generate-notes"
 require_text .github/workflows/librewinforms-release.yml "if-no-files-found: error"
-require_text src/test/compatibility/LibreWinForms.Portable.Tests/LibreWinForms.Portable.Tests.csproj 'Condition="'\''$(LibreWinFormsReferenceMode)'\'' == '\'''\''">Project'
-require_text src/test/compatibility/LibreWinForms.Portable.Tests/LibreWinForms.Portable.Tests.csproj 'AdditionalProperties="LibreWinFormsReferenceMode=$(LibreWinFormsReferenceMode);LibreWinFormsBridgePackageVersion=$(LibreWinFormsBridgePackageVersion);LibreWinFormsProGpuPackageVersion=$(LibreWinFormsProGpuPackageVersion)"'
-if [[ -e src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms.Tests/LibreWinForms.System.Windows.Forms.Tests.csproj ]]; then
-  echo "LibreWinForms compatibility tests must remain outside the frozen Portable source tree." >&2
-  exit 1
-fi
-
 for package_id in "${librewinforms_preview_package_ids[@]}"; do
   require_text README.md "| \`${package_id}\` |"
   require_text docs/librewinforms-release.md "\`${package_id}\`"

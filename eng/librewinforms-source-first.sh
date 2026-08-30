@@ -78,26 +78,7 @@ echo "Verifying ProGPU System.Drawing API debt and focused quality gates."
     --nologo
 )
 
-echo "Building the current comparison lane from the ProGPU submodule rather than NuGet."
-"${repo_root}/eng/common/dotnet.sh" build \
-  "${repo_root}/src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj" \
-  --configuration "${configuration}" \
-  --nologo \
-  -p:LibreWinFormsReferenceMode=Project
-
-echo "Testing relocated comparison source and designer audit contracts."
+echo "Verifying the retired Portable comparison vectors remain canonically owned."
 "${repo_root}/eng/librewinforms-verify-portable-vector-manifest.sh"
-"${repo_root}/eng/common/dotnet.sh" build \
-  "${repo_root}/src/test/compatibility/LibreWinForms.Portable.Tests/LibreWinForms.Portable.Tests.csproj" \
-  --configuration "${configuration}" \
-  --nologo \
-  -p:LibreWinFormsReferenceMode=Project
-DOTNET_ROLL_FORWARD=Major DOTNET_ROLL_FORWARD_TO_PRERELEASE=1 \
-  "${repo_root}/eng/common/dotnet.sh" run \
-  --project "${repo_root}/src/test/compatibility/LibreWinForms.Portable.Tests/LibreWinForms.Portable.Tests.csproj" \
-  --configuration "${configuration}" \
-  --no-build \
-  -- \
-  forms-designer-layout
 
-echo "Source-first shadow validation succeeded."
+echo "Source-first validation succeeded."
