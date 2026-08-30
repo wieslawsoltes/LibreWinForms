@@ -8619,6 +8619,24 @@ public unsafe partial class Control :
     {
         Control? parent = ParentInternal;
 
+#if LIBREWINFORMS_PORTABLE
+        Graphics graphics = e.GraphicsInternal;
+        using GraphicsStateScope saveState = new(graphics);
+        if (transparentRegion is not null)
+        {
+            graphics.Clip = transparentRegion;
+        }
+
+        if (parent is null)
+        {
+            using SolidBrush brush = new(SystemColors.Control);
+            graphics.FillRectangle(brush, rectangle);
+        }
+        else
+        {
+            DrawPortableParentBackground(graphics, rectangle);
+        }
+#else
         if (parent is null)
         {
             // For whatever reason, our parent can't paint our background, but we need some kind of background
@@ -8686,6 +8704,7 @@ public unsafe partial class Control :
             InvokePaintBackground(parent, newArgs);
             InvokePaint(parent, newArgs);
         }
+#endif
     }
 
 #if LIBREWINFORMS_PORTABLE
@@ -11287,8 +11306,9 @@ public unsafe partial class Control :
 
     private void SetWindowStyle(int flag, bool value)
     {
-        int styleFlags = (int)PInvokeCore.GetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_STYLE);
-        PInvokeCore.SetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_STYLE, value ? styleFlags | flag : styleFlags & ~flag);
+        WINDOW_STYLE styleFlags = WindowStyle;
+        WINDOW_STYLE changedStyle = (WINDOW_STYLE)(uint)flag;
+        WindowStyle = value ? styleFlags | changedStyle : styleFlags & ~changedStyle;
     }
 
     /// <summary>

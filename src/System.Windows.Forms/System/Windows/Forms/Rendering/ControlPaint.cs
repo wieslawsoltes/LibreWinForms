@@ -1577,6 +1577,20 @@ public static unsafe partial class ControlPaint
         ArgumentOutOfRangeException.ThrowIfNegative(width);
         ArgumentOutOfRangeException.ThrowIfNegative(height);
 
+#if LIBREWINFORMS_PORTABLE
+        if (width == 0 || height == 0)
+        {
+            throw new ArgumentException(SR.ControlMetaFileDCWrapperSizeInvalid);
+        }
+
+        DrawPortableFrameControl(
+            graphics,
+            new Rectangle(x, y, width, height),
+            kind,
+            state,
+            foreColor,
+            backColor);
+#else
         RECT rcFrame = new(0, 0, width, height);
         using Bitmap bitmap = new(width, height);
         using Graphics g2 = Graphics.FromImage(bitmap);
@@ -1613,7 +1627,299 @@ public static unsafe partial class ControlPaint
                 null,
                 IntPtr.Zero);
         }
+#endif
     }
+
+#if LIBREWINFORMS_PORTABLE
+    private static void DrawPortableFrameControl(
+        Graphics graphics,
+        Rectangle bounds,
+        DFC_TYPE kind,
+        DFCS_STATE state,
+        Color foreColor,
+        Color backColor)
+    {
+        bool inactive = state.HasFlag(DFCS_STATE.DFCS_INACTIVE);
+        bool pushed = state.HasFlag(DFCS_STATE.DFCS_PUSHED);
+        bool flat = state.HasFlag(DFCS_STATE.DFCS_FLAT);
+        bool isChecked = state.HasFlag(DFCS_STATE.DFCS_CHECKED);
+        Color foreground = foreColor.IsEmpty
+            ? inactive ? SystemColors.GrayText : SystemColors.ControlText
+            : foreColor;
+        Color background = backColor.IsEmpty ? SystemColors.Control : backColor;
+        int controlKind = (int)state & 0xFF;
+
+        switch (kind)
+        {
+            case DFC_TYPE.DFC_BUTTON:
+                switch (controlKind)
+                {
+                    case 0x04: // DFCS_BUTTONRADIO
+                        DrawPortableRadioGlyph(graphics, bounds, foreground, isChecked, pushed);
+                        break;
+                    case 0x08: // DFCS_BUTTON3STATE
+                        DrawPortableCheckGlyph(
+                            graphics,
+                            bounds,
+                            foreground,
+                            mixed: isChecked,
+                            pushed: pushed,
+                            flat: flat,
+                            isChecked: isChecked);
+                        break;
+                    case 0x10: // DFCS_BUTTONPUSH
+                        DrawPortableButtonSurface(graphics, bounds, background, pushed, flat);
+                        break;
+                    default: // DFCS_BUTTONCHECK and the radio image/mask compatibility variants
+                        DrawPortableCheckGlyph(
+                            graphics,
+                            bounds,
+                            foreground,
+                            mixed: false,
+                            pushed: pushed,
+                            flat: flat,
+                            isChecked: isChecked);
+                        break;
+                }
+
+                break;
+            case DFC_TYPE.DFC_CAPTION:
+                DrawPortableButtonSurface(graphics, bounds, background, pushed, flat);
+                DrawPortableCaptionGlyph(graphics, bounds, foreground, controlKind);
+                break;
+            case DFC_TYPE.DFC_MENU:
+                DrawPortableMenuGlyph(graphics, bounds, foreground, controlKind);
+                break;
+            case DFC_TYPE.DFC_SCROLL:
+                DrawPortableButtonSurface(graphics, bounds, background, pushed, flat);
+                DrawPortableScrollGlyph(graphics, bounds, foreground, controlKind);
+                break;
+        }
+    }
+
+    private static void DrawPortableButtonSurface(
+        Graphics graphics,
+        Rectangle bounds,
+        Color background,
+        bool pushed,
+        bool flat)
+    {
+        using SolidBrush brush = new(background);
+        graphics.FillRectangle(brush, bounds);
+        DrawPortableFrameBorder(graphics, bounds, pushed, flat);
+    }
+
+    private static void DrawPortableFrameBorder(Graphics graphics, Rectangle bounds, bool pushed, bool flat)
+    {
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            return;
+        }
+
+        int right = bounds.Right - 1;
+        int bottom = bounds.Bottom - 1;
+        if (flat)
+        {
+            graphics.DrawRectangle(SystemPens.ControlDark, bounds.X, bounds.Y, bounds.Width - 1, bounds.Height - 1);
+            return;
+        }
+
+        Pen topLeft = pushed ? SystemPens.ControlDarkDark : SystemPens.ControlLightLight;
+        Pen bottomRight = pushed ? SystemPens.ControlLightLight : SystemPens.ControlDarkDark;
+        graphics.DrawLine(topLeft, bounds.Left, bounds.Top, right, bounds.Top);
+        graphics.DrawLine(topLeft, bounds.Left, bounds.Top, bounds.Left, bottom);
+        graphics.DrawLine(bottomRight, bounds.Left, bottom, right, bottom);
+        graphics.DrawLine(bottomRight, right, bounds.Top, right, bottom);
+
+        if (bounds.Width > 3 && bounds.Height > 3)
+        {
+            Pen innerTopLeft = pushed ? SystemPens.ControlDark : SystemPens.ControlLight;
+            Pen innerBottomRight = pushed ? SystemPens.ControlLight : SystemPens.ControlDark;
+            graphics.DrawLine(innerTopLeft, bounds.Left + 1, bounds.Top + 1, right - 1, bounds.Top + 1);
+            graphics.DrawLine(innerTopLeft, bounds.Left + 1, bounds.Top + 1, bounds.Left + 1, bottom - 1);
+            graphics.DrawLine(innerBottomRight, bounds.Left + 1, bottom - 1, right - 1, bottom - 1);
+            graphics.DrawLine(innerBottomRight, right - 1, bounds.Top + 1, right - 1, bottom - 1);
+        }
+    }
+
+    private static void DrawPortableCheckGlyph(
+        Graphics graphics,
+        Rectangle bounds,
+        Color foreground,
+        bool mixed,
+        bool pushed,
+        bool flat,
+        bool isChecked = true)
+    {
+        using SolidBrush background = new(pushed ? SystemColors.Control : SystemColors.Window);
+        graphics.FillRectangle(background, bounds);
+        DrawPortableFrameBorder(graphics, bounds, pushed: true, flat);
+
+        int inset = Math.Max(1, Math.Min(bounds.Width, bounds.Height) / 5);
+        Rectangle markBounds = Rectangle.Inflate(bounds, -inset, -inset);
+        if (markBounds.Width <= 0 || markBounds.Height <= 0 || (!mixed && !isChecked))
+        {
+            return;
+        }
+
+        if (mixed)
+        {
+            using SolidBrush markBrush = new(foreground);
+            int barHeight = Math.Max(1, markBounds.Height / 3);
+            graphics.FillRectangle(
+                markBrush,
+                markBounds.Left,
+                markBounds.Top + ((markBounds.Height - barHeight) / 2),
+                markBounds.Width,
+                barHeight);
+            return;
+        }
+
+        float penWidth = Math.Max(1.0f, Math.Min(bounds.Width, bounds.Height) / 7.0f);
+        using Pen checkPen = new(foreground, penWidth);
+        Point first = new(markBounds.Left, markBounds.Top + (markBounds.Height / 2));
+        Point second = new(markBounds.Left + (markBounds.Width * 2 / 5), markBounds.Bottom - 1);
+        Point third = new(markBounds.Right - 1, markBounds.Top);
+        graphics.DrawLine(checkPen, first, second);
+        graphics.DrawLine(checkPen, second, third);
+    }
+
+    private static void DrawPortableRadioGlyph(
+        Graphics graphics,
+        Rectangle bounds,
+        Color foreground,
+        bool isChecked,
+        bool pushed)
+    {
+        Rectangle ellipse = new(bounds.X, bounds.Y, bounds.Width - 1, bounds.Height - 1);
+        using SolidBrush background = new(pushed ? SystemColors.Control : SystemColors.Window);
+        graphics.FillEllipse(background, ellipse);
+        graphics.DrawEllipse(SystemPens.ControlDarkDark, ellipse);
+        if (!isChecked)
+        {
+            return;
+        }
+
+        int inset = Math.Max(2, Math.Min(bounds.Width, bounds.Height) / 3);
+        Rectangle dot = Rectangle.Inflate(ellipse, -inset, -inset);
+        if (dot.Width > 0 && dot.Height > 0)
+        {
+            using SolidBrush dotBrush = new(foreground);
+            graphics.FillEllipse(dotBrush, dot);
+        }
+    }
+
+    private static void DrawPortableMenuGlyph(Graphics graphics, Rectangle bounds, Color foreground, int controlKind)
+    {
+        using SolidBrush brush = new(foreground);
+        Rectangle glyph = Rectangle.Inflate(bounds, -Math.Max(1, bounds.Width / 4), -Math.Max(1, bounds.Height / 4));
+        if (glyph.Width <= 0 || glyph.Height <= 0)
+        {
+            return;
+        }
+
+        switch (controlKind)
+        {
+            case 0x01: // DFCS_MENUCHECK
+                using (Pen pen = new(foreground, Math.Max(1.0f, Math.Min(bounds.Width, bounds.Height) / 7.0f)))
+                {
+                    Point first = new(glyph.Left, glyph.Top + (glyph.Height / 2));
+                    Point second = new(glyph.Left + (glyph.Width * 2 / 5), glyph.Bottom - 1);
+                    Point third = new(glyph.Right - 1, glyph.Top);
+                    graphics.DrawLine(pen, first, second);
+                    graphics.DrawLine(pen, second, third);
+                }
+
+                break;
+            case 0x02: // DFCS_MENUBULLET
+                graphics.FillEllipse(brush, glyph);
+                break;
+            default: // DFCS_MENUARROW
+                graphics.FillPolygon(
+                    brush,
+                    [
+                        new(glyph.Left, glyph.Top),
+                        new(glyph.Right - 1, glyph.Top + (glyph.Height / 2)),
+                        new(glyph.Left, glyph.Bottom - 1),
+                    ]);
+                break;
+        }
+    }
+
+    private static void DrawPortableScrollGlyph(Graphics graphics, Rectangle bounds, Color foreground, int controlKind)
+    {
+        using SolidBrush brush = new(foreground);
+        Rectangle glyph = Rectangle.Inflate(bounds, -Math.Max(2, bounds.Width / 3), -Math.Max(2, bounds.Height / 3));
+        if (glyph.Width <= 0 || glyph.Height <= 0)
+        {
+            return;
+        }
+
+        Point[] points = controlKind switch
+        {
+            0x00 =>
+            [
+                new(glyph.Left + (glyph.Width / 2), glyph.Top),
+                new(glyph.Right - 1, glyph.Bottom - 1),
+                new(glyph.Left, glyph.Bottom - 1),
+            ],
+            0x02 =>
+            [
+                new(glyph.Left, glyph.Top + (glyph.Height / 2)),
+                new(glyph.Right - 1, glyph.Top),
+                new(glyph.Right - 1, glyph.Bottom - 1),
+            ],
+            0x03 =>
+            [
+                new(glyph.Right - 1, glyph.Top + (glyph.Height / 2)),
+                new(glyph.Left, glyph.Top),
+                new(glyph.Left, glyph.Bottom - 1),
+            ],
+            _ =>
+            [
+                new(glyph.Left, glyph.Top),
+                new(glyph.Right - 1, glyph.Top),
+                new(glyph.Left + (glyph.Width / 2), glyph.Bottom - 1),
+            ],
+        };
+        graphics.FillPolygon(brush, points);
+    }
+
+    private static void DrawPortableCaptionGlyph(Graphics graphics, Rectangle bounds, Color foreground, int controlKind)
+    {
+        int inset = Math.Max(2, Math.Min(bounds.Width, bounds.Height) / 4);
+        Rectangle glyph = Rectangle.Inflate(bounds, -inset, -inset);
+        if (glyph.Width <= 0 || glyph.Height <= 0)
+        {
+            return;
+        }
+
+        using Pen pen = new(foreground, Math.Max(1.0f, Math.Min(bounds.Width, bounds.Height) / 10.0f));
+        switch (controlKind)
+        {
+            case 0x01: // DFCS_CAPTIONMIN
+                graphics.DrawLine(pen, glyph.Left, glyph.Bottom - 1, glyph.Right - 1, glyph.Bottom - 1);
+                break;
+            case 0x02: // DFCS_CAPTIONMAX
+                graphics.DrawRectangle(pen, glyph.Left, glyph.Top, glyph.Width - 1, glyph.Height - 1);
+                break;
+            case 0x03: // DFCS_CAPTIONRESTORE
+                graphics.DrawRectangle(pen, glyph.Left + 1, glyph.Top, glyph.Width - 2, glyph.Height - 2);
+                graphics.DrawRectangle(pen, glyph.Left, glyph.Top + 2, glyph.Width - 2, glyph.Height - 2);
+                break;
+            case 0x04: // DFCS_CAPTIONHELP
+                graphics.DrawLine(pen, glyph.Left + (glyph.Width / 3), glyph.Top, glyph.Right - 1, glyph.Top);
+                graphics.DrawLine(pen, glyph.Right - 1, glyph.Top, glyph.Right - 1, glyph.Top + (glyph.Height / 2));
+                graphics.DrawLine(pen, glyph.Right - 1, glyph.Top + (glyph.Height / 2), glyph.Left + (glyph.Width / 2), glyph.Bottom - 2);
+                graphics.DrawLine(pen, glyph.Left + (glyph.Width / 2), glyph.Bottom - 1, glyph.Left + (glyph.Width / 2), glyph.Bottom - 1);
+                break;
+            default: // DFCS_CAPTIONCLOSE
+                graphics.DrawLine(pen, glyph.Left, glyph.Top, glyph.Right - 1, glyph.Bottom - 1);
+                graphics.DrawLine(pen, glyph.Right - 1, glyph.Top, glyph.Left, glyph.Bottom - 1);
+                break;
+        }
+    }
+#endif
 
     /// <summary>
     ///  Draws a standard selection grab handle with the given dimensions. Grab

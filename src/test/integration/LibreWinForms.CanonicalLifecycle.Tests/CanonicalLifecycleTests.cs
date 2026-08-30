@@ -1576,6 +1576,29 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void ButtonCheckStateUsesManagedPortableHandleLifecycle()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var checkBox = new CheckBox { CheckState = CheckState.Checked };
+        using var radioButton = new RadioButton { Checked = true };
+
+        checkBox.CreateControl();
+        radioButton.CreateControl();
+
+        checkBox.IsHandleCreated.Should().BeTrue();
+        checkBox.CheckState.Should().Be(CheckState.Checked);
+        radioButton.IsHandleCreated.Should().BeTrue();
+        radioButton.Checked.Should().BeTrue();
+
+        checkBox.CheckState = CheckState.Indeterminate;
+        radioButton.Checked = false;
+
+        checkBox.CheckState.Should().Be(CheckState.Indeterminate);
+        checkBox.Checked.Should().BeTrue();
+        radioButton.Checked.Should().BeFalse();
+    }
+
+    [Fact]
     public void DataGridViewLayoutUsesManagedGraphicsWithoutScreenHdc()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -2942,6 +2965,44 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void ControlPaintFrameGlyphsUseManagedProGpuDrawingWithoutHdc()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var target = new Bitmap(144, 20, PixelFormat.Format32bppArgb);
+        using (Graphics graphics = Graphics.FromImage(target))
+        {
+            graphics.Clear(Color.Transparent);
+            ControlPaint.DrawButton(graphics, new Rectangle(0, 0, 16, 16), ButtonState.Normal);
+            ControlPaint.DrawCaptionButton(graphics, new Rectangle(18, 0, 16, 16), CaptionButton.Close, ButtonState.Normal);
+            ControlPaint.DrawCheckBox(graphics, new Rectangle(36, 0, 16, 16), ButtonState.Checked);
+            ControlPaint.DrawMixedCheckBox(graphics, new Rectangle(54, 0, 16, 16), ButtonState.Checked);
+            ControlPaint.DrawRadioButton(graphics, new Rectangle(72, 0, 16, 16), ButtonState.Checked);
+            ControlPaint.DrawMenuGlyph(graphics, new Rectangle(90, 0, 16, 16), MenuGlyph.Checkmark);
+            ControlPaint.DrawScrollButton(graphics, new Rectangle(108, 0, 16, 16), ScrollButton.Down, ButtonState.Normal);
+            ControlPaint.DrawComboButton(graphics, new Rectangle(126, 0, 16, 16), ButtonState.Normal);
+        }
+
+        for (int slot = 0; slot < 8; slot++)
+        {
+            int left = slot * 18;
+            bool hasDrawnPixel = false;
+            for (int y = 0; y < 16 && !hasDrawnPixel; y++)
+            {
+                for (int x = left; x < left + 16; x++)
+                {
+                    if (target.GetPixel(x, y).A != 0)
+                    {
+                        hasDrawnPixel = true;
+                        break;
+                    }
+                }
+            }
+
+            hasDrawnPixel.Should().BeTrue($"frame-control glyph slot {slot} should render managed pixels");
+        }
+    }
+
+    [Fact]
     public void CursorFiles_DecodeManagedPngAndDibPayloadsAndFailClosed()
     {
         UseHeadlessPlatform(autoCloseWindows: false);
@@ -3870,6 +3931,26 @@ public class CanonicalLifecycleTests
         cleanChildPaints.Should().Be(0);
         platform.LastRetainedLayerCount.Should().Be(3);
         platform.LastRetainedLayerRepaintCount.Should().Be(2);
+    }
+
+    [Fact]
+    public void ToolStripTransparentCornersPaintThroughManagedParentSurface()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { ClientSize = new Size(320, 100) };
+        using ToolStrip toolStrip = new()
+        {
+            Renderer = new ToolStripProfessionalRenderer(),
+        };
+        toolStrip.Items.Add("group");
+        form.Controls.Add(toolStrip);
+
+        form.Show();
+        toolStrip.Invalidate();
+        toolStrip.Update();
+
+        platform.PresentCount.Should().BeGreaterThan(0);
+        platform.LastPaintCommandCount.Should().BeGreaterThan(0);
     }
 
     [Fact]

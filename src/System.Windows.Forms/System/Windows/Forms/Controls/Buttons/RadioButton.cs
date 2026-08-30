@@ -160,10 +160,12 @@ public partial class RadioButton : ButtonBase
             {
                 _isChecked = value;
 
+#if !LIBREWINFORMS_PORTABLE
                 if (IsHandleCreated)
                 {
                     PInvokeCore.SendMessage(this, PInvoke.BM_SETCHECK, (WPARAM)(BOOL)value);
                 }
+#endif
 
                 Invalidate();
                 Update();
@@ -344,10 +346,12 @@ public partial class RadioButton : ButtonBase
     {
         base.OnHandleCreated(e);
 
+#if !LIBREWINFORMS_PORTABLE
         if (IsHandleCreated)
         {
             PInvokeCore.SendMessage(this, PInvoke.BM_SETCHECK, (WPARAM)(BOOL)_isChecked);
         }
+#endif
     }
 
     /// <summary>
