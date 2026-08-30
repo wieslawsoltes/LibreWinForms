@@ -5,7 +5,7 @@ using LibreWinForms.Platform;
 
 namespace LibreWinForms.ProGPU;
 
-public sealed class ProGpuPaintService : ILibrePaintService, ILibreReversibleDrawingService
+public sealed class ProGpuPaintService : ILibrePaintService, ILibreAdornerService, ILibreReversibleDrawingService
 {
     private readonly ILibreDispatcher _fallbackDispatcher;
     private readonly ILibreHandleRegistry _handles;
@@ -68,6 +68,16 @@ public sealed class ProGpuPaintService : ILibrePaintService, ILibreReversibleDra
             dispatcher.Send(window.PresentPendingPaint);
         }
     }
+
+    public System.Drawing.Graphics CreateGraphics(
+        LibreHandle owner,
+        LibreAdornerId adorner,
+        LibreRectangle bounds,
+        LibreRectangle clipRectangle)
+        => Resolve(owner).CreateAdornerGraphics(adorner, bounds, clipRectangle);
+
+    public void Remove(LibreHandle owner, LibreAdornerId adorner)
+        => Resolve(owner).RemoveAdorner(adorner);
 
     public void DrawFrame(
         LibreRectangle rectangle,

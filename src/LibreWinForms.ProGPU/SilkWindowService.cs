@@ -205,8 +205,10 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private readonly ContainerVisual _paintRoot = new();
     private readonly DrawingVisual _fallbackPaintVisual = new();
     private readonly DrawingVisual _transientPaintVisual = new();
+    private readonly ContainerVisual _adornerRoot = new();
     private readonly DrawingVisual _reversiblePaintVisual = new();
     private readonly Dictionary<LibreHandle, DrawingVisual> _paintLayers = [];
+    private readonly ProGpuAdornerStore _adorners;
     private IInputContext? _input;
     private volatile WgpuContext? _wgpuContext;
     private Compositor? _compositor;
@@ -243,11 +245,13 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _handles = handles;
         _monitors = monitors;
         _events = events;
+        _adorners = new ProGpuAdornerStore(_adornerRoot);
         _coordinateMode = options.CoordinateMode;
         ValidateSizeConstraints(options.MinimumSize, options.MaximumSize);
         ValidateOpacity(options.Opacity);
         _paintRoot.AddChild(_fallbackPaintVisual);
         _paintRoot.AddTopmostChild(_transientPaintVisual);
+        _paintRoot.AddTopmostChild(_adornerRoot);
         _paintRoot.AddTopmostChild(_reversiblePaintVisual);
         LibreRectangle nativeBounds = LibreWindowCoordinates.ToNative(
             options.Bounds,
@@ -615,6 +619,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         }
 
         _paintLayers.Clear();
+        _adorners.Clear();
         _fallbackPaintVisual.Context.Clear();
         _transientPaintVisual.Context.Clear();
         _reversiblePaintVisual.Context.Clear();
@@ -775,6 +780,114 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         // Disposing Graphics balances the initial clip with one pop command.
         infrastructureCommandCount = checked(recording.Commands.Count + 1);
         return graphics;
+    }
+
+    internal Graphics CreateAdornerGraphics(
+        LibreAdornerId adorner,
+        LibreRectangle bounds,
+        LibreRectangle clipRectangle)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (adorner.IsNull)
+        {
+            throw new ArgumentException("An adorner identity cannot be null.", nameof(adorner));
+        }
+
+        if (bounds.Width < 0 || bounds.Height < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(bounds), "Adorner dimensions cannot be negative.");
+        }
+
+        WgpuContext targetContext = _wgpuContext
+            ?? throw new InvalidOperationException("The ProGPU window drawing context is not initialized.");
+        DrawingContext recording = new();
+        Graphics graphics = Graphics.FromProGpuDrawingContext(
+            recording,
+            new RectangleF(0f, 0f, bounds.Width, bounds.Height),
+            Matrix4x4.Identity,
+            targetContext,
+            () => CompleteAdornerGraphics(adorner, bounds, clipRectangle, recording));
+        graphics.SetClip(new RectangleF(
+            clipRectangle.X - bounds.X,
+            clipRectangle.Y - bounds.Y,
+            clipRectangle.Width,
+            clipRectangle.Height));
+        return graphics;
+    }
+
+    internal void RemoveAdorner(LibreAdornerId adorner)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (adorner.IsNull)
+        {
+            throw new ArgumentException("An adorner identity cannot be null.", nameof(adorner));
+        }
+
+        void RemoveOnDispatcher()
+        {
+            if (!_adorners.Remove(adorner))
+            {
+                return;
+            }
+
+            _presentationQueued = true;
+            _dispatcher.Wake();
+        }
+
+        if (_dispatcher.CheckAccess())
+        {
+            RemoveOnDispatcher();
+        }
+        else
+        {
+            _dispatcher.Send(RemoveOnDispatcher);
+        }
+    }
+
+    private void CompleteAdornerGraphics(
+        LibreAdornerId adorner,
+        LibreRectangle bounds,
+        LibreRectangle clipRectangle,
+        DrawingContext recording)
+    {
+        void CommitOnDispatcher()
+        {
+            try
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                _adorners.Commit(adorner, bounds, clipRectangle, recording);
+                _presentationQueued = true;
+                _dispatcher.Wake();
+            }
+            finally
+            {
+                recording.Clear();
+            }
+        }
+
+        if (_dispatcher.CheckAccess())
+        {
+            CommitOnDispatcher();
+            return;
+        }
+
+        try
+        {
+            _dispatcher.Post(CommitOnDispatcher);
+        }
+        catch (ObjectDisposedException)
+        {
+            recording.Clear();
+        }
+        catch
+        {
+            recording.Clear();
+            throw;
+        }
     }
 
     private void FlushGraphics(
@@ -1218,6 +1331,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
                     _paintRoot,
                     _fallbackPaintVisual,
                     _transientPaintVisual,
+                    _adornerRoot,
                     _reversiblePaintVisual,
                     _paintLayers,
                     surfaceBounds,
@@ -1234,6 +1348,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         }
 
         _paintRoot.Size = new Vector2(surfaceBounds.Width, surfaceBounds.Height);
+        _adornerRoot.Size = new Vector2(surfaceBounds.Width, surfaceBounds.Height);
         _paintRoot.Invalidate();
         PresentFrame(_wgpuContext, _compositor, surfaceBounds);
     }

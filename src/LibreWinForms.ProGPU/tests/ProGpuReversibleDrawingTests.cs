@@ -60,20 +60,23 @@ public sealed class ProGpuReversibleDrawingTests
     }
 
     [Fact]
-    public void RetainedPaintFrameKeepsReversibleVisualAboveTransientGraphics()
+    public void RetainedPaintFrameKeepsAdornersAndReversibleVisualAboveTransientGraphics()
     {
         var root = new ContainerVisual();
         var fallback = new DrawingVisual();
         var transient = new DrawingVisual();
+        var adorners = new ContainerVisual();
         var reversible = new DrawingVisual();
         var layers = new Dictionary<LibreHandle, DrawingVisual>();
         root.AddChild(fallback);
         root.AddTopmostChild(transient);
+        root.AddTopmostChild(adorners);
         root.AddTopmostChild(reversible);
         var frame = new ProGpuRetainedPaintFrame(
             root,
             fallback,
             transient,
+            adorners,
             reversible,
             layers,
             new LibreRectangle(0, 0, 100, 100),
@@ -88,9 +91,10 @@ public sealed class ProGpuReversibleDrawingTests
 
         frame.Complete();
 
-        root.Children.Should().HaveCount(4);
+        root.Children.Should().HaveCount(5);
         root.Children[0].Should().BeSameAs(fallback);
-        root.Children[^2].Should().BeSameAs(transient);
+        root.Children[^3].Should().BeSameAs(transient);
+        root.Children[^2].Should().BeSameAs(adorners);
         root.Children[^1].Should().BeSameAs(reversible);
     }
 }

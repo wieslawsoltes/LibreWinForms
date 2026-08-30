@@ -73,6 +73,56 @@ public interface ILibrePaintService
     void Present(LibreHandle target);
 }
 
+/// <summary>An opaque retained adorner identity scoped to one owner window.</summary>
+public readonly record struct LibreAdornerId(long Value)
+{
+    public bool IsNull => Value == 0;
+}
+
+/// <summary>
+/// Records independently replaceable drawing above canonical controls without
+/// exposing a renderer-specific visual or native child window.
+/// </summary>
+public interface ILibreAdornerService
+{
+    /// <summary>
+    /// Creates a local-coordinate recorder for one adorner. Bounds and clip are
+    /// expressed in owner-window coordinates. Disposing the returned recorder
+    /// atomically replaces the prior recording for the same identity.
+    /// </summary>
+    System.Drawing.Graphics CreateGraphics(
+        LibreHandle owner,
+        LibreAdornerId adorner,
+        LibreRectangle bounds,
+        LibreRectangle clipRectangle);
+
+    /// <summary>Removes an existing adorner. Removing a missing identity is idempotent.</summary>
+    void Remove(LibreHandle owner, LibreAdornerId adorner);
+}
+
+/// <summary>Explicit default for hosts without retained owner-window adorners.</summary>
+public sealed class UnsupportedLibreAdornerService : ILibreAdornerService
+{
+    public static UnsupportedLibreAdornerService Instance { get; } = new();
+
+    private UnsupportedLibreAdornerService()
+    {
+    }
+
+    public System.Drawing.Graphics CreateGraphics(
+        LibreHandle owner,
+        LibreAdornerId adorner,
+        LibreRectangle bounds,
+        LibreRectangle clipRectangle)
+        => throw CreateException();
+
+    public void Remove(LibreHandle owner, LibreAdornerId adorner)
+        => throw CreateException();
+
+    private static PlatformNotSupportedException CreateException()
+        => new("This LibreWinForms host does not provide retained owner-window adorners.");
+}
+
 /// <summary>The frame styles supported by canonical reversible screen feedback.</summary>
 public enum LibreReversibleFrameStyle
 {

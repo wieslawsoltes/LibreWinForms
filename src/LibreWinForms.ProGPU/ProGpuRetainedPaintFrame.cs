@@ -13,6 +13,7 @@ internal sealed class ProGpuRetainedPaintFrame : ILibreRetainedPaintFrame
     private readonly ContainerVisual _root;
     private readonly DrawingVisual _fallbackVisual;
     private readonly DrawingVisual _transientVisual;
+    private readonly ContainerVisual _adornerRoot;
     private readonly DrawingVisual _reversibleVisual;
     private readonly Dictionary<LibreHandle, DrawingVisual> _layers;
     private readonly List<DrawingVisual> _orderedLayers = [];
@@ -23,6 +24,7 @@ internal sealed class ProGpuRetainedPaintFrame : ILibreRetainedPaintFrame
         ContainerVisual root,
         DrawingVisual fallbackVisual,
         DrawingVisual transientVisual,
+        ContainerVisual adornerRoot,
         DrawingVisual reversibleVisual,
         Dictionary<LibreHandle, DrawingVisual> layers,
         LibreRectangle surfaceBounds,
@@ -31,6 +33,7 @@ internal sealed class ProGpuRetainedPaintFrame : ILibreRetainedPaintFrame
         _root = root;
         _fallbackVisual = fallbackVisual;
         _transientVisual = transientVisual;
+        _adornerRoot = adornerRoot;
         _reversibleVisual = reversibleVisual;
         _layers = layers;
         SurfaceBounds = surfaceBounds;
@@ -128,6 +131,7 @@ internal sealed class ProGpuRetainedPaintFrame : ILibreRetainedPaintFrame
             }
 
             _root.AddTopmostChild(_transientVisual);
+            _root.AddTopmostChild(_adornerRoot);
             _root.AddTopmostChild(_reversibleVisual);
         }
     }
@@ -135,9 +139,10 @@ internal sealed class ProGpuRetainedPaintFrame : ILibreRetainedPaintFrame
     private bool HasExpectedVisualOrder()
     {
         IReadOnlyList<Visual> children = _root.Children;
-        if (children.Count != _orderedLayers.Count + 3
+        if (children.Count != _orderedLayers.Count + 4
             || !ReferenceEquals(children[0], _fallbackVisual)
-            || !ReferenceEquals(children[^2], _transientVisual)
+            || !ReferenceEquals(children[^3], _transientVisual)
+            || !ReferenceEquals(children[^2], _adornerRoot)
             || !ReferenceEquals(children[^1], _reversibleVisual))
         {
             return false;

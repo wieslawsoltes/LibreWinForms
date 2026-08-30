@@ -47,6 +47,26 @@ public class LibrePlatformTests
     }
 
     [Fact]
+    public void PaintServiceWithoutAdornersFailsClosedThroughTypedCapability()
+    {
+        TestServices test = new();
+        using LibrePlatformServices services = test.Create();
+
+        services.Adorners.Should().BeSameAs(UnsupportedLibreAdornerService.Instance);
+        Action create = () => services.Adorners.CreateGraphics(
+            new LibreHandle((nint)1, LibreHandleKind.Window),
+            new LibreAdornerId(1),
+            new LibreRectangle(0, 0, 10, 10),
+            new LibreRectangle(0, 0, 10, 10));
+        Action remove = () => services.Adorners.Remove(
+            new LibreHandle((nint)1, LibreHandleKind.Window),
+            new LibreAdornerId(1));
+
+        create.Should().Throw<PlatformNotSupportedException>();
+        remove.Should().Throw<PlatformNotSupportedException>();
+    }
+
+    [Fact]
     public void DispatcherWithoutProviderFailsClosedOnASecondUiThread()
     {
         TestServices test = new();

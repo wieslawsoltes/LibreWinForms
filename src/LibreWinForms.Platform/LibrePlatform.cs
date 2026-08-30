@@ -415,6 +415,8 @@ public sealed class LibrePlatformServices : IDisposable
             ?? UnsupportedLibreExternalWindowOwnerService.Instance;
         Monitors = monitors ?? throw new ArgumentNullException(nameof(monitors));
         Painting = painting ?? throw new ArgumentNullException(nameof(painting));
+        Adorners = painting as ILibreAdornerService
+            ?? UnsupportedLibreAdornerService.Instance;
         ReversibleDrawing = painting as ILibreReversibleDrawingService
             ?? UnsupportedLibreReversibleDrawingService.Instance;
         DesktopCapture = desktopCapture ?? throw new ArgumentNullException(nameof(desktopCapture));
@@ -447,6 +449,8 @@ public sealed class LibrePlatformServices : IDisposable
     public ILibreMonitorService Monitors { get; }
 
     public ILibrePaintService Painting { get; }
+
+    public ILibreAdornerService Adorners { get; }
 
     public ILibreReversibleDrawingService ReversibleDrawing { get; }
 
@@ -497,6 +501,7 @@ public sealed class LibrePlatformServices : IDisposable
         DisposeService(NativeGraphics, disposed);
         DisposeService(NativeFonts, disposed);
         DisposeService(DesktopCapture, disposed);
+        DisposeService(Adorners, disposed);
         DisposeService(ReversibleDrawing, disposed);
         DisposeService(Painting, disposed);
         DisposeService(Monitors, disposed);

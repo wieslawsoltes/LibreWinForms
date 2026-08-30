@@ -44,6 +44,7 @@ public class ProGpuDispatcherTests
         services.Windows.Should().BeOfType<SilkWindowService>();
         services.Monitors.Should().BeOfType<SilkMonitorService>();
         services.Painting.Should().BeOfType<ProGpuPaintService>();
+        services.Adorners.Should().BeSameAs(services.Painting);
         services.MessageBoxes.Should().BeOfType<ManagedLibreMessageBoxService>();
         services.ColorDialogs.Should().BeOfType<ManagedLibreColorDialogService>();
         services.FontDialogs.Should().BeOfType<ManagedLibreFontDialogService>();
