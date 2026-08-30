@@ -31,6 +31,7 @@ internal static class Program
         VerifyFormsDesignerOptionContracts();
         VerifyFormsDesignerSnapLineContracts();
         VerifyFormsDesignerMenuCommandContracts();
+        VerifyFormsDesignerServiceCleanupContracts();
 
         using Bitmap bitmap = new(64, 64);
         using (Graphics graphics = Graphics.FromImage(bitmap))
@@ -662,6 +663,30 @@ internal static class Program
                 || firstInvocations != 0)
             {
                 throw new InvalidOperationException("Exact, virtual, or registered menu-command invocation changed.");
+            }
+        }
+    }
+
+    private static void VerifyFormsDesignerServiceCleanupContracts()
+    {
+        var disposedSurface = new VerbDesignSurface();
+        Type[] hostServiceAliases =
+        [
+            typeof(IDesignerHost),
+            typeof(System.ComponentModel.Design.Serialization.IDesignerLoaderHost),
+            typeof(System.ComponentModel.Design.Serialization.IDesignerLoaderHost2),
+            typeof(IContainer),
+            typeof(IComponentChangeService)
+        ];
+
+        disposedSurface.Dispose();
+        disposedSurface.Dispose();
+        foreach (Type serviceType in hostServiceAliases)
+        {
+            if (disposedSurface.GetService(serviceType) is not null)
+            {
+                throw new InvalidOperationException(
+                    $"Disposed canonical designer services retained the {serviceType.Name} host alias.");
             }
         }
     }
