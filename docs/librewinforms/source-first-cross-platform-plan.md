@@ -1350,6 +1350,8 @@ ProGPU continuation `9f979b0d8c1981f067bb559edfa9f9707882b4d9` extends the parti
 
 The complete drawing suite passes 394/394, test and benchmark builds retain 0 warnings/0 errors, and ApiCompat remains at 0 missing types, 0 missing members, and 13 reviewed differences. `Playback256WmfEllipsesToRetainedCommands` measures a 1.060 millisecond median (1.109 millisecond mean, 0.115 millisecond standard deviation) and 622.14 KB allocated for 256 filled/stroked ellipses in the three-iteration ARM64/.NET 10.0.11 in-process ShortRun. This is coarse retained-command evidence and a visible optimization target. The coordinated submodule advances to this exact commit; ordinary NuGet development remains unchanged, and hosted publication is still pending behind GitHub DNS.
 
+Follow-up ProGPU continuation `d9f57a965944f20da961fd4b1970485355df4a8d` adds `META_RECTANGLE` through the same validated ordered-box decoder and typed selected brush/pen path. The shared playback fixture verifies the green fill independently from the ellipse. Its dedicated 256-record ShortRun measured a 757.639 microsecond median (753.507 microsecond mean, 139.549 microsecond standard deviation) and 622.08 KB allocated. Full drawing remains 394/394 and ApiCompat remains 0/0/13. The source-development pin advances to this exact follow-up; normal NuGet mode and the explicit remaining metafile boundaries do not change.
+
 ## Major risks and controls
 
 | Risk | Control |
