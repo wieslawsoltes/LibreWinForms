@@ -72,3 +72,49 @@ public interface ILibrePaintService
     /// </summary>
     void Present(LibreHandle target);
 }
+
+/// <summary>The frame styles supported by canonical reversible screen feedback.</summary>
+public enum LibreReversibleFrameStyle
+{
+    Thick,
+    Dashed,
+}
+
+/// <summary>An exact non-premultiplied ARGB color transported to a paint backend.</summary>
+public readonly record struct LibreArgbColor(int Value);
+
+/// <summary>
+/// Draws transient screen-space feedback that is removed by issuing the same
+/// operation again. Implementations own the overlay or compositing strategy.
+/// </summary>
+public interface ILibreReversibleDrawingService
+{
+    void DrawFrame(LibreRectangle rectangle, LibreArgbColor backColor, LibreReversibleFrameStyle style);
+
+    void DrawLine(LibrePoint start, LibrePoint end, LibreArgbColor backColor);
+
+    void FillRectangle(LibreRectangle rectangle, LibreArgbColor backColor);
+}
+
+/// <summary>Explicit default for hosts without reversible screen overlays.</summary>
+public sealed class UnsupportedLibreReversibleDrawingService : ILibreReversibleDrawingService
+{
+    public static UnsupportedLibreReversibleDrawingService Instance { get; } = new();
+
+    private UnsupportedLibreReversibleDrawingService()
+    {
+    }
+
+    public void DrawFrame(LibreRectangle rectangle, LibreArgbColor backColor, LibreReversibleFrameStyle style)
+        => ThrowUnsupported();
+
+    public void DrawLine(LibrePoint start, LibrePoint end, LibreArgbColor backColor)
+        => ThrowUnsupported();
+
+    public void FillRectangle(LibreRectangle rectangle, LibreArgbColor backColor)
+        => ThrowUnsupported();
+
+    private static void ThrowUnsupported()
+        => throw new PlatformNotSupportedException(
+            "This LibreWinForms host does not provide reversible screen drawing.");
+}

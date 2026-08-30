@@ -3118,6 +3118,38 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void ControlPaintReversibleDrawingUsesTypedScreenOverlayService()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        ControlPaint.DrawReversibleFrame(new Rectangle(1, 2, 30, 40), Color.Navy, FrameStyle.Dashed);
+        ControlPaint.DrawReversibleLine(new Point(5, 6), new Point(70, 80), Color.Olive);
+        ControlPaint.FillReversibleRectangle(new Rectangle(9, 10, 11, 12), Color.Purple);
+
+        platform.ReversibleDrawCalls.Should().Equal(
+            new ReversibleDrawCall(
+                ReversibleDrawKind.Frame,
+                new LibreRectangle(1, 2, 30, 40),
+                default,
+                default,
+                new LibreArgbColor(Color.Navy.ToArgb()),
+                LibreReversibleFrameStyle.Dashed),
+            new ReversibleDrawCall(
+                ReversibleDrawKind.Line,
+                default,
+                new LibrePoint(5, 6),
+                new LibrePoint(70, 80),
+                new LibreArgbColor(Color.Olive.ToArgb()),
+                default),
+            new ReversibleDrawCall(
+                ReversibleDrawKind.FillRectangle,
+                new LibreRectangle(9, 10, 11, 12),
+                default,
+                default,
+                new LibreArgbColor(Color.Purple.ToArgb()),
+                default));
+    }
+
+    [Fact]
     public void CursorFiles_DecodeManagedPngAndDibPayloadsAndFailClosed()
     {
         UseHeadlessPlatform(autoCloseWindows: false);
@@ -5131,6 +5163,21 @@ public class CanonicalLifecycleTests
         public nint Handle { get; } = handle;
     }
 
+    private enum ReversibleDrawKind
+    {
+        Frame,
+        Line,
+        FillRectangle,
+    }
+
+    private readonly record struct ReversibleDrawCall(
+        ReversibleDrawKind Kind,
+        LibreRectangle Rectangle,
+        LibrePoint Start,
+        LibrePoint End,
+        LibreArgbColor BackColor,
+        LibreReversibleFrameStyle FrameStyle);
+
     private sealed class HeadlessPlatform :
         ILibreDispatcher,
         ILibreThreadDispatcherProvider,
@@ -5139,6 +5186,7 @@ public class CanonicalLifecycleTests
         ILibreExternalWindowOwnerService,
         ILibreMonitorService,
         ILibrePaintService,
+        ILibreReversibleDrawingService,
         ILibreVisualStyleService,
         ILibreSystemSettingsService,
         ILibreTextRendererService,
@@ -5220,6 +5268,7 @@ public class CanonicalLifecycleTests
             _externalWindowOwners.Clear();
             DragDropHandler = null;
             DragDropTargets.Clear();
+            ReversibleDrawCalls.Clear();
             while (_queue.TryDequeue(out _))
             {
             }
@@ -5307,6 +5356,35 @@ public class CanonicalLifecycleTests
         internal Func<LibreDragDropRequest, ILibreDragDropSession, LibreDragDropEffects>? DragDropHandler { get; set; }
 
         internal HashSet<LibreHandle> DragDropTargets { get; } = [];
+
+        internal List<ReversibleDrawCall> ReversibleDrawCalls { get; } = [];
+
+        public void DrawFrame(LibreRectangle rectangle, LibreArgbColor backColor, LibreReversibleFrameStyle style)
+            => ReversibleDrawCalls.Add(new(
+                ReversibleDrawKind.Frame,
+                rectangle,
+                default,
+                default,
+                backColor,
+                style));
+
+        public void DrawLine(LibrePoint start, LibrePoint end, LibreArgbColor backColor)
+            => ReversibleDrawCalls.Add(new(
+                ReversibleDrawKind.Line,
+                default,
+                start,
+                end,
+                backColor,
+                default));
+
+        public void FillRectangle(LibreRectangle rectangle, LibreArgbColor backColor)
+            => ReversibleDrawCalls.Add(new(
+                ReversibleDrawKind.FillRectangle,
+                rectangle,
+                default,
+                default,
+                backColor,
+                default));
 
         public event EventHandler<LibreSystemSettingsChangedEventArgs>? SettingsChanged;
 

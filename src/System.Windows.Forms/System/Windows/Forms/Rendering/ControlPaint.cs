@@ -6,6 +6,9 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Runtime.CompilerServices;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -2343,6 +2346,12 @@ public static unsafe partial class ControlPaint
     /// </summary>
     public static void DrawReversibleFrame(Rectangle rectangle, Color backColor, FrameStyle style)
     {
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.ReversibleDrawing.DrawFrame(
+            new LibreRectangle(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height),
+            new LibreArgbColor(backColor.ToArgb()),
+            style == FrameStyle.Dashed ? LibreReversibleFrameStyle.Dashed : LibreReversibleFrameStyle.Thick);
+#else
         R2_MODE rop2;
         Color graphicsColor;
 
@@ -2375,6 +2384,7 @@ public static unsafe partial class ControlPaint
 
         PInvokeCore.SetBkColor(desktopDC, (COLORREF)(uint)ColorTranslator.ToWin32(graphicsColor));
         PInvokeCore.Rectangle(desktopDC, rectangle.X, rectangle.Y, rectangle.Right, rectangle.Bottom);
+#endif
     }
 
     /// <summary>
@@ -2382,6 +2392,12 @@ public static unsafe partial class ControlPaint
     /// </summary>
     public static unsafe void DrawReversibleLine(Point start, Point end, Color backColor)
     {
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.ReversibleDrawing.DrawLine(
+            new LibrePoint(start.X, start.Y),
+            new LibrePoint(end.X, end.Y),
+            new LibreArgbColor(backColor.ToArgb()));
+#else
         R2_MODE rop2 = (R2_MODE)GetColorRop(backColor, (int)R2_MODE.R2_NOTXORPEN, (int)R2_MODE.R2_XORPEN);
 
         using GetDcScope desktopDC = new(
@@ -2396,6 +2412,7 @@ public static unsafe partial class ControlPaint
 
         PInvoke.MoveToEx(desktopDC, start.X, start.Y, lppt: null);
         PInvoke.LineTo(desktopDC, end.X, end.Y);
+#endif
     }
 
     /// <summary>
@@ -2643,6 +2660,11 @@ public static unsafe partial class ControlPaint
     /// </summary>
     public static void FillReversibleRectangle(Rectangle rectangle, Color backColor)
     {
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.ReversibleDrawing.FillRectangle(
+            new LibreRectangle(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height),
+            new LibreArgbColor(backColor.ToArgb()));
+#else
         ROP_CODE rop3 = (ROP_CODE)GetColorRop(
             backColor,
             0xa50065,   // RasterOp.BRUSH.Invert().XorWith(RasterOp.TARGET),
@@ -2660,6 +2682,7 @@ public static unsafe partial class ControlPaint
 
         // PatBlt must be the only Win32 function that wants height in width rather than x2,y2.
         PInvoke.PatBlt(desktopDC, rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, rop3);
+#endif
     }
 
     /// <summary>
