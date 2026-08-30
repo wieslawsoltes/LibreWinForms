@@ -1500,6 +1500,37 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void ComboBoxOwnerDrawMeasureItemSubscriptionStaysManaged()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var comboBox = new ComboBox { DrawMode = DrawMode.OwnerDrawFixed };
+        MeasureItemEventHandler handler = (_, _) => { };
+
+        comboBox.MeasureItem += handler;
+        comboBox.IsHandleCreated.Should().BeFalse();
+
+        comboBox.MeasureItem -= handler;
+        comboBox.IsHandleCreated.Should().BeFalse();
+    }
+
+    [Fact]
+    public void ComboBoxVariableItemHeightUsesManagedMeasureItemContract()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var comboBox = new ComboBox { DrawMode = DrawMode.OwnerDrawVariable };
+        comboBox.Items.Add("measured");
+        int measureCount = 0;
+        comboBox.MeasureItem += (_, e) =>
+        {
+            measureCount++;
+            e.ItemHeight = 41;
+        };
+
+        comboBox.GetItemHeight(0).Should().Be(41);
+        measureCount.Should().Be(1);
+    }
+
+    [Fact]
     public void MonthCalendarDefaultSizeUsesManagedTextMetricsWithoutHfont()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);

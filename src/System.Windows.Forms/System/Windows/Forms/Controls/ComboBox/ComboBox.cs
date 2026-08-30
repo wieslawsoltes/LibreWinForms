@@ -593,6 +593,11 @@ public partial class ComboBox : ListControl
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return Properties.TryGetValue(s_propItemHeight, out int portableItemHeight)
+                ? portableItemHeight
+                : FontHeight + 2;
+#else
             DrawMode drawMode = DrawMode;
             if (drawMode == DrawMode.OwnerDrawFixed ||
                 drawMode == DrawMode.OwnerDrawVariable ||
@@ -606,6 +611,7 @@ public partial class ComboBox : ListControl
 
             int height = (int)PInvokeCore.SendMessage(this, PInvoke.CB_GETITEMHEIGHT);
             return height == -1 ? throw new Win32Exception() : height;
+#endif
         }
         set
         {
@@ -2009,6 +2015,12 @@ public partial class ComboBox : ListControl
         ArgumentOutOfRangeException.ThrowIfNegative(index);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, _itemsCollection?.Count ?? 0);
 
+#if LIBREWINFORMS_PORTABLE
+        using Graphics graphics = CreateGraphicsInternal();
+        MeasureItemEventArgs measureItem = new(graphics, index, ItemHeight);
+        OnMeasureItem(measureItem);
+        return measureItem.ItemHeight;
+#else
         if (IsHandleCreated)
         {
             int h = (int)PInvokeCore.SendMessage(this, PInvoke.CB_GETITEMHEIGHT, (WPARAM)index);
@@ -2016,6 +2028,7 @@ public partial class ComboBox : ListControl
         }
 
         return ItemHeight;
+#endif
     }
 
     internal HandleRef<HWND> GetListHandle()
@@ -3457,6 +3470,13 @@ public partial class ComboBox : ListControl
     /// </summary>
     private void UpdateItemHeight()
     {
+#if LIBREWINFORMS_PORTABLE
+        // The portable control is managed; there is no native combo-box window
+        // that owns item-height state. Keep owner-draw changes in the managed
+        // lifecycle and let GetItemHeight manufacture MeasureItemEventArgs when
+        // a variable-height item is queried.
+        InvalidateEverything();
+#else
         if (!IsHandleCreated)
         {
             // If we don't create control here we report item heights incorrectly later on.
@@ -3483,6 +3503,7 @@ public partial class ComboBox : ListControl
                 }
             }
         }
+#endif
     }
 
     /// <summary>
