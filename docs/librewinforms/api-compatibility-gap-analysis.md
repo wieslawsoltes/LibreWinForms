@@ -2,7 +2,7 @@
 
 Date: 2026-08-30
 
-Implementation baseline: `c956e43a45514aff8c96a00d372b2395828e3211`
+Implementation baseline: `d2ac2d27255f8c8db79b9e73c70b3c2fe0daaa06`
 
 Compared contract: .NET 10.0.11 `Microsoft.WindowsDesktop.App.Ref`
 
@@ -54,6 +54,8 @@ LibreWinForms commit `c956e43a45514aff8c96a00d372b2395828e3211`, ProGPU commit `
 The qualification exposed platform leaks that API comparison alone cannot find. LibreWPF was draining lower-priority dispatcher work after a nested frame had stopped and published the portable presentation source too late for startup reentrancy, so the WPF owner was unavailable when WinForms showed its form. The fix preserves dispatcher priority semantics and publishes the typed external owner before root attachment and startup callbacks. In canonical WinForms, check and radio state still sent `BM_SETCHECK`, `RadioButton.TabStop` still reached USER32 style access, transparent ToolStrip corners still requested an HDC, and classic frame glyphs still called native `DrawFrameControl`. Portable branches now retain button state in the upstream managed fields, update styles through the existing `WindowStyle` abstraction, compose transparent backgrounds through managed parent painting, and render standard frame-control glyphs through ProGPU `Graphics`; native Windows branches remain source-preserved.
 
 The exact ProGPU-backed canonical build completed with 0 errors and the reviewed 608-warning baseline. Three focused regressions pass 3/3, and the complete canonical lifecycle suite passes 115/115. This evidence demonstrates why “all properties compile” and “full source is present” are necessary but insufficient: a source-first port must also gate native-call reachability and exercise representative real consumers.
+
+Follow-on commit `d2ac2d27255f8c8db79b9e73c70b3c2fe0daaa06` closes the adjacent flat-checkbox path, which still created a temporary bitmap/HDC and called native `DrawFrameControl` for a checked glyph. Portable `DrawFlatCheckBox` now reuses the managed menu-check renderer, while the native bitmap cache and original GDI path remain compiled only for Windows. The menu-check path also avoids constructing an unused brush. Its focused pixel contract passes 1/1 and checks the exact interior plus opaque antialiased border/checkmark behavior; the complete lifecycle suite passes 116/116.
 
 ### Production release and canonical WFI handoff checkpoint
 

@@ -29,7 +29,7 @@ The latest real-consumer qualification uses LibreWinForms `c956e43a45514aff8c96a
 4. transparent child backgrounds compose through managed parent painting instead of HDC translation.
 5. classic buttons, checks, radio buttons, menu/caption glyphs, and scroll arrows render through managed ProGPU `Graphics` rather than native `DrawFrameControl`.
 
-The ProGPU-backed canonical build has 0 errors at the reviewed 608-warning baseline. The focused regressions pass 3/3 and the complete canonical lifecycle suite passes 115/115. Remaining work is qualification and hardening—hosted OS matrices, unsupported local-OS services, visual fidelity baselines, performance gates, and release/package provenance—not restoration of the deleted compatibility runtime.
+The ProGPU-backed canonical build has 0 errors at the reviewed 608-warning baseline. The focused SharpDevelop regressions pass 3/3. Follow-on LibreWinForms commit `d2ac2d27255f8c8db79b9e73c70b3c2fe0daaa06` removes the remaining HDC/native `DrawFrameControl` call from flat checked-box painting, reuses the managed ProGPU menu-check renderer, and avoids an unused brush allocation; its focused pixel contract passes 1/1 and raises the complete canonical lifecycle suite to 116/116. Remaining work is qualification and hardening—hosted OS matrices, unsupported local-OS services, visual fidelity baselines, performance gates, and release/package provenance—not restoration of the deleted compatibility runtime.
 
 ## 2026-08-22 implementation checkpoint
 
