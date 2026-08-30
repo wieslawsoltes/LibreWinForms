@@ -19,11 +19,15 @@ public class ProGpuDispatcherTests
         services.ThreadDispatchers.Should().BeSameAs(services.Dispatcher);
         services.ThreadDispatchers.GetForCurrentThread().Should().BeSameAs(services.Dispatcher);
         Exception? secondaryThreadError = null;
+        ILibreDispatcher? secondaryDispatcher = null;
         Thread secondaryThread = new(() =>
         {
             try
             {
-                services.ThreadDispatchers.GetForCurrentThread();
+                secondaryDispatcher = services.ThreadDispatchers.GetForCurrentThread();
+                secondaryDispatcher.CheckAccess().Should().BeTrue();
+                secondaryDispatcher.ManagedThreadId.Should().Be(Environment.CurrentManagedThreadId);
+                services.ThreadDispatchers.Release(secondaryDispatcher);
             }
             catch (Exception exception)
             {
@@ -32,7 +36,8 @@ public class ProGpuDispatcherTests
         });
         secondaryThread.Start();
         secondaryThread.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
-        secondaryThreadError.Should().BeOfType<PlatformNotSupportedException>();
+        secondaryThreadError.Should().BeNull();
+        secondaryDispatcher.Should().NotBeNull().And.NotBeSameAs(services.Dispatcher);
         services.ThreadDispatchers.Release(services.Dispatcher);
         services.Timers.Should().BeOfType<ProGpuTimerService>();
         services.Handles.Should().BeOfType<ManagedLibreHandleRegistry>();
@@ -101,6 +106,45 @@ public class ProGpuDispatcherTests
         dispatcher.Run(TestContext.Current.CancellationToken);
 
         callbackThread.Should().Be(dispatcherThread);
+    }
+
+    [Fact]
+    public void Timer_OnSecondaryUiThread_FiresOnItsIndependentDispatcher()
+    {
+        using ProGpuDispatcher provider = new();
+        using ProGpuTimerService timers = new(provider);
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        Exception? secondaryThreadError = null;
+        int callbackThread = 0;
+        int dispatcherThread = 0;
+        Thread secondaryThread = new(() =>
+        {
+            ILibreDispatcher dispatcher = provider.GetForCurrentThread();
+            try
+            {
+                dispatcherThread = Environment.CurrentManagedThreadId;
+                using IDisposable timer = timers.Start(TimeSpan.FromMilliseconds(1), repeating: false, () =>
+                {
+                    callbackThread = Environment.CurrentManagedThreadId;
+                    dispatcher.RequestExit();
+                });
+                dispatcher.Run(cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                secondaryThreadError = exception;
+            }
+            finally
+            {
+                provider.Release(dispatcher);
+            }
+        });
+
+        secondaryThread.Start();
+        secondaryThread.Join(TimeSpan.FromSeconds(5)).Should().BeTrue();
+
+        secondaryThreadError.Should().BeNull();
+        callbackThread.Should().Be(dispatcherThread).And.NotBe(provider.ManagedThreadId);
     }
 
     [Fact]

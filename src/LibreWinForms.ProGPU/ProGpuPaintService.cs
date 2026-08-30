@@ -7,12 +7,12 @@ namespace LibreWinForms.ProGPU;
 
 public sealed class ProGpuPaintService : ILibrePaintService
 {
-    private readonly ILibreDispatcher _dispatcher;
+    private readonly ILibreDispatcher _fallbackDispatcher;
     private readonly ILibreHandleRegistry _handles;
 
     public ProGpuPaintService(ILibreDispatcher dispatcher, ILibreHandleRegistry handles)
     {
-        _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+        _fallbackDispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         _handles = handles ?? throw new ArgumentNullException(nameof(handles));
     }
 
@@ -44,25 +44,31 @@ public sealed class ProGpuPaintService : ILibrePaintService
 
     public void Present(LibreHandle target)
     {
-        if (_dispatcher.CheckAccess())
+        ILibreWindow window = ResolveWindow(target);
+        ILibreDispatcher dispatcher = window is SilkLibreWindow silkWindow
+            ? silkWindow.Dispatcher
+            : _fallbackDispatcher;
+        if (dispatcher.CheckAccess())
         {
-            ResolveWindow(target).PresentPendingPaint();
+            window.PresentPendingPaint();
         }
         else
         {
-            _dispatcher.Send(() => ResolveWindow(target).PresentPendingPaint());
+            dispatcher.Send(window.PresentPendingPaint);
         }
     }
 
     private void Schedule(LibreHandle target, LibreRectangle? dirtyRectangle)
     {
-        if (_dispatcher.CheckAccess())
+        SilkLibreWindow window = Resolve(target);
+        ProGpuDispatcher dispatcher = window.Dispatcher;
+        if (dispatcher.CheckAccess())
         {
-            Resolve(target).RequestPaint(dirtyRectangle);
+            window.RequestPaint(dirtyRectangle);
         }
         else
         {
-            _dispatcher.Post(() => Resolve(target).RequestPaint(dirtyRectangle));
+            dispatcher.Post(() => window.RequestPaint(dirtyRectangle));
         }
     }
 

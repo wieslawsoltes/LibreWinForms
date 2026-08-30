@@ -5,7 +5,7 @@ using LibreWinForms.Platform;
 
 namespace LibreWinForms.ProGPU;
 
-public sealed class ProGpuTimerService : ILibreTimerService, IProGpuLoopParticipant, IDisposable
+public sealed class ProGpuTimerService : ILibreTimerService, IDisposable
 {
     private readonly ProGpuDispatcher _dispatcher;
     private readonly Lock _lock = new();
@@ -15,7 +15,6 @@ public sealed class ProGpuTimerService : ILibreTimerService, IProGpuLoopParticip
     public ProGpuTimerService(ProGpuDispatcher dispatcher)
     {
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
-        _dispatcher.Register(this);
     }
 
     public IDisposable Start(TimeSpan interval, bool repeating, Action callback)
@@ -24,13 +23,14 @@ public sealed class ProGpuTimerService : ILibreTimerService, IProGpuLoopParticip
         ArgumentNullException.ThrowIfNull(callback);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(interval, TimeSpan.Zero);
 
-        TimerRegistration registration = new(this, interval, repeating, callback);
+        ProGpuDispatcher dispatcher = (ProGpuDispatcher)_dispatcher.GetForCurrentThread();
+        TimerRegistration registration = new(this, dispatcher, interval, repeating, callback);
         lock (_lock)
         {
             _timers.Add(registration);
         }
 
-        _dispatcher.Wake();
+        dispatcher.Wake();
         return registration;
     }
 
@@ -42,67 +42,66 @@ public sealed class ProGpuTimerService : ILibreTimerService, IProGpuLoopParticip
         }
 
         _disposed = true;
-        _dispatcher.Unregister(this);
+        TimerRegistration[] timers;
         lock (_lock)
         {
-            foreach (TimerRegistration timer in _timers)
-            {
-                timer.Cancel();
-            }
-
+            timers = [.. _timers];
             _timers.Clear();
         }
-    }
 
-    void IProGpuLoopParticipant.Pump()
-    {
-        long now = Environment.TickCount64;
-        TimerRegistration[] due;
-        lock (_lock)
+        foreach (TimerRegistration timer in timers)
         {
-            _timers.RemoveAll(static timer => timer.IsCancelled);
-            due = [.. _timers.Where(timer => timer.IsDue(now))];
-        }
-
-        foreach (TimerRegistration timer in due)
-        {
-            timer.Fire(now);
+            timer.Release();
         }
     }
 
     private void Remove(TimerRegistration registration)
     {
-        registration.Cancel();
         lock (_lock)
         {
             _timers.Remove(registration);
         }
+
+        registration.Release();
     }
 
-    private sealed class TimerRegistration : IDisposable
+    private sealed class TimerRegistration : IDisposable, IProGpuLoopParticipant
     {
         private readonly ProGpuTimerService _owner;
+        private readonly ProGpuDispatcher _dispatcher;
         private readonly long _intervalMilliseconds;
         private readonly bool _repeating;
         private readonly Action _callback;
         private long _nextTick;
+        private int _released;
 
-        internal TimerRegistration(ProGpuTimerService owner, TimeSpan interval, bool repeating, Action callback)
+        internal TimerRegistration(
+            ProGpuTimerService owner,
+            ProGpuDispatcher dispatcher,
+            TimeSpan interval,
+            bool repeating,
+            Action callback)
         {
             _owner = owner;
+            _dispatcher = dispatcher;
             _intervalMilliseconds = Math.Max(1, checked((long)Math.Ceiling(interval.TotalMilliseconds)));
             _repeating = repeating;
             _callback = callback;
             _nextTick = checked(Environment.TickCount64 + _intervalMilliseconds);
+            _dispatcher.Register(this);
         }
 
         internal bool IsCancelled => Volatile.Read(ref _nextTick) == long.MaxValue;
 
-        internal bool IsDue(long now) => now >= Volatile.Read(ref _nextTick);
-
-        internal void Fire(long now)
+        void IProGpuLoopParticipant.Pump()
         {
+            long now = Environment.TickCount64;
             if (IsCancelled)
+            {
+                return;
+            }
+
+            if (now < Volatile.Read(ref _nextTick))
             {
                 return;
             }
@@ -116,10 +115,31 @@ public sealed class ProGpuTimerService : ILibreTimerService, IProGpuLoopParticip
                 Cancel();
             }
 
-            _callback();
+            try
+            {
+                _callback();
+            }
+            finally
+            {
+                if (!_repeating)
+                {
+                    _owner.Remove(this);
+                }
+            }
         }
 
         internal void Cancel() => Volatile.Write(ref _nextTick, long.MaxValue);
+
+        internal void Release()
+        {
+            if (Interlocked.Exchange(ref _released, 1) != 0)
+            {
+                return;
+            }
+
+            Cancel();
+            _dispatcher.Unregister(this);
+        }
 
         public void Dispose() => _owner.Remove(this);
     }

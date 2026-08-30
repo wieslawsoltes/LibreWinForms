@@ -40,10 +40,7 @@ public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindo
     public ILibreWindow Create(in LibreWindowCreateOptions options, ILibreWindowEvents events)
     {
         ArgumentNullException.ThrowIfNull(events);
-        if (!_dispatcher.CheckAccess())
-        {
-            throw new InvalidOperationException("Silk.NET windows must be created on the dispatcher thread.");
-        }
+        ProGpuDispatcher dispatcher = (ProGpuDispatcher)_dispatcher.GetForCurrentThread();
 
         if (!options.Owner.IsNull
             && !TryResolveNativeOwner(_handles, options.Owner, out _))
@@ -53,7 +50,7 @@ public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindo
                 nameof(options));
         }
 
-        return new SilkLibreWindow(_dispatcher, _handles, _monitors, options, events);
+        return new SilkLibreWindow(dispatcher, _handles, _monitors, options, events);
     }
 
     public bool IsLive(LibreHandle owner)
@@ -218,6 +215,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     public LibreHandle Handle { get; }
 
     internal NativeWindowHandle NativeHandle => _controller.Handle;
+
+    internal ProGpuDispatcher Dispatcher => _dispatcher;
 
     public LibreWindowCoordinateMode CoordinateMode => _coordinateMode;
 

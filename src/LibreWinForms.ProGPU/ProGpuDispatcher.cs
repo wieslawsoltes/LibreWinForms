@@ -15,6 +15,8 @@ internal interface IProGpuLoopParticipant
 public sealed class ProGpuDispatcher : ILibreDispatcher, ILibreThreadDispatcherProvider, IDisposable
 {
     private readonly int _threadId = Environment.CurrentManagedThreadId;
+    private readonly ProGpuDispatcher _provider;
+    private readonly ConcurrentDictionary<int, ProGpuDispatcher> _threadDispatchers;
     private readonly ConcurrentQueue<Action> _work = new();
     private readonly AutoResetEvent _wake = new(initialState: false);
     private readonly Lock _participantsLock = new();
@@ -22,27 +24,55 @@ public sealed class ProGpuDispatcher : ILibreDispatcher, ILibreThreadDispatcherP
     private volatile bool _exitRequested;
     private bool _disposed;
 
+    public ProGpuDispatcher()
+    {
+        _provider = this;
+        _threadDispatchers = new ConcurrentDictionary<int, ProGpuDispatcher>();
+        _threadDispatchers.TryAdd(_threadId, this);
+    }
+
+    private ProGpuDispatcher(ProGpuDispatcher provider)
+    {
+        _provider = provider;
+        _threadDispatchers = provider._threadDispatchers;
+    }
+
     public int ManagedThreadId => _threadId;
 
     public bool CheckAccess() => Environment.CurrentManagedThreadId == _threadId;
 
     public ILibreDispatcher GetForCurrentThread()
     {
-        if (!CheckAccess())
-        {
-            throw new PlatformNotSupportedException(
-                "The ProGPU backend currently supports one WinForms UI thread per registered platform instance.");
-        }
-
-        return this;
+        ObjectDisposedException.ThrowIf(_provider._disposed, _provider);
+        int threadId = Environment.CurrentManagedThreadId;
+        return _threadDispatchers.GetOrAdd(
+            threadId,
+            static (_, provider) => new ProGpuDispatcher(provider),
+            _provider);
     }
 
     public void Release(ILibreDispatcher dispatcher)
     {
-        if (!ReferenceEquals(this, dispatcher))
+        if (dispatcher is not ProGpuDispatcher released
+            || !ReferenceEquals(_provider, released._provider))
         {
             throw new ArgumentException("The dispatcher was not created by this provider.", nameof(dispatcher));
         }
+
+        if (ReferenceEquals(released, _provider))
+        {
+            return;
+        }
+
+        if (!_threadDispatchers.TryGetValue(released.ManagedThreadId, out ProGpuDispatcher? registered)
+            || !ReferenceEquals(registered, released)
+            || !_threadDispatchers.TryRemove(released.ManagedThreadId, out registered)
+            || !ReferenceEquals(registered, released))
+        {
+            throw new ArgumentException("The dispatcher is no longer registered with this provider.", nameof(dispatcher));
+        }
+
+        released.DisposeScope();
     }
 
     public void Post(Action callback)
@@ -110,13 +140,29 @@ public sealed class ProGpuDispatcher : ILibreDispatcher, ILibreThreadDispatcherP
 
     public void Dispose()
     {
+        if (!ReferenceEquals(this, _provider))
+        {
+            _provider.Release(this);
+            return;
+        }
+
         if (_disposed)
         {
             return;
         }
 
         _disposed = true;
-        RequestExit();
+        foreach (ProGpuDispatcher dispatcher in _threadDispatchers.Values)
+        {
+            if (!ReferenceEquals(dispatcher, this))
+            {
+                dispatcher.DisposeScope();
+            }
+        }
+
+        _threadDispatchers.Clear();
+        _exitRequested = true;
+        _wake.Set();
         _wake.Dispose();
     }
 
@@ -171,5 +217,18 @@ public sealed class ProGpuDispatcher : ILibreDispatcher, ILibreThreadDispatcherP
         {
             throw new InvalidOperationException("The ProGPU dispatcher must be used from its owning thread.");
         }
+    }
+
+    private void DisposeScope()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _exitRequested = true;
+        _wake.Set();
+        _wake.Dispose();
     }
 }
