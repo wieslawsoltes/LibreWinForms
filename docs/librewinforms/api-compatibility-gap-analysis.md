@@ -1020,3 +1020,11 @@ For the overall source-reuse goal to be considered achieved, the `LibreWinForms.
 An automated comparison is both possible and necessary; it does not require an AI bot. Microsoft ApiCompat can produce a deterministic assembly-level diff on every build. AI may help cluster and explain the results, but the contract gate must be a reproducible build tool.
 
 The output should feed a compatibility dashboard and a manageable set of subsystem issues. The current findings show why: the reported properties share architectural causes, and opening one issue for each of more than five thousand member diagnostics would obscure the source-first fixes LibreWinForms actually needs.
+
+## ProGPU behavior-parity follow-up: detached custom fill caps
+
+ProGPU continuation `4391b137fa460778b2ea1b7516de200e73acaad5` removes a behavior restriction that was invisible to ApiCompat: a closed `CustomLineCap` fill path was rejected with `NotImplementedException` unless its points crossed the local attachment axis. The retained renderer already transforms arbitrary authored cap coordinates into endpoint/tangent space, so that restriction was neither an API contract nor an honest native backend boundary. Closure validation remains, while an offset triangle now constructs, leaves the authored gap after the line endpoint, paints at its transformed location, and contributes to widened bounds.
+
+Local evidence is 392/392 for the complete drawing suite, 12/12 for the custom-cap/compound-pen quality and allocation group, 0 warnings/0 errors for drawing tests and benchmarks, and ApiCompat at 0 missing types, 0 missing members, and 13 unchanged reviewed platform-annotation diagnostics. The existing `WidenCompoundArrowPenClone` allocation gate remains within its 8-12 KB contract; a one-iteration in-process dry benchmark measured 6.842 ms and 9.27 KB and is treated only as a smoke, not a new performance baseline.
+
+LibreWinForms now points its coordinated development submodule at that exact local commit. Normal NuGet consumers remain unchanged. GitHub DNS is unavailable in the validation sandbox, so neither the ProGPU PR nor the downstream LibreWinForms PR is claimed to contain this checkpoint yet; current remote `main` also could not be fetched, and the older cached main ref is not used as a freshness claim.
