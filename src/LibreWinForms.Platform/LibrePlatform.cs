@@ -411,6 +411,8 @@ public sealed class LibrePlatformServices : IDisposable
         Timers = timers ?? throw new ArgumentNullException(nameof(timers));
         Handles = handles ?? throw new ArgumentNullException(nameof(handles));
         Windows = windows ?? throw new ArgumentNullException(nameof(windows));
+        ExternalWindowOwners = windows as ILibreExternalWindowOwnerService
+            ?? UnsupportedLibreExternalWindowOwnerService.Instance;
         Monitors = monitors ?? throw new ArgumentNullException(nameof(monitors));
         Painting = painting ?? throw new ArgumentNullException(nameof(painting));
         DesktopCapture = desktopCapture ?? throw new ArgumentNullException(nameof(desktopCapture));
@@ -437,6 +439,8 @@ public sealed class LibrePlatformServices : IDisposable
     public ILibreHandleRegistry Handles { get; }
 
     public ILibreWindowService Windows { get; }
+
+    public ILibreExternalWindowOwnerService ExternalWindowOwners { get; }
 
     public ILibreMonitorService Monitors { get; }
 

@@ -94,6 +94,44 @@ public readonly record struct LibreWindowCreateOptions(
     bool CanClose = true,
     double Opacity = 1d);
 
+/// <summary>Observable state for a live top-level owner supplied by another desktop stack.</summary>
+public readonly record struct LibreExternalWindowOwnerState(bool IsVisible, bool IsEnabled);
+
+/// <summary>
+/// Controls typed top-level owners whose process-local handles are not allocated by WinForms.
+/// </summary>
+public interface ILibreExternalWindowOwnerService
+{
+    bool IsLive(LibreHandle owner);
+
+    bool TryGetState(LibreHandle owner, out LibreExternalWindowOwnerState state);
+
+    bool TrySetEnabled(LibreHandle owner, bool enabled);
+
+    bool TryActivate(LibreHandle owner);
+}
+
+public sealed class UnsupportedLibreExternalWindowOwnerService : ILibreExternalWindowOwnerService
+{
+    public static UnsupportedLibreExternalWindowOwnerService Instance { get; } = new();
+
+    private UnsupportedLibreExternalWindowOwnerService()
+    {
+    }
+
+    public bool IsLive(LibreHandle owner) => false;
+
+    public bool TryGetState(LibreHandle owner, out LibreExternalWindowOwnerState state)
+    {
+        state = default;
+        return false;
+    }
+
+    public bool TrySetEnabled(LibreHandle owner, bool enabled) => false;
+
+    public bool TryActivate(LibreHandle owner) => false;
+}
+
 /// <summary>An immutable, tightly packed RGBA8 icon image for a platform window.</summary>
 public sealed class LibreWindowIcon
 {

@@ -11445,8 +11445,8 @@ public unsafe partial class Control :
     internal void SetPortableWindowSizeConstraints(LibreSize minimum, LibreSize maximum)
         => _window.SetPortableSizeConstraints(minimum, maximum);
 
-    internal void SetPortableOwner(Control? owner)
-        => _window.SetPortableOwner(owner?._window);
+    internal void SetPortableOwner(IWin32Window? owner)
+        => _window.SetPortableOwner(owner?.Handle ?? 0);
 
     internal void ActivatePortableWindow() => _window.ActivatePortable();
 

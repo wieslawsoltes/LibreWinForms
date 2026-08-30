@@ -16,7 +16,7 @@ using Silk.NET.Windowing;
 
 namespace LibreWinForms.ProGPU;
 
-public sealed class SilkWindowService : ILibreWindowService
+public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindowOwnerService
 {
     private readonly ProGpuDispatcher _dispatcher;
     private readonly ILibreHandleRegistry _handles;
@@ -45,13 +45,64 @@ public sealed class SilkWindowService : ILibreWindowService
             throw new InvalidOperationException("Silk.NET windows must be created on the dispatcher thread.");
         }
 
-        if (!options.Owner.IsNull && !_handles.TryGet(options.Owner, out SilkLibreWindow? _))
+        if (!options.Owner.IsNull
+            && !TryResolveNativeOwner(_handles, options.Owner, out _))
         {
-            throw new ArgumentException("The owner must be a live Silk.NET window.", nameof(options));
+            throw new ArgumentException(
+                "The owner must resolve to a live native top-level window.",
+                nameof(options));
         }
 
         return new SilkLibreWindow(_dispatcher, _handles, _monitors, options, events);
     }
+
+    public bool IsLive(LibreHandle owner)
+        => IsExternalOwnerHandle(owner)
+            && NativeWindowOwnerRegistry.TryResolve(owner.Value, out _);
+
+    public bool TryGetState(LibreHandle owner, out LibreExternalWindowOwnerState state)
+    {
+        if (IsExternalOwnerHandle(owner)
+            && NativeWindowOwnerRegistry.TryResolve(owner.Value, out INativeWindowOwner? nativeOwner))
+        {
+            state = new LibreExternalWindowOwnerState(
+                nativeOwner.IsVisible,
+                nativeOwner.IsEnabled);
+            return true;
+        }
+
+        state = default;
+        return false;
+    }
+
+    public bool TrySetEnabled(LibreHandle owner, bool enabled)
+        => IsExternalOwnerHandle(owner)
+            && NativeWindowOwnerRegistry.TryResolve(owner.Value, out INativeWindowOwner? nativeOwner)
+            && nativeOwner.TrySetEnabled(enabled);
+
+    public bool TryActivate(LibreHandle owner)
+        => IsExternalOwnerHandle(owner)
+            && NativeWindowOwnerRegistry.TryResolve(owner.Value, out INativeWindowOwner? nativeOwner)
+            && nativeOwner.TryActivate();
+
+    internal static bool TryResolveNativeOwner(
+        ILibreHandleRegistry handles,
+        LibreHandle owner,
+        out NativeWindowHandle nativeOwner)
+    {
+        if (handles.TryGet(owner, out SilkLibreWindow? silkOwner))
+        {
+            nativeOwner = silkOwner.NativeHandle;
+            return nativeOwner.IsValid;
+        }
+
+        nativeOwner = NativeWindowHandle.Empty;
+        return IsExternalOwnerHandle(owner)
+            && NativeWindowOwnerRegistry.TryResolveNativeHandle(owner.Value, out nativeOwner);
+    }
+
+    private static bool IsExternalOwnerHandle(LibreHandle owner)
+        => !owner.IsNull && owner.Kind == LibreHandleKind.Window;
 }
 
 internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
@@ -195,12 +246,12 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
             NativeWindowHandle nativeOwner = NativeWindowHandle.Empty;
             if (!value.IsNull)
             {
-                if (!_handles.TryGet(value, out SilkLibreWindow? owner))
+                if (!SilkWindowService.TryResolveNativeOwner(_handles, value, out nativeOwner))
                 {
-                    throw new ArgumentException("The owner must be a live Silk.NET window.", nameof(value));
+                    throw new ArgumentException(
+                        "The owner must resolve to a live native top-level window.",
+                        nameof(value));
                 }
-
-                nativeOwner = owner._controller.Handle;
             }
 
             _controller.SetParent(nativeOwner);

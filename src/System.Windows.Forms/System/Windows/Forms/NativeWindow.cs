@@ -492,11 +492,7 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
                         ? LibreWindowState.Minimized
                         : LibreWindowState.Normal;
 
-                LibreHandle owner = default;
-                if (cp.Parent != 0 && FromHandle(cp.Parent) is { } parent)
-                {
-                    owner = parent._portableHandle;
-                }
+                LibreHandle owner = ResolvePortableOwnerHandle(cp.Parent);
 
                 LibreRectangle requestedBounds = new(
                     cp.X == PInvoke.CW_USEDEFAULT ? 100 : cp.X,
@@ -1004,11 +1000,23 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
                 ? LibreWindowBorder.Fixed
                 : LibreWindowBorder.Hidden;
 
-    internal void SetPortableOwner(NativeWindow? owner)
+    private static LibreHandle ResolvePortableOwnerHandle(nint ownerHandle)
+    {
+        if (ownerHandle == 0)
+        {
+            return default;
+        }
+
+        return FromHandle(ownerHandle) is { } owner
+            ? owner._portableHandle
+            : new LibreHandle(ownerHandle, LibreHandleKind.Window);
+    }
+
+    internal void SetPortableOwner(nint ownerHandle)
     {
         if (_portableWindow is { } window)
         {
-            window.Owner = owner?._portableHandle ?? default;
+            window.Owner = ResolvePortableOwnerHandle(ownerHandle);
         }
     }
 

@@ -820,7 +820,11 @@ public partial class Form : ContainerControl
 
             if (Properties.TryGetValue(s_propDialogOwner, out IWin32Window? dialogOwner))
             {
+#if LIBREWINFORMS_PORTABLE
+                cp.Parent = dialogOwner.Handle;
+#else
                 cp.Parent = GetSafeHandle(dialogOwner).Handle;
+#endif
             }
 
             FillInCreateParamsBorderStyles(cp);
@@ -3853,11 +3857,17 @@ public partial class Form : ContainerControl
                     IWin32Window? dialogOwner = Properties.GetValueOrDefault<IWin32Window>(s_propDialogOwner);
                     if ((OwnerInternal is not null) || (dialogOwner is not null))
                     {
+#if LIBREWINFORMS_PORTABLE
+                        desktop = dialogOwner is not null
+                            ? Screen.FromHandle(dialogOwner.Handle)
+                            : Screen.FromControl(OwnerInternal!);
+#else
                         HandleRef<HWND> ownerHandle = dialogOwner is not null
                             ? GetSafeHandle(dialogOwner)
                             : new(OwnerInternal!);
                         desktop = Screen.FromHandle(ownerHandle.Handle);
                         GC.KeepAlive(ownerHandle.Wrapper);
+#endif
                     }
                     else
                     {
@@ -5727,22 +5737,48 @@ public partial class Form : ContainerControl
     ///  </para>
     /// </remarks>
 #if LIBREWINFORMS_PORTABLE
-    private static Form? ResolvePortableOwner(IWin32Window? owner)
+    private static IWin32Window? ResolvePortableOwner(
+        IWin32Window? owner,
+        out Form? ownerForm)
     {
         if (owner is null)
         {
-            return ActiveForm;
-        }
-
-        Control? ownerControl = owner as Control ?? Control.FromHandle(owner.Handle);
-        if (ownerControl?.TopLevelControlInternal is Form ownerForm)
-        {
+            ownerForm = ActiveForm;
             return ownerForm;
         }
 
+        Control? ownerControl = owner as Control ?? Control.FromHandle(owner.Handle);
+        if (ownerControl is not null)
+        {
+            if (ownerControl.TopLevelControlInternal is Form resolvedOwnerForm)
+            {
+                ownerForm = resolvedOwnerForm;
+                return resolvedOwnerForm;
+            }
+
+            throw new ArgumentException(
+                "A portable WinForms control owner must resolve to a live top-level Form.",
+                nameof(owner));
+        }
+
+        LibreHandle externalOwner = GetPortableExternalOwnerHandle(owner);
+        if (LibrePlatform.Current.ExternalWindowOwners.IsLive(externalOwner))
+        {
+            ownerForm = null;
+            return owner;
+        }
+
         throw new ArgumentException(
-            "A portable WinForms owner must resolve to a live top-level Form.",
+            "A portable WinForms owner must resolve to a live top-level window.",
             nameof(owner));
+    }
+
+    private static LibreHandle GetPortableExternalOwnerHandle(IWin32Window owner)
+    {
+        nint ownerHandle = owner.Handle;
+        return ownerHandle == 0
+            ? default
+            : new LibreHandle(ownerHandle, LibreHandleKind.Window);
     }
 #endif
 
@@ -5774,10 +5810,10 @@ public partial class Form : ContainerControl
         }
 
 #if LIBREWINFORMS_PORTABLE
-        Form? portableOwner = ResolvePortableOwner(owner);
-        Properties.AddOrRemoveValue(s_propDialogOwner, portableOwner);
+        IWin32Window? portableOwnerWindow = ResolvePortableOwner(owner, out Form? portableOwner);
+        Properties.AddOrRemoveValue(s_propDialogOwner, portableOwnerWindow);
         Form? oldOwner = OwnerInternal;
-        if (owner is not null && portableOwner != oldOwner)
+        if (owner is not null && portableOwner is not null && portableOwner != oldOwner)
         {
             Owner = portableOwner;
         }
@@ -6012,7 +6048,11 @@ public partial class Form : ContainerControl
         }
 
 #if LIBREWINFORMS_PORTABLE
-        Form? portableOwner = ResolvePortableOwner(owner);
+        IWin32Window? portableOwnerWindow = ResolvePortableOwner(owner, out Form? portableOwner);
+        LibreHandle externalPortableOwner = portableOwner is null && portableOwnerWindow is not null
+            ? GetPortableExternalOwnerHandle(portableOwnerWindow)
+            : default;
+        bool restoreExternalOwnerEnabled = false;
 #else
         if ((owner is not null) && !owner.GetExtendedStyle().HasFlag(WINDOW_EX_STYLE.WS_EX_TOPMOST))
         {
@@ -6032,7 +6072,7 @@ public partial class Form : ContainerControl
 
 #if LIBREWINFORMS_PORTABLE
         (portableOwner ?? ActiveForm)?.CancelPortableCapture();
-        Properties.AddOrRemoveValue(s_propDialogOwner, portableOwner);
+        Properties.AddOrRemoveValue(s_propDialogOwner, portableOwnerWindow);
 #else
         HWND captureHwnd = PInvoke.GetCapture();
         if (!captureHwnd.IsNull)
@@ -6067,15 +6107,15 @@ public partial class Form : ContainerControl
             CreateControl();
 
 #if LIBREWINFORMS_PORTABLE
-            if (portableOwner is not null && portableOwner != this)
+            if (portableOwnerWindow is not null && portableOwnerWindow != this)
             {
-                if (owner is not null && portableOwner != oldOwner)
+                if (portableOwner is not null && owner is not null && portableOwner != oldOwner)
                 {
                     Owner = portableOwner;
                 }
                 else
                 {
-                    SetPortableOwner(portableOwner);
+                    SetPortableOwner(portableOwnerWindow);
                 }
             }
 #else
@@ -6111,6 +6151,19 @@ public partial class Form : ContainerControl
                 // If the DialogResult was already set, then there's no need to actually display the dialog.
                 if (_dialogResult == DialogResult.None)
                 {
+#if LIBREWINFORMS_PORTABLE
+                    if (!externalPortableOwner.IsNull
+                        && LibrePlatform.Current.ExternalWindowOwners.TryGetState(
+                            externalPortableOwner,
+                            out LibreExternalWindowOwnerState externalOwnerState)
+                        && externalOwnerState.IsEnabled)
+                    {
+                        restoreExternalOwnerEnabled =
+                            LibrePlatform.Current.ExternalWindowOwners.TrySetEnabled(
+                                externalPortableOwner,
+                                enabled: false);
+                    }
+#endif
                     // Application.RunDialog sets this dialog to be visible.
                     Application.RunDialog(this);
                 }
@@ -6118,9 +6171,20 @@ public partial class Form : ContainerControl
             finally
             {
 #if LIBREWINFORMS_PORTABLE
+                if (restoreExternalOwnerEnabled)
+                {
+                    LibrePlatform.Current.ExternalWindowOwners.TrySetEnabled(
+                        externalPortableOwner,
+                        enabled: true);
+                }
+
                 if (portableOwner is { IsDisposed: false, Visible: true })
                 {
                     portableOwner.Activate();
+                }
+                else if (!externalPortableOwner.IsNull)
+                {
+                    LibrePlatform.Current.ExternalWindowOwners.TryActivate(externalPortableOwner);
                 }
 #else
                 // Call SetActiveWindow before setting Visible = false.
@@ -6464,12 +6528,13 @@ public partial class Form : ContainerControl
         if (IsHandleCreated && TopLevel)
         {
 #if LIBREWINFORMS_PORTABLE
-            Control? owner = OwnerInternal;
+            IWin32Window? owner = OwnerInternal;
             if (owner is null
-                && Properties.TryGetValue(s_propDialogOwner, out IWin32Window? dialogOwner)
-                && dialogOwner is Control dialogOwnerControl)
+                && Properties.TryGetValue(s_propDialogOwner, out IWin32Window? dialogOwner))
             {
-                owner = dialogOwnerControl.TopLevelControlInternal;
+                owner = dialogOwner is Control dialogOwnerControl
+                    ? dialogOwnerControl.TopLevelControlInternal
+                    : dialogOwner;
             }
 
             SetPortableOwner(owner);

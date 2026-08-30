@@ -3873,6 +3873,61 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void FormShow_AcceptsTypedExternalTopLevelOwner()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        nint ownerHandle = (nint)0x505721;
+        platform.RegisterExternalWindowOwner(ownerHandle);
+        var owner = new ExternalWindowOwner(ownerHandle);
+        using Form form = new() { Text = "Externally owned" };
+
+        form.Show(owner);
+
+        form.Owner.Should().BeNull();
+        platform.GetWindowOwner(form).Should().Be(
+            new LibreHandle(ownerHandle, LibreHandleKind.Window));
+        platform.ExternalOwnerDisableCount.Should().Be(0);
+
+        form.Close();
+    }
+
+    [Fact]
+    public void FormShowDialog_DisablesRestoresAndActivatesTypedExternalOwner()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        nint ownerHandle = (nint)0x505722;
+        platform.RegisterExternalWindowOwner(ownerHandle);
+        var owner = new ExternalWindowOwner(ownerHandle);
+        using Form dialog = new() { Text = "Externally owned dialog" };
+        dialog.Shown += (_, _) => dialog.DialogResult = DialogResult.OK;
+
+        DialogResult result = dialog.ShowDialog(owner);
+
+        result.Should().Be(DialogResult.OK);
+        dialog.Owner.Should().BeNull();
+        platform.LastWindowOwner.Should().Be(
+            new LibreHandle(ownerHandle, LibreHandleKind.Window));
+        platform.ExternalOwnerDisableCount.Should().Be(1);
+        platform.ExternalOwnerEnableCount.Should().Be(1);
+        platform.ExternalOwnerActivateCount.Should().Be(1);
+        platform.GetExternalOwnerState(ownerHandle).IsEnabled.Should().BeTrue();
+    }
+
+    [Fact]
+    public void FormShow_RejectsUnregisteredExternalOwner()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new();
+        var owner = new ExternalWindowOwner((nint)0x505723);
+
+        Action show = () => form.Show(owner);
+
+        show.Should().Throw<ArgumentException>()
+            .WithParameterName("owner")
+            .WithMessage("*live top-level window*");
+    }
+
+    [Fact]
     public void ApplicationRun_OwnedAndNestedModalForms_PreserveCanonicalState()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -4866,11 +4921,17 @@ public class CanonicalLifecycleTests
         }
     }
 
+    private sealed class ExternalWindowOwner(nint handle) : IWin32Window
+    {
+        public nint Handle { get; } = handle;
+    }
+
     private sealed class HeadlessPlatform :
         ILibreDispatcher,
         ILibreThreadDispatcherProvider,
         ILibreTimerService,
         ILibreWindowService,
+        ILibreExternalWindowOwnerService,
         ILibreMonitorService,
         ILibrePaintService,
         ILibreVisualStyleService,
@@ -4894,6 +4955,7 @@ public class CanonicalLifecycleTests
         private readonly ConcurrentDictionary<int, HeadlessThreadDispatcher> _threadDispatchers = new();
         private bool _autoCloseWindows;
         private readonly Dictionary<Form, LibreHandle> _formHandles = [];
+        private readonly Dictionary<nint, LibreExternalWindowOwnerState> _externalWindowOwners = [];
         private bool _exitRequested;
         private double? _initialDpiScale;
         private double? _initialFramebufferScale;
@@ -4950,6 +5012,7 @@ public class CanonicalLifecycleTests
             CaptionHeightValue = 29;
             MenuAccessKeysUnderlinedValue = true;
             _formHandles.Clear();
+            _externalWindowOwners.Clear();
             DragDropHandler = null;
             DragDropTargets.Clear();
             while (_queue.TryDequeue(out _))
@@ -4974,6 +5037,10 @@ public class CanonicalLifecycleTests
             LastCreateGraphicsFlushIntention = null;
             SawCreateGraphicsTranslatedFill = false;
             LastActivatedWindow = default;
+            LastWindowOwner = default;
+            ExternalOwnerDisableCount = 0;
+            ExternalOwnerEnableCount = 0;
+            ExternalOwnerActivateCount = 0;
             LastWindowTitle = string.Empty;
             LastWindowState = LibreWindowState.Normal;
             LastWindowTopMost = false;
@@ -5360,6 +5427,14 @@ public class CanonicalLifecycleTests
 
         internal LibreHandle LastActivatedWindow { get; private set; }
 
+        internal LibreHandle LastWindowOwner { get; private set; }
+
+        internal int ExternalOwnerDisableCount { get; private set; }
+
+        internal int ExternalOwnerEnableCount { get; private set; }
+
+        internal int ExternalOwnerActivateCount { get; private set; }
+
         internal string LastWindowTitle { get; private set; } = string.Empty;
 
         internal LibreWindowState LastWindowState { get; private set; }
@@ -5552,9 +5627,63 @@ public class CanonicalLifecycleTests
         {
             WindowsCreated++;
             LastCoordinateMode = options.CoordinateMode;
+            LastWindowOwner = options.Owner;
             _lastWindow = new HeadlessWindow(this, options, events);
             return _lastWindow;
         }
+
+        public bool IsLive(LibreHandle owner)
+            => owner.Kind == LibreHandleKind.Window
+                && _externalWindowOwners.ContainsKey(owner.Value);
+
+        public bool TryGetState(
+            LibreHandle owner,
+            out LibreExternalWindowOwnerState state)
+        {
+            state = default;
+            return owner.Kind == LibreHandleKind.Window
+                && _externalWindowOwners.TryGetValue(owner.Value, out state);
+        }
+
+        public bool TrySetEnabled(LibreHandle owner, bool enabled)
+        {
+            if (!TryGetState(owner, out LibreExternalWindowOwnerState state))
+            {
+                return false;
+            }
+
+            _externalWindowOwners[owner.Value] = state with { IsEnabled = enabled };
+            if (enabled)
+            {
+                ExternalOwnerEnableCount++;
+            }
+            else
+            {
+                ExternalOwnerDisableCount++;
+            }
+
+            return true;
+        }
+
+        public bool TryActivate(LibreHandle owner)
+        {
+            if (!TryGetState(owner, out LibreExternalWindowOwnerState state)
+                || !state.IsVisible)
+            {
+                return false;
+            }
+
+            ExternalOwnerActivateCount++;
+            return true;
+        }
+
+        internal void RegisterExternalWindowOwner(nint handle)
+            => _externalWindowOwners.Add(
+                handle,
+                new LibreExternalWindowOwnerState(IsVisible: true, IsEnabled: true));
+
+        internal LibreExternalWindowOwnerState GetExternalOwnerState(nint handle)
+            => _externalWindowOwners[handle];
 
         internal void TrackForm(Form form)
             => _formHandles[form] = GetWindowHandle(form);
