@@ -202,6 +202,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private readonly IWindow _window;
     private readonly SilkWindowController _controller;
     private readonly LibreWindowCoordinateMode _coordinateMode;
+    private readonly bool _inputTransparent;
     private readonly ContainerVisual _paintRoot = new();
     private readonly DrawingVisual _fallbackPaintVisual = new();
     private readonly DrawingVisual _transientPaintVisual = new();
@@ -247,6 +248,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _events = events;
         _adorners = new ProGpuAdornerStore(_adornerRoot);
         _coordinateMode = options.CoordinateMode;
+        _inputTransparent = options.Options.HasFlag(LibreWindowOptions.InputTransparent);
         ValidateSizeConstraints(options.MinimumSize, options.MaximumSize);
         ValidateOpacity(options.Opacity);
         _paintRoot.AddChild(_fallbackPaintVisual);
@@ -277,6 +279,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
 
         _window = Silk.NET.Windowing.Window.Create(silkOptions);
         _controller = new SilkWindowController(_window);
+        _controller.SetIsPopup(options.Options.HasFlag(LibreWindowOptions.Popup));
         _showInTaskbar = options.ShowInTaskbar;
         _canClose = options.CanClose;
         _canMinimize = options.CanMinimize;
@@ -1280,6 +1283,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private void OnLoad()
     {
         _controller.Attach();
+        ApplyInputTransparency();
         _wgpuContext = new WgpuContext();
         _wgpuContext.Initialize(_window);
         _compositor = new Compositor(
@@ -1305,6 +1309,37 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
             mouse.MouseUp += OnMouseUp;
             mouse.MouseMove += OnMouseMove;
             mouse.Scroll += OnMouseScroll;
+        }
+    }
+
+    private unsafe void ApplyInputTransparency()
+    {
+        if (!_inputTransparent)
+        {
+            return;
+        }
+
+        try
+        {
+            // GLFW 3.4 exposes mouse pass-through as a window attribute, but
+            // Silk.NET's generated enum predates the public constant.
+            const int glfwMousePassthrough = 0x0002000D;
+            Silk.NET.GLFW.Glfw glfw = Silk.NET.GLFW.GlfwProvider.GLFW.Value;
+            glfw.SetWindowAttrib(
+                (Silk.NET.GLFW.WindowHandle*)_window.Handle,
+                (Silk.NET.GLFW.WindowAttributeSetter)glfwMousePassthrough,
+                true);
+        }
+        catch (Exception exception) when (
+            exception is DllNotFoundException
+            or EntryPointNotFoundException
+            or BadImageFormatException
+            or Silk.NET.GLFW.GlfwException
+            or TypeInitializationException)
+        {
+            throw new PlatformNotSupportedException(
+                "The active Silk.NET windowing backend does not provide input-transparent popup windows.",
+                exception);
         }
     }
 

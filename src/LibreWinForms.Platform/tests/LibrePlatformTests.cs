@@ -67,6 +67,29 @@ public class LibrePlatformTests
     }
 
     [Fact]
+    public void MissingPopupServiceFailsClosedThroughTypedCapability()
+    {
+        TestServices test = new();
+        using LibrePlatformServices services = test.Create();
+        LibreHandle owner = new((nint)1, LibreHandleKind.Window);
+        LibrePopupId popup = new(1);
+        LibrePopupSurfaceRequest request = new(
+            owner,
+            popup,
+            new LibreRectangle(20, 30, 100, 40),
+            1d,
+            InputTransparent: true,
+            LibrePopupDismissalPolicy.Explicit);
+
+        services.Popups.Should().BeSameAs(UnsupportedLibrePopupSurfaceService.Instance);
+        Action create = () => services.Popups.CreateGraphics(request);
+        Action hide = () => services.Popups.Hide(owner, popup);
+
+        create.Should().Throw<PlatformNotSupportedException>();
+        hide.Should().Throw<PlatformNotSupportedException>();
+    }
+
+    [Fact]
     public void DispatcherWithoutProviderFailsClosedOnASecondUiThread()
     {
         TestServices test = new();

@@ -36,6 +36,7 @@ public static class ProGpuPlatform
         SilkMonitorService monitors = new();
         SilkWindowService windows = new(dispatcher, handles, monitors);
         ProGpuPaintService painting = new(dispatcher, handles, windows);
+        ProGpuPopupSurfaceService popups = new(dispatcher, windows, painting);
         ProGpuTextRendererService textRenderer = new();
         ILibreFileDialogService fileDialogs = OperatingSystem.IsLinux()
             ? new PreferredLinuxLibreFileDialogService(
@@ -105,7 +106,8 @@ public static class ProGpuPlatform
                 new ProGpuFontCatalog()),
             fileDialogs,
             new DefaultLibreInputLanguageService(CultureInfo.CurrentCulture),
-            UnsupportedLibreDragDropService.Instance);
+            UnsupportedLibreDragDropService.Instance,
+            popups);
     }
 
     public static void Register() => LibrePlatform.Register(CreateServices());

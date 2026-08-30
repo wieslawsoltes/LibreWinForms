@@ -12,6 +12,8 @@ public enum LibreWindowOptions
     Decorated = 4,
     TopMost = 8,
     ToolWindow = 16,
+    Popup = 32,
+    InputTransparent = 64,
 }
 
 public enum LibreWindowState
