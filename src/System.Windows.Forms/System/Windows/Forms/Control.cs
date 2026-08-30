@@ -5583,10 +5583,34 @@ public unsafe partial class Control :
             throw new InvalidEnumArgumentException(nameof(skipValue), value, typeof(GetChildAtPointSkip));
         }
 
+#if LIBREWINFORMS_PORTABLE
+        _ = Handle;
+        if (ChildControls is not { } children)
+        {
+            return null;
+        }
+
+        for (int index = 0; index < children.Count; index++)
+        {
+            Control child = children[index];
+            if (!child.Bounds.Contains(pt)
+                || ((skipValue & GetChildAtPointSkip.Invisible) != 0 && !child.Visible)
+                || ((skipValue & GetChildAtPointSkip.Disabled) != 0 && !child.Enabled)
+                || ((skipValue & GetChildAtPointSkip.Transparent) != 0 && child.RenderTransparent))
+            {
+                continue;
+            }
+
+            return child;
+        }
+
+        return null;
+#else
         HWND hwnd = PInvoke.ChildWindowFromPointEx(this, pt, (CWP_FLAGS)value);
         Control? control = FromChildHandle(hwnd);
 
         return (control == this) ? null : control;
+#endif
     }
 
     private protected virtual string? GetCaptionForTool(ToolTip toolTip) =>

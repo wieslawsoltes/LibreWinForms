@@ -2063,6 +2063,33 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void GetChildAtPointUsesManagedPortableZOrderAndSkipFlags()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using Panel parent = new() { Size = new Size(180, 120) };
+        using Control back = new() { Bounds = new Rectangle(10, 10, 30, 25) };
+        using Control front = new() { Bounds = new Rectangle(10, 10, 30, 25) };
+        using Control invisible = new() { Bounds = new Rectangle(50, 10, 30, 25), Visible = false };
+        using Control disabled = new() { Bounds = new Rectangle(90, 10, 30, 25), Enabled = false };
+        using Panel transparent = new()
+        {
+            Bounds = new Rectangle(130, 10, 30, 25),
+            BackColor = Color.FromArgb(0, Color.Black),
+        };
+        parent.Controls.AddRange([back, front, invisible, disabled, transparent]);
+        parent.Controls.SetChildIndex(front, 0);
+
+        parent.GetChildAtPoint(new Point(15, 15)).Should().BeSameAs(front);
+        parent.GetChildAtPoint(new Point(55, 15)).Should().BeSameAs(invisible);
+        parent.GetChildAtPoint(new Point(55, 15), GetChildAtPointSkip.Invisible).Should().BeNull();
+        parent.GetChildAtPoint(new Point(95, 15)).Should().BeSameAs(disabled);
+        parent.GetChildAtPoint(new Point(95, 15), GetChildAtPointSkip.Disabled).Should().BeNull();
+        parent.GetChildAtPoint(new Point(135, 15)).Should().BeSameAs(transparent);
+        parent.GetChildAtPoint(new Point(135, 15), GetChildAtPointSkip.Transparent).Should().BeNull();
+        parent.IsHandleCreated.Should().BeTrue();
+    }
+
+    [Fact]
     public void DataGridViewColumnLookupUsesCanonicalNamesAndTypedIndexes()
     {
         UseHeadlessPlatform(autoCloseWindows: false);
