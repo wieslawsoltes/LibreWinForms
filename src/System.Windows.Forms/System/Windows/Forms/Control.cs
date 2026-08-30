@@ -9905,9 +9905,14 @@ public unsafe partial class Control :
     /// </summary>
     public Rectangle RectangleToClient(Rectangle r)
     {
+#if LIBREWINFORMS_PORTABLE
+        r.Location = PointToClient(r.Location);
+        return r;
+#else
         RECT rect = r;
         PInvokeCore.MapWindowPoints(HWND.Null, this, ref rect);
         return rect;
+#endif
     }
 
     /// <summary>
@@ -9915,9 +9920,14 @@ public unsafe partial class Control :
     /// </summary>
     public Rectangle RectangleToScreen(Rectangle r)
     {
+#if LIBREWINFORMS_PORTABLE
+        r.Location = PointToScreen(r.Location);
+        return r;
+#else
         RECT rect = r;
         PInvokeCore.MapWindowPoints(this, HWND.Null, ref rect);
         return rect;
+#endif
     }
 
     /// <summary>

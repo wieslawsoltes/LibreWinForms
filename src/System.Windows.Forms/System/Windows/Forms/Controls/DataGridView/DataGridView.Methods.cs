@@ -5708,6 +5708,33 @@ public partial class DataGridView
     {
         const byte DATAGRIDVIEW_shadowEdgeThickness = 3;
 
+#if LIBREWINFORMS_PORTABLE
+        Rectangle screen = RectangleToScreen(r);
+        ControlPaint.FillReversibleRectangle(
+            new Rectangle(screen.X, screen.Y, screen.Width, DATAGRIDVIEW_shadowEdgeThickness),
+            BackColor);
+        ControlPaint.FillReversibleRectangle(
+            new Rectangle(
+                screen.X,
+                screen.Bottom - DATAGRIDVIEW_shadowEdgeThickness,
+                screen.Width,
+                DATAGRIDVIEW_shadowEdgeThickness),
+            BackColor);
+        ControlPaint.FillReversibleRectangle(
+            new Rectangle(
+                screen.X,
+                screen.Y + DATAGRIDVIEW_shadowEdgeThickness,
+                DATAGRIDVIEW_shadowEdgeThickness,
+                screen.Height - 2 * DATAGRIDVIEW_shadowEdgeThickness),
+            BackColor);
+        ControlPaint.FillReversibleRectangle(
+            new Rectangle(
+                screen.Right - DATAGRIDVIEW_shadowEdgeThickness,
+                screen.Y + DATAGRIDVIEW_shadowEdgeThickness,
+                DATAGRIDVIEW_shadowEdgeThickness,
+                screen.Height - 2 * DATAGRIDVIEW_shadowEdgeThickness),
+            BackColor);
+#else
         using GetDcScope dc = new(HWND, HRGN.Null, GET_DCX_FLAGS.DCX_CACHE | GET_DCX_FLAGS.DCX_LOCKWINDOWUPDATE);
         HBRUSH halftone = ControlPaint.CreateHalftoneHBRUSH();
         HGDIOBJ saveBrush = PInvokeCore.SelectObject(dc, halftone);
@@ -5719,6 +5746,7 @@ public partial class DataGridView
 
         PInvokeCore.SelectObject(dc, saveBrush);
         PInvokeCore.DeleteObject(halftone);
+#endif
     }
 
     /// <summary>
@@ -5727,12 +5755,16 @@ public partial class DataGridView
     /// </summary>
     private void DrawSplitBar(Rectangle r)
     {
+#if LIBREWINFORMS_PORTABLE
+        ControlPaint.FillReversibleRectangle(RectangleToScreen(r), BackColor);
+#else
         using GetDcScope dc = new(HWND, HRGN.Null, GET_DCX_FLAGS.DCX_CACHE | GET_DCX_FLAGS.DCX_LOCKWINDOWUPDATE);
         HBRUSH halftone = ControlPaint.CreateHalftoneHBRUSH();
         HGDIOBJ saveBrush = PInvokeCore.SelectObject(dc, halftone);
         PInvoke.PatBlt(dc, r.X, r.Y, r.Width, r.Height, ROP_CODE.PATINVERT);
         PInvokeCore.SelectObject(dc, saveBrush);
         PInvokeCore.DeleteObject(halftone);
+#endif
         GC.KeepAlive(this);
     }
 

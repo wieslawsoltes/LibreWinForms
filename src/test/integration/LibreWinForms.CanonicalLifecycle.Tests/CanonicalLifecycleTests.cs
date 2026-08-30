@@ -2330,6 +2330,9 @@ public class CanonicalLifecycleTests
         Point screen = child.PointToScreen(new Point(4, 5));
         screen.Should().Be(new Point(64, 70));
         child.PointToClient(screen).Should().Be(new Point(4, 5));
+        Rectangle screenRectangle = child.RectangleToScreen(new Rectangle(4, 5, 11, 13));
+        screenRectangle.Should().Be(new Rectangle(64, 70, 11, 13));
+        child.RectangleToClient(screenRectangle).Should().Be(new Rectangle(4, 5, 11, 13));
         child.Location.Should().Be(new Point(50, 45));
     }
 
@@ -3147,6 +3150,43 @@ public class CanonicalLifecycleTests
                 default,
                 new LibreArgbColor(Color.Purple.ToArgb()),
                 default));
+    }
+
+    [Fact]
+    public void SplitContainerResizeFeedbackUsesTypedScreenOverlayService()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { Bounds = new Rectangle(100, 200, 360, 240) };
+        using SplitContainerMouseProbe split = new()
+        {
+            Bounds = new Rectangle(12, 18, 240, 120),
+            SplitterDistance = 80,
+            BackColor = Color.CadetBlue,
+        };
+        form.Controls.Add(split);
+        form.Show();
+        Rectangle splitter = split.SplitterRectangle;
+        Rectangle expectedScreenBounds = split.RectangleToScreen(splitter);
+        Point splitterCenter = new(
+            splitter.X + splitter.Width / 2,
+            splitter.Y + splitter.Height / 2);
+        platform.ReversibleDrawCalls.Clear();
+
+        split.RaiseMouseDown(splitterCenter);
+        split.RaiseMouseUp(splitterCenter);
+
+        ReversibleDrawCall expected = new(
+            ReversibleDrawKind.FillRectangle,
+            new LibreRectangle(
+                expectedScreenBounds.X,
+                expectedScreenBounds.Y,
+                expectedScreenBounds.Width,
+                expectedScreenBounds.Height),
+            default,
+            default,
+            new LibreArgbColor(Color.CadetBlue.ToArgb()),
+            default);
+        platform.ReversibleDrawCalls.Should().Equal(expected, expected);
     }
 
     [Fact]
@@ -5030,6 +5070,15 @@ public class CanonicalLifecycleTests
     private sealed class MouseDownProbeUserControl : UserControl
     {
         internal void RaiseMouseDown(MouseEventArgs e) => OnMouseDown(e);
+    }
+
+    private sealed class SplitContainerMouseProbe : SplitContainer
+    {
+        internal void RaiseMouseDown(Point point)
+            => OnMouseDown(new MouseEventArgs(MouseButtons.Left, 1, point.X, point.Y, 0));
+
+        internal void RaiseMouseUp(Point point)
+            => OnMouseUp(new MouseEventArgs(MouseButtons.Left, 1, point.X, point.Y, 0));
     }
 
     private sealed class CenteringForm : Form

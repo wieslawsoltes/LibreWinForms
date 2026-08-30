@@ -356,6 +356,7 @@ public static unsafe partial class ControlPaint
         return (IntPtr)colorMask;
     }
 
+#if !LIBREWINFORMS_PORTABLE
     internal static unsafe HBRUSH CreateHalftoneHBRUSH()
     {
         short* grayPattern = stackalloc short[8];
@@ -375,6 +376,7 @@ public static unsafe partial class ControlPaint
 
         return PInvoke.CreateBrushIndirect(&logicalBrush);
     }
+#endif
 
     /// <summary>
     ///  Draws a border of the specified style and color to the given graphics.
