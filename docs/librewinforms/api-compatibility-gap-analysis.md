@@ -1,8 +1,8 @@
 # LibreWinForms API Compatibility Gap Analysis
 
-Date: 2026-08-30
+Date: 2026-08-31
 
-Implementation baseline: `d2ac2d27255f8c8db79b9e73c70b3c2fe0daaa06`
+Implementation baseline: `82a4db6f9`
 
 Compared contract: .NET 10.0.11 `Microsoft.WindowsDesktop.App.Ref`
 
@@ -12,7 +12,7 @@ LibreWinForms contains the full upstream WinForms source tree, but historically 
 
 Therefore, the statement “the repository contains the full WinForms source” was always true, but the old portable product did not use that source as its runtime. The production source-first graph now does: runtime API identity remains `System.Windows.Forms`, public package branding remains `LibreWinForms.*`, and portable behavior is implemented at typed platform and drawing seams.
 
-The latest typed-adorner checkpoints `5f18e9f9d` and `64de5ffb7` demonstrate the repair model on canonical `ErrorProvider`: ProGPU owns independently replaceable retained owner-window drawings, while upstream-derived ErrorProvider retains its public API, items, alignment, padding, blink state, and icon rendering. The portable branch no longer needs a native child window, USER32 small-icon metrics, or a UIAutomationCore client probe to display and update an error icon. Separate popup checkpoints `41cd7c03f` and `69d37a992` add typed independent popup surfaces and route explicit canonical `ToolTip.Show`/`Hide`, `Popup`, `Draw`, title/icon/default rendering, work-area placement, duration timers, deactivation, and `Active` teardown through them without stretching the adorner abstraction off-window. Platform tests pass 52/52, the ProGPU adapter passes 52 cases with two environment-dependent skips, and the complete canonical lifecycle suite passes 125/125. Automatic hover/keyboard ToolTip presentation and ErrorProvider tooltip text remain the next bounded state-machine cutover.
+The latest typed-adorner checkpoints `5f18e9f9d` and `64de5ffb7` demonstrate the repair model on canonical `ErrorProvider`: ProGPU owns independently replaceable retained owner-window drawings, while upstream-derived ErrorProvider retains its public API, items, alignment, padding, blink state, and icon rendering. The portable branch no longer needs a native child window, USER32 small-icon metrics, or a UIAutomationCore client probe to display and update an error icon. Separate popup checkpoints `41cd7c03f` and `69d37a992` add typed independent popup surfaces and route explicit canonical `ToolTip.Show`/`Hide`, `Popup`, `Draw`, title/icon/default rendering, work-area placement, duration timers, deactivation, and `Active` teardown through them without stretching the adorner abstraction off-window. Automatic-hover checkpoint `82a4db6f9` drives the same popup from canonical control mouse events, uses the typed Forms timer for initial and auto-pop delays, and removes the native tooltip subclass dependency from the portable path. Platform tests pass 52/52, the ProGPU adapter passes 52 cases with two environment-dependent skips, and the complete canonical lifecycle suite passes 126/126. Keyboard ToolTip presentation and ErrorProvider tooltip text remain the next bounded state-machine cutover.
 
 The properties reported in issues [#10](https://github.com/wieslawsoltes/LibreWinForms/issues/10) through [#18](https://github.com/wieslawsoltes/LibreWinForms/issues/18) are not isolated omissions. They expose three structural problems:
 
