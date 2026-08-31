@@ -1478,6 +1478,10 @@ Focused gates prove exact selected-font glyph IDs, a 20-unit second origin, a 44
 
 Only the coordinated source-development submodule advances. Ordinary NuGet resolution remains immutable, and dependency-first publication still requires this exact ProGPU object before LibreWinForms.
 
+ProGPU follow-up `ab6db32e4d572b7b4e07286dee8f71f40d514451` adds the corresponding natural-advance form when Unicode `ETO_GLYPH_INDEX` supplies no `offDx` array. Each stored ID is measured directly in the selected font and accumulated as a floating-point cell, preserving direct glyph identity without Unicode mapping or cumulative integer rounding. Explicit scalar/PDY cells remain unchanged. ANSI glyph-index storage rejects transactionally until its separate 16-bit storage contract is implemented; bidi visual order and decorations remain explicit typed boundaries.
+
+Focused gates prove exact direct IDs, positive selected-font natural spacing, ANSI rejection, and all-or-nothing publication. The complete drawing suite passes 454/454; Release product, test, and benchmark builds have 0 warnings/0 errors; documentation/package verification passes; and ApiCompat remains 0 missing types, 0 missing members, and 13 reviewed differences. The 256-record natural-advance workload allocates 528.24 KB and measures a 1.650 millisecond mean (0.324 millisecond standard deviation) across three contended iterations. This is coarse local allocation/command-shape evidence. The exact source-development pin advances without changing ordinary NuGet resolution, and publication remains ProGPU first.
+
 ## Major risks and controls
 
 | Risk | Control |
