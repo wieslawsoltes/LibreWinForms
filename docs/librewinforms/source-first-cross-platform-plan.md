@@ -1358,6 +1358,10 @@ ProGPU implementation continuation `b4ce93b87126e1adb92563a5b81f2898219c6b23` ad
 
 Full drawing rises to 395/395, test and benchmark projects build with 0 warnings/0 errors, and ApiCompat remains 0/0/13. The revised saved-clip 256-rectangle ShortRun measured a 561.572 microsecond median (599.013 microsecond mean, 103.320 microsecond standard deviation) and 628.33 KB allocated. The coordinated source pin advances to documentation checkpoint `30ed39a9a0b40d77e79043edce41c9941b30042e`; normal NuGet consumer mode remains unchanged. The ProGPU-first push was retried and still failed at GitHub DNS, so this LibreWinForms pin remains a local recoverable checkpoint rather than a remotely broken submodule reference.
 
+ProGPU continuation `1ceb3cc6f19739ba4fd8aafcda7b352322ca0daa` adds typed `META_ROUNDRECT` playback through the official signed height/width and bottom/right/top/left record layout. The existing ProGPU rounded-path seam applies the selected brush and pen after the normal WMF transform. Exact fill, antialiased outline, transparent-corner, zero-corner rectangle fallback, and unordered-bound rollback gates avoid both API-only storage and a new implementation-specific restriction.
+
+The drawing suite rises to 398/398, test and benchmark builds remain 0 warnings/0 errors, and ApiCompat remains 0/0/13. The dedicated 256-record ARM64/.NET 10.0.11 ShortRun measured a 1.347 millisecond median (1.379 millisecond mean, 0.234 millisecond standard deviation) and 1.05 MB allocated. The coordinated development pin advances to this exact commit; immutable NuGet consumers and the named remaining metafile families do not change.
+
 ## Major risks and controls
 
 | Risk | Control |
