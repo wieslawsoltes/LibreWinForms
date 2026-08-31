@@ -1486,6 +1486,10 @@ ProGPU follow-up `28b84a6cec54e5e43cb5a17b3518564fe6202962` adds horizontal dire
 
 Focused gates cover both horizontal advance forms and decorated-PDY rollback. The complete drawing suite passes 457/457; Release product, test, and benchmark builds have 0 warnings/0 errors; documentation/package verification passes; and ApiCompat remains 0/0/13. The unchanged undecorated workload retains 528.24 KB allocation, while its three-sample 1.069 millisecond median is treated only as coarse command-shape evidence. The coordinated pin advances without changing ordinary NuGet resolution, and ProGPU remains the required first publication.
 
+ProGPU follow-up `7d4e39bf7dc5f4b7df807b6aee76524c441e52e5` aligns the direct path with the official already-positioned glyph contract. `ETO_IGNORELANGUAGE` is accepted because no language stage exists to suppress, and both record-level `ETO_RTLREADING` and `TA_RTLREADING` leave stored glyph IDs and cell order unchanged instead of applying bidi twice.
+
+An exact stored-order gate raises the complete drawing suite to 458/458. Release product, test, and benchmark builds remain at 0 warnings/0 errors; documentation/package verification passes; and ApiCompat remains 0/0/13. Ordinary NuGet resolution is unchanged, the exact coordinated pin advances, and publication remains dependency-first.
+
 ## Major risks and controls
 
 | Risk | Control |
