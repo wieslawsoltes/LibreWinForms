@@ -178,11 +178,11 @@ The GPU-independent headless integration gate calls unchanged `Application.Run(f
 
 The initial canonical crossing inventory makes the size of the next substitution explicit. `Control`, `Form`, `Application`, `Application.ThreadContext`, `Application.ComponentThreadContext`, and `NativeWindow` currently contain 246 direct `PInvoke`/User32/Kernel32 references (127, 73, 14, 14, 8, and 10 respectively). These counts are an implementation-routing inventory, not a claim that every occurrence needs a new service. Managed behavior stays in canonical source; related native operations are grouped at the focused service boundaries above.
 
-## Why the current package is incomplete despite having the full source
+## Historical pre-cutover problem: why the package was incomplete despite having the full source
 
-The repository contains the upstream WinForms source tree, but the shipping portable package does not compile that tree. `src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj` compiles only its own `src/**/*.cs` files into an assembly named `System.Windows.Forms`. That compatibility source is approximately 26,000 lines and independently recreates part of the public object model.
+The repository contained the upstream WinForms source tree, but the former portable package did not compile that tree. The retired `src/LibreWinForms.Portable` project compiled only its own `src/**/*.cs` files into an assembly named `System.Windows.Forms`. That compatibility source was approximately 26,000 lines and independently recreated part of the public object model.
 
-The canonical project at `src/System.Windows.Forms/System.Windows.Forms.csproj` is a different build graph. It includes the complete upstream managed implementation, but it still assumes Windows in important dependencies and execution paths. In particular, `System.Windows.Forms.Primitives` currently references the repository's Win32-oriented `System.Drawing.Common` and `System.Private.Windows.GdiPlus` projects.
+The canonical project at `src/System.Windows.Forms/System.Windows.Forms.csproj` was a different build graph. It included the complete upstream managed implementation, but still assumed Windows in important dependencies and execution paths. The source-first implementation described by the later checkpoints replaced those portable assumptions through typed seams and removed the reduced runtime.
 
 This explains the apparent contradiction:
 
@@ -192,6 +192,8 @@ This explains the apparent contradiction:
 4. Adding missing properties to that compatibility assembly treats symptoms and increases the future deletion cost.
 
 The companion [API compatibility gap analysis](api-compatibility-gap-analysis.md) records the measured consequences and proposed API-level fixes.
+
+The canonical contract is modern .NET WinForms, currently measured against .NET 10, and must not be conflated with all of .NET Framework 4.x. Modern upstream intentionally retains classic `DataGrid`, `MainMenu`/`ContextMenu`, `ToolBar`, and `StatusBar` only as obsolete binary-compatibility stubs. If a declared consumer requires a functional legacy family, add an explicit migration wave that imports the complete last functional Microsoft-managed subsystem with pinned provenance, preserves `System.Windows.Forms` identity, replaces only native mechanisms at typed seams, and gates it against a separate pinned .NET Framework contract and behavior suite. Do not make modern upstream stubs appear functional through isolated property bodies.
 
 ## Non-negotiable constraints
 
