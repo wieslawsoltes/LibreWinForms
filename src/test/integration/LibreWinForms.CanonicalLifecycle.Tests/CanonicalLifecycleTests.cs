@@ -2426,6 +2426,7 @@ public class CanonicalLifecycleTests
             AutoPopDelay = 80,
         };
         toolTip.SetToolTip(secondButton, "Keyboard tip");
+        platform.SendInput(LibreInputEventKind.PointerMove, position: new LibrePoint(5, 5));
 
         platform.SendInput(LibreInputEventKind.KeyDown, key: LibreKey.Tab);
 
