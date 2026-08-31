@@ -1374,6 +1374,10 @@ ProGPU continuation `6f651838c0d57addd89962028eeb6e0ebef6f5a7` adds typed `META_
 
 Full drawing rises to 405/405, test and benchmark projects retain 0 warnings/0 errors, and ApiCompat remains 0/0/13. The 256-record/512-polygon ARM64/.NET 10.0.11 in-process ShortRun measured a 2.405 millisecond median (2.542 millisecond mean, 0.463 millisecond standard deviation) and 1.85 MB allocated. This is coarse evidence and exposes polygon array/path allocation as an optimization target. The coordinated source-development pin advances to this exact commit; ordinary NuGet support and explicit remaining WMF text, DIB, region, raster, and state families remain unchanged. Publication remains ordered ProGPU first, LibreWinForms second.
 
+ProGPU continuation `e996341d345cf4ae7621a50a909a99d9ad83531f` adds typed 16-bit WMF map mode, viewport origin/extent, window/viewport origin offset, and window/viewport extent scaling records. The existing playback state remains the single owner of window, viewport, map mode, save/restore, and transform composition. A separate WMF ratio decoder preserves the official y-denominator/y-numerator/x-denominator/x-numerator order instead of reinterpreting the records as their 32-bit EMF counterparts. Exact transformed pixels and zero-denominator rollback gate the complete path.
+
+Full drawing rises to 407/407, test and benchmark projects retain 0 warnings/0 errors, and ApiCompat remains 0/0/13. The ARM64/.NET 10.0.11 in-process ShortRun for 256 cycles/2,048 balanced mapping records/256 pixels measured a 155.282 microsecond median (156.556 microsecond mean, 3.099 microsecond standard deviation) and 305.71 KB allocated. The coordinated source-development pin advances to this exact commit; normal NuGet support and the remaining explicit WMF families are unchanged. Publication remains ordered ProGPU first, LibreWinForms second.
+
 ## Major risks and controls
 
 | Risk | Control |
