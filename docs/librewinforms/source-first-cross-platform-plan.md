@@ -1378,6 +1378,10 @@ ProGPU continuation `e996341d345cf4ae7621a50a909a99d9ad83531f` adds typed 16-bit
 
 Full drawing rises to 407/407, test and benchmark projects retain 0 warnings/0 errors, and ApiCompat remains 0/0/13. The ARM64/.NET 10.0.11 in-process ShortRun for 256 cycles/2,048 balanced mapping records/256 pixels measured a 155.282 microsecond median (156.556 microsecond mean, 3.099 microsecond standard deviation) and 305.71 KB allocated. The coordinated source-development pin advances to this exact commit; normal NuGet support and the remaining explicit WMF families are unchanged. Publication remains ordered ProGPU first, LibreWinForms second.
 
+ProGPU continuation `c930c60f37f71f44a76554f1c25e94d1b04e646d` adds typed `META_PATBLT` record decoding and exact retained fills for `PATCOPY`, `BLACKNESS`, and `WHITENESS`. Pattern copy uses the selected managed brush; constant results use managed system brushes. Destination-dependent ternary raster operations remain explicit compositing debt and fail before temporary commands publish instead of approximating XOR/inversion over an unavailable destination snapshot.
+
+Full drawing rises to 409/409, test and benchmark projects retain 0 warnings/0 errors, and ApiCompat remains 0/0/13. The 256-record ARM64/.NET 10.0.11 in-process ShortRun measured a 133.616 microsecond median (135.580 microsecond mean, 16.236 microsecond standard deviation) and 305.88 KB allocated. The coordinated source-development pin advances to this exact commit; ordinary NuGet support and other explicit WMF raster/DIB families remain unchanged. Publication remains ordered ProGPU first, LibreWinForms second.
+
 ## Major risks and controls
 
 | Risk | Control |
