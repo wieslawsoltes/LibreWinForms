@@ -1366,6 +1366,10 @@ ProGPU continuation `a6fc6f38c17bec0b0da5c0dba407e6e9a9bf1556` adds typed `META_
 
 Full drawing rises to 400/400, test and benchmark projects retain 0 warnings/0 errors, and ApiCompat remains 0/0/13. The paired ARM64/.NET 10.0.11 ShortRun measured pies at a 1.382 millisecond median (1.621 millisecond mean, 0.785 millisecond standard deviation) and 816.23 KB, and chords at a 792.480 microsecond median (946.270 microsecond mean, 284.554 microsecond standard deviation) and 800.03 KB. The source-development pin advances to this exact commit; ordinary NuGet support and explicit remaining metafile boundaries remain unchanged.
 
+ProGPU continuation `9a905cd8fd1dbcc346393f74d9f61c77dd6fe365` adds typed `META_LINETO` playback through the selected pen while preserving its logical current-position state across progression and SaveDC/RestoreDC. It also adds typed `META_SETPIXEL`: explicit `COLORREF` data is transformed and rounded in device space before a one-by-one retained command is emitted, so destination scaling cannot enlarge one requested device pixel. Exact line, restored-diagonal, scaled pixel, adjacent-transparent-pixel, and later-unsupported-record rollback gates cover the observable contract without an HDC, GDI+, reflection, or a compatibility-shaped object.
+
+Full drawing rises to 402/402, test and benchmark projects retain 0 warnings/0 errors, and ApiCompat remains 0/0/13. The ARM64/.NET 10.0.11 ShortRun measured lines at a 503.124 microsecond median (477.934 microsecond mean, 206.828 microsecond standard deviation) and 323.97 KB, and pixels at a 199.155 microsecond median (199.350 microsecond mean, 14.387 microsecond standard deviation) and 305.70 KB. The line result is a high-variance coarse checkpoint; the pixel result is local subsystem evidence. The coordinated source-development pin advances to this exact commit; ordinary NuGet support and the remaining explicit metafile boundaries do not change. ProGPU must be published before any LibreWinForms gitlink that references it.
+
 ## Major risks and controls
 
 | Risk | Control |
