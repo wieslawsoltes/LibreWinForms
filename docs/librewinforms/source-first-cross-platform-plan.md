@@ -1382,6 +1382,10 @@ ProGPU continuation `c930c60f37f71f44a76554f1c25e94d1b04e646d` adds typed `META_
 
 Full drawing rises to 409/409, test and benchmark projects retain 0 warnings/0 errors, and ApiCompat remains 0/0/13. The 256-record ARM64/.NET 10.0.11 in-process ShortRun measured a 133.616 microsecond median (135.580 microsecond mean, 16.236 microsecond standard deviation) and 305.88 KB allocated. The coordinated source-development pin advances to this exact commit; ordinary NuGet support and other explicit WMF raster/DIB families remain unchanged. Publication remains ordered ProGPU first, LibreWinForms second.
 
+ProGPU continuation `497c2db243e8cac1db2fb0544075190fe4afcb4d` adds typed `META_OFFSETCLIPRGN` playback through the existing managed Region clip and complete SaveDC/RestoreDC snapshot. The official signed logical Y/X offset applies after current WMF mapping state. Exact original, moved, and restored clip pixels plus later-record rollback gate the state path without creating a second clip model.
+
+Full drawing rises to 411/411, test and benchmark projects retain 0 warnings/0 errors, and ApiCompat remains 0/0/13. The 256-fill/512-offset ARM64/.NET 10.0.11 in-process ShortRun measured a 4.148 millisecond median (4.425 millisecond mean, 1.005 millisecond standard deviation) and 2.12 MB allocated. The high-variance local result makes Region clone/path repush allocation explicit optimization debt. The coordinated pin advances; ordinary NuGet mode remains unchanged and publication remains ordered ProGPU first.
+
 ## Major risks and controls
 
 | Risk | Control |
