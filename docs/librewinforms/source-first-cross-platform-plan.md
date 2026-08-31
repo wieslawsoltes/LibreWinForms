@@ -1438,6 +1438,14 @@ Focused retained-command and pixel gates cover distinct Unicode glyphs, 32-bit o
 
 The coordinated submodule advances to the exact ProGPU commit without changing ordinary immutable NuGet consumption. Publication remains dependency-first: ProGPU must be reachable on GitHub before LibreWinForms may publish the new gitlink.
 
+### ProGPU EMF ANSI text checkpoint
+
+ProGPU continuation `403719fa36cf7e30a92a5f74be56adeba6663db7` extends the typed EMF text path to `EMR_EXTTEXTOUTA`. ANSI records use the selected logical font's declared GDI character set and strict managed code-page decoding rather than the process locale. Record-relative byte offsets may be odd, CP1252 text and one-byte explicit advances retain exact cells, and Shift-JIS double-byte text without explicit advances is decoded and shaped through the same managed engine. Invalid byte sequences and double-byte explicit advances fail transactionally at named boundaries; the latter remains unsupported until byte-to-character advance semantics can be implemented without guessing. The existing glyph-index, numeric-substitution, two-dimensional, explicit bidi-advance, vertical-font, and optional-layout boundaries remain explicit.
+
+Focused gates cover CP1252 including the euro sign, odd string offsets, selected/restored font state, Shift-JIS decode and fallback shaping, malformed lead bytes, and whole-stream rollback. The complete drawing suite passes 442/442; Release test and benchmark builds have 0 warnings/0 errors; ProGPU documentation/package verification passes; and ApiCompat remains 0 missing types, 0 missing members, and 13 reviewed differences. The dedicated 256-record ANSI workload allocates 1.07 MB. Timing samples of 3.510, 3.671, and 10.228 milliseconds were too dispersed under host contention to establish a latency baseline.
+
+This advances only the coordinated source-development submodule. Ordinary NuGet consumers remain unchanged, and dependency-first publication continues to require the exact ProGPU object on GitHub before the LibreWinForms gitlink may be published.
+
 ## Major risks and controls
 
 | Risk | Control |
