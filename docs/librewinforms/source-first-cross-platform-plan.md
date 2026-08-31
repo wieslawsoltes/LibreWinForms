@@ -1454,6 +1454,14 @@ Focused retained-command gates cover multiple Unicode strings with independent a
 
 Only the coordinated development gitlink advances. Normal immutable NuGet consumption remains unchanged, and dependency-first publication still withholds LibreWinForms until the exact ProGPU object is reachable remotely.
 
+### ProGPU compact EMF text checkpoint
+
+ProGPU continuation `6834adc939c4399f77008e0350835aab12f04183` implements the official compact `EMR_SMALLTEXTOUT` layout through the same typed font/text engine. `ETO_NO_RECT` removes the optional 16-byte bounds field; `ETO_SMALL_CHARS` expands each stored byte directly to a Unicode low-byte code point and deliberately does not apply the selected ANSI charset; ordinary text is strict UTF-16. Present bounds support opaque/clipped rendering. Contradictory compact-bounds flags and glyph-index, numeric/language-substitution, and two-dimensional modes remain explicit transactional failures.
+
+Focused gates prove compact Unicode identity, low-byte Latin identity while a Shift-JIS font charset is selected, present-bounds pixels, invalid-option rollback, and exact anchors. The complete drawing suite passes 449/449; Release test and benchmark builds have 0 warnings/0 errors; documentation/package verification passes; and ApiCompat remains 0 missing types, 0 missing members, and 13 reviewed differences. The 256-record compact workload measures a 754.892 microsecond median (750.068 microsecond mean, 34.800 microsecond standard deviation) and 516.24 KB allocated. Denied priority elevation and three iterations make it coarse local evidence.
+
+The coordinated source-development gitlink advances without changing ordinary NuGet consumers. Dependency-first remote publication remains mandatory.
+
 ## Major risks and controls
 
 | Risk | Control |
