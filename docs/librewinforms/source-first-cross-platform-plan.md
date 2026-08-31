@@ -1482,6 +1482,10 @@ ProGPU follow-up `ab6db32e4d572b7b4e07286dee8f71f40d514451` adds the correspondi
 
 Focused gates prove exact direct IDs, positive selected-font natural spacing, ANSI rejection, and all-or-nothing publication. The complete drawing suite passes 454/454; Release product, test, and benchmark builds have 0 warnings/0 errors; documentation/package verification passes; and ApiCompat remains 0 missing types, 0 missing members, and 13 reviewed differences. The 256-record natural-advance workload allocates 528.24 KB and measures a 1.650 millisecond mean (0.324 millisecond standard deviation) across three contended iterations. This is coarse local allocation/command-shape evidence. The exact source-development pin advances without changing ordinary NuGet resolution, and publication remains ProGPU first.
 
+ProGPU follow-up `28b84a6cec54e5e43cb5a17b3518564fe6202962` adds horizontal direct-glyph underline and strikeout through selected-font OpenType metrics. Explicit and natural cells retain direct glyph IDs, exact transforms, and one retained rule per requested decoration; no Unicode cluster reconstruction is introduced. Decorated PDY rejects transactionally until a typed per-cell vertical rule geometry exists.
+
+Focused gates cover both horizontal advance forms and decorated-PDY rollback. The complete drawing suite passes 457/457; Release product, test, and benchmark builds have 0 warnings/0 errors; documentation/package verification passes; and ApiCompat remains 0/0/13. The unchanged undecorated workload retains 528.24 KB allocation, while its three-sample 1.069 millisecond median is treated only as coarse command-shape evidence. The coordinated pin advances without changing ordinary NuGet resolution, and ProGPU remains the required first publication.
+
 ## Major risks and controls
 
 | Risk | Control |
