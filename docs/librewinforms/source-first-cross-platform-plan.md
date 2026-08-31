@@ -1406,6 +1406,14 @@ The WMF `CREATEFONTINDIRECT` player now preserves its underline and strikeout bi
 
 Only the coordinated source-development submodule advances to this exact commit. Ordinary consumers continue to resolve the immutable ProGPU NuGet closure. ProGPU-first publication was retried after the commit and still failed because this environment could not resolve `github.com`; the LibreWinForms remote branch must not be advanced to this gitlink until the ProGPU object is reachable.
 
+### ProGPU compatible-mode WMF escapement checkpoint
+
+ProGPU continuation `88b0967f432d82c90d904b30d34f4e1ab11e6258` carries matching WMF font escapement/orientation through a typed selected-font object instead of rejecting every rotated font. The signed tenths-of-a-degree angle is applied in device space after the normal WMF logical/page transform and about the alignment reference point. Glyphs, measured opaque backgrounds, underline/strikeout rectangles, explicit advances, and horizontal/vertical alignment therefore share one retained transform. Explicit `EXTTEXTOUT` opaque/clip rectangles retain their normal device-context geometry. `TA_UPDATECP` transforms the advance endpoint back into logical state, so later text continues along the rotated baseline. Independent character orientation and vertical-font layout remain explicit typed follow-ups rather than being approximated.
+
+Focused gates prove a 90-degree upward baseline, identical glyph/decoration transforms, deterministic 24-unit rotated current-point progression, vertically dominant production bitmap pixels, and transactional rejection when orientation differs from escapement. Full drawing passes 423/423; Release test and benchmark builds have 0 warnings/0 errors; docs/package verification passes; and ApiCompat remains 0/0/13. `Playback256WmfRotatedExtTextOutWithAdvances` initially exposed 4.05 MB allocation from per-record full-state cloning. Restoring only the exact base transform reduces the optimized five-iteration checkpoint to 2.66 MB, matching unrotated batched playback, with a 5.599 millisecond median (5.831 millisecond mean, 0.821 millisecond standard deviation). Timing is high variance, so allocation and command/pixel gates are the durable evidence.
+
+The coordinated submodule advances to this exact ProGPU commit without changing normal immutable NuGet consumption. ProGPU-first publication was retried and still failed at `github.com` DNS; the parent remote branch remains withheld until the dependency object is reachable.
+
 ## Major risks and controls
 
 | Risk | Control |
