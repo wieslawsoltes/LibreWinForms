@@ -1470,6 +1470,14 @@ Focused retained-command gates prove a `(20,5)` second-glyph displacement, a `(4
 
 This changes only coordinated source development. Ordinary NuGet consumers remain unchanged, and the ProGPU object must be remotely reachable before the LibreWinForms gitlink is published.
 
+### ProGPU EMF glyph-index text checkpoint
+
+ProGPU continuation `32b0927e49db4a5a6832f0f6fbfb52117b3d2aa0` adds typed Unicode `ETO_GLYPH_INDEX` playback with explicit scalar or PDY cells. Stored 16-bit IDs flow directly to the selected ProGPU font's retained glyph-run command and bypass Unicode decoding, fallback, and OpenType substitution. Alignment, opaque/clipped rectangles, transparent background extents, escapement, and `TA_UPDATECP` remain shared state. ANSI glyph-index storage, absent cells, explicit bidi visual order, language suppression combined with glyph IDs, and decorated glyph-index output remain named boundaries.
+
+Focused gates prove exact selected-font glyph IDs, a 20-unit second origin, a 44-unit following current-position update, and transactional rejection when cells are absent. The complete drawing suite passes 453/453; Release product, test, and benchmark builds have 0 warnings/0 errors; documentation/package verification passes; and ApiCompat remains 0 missing types, 0 missing members, and 13 reviewed differences. The 256-record direct-glyph workload allocates 528.25 KB and measures a 3.818 millisecond median (4.194 millisecond mean, 1.187 millisecond standard deviation). Its 3.241-5.524 millisecond spread is coarse allocation evidence rather than a latency baseline.
+
+Only the coordinated source-development submodule advances. Ordinary NuGet resolution remains immutable, and dependency-first publication still requires this exact ProGPU object before LibreWinForms.
+
 ## Major risks and controls
 
 | Risk | Control |

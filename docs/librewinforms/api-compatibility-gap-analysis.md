@@ -1195,3 +1195,11 @@ ProGPU continuation `38b35ed8ce3686705fec50afe3cd51436713b6e2` closes the `ETO_P
 The complete drawing suite passes 451/451. Release test and benchmark builds have 0 warnings/0 errors, documentation/package verification passes, and ApiCompat remains 0 missing types, 0 missing members, and 13 reviewed differences. Focused gates prove `(20,5)` intra-run displacement, `(44,12)` `TA_UPDATECP` progression, a following record's exact anchor, malformed-cell rejection, and rollback. The 256-record workload measures a 4.032 millisecond median and 1.08 MB allocation; denied priority elevation and three iterations make this coarse local regression evidence.
 
 The coordinated gitlink advances without changing ordinary NuGet consumption. Dependency-first publication still requires ProGPU before LibreWinForms.
+
+## ProGPU behavior-parity follow-up: direct EMF glyph indices
+
+ProGPU continuation `32b0927e49db4a5a6832f0f6fbfb52117b3d2aa0` implements Unicode `ETO_GLYPH_INDEX` records with explicit cells through a typed direct-glyph drawing seam. The stored 16-bit identifiers are retained against the selected font without Unicode mapping, fallback, or OpenType shaping. Scalar and PDY positions, alignment, background/clip behavior, escapement, and current-position updates share the existing playback state. ANSI glyph-index storage, missing cells, bidi visual ordering, language suppression with glyph IDs, and decorations remain explicit boundaries rather than heuristic conversions.
+
+The complete drawing suite passes 453/453. Release product, test, and benchmark builds have 0 warnings/0 errors, documentation/package verification passes, and ApiCompat remains 0 missing types, 0 missing members, and 13 reviewed differences. Focused commands prove exact font glyph IDs, a 20-unit cell origin, a 44-unit `TA_UPDATECP` result, and missing-cell rollback. The 256-record workload allocates 528.25 KB and has a 3.818 millisecond median; the 3.241-5.524 millisecond spread is recorded only as coarse local evidence.
+
+The coordinated gitlink advances without changing normal NuGet consumers. ProGPU remains the required first publication.
