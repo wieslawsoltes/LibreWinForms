@@ -1446,6 +1446,14 @@ Focused gates cover CP1252 including the euro sign, odd string offsets, selected
 
 This advances only the coordinated source-development submodule. Ordinary NuGet consumers remain unchanged, and dependency-first publication continues to require the exact ProGPU object on GitHub before the LibreWinForms gitlink may be published.
 
+### ProGPU EMF counted text checkpoint
+
+ProGPU continuation `c1f3e017f7dfdc80f288c06515541b8a410f8b51` adds typed `EMR_POLYTEXTOUTA/W` playback over the shared `EmrText` decoder. The official common header and counted contiguous array of 40-byte descriptors are validated before record-relative string and 32-bit advance buffers may be read; variable data cannot overlap the descriptor array. Each entry then uses the selected font, strict Unicode or charset decoding, alignment, colors, clipping/background, shaping, and explicit cell advances already owned by the source-built drawing path. Unsupported optional-rectangle, glyph-index, two-dimensional, and DBCS-explicit-advance layouts remain named boundaries.
+
+Focused retained-command gates cover multiple Unicode strings with independent anchors and advances, CP1252 euro decoding at an odd byte offset, and rollback when a later descriptor overlaps the array after an earlier entry would otherwise draw. The complete drawing suite passes 445/445; Release test and benchmark builds have 0 warnings/0 errors; documentation/package verification passes; and ApiCompat remains 0 missing types, 0 missing members, and 13 reviewed differences. A 256-record/two-string workload allocates 2.17 MB while producing 512 commands. Its 117.397-519.049 millisecond samples have 215.618 milliseconds of standard deviation under severe contention, so no latency baseline is claimed; the isolated benchmark harness also could not restore its generated project without network access.
+
+Only the coordinated development gitlink advances. Normal immutable NuGet consumption remains unchanged, and dependency-first publication still withholds LibreWinForms until the exact ProGPU object is reachable remotely.
+
 ## Major risks and controls
 
 | Risk | Control |
