@@ -1422,6 +1422,14 @@ Command gates cover one shaped run, restored spacing, right-aligned background e
 
 The paired five-iteration ARM64/.NET 10.0.11 in-process benchmark measures 256 spaced, 90-degree `TEXTOUT` records at a 799.768 microsecond median (795.294 microsecond mean, 24.929 microsecond standard deviation after one outlier) and 800.19 KB allocated. Its unspaced/unrotated retained-text reference measures a 492.332 microsecond median (499.250 microsecond mean, 26.098 microsecond standard deviation) and 550.16 KB. This is a workload-cost reference, not a like-for-like regression claim. The coordinated submodule advances while immutable NuGet consumer mode remains unchanged. ProGPU-first publication was retried and still failed because this environment cannot resolve `github.com`; the parent remote branch remains withheld until the dependency commit is reachable.
 
+### ProGPU WMF text-justification checkpoint
+
+ProGPU continuation `863bac41251bab91add012330092ef2ae0037839` adds the official unsigned `META_SETTEXTJUSTIFICATION` break count and total extra to the same typed WMF state, SaveDC/RestoreDC snapshot, and generalized shaped character-cell spacing seam. Space breaks receive the integer quotient plus a carried remainder, including across consecutive text runs, while resetting the state clears the error term. The total is rounded in device pixels outside `MM_TEXT`; alignment, opaque-background extent, compatible-mode rotation, decorations, and `TA_UPDATECP` use the same advance. Explicit `EXTTEXTOUT` `Dx` continues to override DC default spacing.
+
+Focused gates prove 2+3 distribution of a five-unit total, remainder carry across records, saved-state restoration, exact `Dx` override, anisotropic mapped-total rounding, combined character extra and justification under 90-degree current-position progression, and malformed fixed-size rollback. Full drawing passes 433/433; Release test and benchmark builds have 0 warnings/0 errors; docs/package verification passes; and ApiCompat remains 0/0/13. The 256-record justified/rotated workload allocates 800.26 KB versus 799.95 KB for the paired character-extra-only workload. Severe host contention spread timing samples from 5.197 to 111.522 milliseconds, so no latency comparison is claimed.
+
+Only coordinated source-development mode advances; ordinary NuGet consumers remain unchanged. ProGPU-first publication was retried at the exact commit and again failed because `github.com` does not resolve in this environment, so the parent remote branch remains withheld until the dependency object is reachable.
+
 ## Major risks and controls
 
 | Risk | Control |
