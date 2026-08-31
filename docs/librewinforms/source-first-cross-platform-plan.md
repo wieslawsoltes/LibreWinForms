@@ -1414,6 +1414,14 @@ Focused gates prove a 90-degree upward baseline, identical glyph/decoration tran
 
 The coordinated submodule advances to this exact ProGPU commit without changing normal immutable NuGet consumption. ProGPU-first publication was retried and still failed at `github.com` DNS; the parent remote branch remains withheld until the dependency object is reachable.
 
+### ProGPU WMF character-extra checkpoint
+
+ProGPU continuation `07547c340f7f9c0f72f4050d8ba81cc4edead2a3` implements the official fixed-size unsigned `META_SETTEXTCHAREXTRA` state record in the typed WMF playback context. Default-spaced `TEXTOUT` and `EXTTEXTOUT` shape once and add the effective logical spacing to each character cell; alignment, measured opaque backgrounds, underline/strikeout extent, compatible-mode escapement, and `TA_UPDATECP` consume the same advance. Non-`MM_TEXT` mapping transforms and rounds the spacing to the nearest device pixel. An explicit `EXTTEXTOUT` `Dx` array remains the complete character-cell-origin contract and overrides default character extra. SaveDC/RestoreDC owns the value, malformed records roll back the temporary stream, and character extra plus explicit RTL fails at the named bidi boundary rather than approximating complex-script placement.
+
+Command gates cover one shaped run, restored spacing, right-aligned background extent, exact `Dx` override, anisotropic-map rounding, rotated current-point progression, and transactional malformed-record failure. A fresh complete direct-runner process passes 429/429; Release test and benchmark builds have 0 warnings/0 errors; documentation/package verification passes; and ApiCompat remains 0 missing types, 0 missing members, and 13 reviewed platform annotations. One immediately preceding combined build/run process reported a 2,464-byte outlier in the unrelated warmed native-palette zero-allocation assertion; the unchanged binary passed the complete fresh rerun without weakening that gate.
+
+The paired five-iteration ARM64/.NET 10.0.11 in-process benchmark measures 256 spaced, 90-degree `TEXTOUT` records at a 799.768 microsecond median (795.294 microsecond mean, 24.929 microsecond standard deviation after one outlier) and 800.19 KB allocated. Its unspaced/unrotated retained-text reference measures a 492.332 microsecond median (499.250 microsecond mean, 26.098 microsecond standard deviation) and 550.16 KB. This is a workload-cost reference, not a like-for-like regression claim. The coordinated submodule advances while immutable NuGet consumer mode remains unchanged. ProGPU-first publication was retried and still failed because this environment cannot resolve `github.com`; the parent remote branch remains withheld until the dependency commit is reachable.
+
 ## Major risks and controls
 
 | Risk | Control |
