@@ -1430,6 +1430,14 @@ Focused gates prove 2+3 distribution of a five-unit total, remainder carry acros
 
 Only coordinated source-development mode advances; ordinary NuGet consumers remain unchanged. ProGPU-first publication was retried at the exact commit and again failed because `github.com` does not resolve in this environment, so the parent remote branch remains withheld until the dependency object is reachable.
 
+### ProGPU EMF Unicode text checkpoint
+
+ProGPU continuation `6296983994bc22a1d4f1edd0c61aa419ac12c8f4` closes the corresponding 32-bit EMF text gap through the same typed playback state and managed drawing engine. `EMR_EXTCREATEFONTINDIRECTW` installs bounded `LOGFONTW`, `LOGFONTPANOSE`, or `LOGFONTEXDV` objects in the real EMF object table. Text/background colors, alignment, justification, and SaveDC/RestoreDC are now owned state. `EMR_EXTTEXTOUTW` decodes strict UTF-16 at record-relative 16-bit-aligned offsets, optional 32-bit-aligned cell advances, opaque/clipped rectangles, RTL without explicit advances, and the common ASCII-plus-advances `ETO_IGNORELANGUAGE` spool form. String and advance regions must be in-bounds and non-overlapping. Glyph-index, numeric substitution, small-character/`ETO_NO_RECT` layouts, two-dimensional advances, explicit bidi advances, vertical fonts, and independent character orientation remain named typed boundaries.
+
+Focused retained-command and pixel gates cover distinct Unicode glyphs, 32-bit origins, selected/restored colors, `TA_UPDATECP`, 2+3 justification distribution with saved state, opaque clipping, common spool flags, invalid UTF-16, misaligned/in-header offsets, and whole-stream rollback. The complete drawing suite passes 438/438; Release test and benchmark builds have 0 warnings/0 errors; docs/package verification passes; and ApiCompat remains 0 missing types, 0 missing members, and 13 reviewed differences. The dedicated 256-record workload allocates 1.1 MB (1,152,936 diagnostic bytes). Timing ranged from 22.188 to 49.840 milliseconds under severe host contention, so no latency baseline is claimed.
+
+The coordinated submodule advances to the exact ProGPU commit without changing ordinary immutable NuGet consumption. Publication remains dependency-first: ProGPU must be reachable on GitHub before LibreWinForms may publish the new gitlink.
+
 ## Major risks and controls
 
 | Risk | Control |
