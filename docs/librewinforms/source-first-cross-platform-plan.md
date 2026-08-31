@@ -1370,6 +1370,10 @@ ProGPU continuation `9a905cd8fd1dbcc346393f74d9f61c77dd6fe365` adds typed `META_
 
 Full drawing rises to 402/402, test and benchmark projects retain 0 warnings/0 errors, and ApiCompat remains 0/0/13. The ARM64/.NET 10.0.11 ShortRun measured lines at a 503.124 microsecond median (477.934 microsecond mean, 206.828 microsecond standard deviation) and 323.97 KB, and pixels at a 199.155 microsecond median (199.350 microsecond mean, 14.387 microsecond standard deviation) and 305.70 KB. The line result is a high-variance coarse checkpoint; the pixel result is local subsystem evidence. The coordinated source-development pin advances to this exact commit; ordinary NuGet support and the remaining explicit metafile boundaries do not change. ProGPU must be published before any LibreWinForms gitlink that references it.
 
+ProGPU continuation `6f651838c0d57addd89962028eeb6e0ebef6f5a7` adds typed `META_POLYPOLYGON` playback through the official unsigned polygon-count/per-polygon-count table followed by consecutive signed points. Each closed figure reuses the selected brush, selected pen, and fill-mode path, while two-point entries remain valid outline-only figures and the logical current point remains untouched. Exact disjoint pixels, preserved-current-point output, invalid count rejection, and later-unsupported-record rollback gate the complete typed path.
+
+Full drawing rises to 405/405, test and benchmark projects retain 0 warnings/0 errors, and ApiCompat remains 0/0/13. The 256-record/512-polygon ARM64/.NET 10.0.11 in-process ShortRun measured a 2.405 millisecond median (2.542 millisecond mean, 0.463 millisecond standard deviation) and 1.85 MB allocated. This is coarse evidence and exposes polygon array/path allocation as an optimization target. The coordinated source-development pin advances to this exact commit; ordinary NuGet support and explicit remaining WMF text, DIB, region, raster, and state families remain unchanged. Publication remains ordered ProGPU first, LibreWinForms second.
+
 ## Major risks and controls
 
 | Risk | Control |
