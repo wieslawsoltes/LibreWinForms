@@ -1462,6 +1462,14 @@ Focused gates prove compact Unicode identity, low-byte Latin identity while a Sh
 
 The coordinated source-development gitlink advances without changing ordinary NuGet consumers. Dependency-first remote publication remains mandatory.
 
+### ProGPU EMF two-dimensional text checkpoint
+
+ProGPU continuation `38b35ed8ce3686705fec50afe3cd51436713b6e2` implements `ETO_PDY` as typed interleaved horizontal/vertical 32-bit character-cell advances. The private source-built text seam now owns cumulative 2D glyph origins, transparent background extents, escapement, and `TA_UPDATECP` progression rather than discarding Y values. Explicit bidi positioning, out-of-range cells, and underlined/strikeout PDY remain named boundaries; per-cell decoration geometry is required before the latter can render correctly.
+
+Focused retained-command gates prove a `(20,5)` second-glyph displacement, a `(44,12)` final current-point delta, exact following-record origin, out-of-range rejection, and whole-stream rollback. The complete drawing suite passes 451/451; Release test and benchmark builds have 0 warnings/0 errors; documentation/package verification passes; and ApiCompat remains 0 missing types, 0 missing members, and 13 reviewed differences. A 256-record PDY workload measures a 4.032 millisecond median (4.449 millisecond mean, 0.850 millisecond standard deviation) and 1.08 MB allocated. Three iterations and denied priority elevation make it coarse local evidence.
+
+This changes only coordinated source development. Ordinary NuGet consumers remain unchanged, and the ProGPU object must be remotely reachable before the LibreWinForms gitlink is published.
+
 ## Major risks and controls
 
 | Risk | Control |

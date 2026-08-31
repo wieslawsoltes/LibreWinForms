@@ -1180,3 +1180,11 @@ ProGPU continuation `6834adc939c4399f77008e0350835aab12f04183` adds typed `EMR_S
 The complete drawing suite passes 449/449. Release test and benchmark builds have 0 warnings/0 errors, documentation/package verification passes, and ApiCompat remains 0 missing types, 0 missing members, and 13 reviewed differences. Focused retained-command and pixel gates cover Unicode, low-byte Latin with a selected Shift-JIS charset, exact anchors, compact versus present bounds, and whole-stream rollback. A 256-record workload measures a 754.892 microsecond median and 516.24 KB allocation; the three-iteration, denied-priority run is reported only as coarse local regression evidence.
 
 Only coordinated source development advances. Ordinary NuGet resolution remains immutable, and LibreWinForms publication continues to wait for the exact ProGPU dependency object.
+
+## ProGPU behavior-parity follow-up: two-dimensional EMF text cells
+
+ProGPU continuation `38b35ed8ce3686705fec50afe3cd51436713b6e2` closes the `ETO_PDY` flattening gap with a typed two-dimensional internal drawing seam. Interleaved 32-bit X/Y values produce cumulative glyph origins and participate in background bounds, font escapement, and current-position updates. Explicit bidi placement and decorated PDY remain explicit boundaries because their glyph ordering and per-cell decoration geometry require separate typed work; invalid unsigned cells reject transactionally.
+
+The complete drawing suite passes 451/451. Release test and benchmark builds have 0 warnings/0 errors, documentation/package verification passes, and ApiCompat remains 0 missing types, 0 missing members, and 13 reviewed differences. Focused gates prove `(20,5)` intra-run displacement, `(44,12)` `TA_UPDATECP` progression, a following record's exact anchor, malformed-cell rejection, and rollback. The 256-record workload measures a 4.032 millisecond median and 1.08 MB allocation; denied priority elevation and three iterations make this coarse local regression evidence.
+
+The coordinated gitlink advances without changing ordinary NuGet consumption. Dependency-first publication still requires ProGPU before LibreWinForms.
