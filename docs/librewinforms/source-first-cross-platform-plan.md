@@ -1362,6 +1362,10 @@ ProGPU continuation `1ceb3cc6f19739ba4fd8aafcda7b352322ca0daa` adds typed `META_
 
 The drawing suite rises to 398/398, test and benchmark builds remain 0 warnings/0 errors, and ApiCompat remains 0/0/13. The dedicated 256-record ARM64/.NET 10.0.11 ShortRun measured a 1.347 millisecond median (1.379 millisecond mean, 0.234 millisecond standard deviation) and 1.05 MB allocated. The coordinated development pin advances to this exact commit; immutable NuGet consumers and the named remaining metafile families do not change.
 
+ProGPU continuation `a6fc6f38c17bec0b0da5c0dba407e6e9a9bf1556` adds typed `META_PIE` and `META_CHORD` playback through the same validated 16-bit radial/bounding-box decoder as the existing arc path. A retained `GraphicsPath` supplies the distinct center-radial pie and straight chord closures once per record before selected brush fill and pen outline. Exact inside/outside pixels distinguish both shapes, while a malformed chord following a valid pie proves complete transactional rollback.
+
+Full drawing rises to 400/400, test and benchmark projects retain 0 warnings/0 errors, and ApiCompat remains 0/0/13. The paired ARM64/.NET 10.0.11 ShortRun measured pies at a 1.382 millisecond median (1.621 millisecond mean, 0.785 millisecond standard deviation) and 816.23 KB, and chords at a 792.480 microsecond median (946.270 microsecond mean, 284.554 microsecond standard deviation) and 800.03 KB. The source-development pin advances to this exact commit; ordinary NuGet support and explicit remaining metafile boundaries remain unchanged.
+
 ## Major risks and controls
 
 | Risk | Control |
