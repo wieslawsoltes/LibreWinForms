@@ -353,19 +353,26 @@ This report examined:
 
 The official .NET documentation describes ApiCompat as a tool for comparing an implementation assembly with a contract/baseline assembly and for recording known differences in a suppression file: [API compatibility tools](https://learn.microsoft.com/dotnet/fundamentals/apicompat/overview), [assembly validation](https://learn.microsoft.com/dotnet/fundamentals/apicompat/assembly-validation), and [global tool reference](https://learn.microsoft.com/dotnet/fundamentals/apicompat/global-tool).
 
-## What is actually shipped
+## Historical pre-cutover baseline: what was shipped
 
-### The full source tree exists but is not compiled into the portable package
+The following audit preserves the evidence that originally explained issue #9.
+Its Portable paths and package-selection behavior describe the pre-cutover
+revision, not the current tree: `src/LibreWinForms.Portable` has since been
+removed, the SDK now selects canonical source-built WinForms, and the current
+state is summarized at the beginning of this report and in the source-first
+plan.
 
-The canonical project [System.Windows.Forms.csproj](../../src/System.Windows.Forms/System.Windows.Forms.csproj) builds the upstream source under `src/System.Windows.Forms/System/Windows/Forms` and uses the normal WinForms dependency projects.
+### The full source tree existed but was not compiled into the portable package
 
-The portable project [LibreWinForms.System.Windows.Forms.csproj](../../src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj) instead contains:
+The canonical project [System.Windows.Forms.csproj](../../src/System.Windows.Forms/System.Windows.Forms.csproj) built the upstream source under `src/System.Windows.Forms/System/Windows/Forms` and used the normal WinForms dependency projects.
+
+The now-removed portable project `src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms/LibreWinForms.System.Windows.Forms.csproj` instead contained:
 
 ```xml
 <Compile Include="src\**\*.cs" />
 ```
 
-Its nearest [Directory.Build.props](../../src/LibreWinForms.Portable/Directory.Build.props) disables default compile items. It does not include or source-link the canonical `src/System.Windows.Forms` files.
+Its nearest `Directory.Build.props` disabled default compile items. It did not include or source-link the canonical `src/System.Windows.Forms` files.
 
 At the audited revision, the two source areas have very different sizes:
 
@@ -378,15 +385,15 @@ Line count is not an API metric, but the approximately 14:1 difference explains 
 
 The portable implementation was introduced by commit `8831362e7` (`Add portable LibreWinForms runtime and SDK`) as a new, separate set of compatibility files. Subsequent commits have expanded those files in response to SharpDevelop and sample requirements. They have not changed the package to compile the canonical source tree.
 
-### The SDK deliberately selects the portable assembly
+### The SDK deliberately selected the portable assembly
 
-[Sdk.props](../../src/LibreWinForms.Portable/LibreWinForms.Sdk/Sdk/Sdk.props) sets `UseWindowsForms=false` for the portable lane. [LibreWinForms.Sdk.targets](../../src/LibreWinForms.Portable/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets) then adds `LibreWinForms.System.Windows.Forms` explicitly.
+The removed Portable `Sdk.props` set `UseWindowsForms=false` for the portable lane. Its `LibreWinForms.Sdk.targets` then added `LibreWinForms.System.Windows.Forms` explicitly.
 
-This is necessary to avoid the Windows-only framework reference, but it also means consumers see only the API surface declared by the portable compatibility project. The existence of a same-named type in the canonical project has no effect on compilation.
+This avoided the Windows-only framework reference, but it also meant consumers saw only the API surface declared by the portable compatibility project. The existence of a same-named type in the canonical project had no effect on compilation.
 
-### System.Drawing is also substituted
+### System.Drawing was also substituted
 
-The SDK removes the ordinary `System.Drawing.Common` reference and selects `ProGPU.System.Drawing.Common`. Consequently, `System.Drawing.Printing.PrintDocument` comes from ProGPU, not from [the full PrintDocument source](../../src/System.Drawing.Common/src/System/Drawing/Printing/PrintDocument.cs) in this repository.
+The SDK removed the ordinary `System.Drawing.Common` reference and selected `ProGPU.System.Drawing.Common`. Consequently, `System.Drawing.Printing.PrintDocument` came from ProGPU, not from [the full PrintDocument source](../../src/System.Drawing.Common/src/System/Drawing/Printing/PrintDocument.cs) in this repository.
 
 At the audited revision, ProGPU's `PrintDocument` exposes only:
 
