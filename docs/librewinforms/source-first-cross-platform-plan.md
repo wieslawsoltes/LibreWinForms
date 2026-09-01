@@ -17,9 +17,11 @@ This is the LibreWPF model applied to WinForms: modify the real managed framewor
 
 The deletion was a cutover result, not the first migration step. The historical checkpoints below document how the canonical graph reached that gate.
 
-## Current source-first status: 2026-08-31
+## Current source-first status: 2026-09-01
 
 The production SDK now uses source-built `System.Windows.Forms` and `System.Windows.Forms.Design`, ProGPU `System.Drawing.*`, the typed `LibreWinForms.ProGPU` backend, and source-built canonical `WindowsFormsIntegration`. The retired Portable runtime, package, tests, and SDK selection path are absent and checked by the migration ledger. Normal development can consume the coordinated NuGet closure; repository development can select the exact ProGPU submodule with project references.
+
+The coordinated ProGPU source pin now includes arbitrary EMF/WMF bitmap-pattern ROP3, exact GPU-only presentation into non-bindable raw swapchain views, and the specification-correct source-less WMF failure rule. Ordinary consumers still resolve the immutable NuGet closure; only explicit source-development mode follows the submodule. Local qualification covers the full System.Drawing Debug/Release suite, ProGPU and headless Release lanes, ApiCompat, release documentation, and the complete 102-case System.Drawing ShortRun distribution. Hosted Linux, macOS, and Windows CI remains the cross-platform authority for the pushed ProGPU #140 and LibreWinForms #27 heads.
 
 The latest real-consumer qualification uses LibreWinForms `c956e43a45514aff8c96a00d372b2395828e3211`, ProGPU `d2e603f35986f2b131b2dc20913be38480bffd07`, and LibreWPF `4f94820b789b4d786aaf9042688672e6e15371a0`. SharpDevelop's complete Search and Replace smoke succeeds in both modes, verifies shortcuts, observes one identical live owner handle through WPF and WinForms, closes the UI, and exits cleanly. The work repaired five reusable platform boundaries rather than adding compatibility members:
 
