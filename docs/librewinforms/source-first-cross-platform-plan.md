@@ -1496,6 +1496,12 @@ An exact stored-order gate raises the complete drawing suite to 458/458. Release
 
 ## Major risks and controls
 
+### ProGPU arbitrary-pattern and package-closure checkpoint
+
+ProGPU commit `5acdf150dbb057670d61291d5d43e061695ae04b` completes arbitrary WMF/EMF pattern-brush ROP3 composition and GPU-only presentation to raw swapchain targets. The shared managed/WGSL/native contract uses three textures and one 96-byte uniform, with native field-offset assertions preventing the macOS pipeline-layout drift found by hosted CI. Source-omitted WMF blits retain the specification-required failure for source-dependent raster operations rather than inventing a framebuffer snapshot seam.
+
+The exact LibreWinForms gate passes canonical source, platform, backend, lifecycle, drawing, ApiCompat, retired-Portable-ledger, and fresh-cache package consumers. Packaging now uses explicit repository metadata, an isolated verified ProGPU staging directory, and bounded per-phase NuGet caches. This makes the canonical Forms/backend/SDK package closure repeatable without allowing stale artifacts or compatibility-runtime fallbacks. The remaining implementation plan is behavioral: inventory unimplemented metafile record families and add independently decodable JPEG/PNG scan-band semantics, then continue the typed windowing/input/dialog/drag-drop/system-settings tranches and SharpDevelop qualification. It does not require restoring `src/LibreWinForms.Portable` or adding a second `System.Windows.Forms` object model.
+
 | Risk | Control |
 | --- | --- |
 | Canonical source compiles but assumes HWND message behavior | handle/message contract tests, opaque registry, and explicit Windows/non-Windows adapters |

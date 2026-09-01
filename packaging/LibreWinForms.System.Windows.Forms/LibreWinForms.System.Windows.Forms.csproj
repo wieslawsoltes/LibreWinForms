@@ -7,6 +7,8 @@
     <PackageId>LibreWinForms.System.Windows.Forms</PackageId>
     <Title>LibreWinForms canonical System.Windows.Forms</Title>
     <Description>Source-built canonical System.Windows.Forms for the LibreWinForms ProGPU cross-platform runtime.</Description>
+    <RepositoryUrl>https://github.com/wieslawsoltes/LibreWinForms</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageTags>librewinforms;winforms;progpu;silk.net;cross-platform;source-built</PackageTags>
     <SuppressDependenciesWhenPacking>false</SuppressDependenciesWhenPacking>

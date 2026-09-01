@@ -23,15 +23,17 @@ sdk_package_file="${package_output}/LibreWinForms.Sdk.${sdk_package_version}.nup
 backend_package_file="${package_output}/LibreWinForms.ProGPU.${backend_package_version}.nupkg"
 progpu_drawing_package_file="${package_output}/ProGPU.System.Drawing.Common.${progpu_package_version}.nupkg"
 smoke_root="$(mktemp -d -t librewinforms-source-package-smoke.XXXXXXXX)"
+progpu_package_output="${smoke_root}/progpu-packages"
 trap 'rm -rf "${smoke_root}"' EXIT
 
-mkdir -p "${package_output}"
+mkdir -p "${package_output}" "${progpu_package_output}"
 
 PROGPU_CONFIGURATION="${configuration}" \
 PROGPU_PACKAGE_VERSION="${progpu_package_version}" \
-PROGPU_PACKAGE_OUTPUT="${package_output}" \
+PROGPU_PACKAGE_OUTPUT="${progpu_package_output}" \
 PROGPU_PACKAGE_GROUP=drawing-runtime \
   "${repo_root}/external/ProGPU/eng/progpu-pack.sh"
+cp "${progpu_package_output}"/*.nupkg "${progpu_package_output}"/*.snupkg "${package_output}/"
 progpu_drawing_source_hash="$(sha256sum "${repo_root}/external/ProGPU/src/System.Drawing.Common/bin/${configuration}/net10.0/System.Drawing.Common.dll" | cut -d' ' -f1)"
 
 canonical_pack_config="${smoke_root}/canonical-NuGet.config"
@@ -246,6 +248,13 @@ NUGET_PACKAGES="${smoke_root}/packages" "${dotnet}" build \
   --no-restore \
   -p:SourceFirstPackageVersion="${package_version}"
 
+# Each consumer below intentionally restores into an isolated cache. Retire caches
+# as soon as their phase is verified so the full packaging gate has bounded disk
+# usage even when NuGet packages carry native assets for every supported RID.
+rm -rf "${smoke_root}/canonical-packages" \
+       "${smoke_root}/backend-packages" \
+       "${smoke_root}/packages"
+
 sdk_smoke_source="${repo_root}/packaging/LibreWinForms.Sdk.SourceFirstSmoke"
 sdk_smoke_root="${smoke_root}/sdk-project"
 sdk_smoke_project="${sdk_smoke_root}/LibreWinForms.Sdk.SourceFirstSmoke.csproj"
@@ -354,6 +363,8 @@ if ! grep -Fq 'supports only canonical Project or Package reference modes' "${sd
   echo "LibreWinForms.Sdk LocalArtifacts rejection did not report the canonical reference-mode contract." >&2
   exit 1
 fi
+
+rm -rf "${smoke_root}/sdk-packages" "${sdk_smoke_root}"
 
 sdk_package_smoke_root="${smoke_root}/sdk-package-project"
 sdk_package_smoke_project="${sdk_package_smoke_root}/LibreWinForms.Sdk.SourceFirstSmoke.csproj"

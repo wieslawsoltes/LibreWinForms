@@ -8,6 +8,8 @@
     <PackageId>LibreWinForms.ProGPU</PackageId>
     <Title>LibreWinForms ProGPU platform backend</Title>
     <Description>Typed ProGPU and Silk.NET platform backend for source-built cross-platform System.Windows.Forms.</Description>
+    <RepositoryUrl>https://github.com/wieslawsoltes/LibreWinForms</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageTags>librewinforms;winforms;progpu;silk.net;cross-platform;source-built;backend</PackageTags>
     <SuppressDependenciesWhenPacking>false</SuppressDependenciesWhenPacking>
