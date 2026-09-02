@@ -773,7 +773,7 @@ public partial class DataGridViewButtonCell : DataGridViewCell
                                     cellStyle.BackColor,
                                     DataGridView.Enabled).Calculate();
 
-                                using DeviceContextHdcScope hdc = new(g);
+                                using DeviceContextHdcScope hdc = g.ToHdcScope();
                                 using CreateBrushScope hbrush = new(
                                     colors.Options.HighContrast ? colors.ButtonShadow : colors.LowHighlight);
                                 hdc.FillRectangle(valBounds, hbrush);
@@ -781,7 +781,7 @@ public partial class DataGridViewButtonCell : DataGridViewCell
                             else if (DataGridView.MouseEnteredCellAddress.Y == rowIndex &&
                                 DataGridView.MouseEnteredCellAddress.X == ColumnIndex && s_mouseInContentBounds)
                             {
-                                using DeviceContextHdcScope hdc = new(g);
+                                using DeviceContextHdcScope hdc = g.ToHdcScope();
                                 using CreateBrushScope hbrush = new(SystemColors.ControlDark);
                                 hdc.FillRectangle(valBounds, hbrush);
                             }

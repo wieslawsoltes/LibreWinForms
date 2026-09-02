@@ -53,10 +53,12 @@ public abstract class ScrollProperties
                 _enabled = value;
                 if (_parent is not null)
                 {
+#if !LIBREWINFORMS_PORTABLE
                     PInvoke.EnableScrollBar(
                         _parent,
                         Orientation,
                         value ? ENABLE_SCROLL_BAR_ARROWS.ESB_ENABLE_BOTH : ENABLE_SCROLL_BAR_ARROWS.ESB_DISABLE_BOTH);
+#endif
                 }
             }
         }
@@ -258,6 +260,9 @@ public abstract class ScrollProperties
 
     internal unsafe void UpdateScrollInfo()
     {
+#if LIBREWINFORMS_PORTABLE
+        GC.KeepAlive(this);
+#else
         if (_parent is not null && _parent.IsHandleCreated && _visible)
         {
             SCROLLINFO si = new()
@@ -273,6 +278,7 @@ public abstract class ScrollProperties
 
             PInvoke.SetScrollInfo(_parent, Orientation, ref si, true);
         }
+#endif
     }
 
     private void UpdateDisplayPosition()

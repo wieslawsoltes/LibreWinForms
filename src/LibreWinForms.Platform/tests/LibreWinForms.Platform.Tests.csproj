@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>$(NetCurrent)</TargetFramework>
+    <AssemblyName>LibreWinForms.Platform.Tests</AssemblyName>
+    <Nullable>enable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AwesomeAssertions" />
+    <PackageReference Include="Microsoft.DotNet.XUnitV3Extensions" />
+    <ProjectReference Include="..\LibreWinForms.Platform.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -18,6 +18,10 @@
     <UsePublicApiAnalyzers>true</UsePublicApiAnalyzers>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(LibreWinFormsUseProGpuSystemDrawing)' == 'true'">
+    <DefineConstants>$(DefineConstants);LIBREWINFORMS_PORTABLE</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <EmbeddedResource Update="Resources\SR.resx">
       <GenerateSource>true</GenerateSource>
@@ -73,6 +77,14 @@
   <ItemGroup>
     <ProjectReference Include="..\..\System.Windows.Forms.Primitives\src\System.Windows.Forms.Primitives.csproj" />
     <ProjectReference Include="..\..\System.Windows.Forms\System.Windows.Forms.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(LibreWinFormsUseProGpuSystemDrawing)' == 'true'">
+    <PackageReference Include="System.Configuration.ConfigurationManager" />
+    <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\System.Drawing.Common\System.Drawing.Common.csproj" />
+    <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\ProGPU.Backend\ProGPU.Backend.csproj" />
+    <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\ProGPU.Scene\ProGPU.Scene.csproj" />
+    <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\ProGPU.Text\ProGPU.Text.csproj" />
   </ItemGroup>
 
   <ItemGroup>

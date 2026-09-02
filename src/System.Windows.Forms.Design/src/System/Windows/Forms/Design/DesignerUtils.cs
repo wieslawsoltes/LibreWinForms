@@ -245,7 +245,7 @@ internal static class DesignerUtils
     /// </summary>
     public static void DrawGrabHandle(Graphics graphics, Rectangle bounds, bool isPrimary)
     {
-        using DeviceContextHdcScope hDC = new(graphics, applyGraphicsState: false);
+        using DeviceContextHdcScope hDC = graphics.ToHdcScope(ApplyGraphicsProperties.None);
 
         // Set our pen and brush based on primary selection
         using SelectObjectScope brushSelection = new(hDC, isPrimary ? s_grabHandleFillBrushPrimary : s_grabHandleFillBrush);
@@ -260,7 +260,7 @@ internal static class DesignerUtils
     /// </summary>
     public static void DrawNoResizeHandle(Graphics graphics, Rectangle bounds, bool isPrimary)
     {
-        using DeviceContextHdcScope hDC = new(graphics, applyGraphicsState: false);
+        using DeviceContextHdcScope hDC = graphics.ToHdcScope(ApplyGraphicsProperties.None);
 
         // Set our pen and brush based on primary selection
         using SelectObjectScope brushSelection = new(hDC, isPrimary ? s_grabHandleFillBrushPrimary : s_grabHandleFillBrush);
@@ -275,7 +275,7 @@ internal static class DesignerUtils
     /// </summary>
     public static void DrawLockedHandle(Graphics graphics, Rectangle bounds, bool isPrimary)
     {
-        using DeviceContextHdcScope hDC = new(graphics, applyGraphicsState: false);
+        using DeviceContextHdcScope hDC = graphics.ToHdcScope(ApplyGraphicsProperties.None);
 
         using SelectObjectScope penSelection = new(hDC, s_grabHandlePenPrimary);
 
@@ -398,7 +398,7 @@ internal static class DesignerUtils
             gDest.Clear(SystemColors.Control);
         }
 
-        using DeviceContextHdcScope destDC = new(gDest, applyGraphicsState: false);
+        using DeviceContextHdcScope destDC = gDest.ToHdcScope(ApplyGraphicsProperties.None);
 
         // Perform our BitBlt operation to push the image into the dest bitmap
         PInvokeCore.BitBlt(
@@ -527,7 +527,7 @@ internal static class DesignerUtils
         Rectangle face = ctrl.ClientRectangle;
 
         using Graphics g = ctrl.CreateGraphics();
-        using DeviceContextHdcScope dc = new(g, applyGraphicsState: false);
+        using DeviceContextHdcScope dc = g.ToHdcScope(ApplyGraphicsProperties.None);
         using ObjectScope hFont = new(ctrl.Font.ToHFONT());
         using SelectObjectScope hFontOld = new(dc, hFont);
 

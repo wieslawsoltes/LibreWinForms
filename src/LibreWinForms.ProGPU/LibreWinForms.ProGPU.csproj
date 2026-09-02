@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>$(NetCurrent)</TargetFramework>
+    <AssemblyName>LibreWinForms.ProGPU</AssemblyName>
+    <RootNamespace>LibreWinForms.ProGPU</RootNamespace>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Deterministic>true</Deterministic>
+    <StrongNameKeyId>ECMA</StrongNameKeyId>
+    <ProduceReferenceAssembly>true</ProduceReferenceAssembly>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="tests\**\*.cs" />
+    <None Remove="tests\**\*" />
+    <ProjectReference Include="..\LibreWinForms.Platform\LibreWinForms.Platform.csproj" />
+    <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\System.Drawing.Common\System.Drawing.Common.csproj" />
+    <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\ProGPU.Backend\ProGPU.Backend.csproj" />
+    <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\ProGPU.Scene\ProGPU.Scene.csproj" />
+    <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\ProGPU.Text\ProGPU.Text.csproj" />
+    <PackageReference Include="Silk.NET.Input" />
+    <PackageReference Include="Silk.NET.Input.Glfw" />
+    <PackageReference Include="Silk.NET.GLFW" />
+    <PackageReference Include="Silk.NET.Windowing" />
+    <PackageReference Include="Silk.NET.Windowing.Glfw" />
+    <PackageReference Include="Tmds.DBus.Generator" PrivateAssets="all" />
+    <PackageReference Include="Tmds.DBus.Protocol" />
+    <AdditionalFiles Include="Portal\org.freedesktop.portal.FileChooser.xml"
+                     Namespace="LibreWinForms.ProGPU.Portal.Generated"
+                     DBusGeneratorMode="Proxy" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,59 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>$(NetCurrent)</TargetFramework>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <IsPackable>true</IsPackable>
+    <CentralPackageTransitivePinningEnabled>false</CentralPackageTransitivePinningEnabled>
+    <PackageId>LibreWinForms.ProGPU</PackageId>
+    <Title>LibreWinForms ProGPU platform backend</Title>
+    <Description>Typed ProGPU and Silk.NET platform backend for source-built cross-platform System.Windows.Forms.</Description>
+    <RepositoryUrl>https://github.com/wieslawsoltes/LibreWinForms</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>librewinforms;winforms;progpu;silk.net;cross-platform;source-built;backend</PackageTags>
+    <SuppressDependenciesWhenPacking>false</SuppressDependenciesWhenPacking>
+    <NoWarn>$(NoWarn);NU5131</NoWarn>
+    <LibreWinFormsCanonicalPackageVersion Condition="'$(LibreWinFormsCanonicalPackageVersion)' == ''">0.1.0-source-first</LibreWinFormsCanonicalPackageVersion>
+    <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == ''">0.1.0-source-first-drawing</LibreWinFormsProGpuPackageVersion>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);CollectLibreWinFormsProGpuPackageFiles</TargetsForTfmSpecificContentInPackage>
+    <LibreWinFormsProGpuProject>$(RepoRoot)src/LibreWinForms.ProGPU/LibreWinForms.ProGPU.csproj</LibreWinFormsProGpuProject>
+    <LibreWinFormsProGpuOutput>$(ArtifactsDir)bin/LibreWinForms.ProGPU/$(Configuration)/$(TargetFramework)/</LibreWinFormsProGpuOutput>
+    <LibreWinFormsProGpuObject>$(ArtifactsDir)obj/LibreWinForms.ProGPU/$(Configuration)/$(TargetFramework)/</LibreWinFormsProGpuObject>
+    <_LibreWinFormsDotNet>$(RepoRoot)eng/common/dotnet.sh</_LibreWinFormsDotNet>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageVersion Include="LibreWinForms.System.Windows.Forms" Version="$(LibreWinFormsCanonicalPackageVersion)" />
+    <PackageVersion Include="ProGPU.System.Drawing.Common" Version="$(LibreWinFormsProGpuPackageVersion)" />
+    <PackageReference Include="LibreWinForms.System.Windows.Forms" />
+    <PackageReference Include="ProGPU.System.Drawing.Common" />
+    <PackageReference Include="Tmds.DBus.Protocol" />
+    <None Include="$(RepoRoot)README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+  <Target Name="BuildLibreWinFormsProGpuPackagePayload">
+    <Exec WorkingDirectory="$(RepoRoot)"
+          Command="&quot;$(_LibreWinFormsDotNet)&quot; build &quot;$(LibreWinFormsProGpuProject)&quot; --configuration &quot;$(Configuration)&quot; -p:NetCurrent=&quot;$(TargetFramework)&quot; -p:LibreWinFormsReferenceMode=Project -p:LibreWinFormsUseProGpuSystemDrawing=true -p:MicrosoftNETCoreAppRefPackageVersion= -p:ContinuousIntegrationBuild=$(ContinuousIntegrationBuild)" />
+  </Target>
+
+  <Target Name="CollectLibreWinFormsProGpuPackageFiles"
+          DependsOnTargets="BuildLibreWinFormsProGpuPackagePayload">
+    <Error Condition="!Exists('$(LibreWinFormsProGpuOutput)LibreWinForms.ProGPU.dll')"
+           Text="The source-built LibreWinForms.ProGPU runtime payload was not produced." />
+    <Error Condition="!Exists('$(LibreWinFormsProGpuObject)ref/LibreWinForms.ProGPU.dll')"
+           Text="The source-built LibreWinForms.ProGPU reference assembly was not produced." />
+
+    <ItemGroup>
+      <_LibreWinFormsProGpuRuntimeFile Include="$(LibreWinFormsProGpuOutput)LibreWinForms.ProGPU.dll;
+                                                $(LibreWinFormsProGpuOutput)LibreWinForms.ProGPU.xml" />
+      <_LibreWinFormsProGpuReferenceFile Include="$(LibreWinFormsProGpuObject)ref/LibreWinForms.ProGPU.dll" />
+      <TfmSpecificPackageFile Include="@(_LibreWinFormsProGpuRuntimeFile)">
+        <PackagePath>lib/$(TargetFramework)/%(_LibreWinFormsProGpuRuntimeFile.FileName)%(_LibreWinFormsProGpuRuntimeFile.Extension)</PackagePath>
+      </TfmSpecificPackageFile>
+      <TfmSpecificPackageFile Include="@(_LibreWinFormsProGpuReferenceFile)">
+        <PackagePath>ref/$(TargetFramework)/%(_LibreWinFormsProGpuReferenceFile.FileName)%(_LibreWinFormsProGpuReferenceFile.Extension)</PackagePath>
+      </TfmSpecificPackageFile>
+    </ItemGroup>
+  </Target>
+</Project>

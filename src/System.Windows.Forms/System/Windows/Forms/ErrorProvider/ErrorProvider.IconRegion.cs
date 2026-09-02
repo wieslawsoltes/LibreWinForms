@@ -80,6 +80,10 @@ public partial class ErrorProvider
         /// </summary>
         public Size Size => _icon.Size;
 
+#if LIBREWINFORMS_PORTABLE
+        internal Icon Icon => _icon;
+#endif
+
         /// <summary>
         ///  Release any resources held by this Object.
         /// </summary>

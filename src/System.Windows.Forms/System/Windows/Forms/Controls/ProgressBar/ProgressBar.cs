@@ -4,7 +4,11 @@
 using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms.Layout;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#else
 using Microsoft.Win32;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -613,7 +617,11 @@ public partial class ProgressBar : Control
         }
 
         StartMarquee();
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.SystemSettings.SettingsChanged += SystemSettingsChanged;
+#else
         SystemEvents.UserPreferenceChanged += UserPreferenceChangedHandler;
+#endif
     }
 
     /// <summary>
@@ -621,7 +629,11 @@ public partial class ProgressBar : Control
     /// </summary>
     protected override void OnHandleDestroyed(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.SystemSettings.SettingsChanged -= SystemSettingsChanged;
+#else
         SystemEvents.UserPreferenceChanged -= UserPreferenceChangedHandler;
+#endif
         base.OnHandleDestroyed(e);
     }
 
@@ -699,6 +711,18 @@ public partial class ProgressBar : Control
     ///   You need to send messages to update the colors.
     ///  </para>
     /// </remarks>
+#if LIBREWINFORMS_PORTABLE
+    private void SystemSettingsChanged(object? sender, LibreSystemSettingsChangedEventArgs e)
+    {
+        if (e.Includes(
+            LibreSystemSettingsChangeKind.Accessibility
+            | LibreSystemSettingsChangeKind.Color
+            | LibreSystemSettingsChangeKind.VisualStyle))
+        {
+            Invalidate();
+        }
+    }
+#else
     private void UserPreferenceChangedHandler(object o, UserPreferenceChangedEventArgs e)
     {
         if (IsHandleCreated)
@@ -707,6 +731,7 @@ public partial class ProgressBar : Control
             PInvokeCore.SendMessage(this, PInvoke.PBM_SETBKCOLOR, 0, BackColor.ToWin32());
         }
     }
+#endif
 
     /// <summary>
     ///  Creates a new AccessibleObject for this <see cref="ProgressBar"/> instance.

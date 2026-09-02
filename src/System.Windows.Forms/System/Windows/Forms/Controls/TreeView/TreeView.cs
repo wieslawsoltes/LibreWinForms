@@ -170,6 +170,13 @@ public partial class TreeView : Control
         SetStyle(ControlStyles.UserPaint, false);
         SetStyle(ControlStyles.StandardClick, false);
         SetStyle(ControlStyles.UseTextForAccessibility, false);
+#if LIBREWINFORMS_PORTABLE
+        SetStyle(
+            ControlStyles.UserPaint |
+            ControlStyles.AllPaintingInWmPaint |
+            ControlStyles.OptimizedDoubleBuffer,
+            true);
+#endif
     }
 
     internal override void ReleaseUiaProvider(HWND handle)
@@ -736,12 +743,16 @@ public partial class TreeView : Control
             {
                 return _indent;
             }
+#if LIBREWINFORMS_PORTABLE
+            return DefaultTreeViewIndent;
+#else
             else if (IsHandleCreated)
             {
                 return (int)PInvokeCore.SendMessage(this, PInvoke.TVM_GETINDENT);
             }
 
             return DefaultTreeViewIndent;
+#endif
         }
         set
         {
@@ -751,11 +762,15 @@ public partial class TreeView : Control
                 ArgumentOutOfRangeException.ThrowIfGreaterThan(value, MaxIndent);
 
                 _indent = value;
+#if LIBREWINFORMS_PORTABLE
+                Invalidate();
+#else
                 if (IsHandleCreated)
                 {
                     PInvokeCore.SendMessage(this, PInvoke.TVM_SETINDENT, (WPARAM)value);
                     _indent = (int)PInvokeCore.SendMessage(this, PInvoke.TVM_GETINDENT);
                 }
+#endif
             }
         }
     }
@@ -774,6 +789,11 @@ public partial class TreeView : Control
                 return _itemHeight;
             }
 
+#if LIBREWINFORMS_PORTABLE
+            return CheckBoxes && DrawMode == TreeViewDrawMode.OwnerDrawAll
+                ? Math.Max(16, FontHeight + 3)
+                : FontHeight + 3;
+#else
             if (IsHandleCreated)
             {
                 return (int)PInvokeCore.SendMessage(this, PInvoke.TVM_GETITEMHEIGHT);
@@ -787,6 +807,7 @@ public partial class TreeView : Control
 
                 return FontHeight + 3;
             }
+#endif
         }
         set
         {
@@ -1085,6 +1106,9 @@ public partial class TreeView : Control
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return GetPortableSelectedNode();
+#else
             if (IsHandleCreated)
             {
                 IntPtr hItem = PInvokeCore.SendMessage(this, PInvoke.TVM_GETNEXTITEM, (WPARAM)PInvoke.TVGN_CARET);
@@ -1103,9 +1127,13 @@ public partial class TreeView : Control
             {
                 return null;
             }
+#endif
         }
         set
         {
+#if LIBREWINFORMS_PORTABLE
+            SetPortableSelectedNode(value, TreeViewAction.Unknown);
+#else
             if (IsHandleCreated && (value is null || value.TreeView == this))
             {
                 // This class invariant is not quite correct -- if the selected node does not belong to this TreeView,
@@ -1121,6 +1149,7 @@ public partial class TreeView : Control
             {
                 _selectedNode = value;
             }
+#endif
         }
     }
 
@@ -1298,6 +1327,9 @@ public partial class TreeView : Control
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return GetPortableTopNode();
+#else
             if (IsHandleCreated)
             {
                 IntPtr hitem = PInvokeCore.SendMessage(this, PInvoke.TVM_GETNEXTITEM, (WPARAM)PInvoke.TVGN_FIRSTVISIBLE);
@@ -1305,9 +1337,13 @@ public partial class TreeView : Control
             }
 
             return _topNode;
+#endif
         }
         set
         {
+#if LIBREWINFORMS_PORTABLE
+            SetPortableTopNode(value);
+#else
             if (IsHandleCreated && (value is null || value.TreeView == this))
             {
                 // This class invariant is not quite correct -- if the selected node does not belong to this TreeView,
@@ -1323,6 +1359,7 @@ public partial class TreeView : Control
             {
                 _topNode = value;
             }
+#endif
         }
     }
 
@@ -1336,7 +1373,12 @@ public partial class TreeView : Control
     [Browsable(false)]
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     [SRDescription(nameof(SR.TreeViewVisibleCountDescr))]
-    public int VisibleCount => IsHandleCreated ? (int)PInvokeCore.SendMessage(this, PInvoke.TVM_GETVISIBLECOUNT) : 0;
+    public int VisibleCount
+#if LIBREWINFORMS_PORTABLE
+        => GetPortableVisibleCount();
+#else
+        => IsHandleCreated ? (int)PInvokeCore.SendMessage(this, PInvoke.TVM_GETVISIBLECOUNT) : 0;
+#endif
 
     [SRCategory(nameof(SR.CatBehavior))]
     [SRDescription(nameof(SR.TreeViewBeforeEditDescr))]
@@ -1511,6 +1553,7 @@ public partial class TreeView : Control
 
     protected override unsafe void CreateHandle()
     {
+#if !LIBREWINFORMS_PORTABLE
         if (!RecreatingHandle)
         {
             using ThemingScope scope = new(Application.UseVisualStyles);
@@ -1520,6 +1563,7 @@ public partial class TreeView : Control
                 dwICC = INITCOMMONCONTROLSEX_ICC.ICC_TREEVIEW_CLASSES
             });
         }
+#endif
 
         base.CreateHandle();
     }
@@ -1634,6 +1678,9 @@ public partial class TreeView : Control
     /// </summary>
     public TreeViewHitTestInfo HitTest(int x, int y)
     {
+#if LIBREWINFORMS_PORTABLE
+        return PortableHitTest(x, y);
+#else
         TVHITTESTINFO tvhi = new()
         {
             pt = new Point(x, y)
@@ -1643,6 +1690,7 @@ public partial class TreeView : Control
         TreeNode? node = hnode == 0 ? null : NodeFromHandle(hnode);
         TreeViewHitTestLocations loc = (TreeViewHitTestLocations)tvhi.flags;
         return new TreeViewHitTestInfo(node, loc);
+#endif
     }
 
     /// <summary>
@@ -1675,6 +1723,9 @@ public partial class TreeView : Control
     /// </summary>
     public TreeNode? GetNodeAt(int x, int y)
     {
+#if LIBREWINFORMS_PORTABLE
+        return GetPortableNodeAt(x, y);
+#else
         TVHITTESTINFO tvhi = new()
         {
             pt = new Point(x, y)
@@ -1682,6 +1733,7 @@ public partial class TreeView : Control
 
         nint hnode = PInvokeCore.SendMessage(this, PInvoke.TVM_HITTEST, 0, ref tvhi);
         return (hnode == 0 ? null : NodeFromHandle(hnode));
+#endif
     }
 
     private void ImageListRecreateHandle(object? sender, EventArgs e)
@@ -1839,6 +1891,11 @@ public partial class TreeView : Control
 
     protected override void OnHandleCreated(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        base.OnHandleCreated(e);
+        Invalidate();
+        return;
+#else
         if (!IsHandleCreated)
         {
             base.OnHandleCreated(e);
@@ -1960,6 +2017,7 @@ public partial class TreeView : Control
         }
 
         SelectedNode = savedSelectedNode;
+#endif
     }
 
     // Replace the native control's ImageList with our current stateImageList
@@ -2019,6 +2077,9 @@ public partial class TreeView : Control
 
     protected override void OnHandleDestroyed(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        base.OnHandleDestroyed(e);
+#else
         _selectedNode = SelectedNode;
 
         // Unfortunately, to avoid the native tree view leaking it's State Image List, we need to
@@ -2031,6 +2092,7 @@ public partial class TreeView : Control
         _internalStateImageList = null;
 
         base.OnHandleDestroyed(e);
+#endif
     }
 
     /// <summary>
@@ -2264,6 +2326,10 @@ public partial class TreeView : Control
                 return;
             }
         }
+
+#if LIBREWINFORMS_PORTABLE
+        ProcessPortableNavigationKey(e);
+#endif
     }
 
     /// <summary>

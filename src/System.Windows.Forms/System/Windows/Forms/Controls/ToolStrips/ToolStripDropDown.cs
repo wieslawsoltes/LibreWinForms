@@ -937,6 +937,7 @@ public partial class ToolStripDropDown : ToolStrip
     {
         base.CreateHandle();
 
+#if !LIBREWINFORMS_PORTABLE
         if (TopLevel)
         {
             ReparentToDropDownOwnerWindow();
@@ -946,6 +947,7 @@ public partial class ToolStripDropDown : ToolStrip
                 ApplyTopMost(true);
             }
         }
+#endif
 
         if (DesignMode)
         {
@@ -958,10 +960,12 @@ public partial class ToolStripDropDown : ToolStrip
         SetCloseReason(ToolStripDropDownCloseReason.CloseCalled);
         Visible = false;
         // we were the last one in the chain, roll out of menu mode.
+#if !LIBREWINFORMS_PORTABLE
         if (ToolStripManager.ModalMenuFilter.GetActiveToolStrip() is null)
         {
             ToolStripManager.ModalMenuFilter.ExitMenuMode();
         }
+#endif
     }
 
     private void ResetCloseReason()
@@ -1554,6 +1558,9 @@ public partial class ToolStripDropDown : ToolStrip
 
     protected override void SetVisibleCore(bool visible)
     {
+#if LIBREWINFORMS_PORTABLE
+        SetVisibleCorePortable(visible);
+#else
         if (_state[s_stateInSetVisibleCore])
         {
             return;
@@ -1780,6 +1787,7 @@ public partial class ToolStripDropDown : ToolStrip
             _state[s_stateInSetVisibleCore] = false;
             _saveSourceControl = false;
         }
+#endif
     }
 
     private bool ShouldSerializeDefaultDropDownDirection()

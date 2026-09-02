@@ -47,16 +47,19 @@ internal abstract partial class ButtonBaseAdapter
     }
 
     internal virtual Size GetPreferredSizeCore(Size proposedSize)
+        => GetPreferredSizeFromLayout(proposedSize);
+
+    protected Size GetPreferredSizeFromLayout(Size proposedSize)
     {
-        LayoutOptions? options = default;
-
-        using (var screen = GdiCache.GetScreenHdc())
-        using (PaintEventArgs e = new(screen, default))
-        {
-            options = Layout(e);
-        }
-
-        return options.GetPreferredSizeCore(proposedSize);
+#if LIBREWINFORMS_PORTABLE
+        using var layoutGraphics = new LayoutGraphicsScope();
+        using PaintEventArgs e = new(layoutGraphics.Graphics, default);
+        return Layout(e).GetPreferredSizeCore(proposedSize);
+#else
+        using var screen = GdiCache.GetScreenHdc();
+        using PaintEventArgs e = new(screen, default);
+        return Layout(e).GetPreferredSizeCore(proposedSize);
+#endif
     }
 
     protected abstract LayoutOptions Layout(PaintEventArgs e);
@@ -102,8 +105,27 @@ internal abstract partial class ButtonBaseAdapter
         g.FillRectangle(brush, bounds);
     }
 
+#if LIBREWINFORMS_PORTABLE
+#pragma warning disable CA1822 // Native branches access Control.
+#pragma warning disable IDE0051 // Native border helpers are called by the native branch.
+#endif
     protected void Draw3DBorder(IDeviceContext deviceContext, Rectangle bounds, ColorData colors, bool raised)
     {
+#if LIBREWINFORMS_PORTABLE
+        Graphics graphics = deviceContext switch
+        {
+            Graphics directGraphics => directGraphics,
+            PaintEventArgs paintEventArgs => paintEventArgs.GraphicsInternal,
+            _ => throw new PlatformNotSupportedException(
+                "Portable button border rendering requires a managed Graphics device context."),
+        };
+
+        ControlPaint.DrawBorder3D(
+            graphics,
+            bounds,
+            raised ? Border3DStyle.Raised : Border3DStyle.Sunken);
+        return;
+#else
         if (Control.BackColor != SystemColors.Control && SystemInformation.HighContrast)
         {
             if (raised)
@@ -126,6 +148,7 @@ internal abstract partial class ButtonBaseAdapter
                 Draw3DBorderNormal(deviceContext, ref bounds, colors);
             }
         }
+#endif
     }
 
     private void Draw3DBorderHighContrastRaised(IDeviceContext deviceContext, ref Rectangle bounds, ColorData colors)
@@ -288,6 +311,10 @@ internal abstract partial class ButtonBaseAdapter
         hdc.DrawLine(bottomRightInsetPen, p3, p4);  // Bottom (left-right)
         hdc.DrawLine(bottomRightInsetPen, p4, p1);  // Right  (bottom-up)
     }
+#if LIBREWINFORMS_PORTABLE
+#pragma warning restore IDE0051
+#pragma warning restore CA1822
+#endif
 
     /// <summary>
     ///  Draws a border for the in the 3D style of the popup button.
@@ -431,6 +458,17 @@ internal abstract partial class ButtonBaseAdapter
 
         r.Inflate(1, 1);
 
+#if LIBREWINFORMS_PORTABLE
+        Graphics graphics = deviceContext switch
+        {
+            Graphics directGraphics => directGraphics,
+            PaintEventArgs paintEventArgs => paintEventArgs.GraphicsInternal,
+            _ => throw new PlatformNotSupportedException(
+                "Portable default-button border rendering requires a managed Graphics device context."),
+        };
+        using Pen pen = new(color);
+        graphics.DrawRectangle(pen, r.X, r.Y, r.Width - 1, r.Height - 1);
+#else
         if (color.HasTransparency())
         {
             Graphics? graphics = deviceContext.TryGetGraphics(create: true);
@@ -445,6 +483,7 @@ internal abstract partial class ButtonBaseAdapter
         using CreatePenScope hpen = new(color);
         using DeviceContextHdcScope hdc = deviceContext.ToHdcScope();
         hdc.DrawRectangle(r, hpen);
+#endif
     }
 
     /// <summary>

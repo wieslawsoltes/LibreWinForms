@@ -2,7 +2,12 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#endif
+#if !LIBREWINFORMS_PROGPU_DRAWING
 using Windows.Win32.Graphics.GdiPlus;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -25,6 +30,15 @@ public partial class ErrorProvider
         private Rectangle _windowBounds;
         private Timer? _timer;
         private NativeWindow? _tipWindow;
+#if LIBREWINFORMS_PORTABLE
+        private static long s_nextAdornerId;
+        private readonly LibreAdornerId _adornerId = new(Interlocked.Increment(ref s_nextAdornerId));
+        private ToolTip? _portableToolTip;
+        private Timer? _portableToolTipTimer;
+        private Action? _portableToolTipTimerAction;
+        private ControlItem? _portableHoverItem;
+        private bool _portableToolTipVisible;
+#endif
 
         /// <summary>
         ///  Construct an error window for this provider and control parent.
@@ -33,6 +47,13 @@ public partial class ErrorProvider
         {
             _provider = provider;
             _parent = parent;
+#if LIBREWINFORMS_PORTABLE
+            _parent.MouseMove += OnPortableParentMouseMove;
+            _parent.MouseLeave += OnPortableParentMouseLeave;
+            _parent.MouseDown += OnPortableParentMouseDown;
+            _parent.HandleCreated += OnPortableParentHandleCreated;
+            _parent.HandleDestroyed += OnPortableParentHandleDestroyed;
+#endif
         }
 
         /// <summary>
@@ -71,13 +92,26 @@ public partial class ErrorProvider
         /// <summary>
         ///  Called to get rid of any resources the Object may have.
         /// </summary>
-        public void Dispose() => EnsureDestroyed();
+        public void Dispose()
+        {
+#if LIBREWINFORMS_PORTABLE
+            _parent.MouseMove -= OnPortableParentMouseMove;
+            _parent.MouseLeave -= OnPortableParentMouseLeave;
+            _parent.MouseDown -= OnPortableParentMouseDown;
+            _parent.HandleCreated -= OnPortableParentHandleCreated;
+            _parent.HandleDestroyed -= OnPortableParentHandleDestroyed;
+#endif
+            EnsureDestroyed();
+        }
 
         /// <summary>
         ///  Make sure the error window is created, and the tooltip window is created.
         /// </summary>
         private unsafe bool EnsureCreated()
         {
+#if LIBREWINFORMS_PORTABLE
+            return _parent.IsHandleCreated;
+#else
             if (Handle != 0)
             {
                 return true;
@@ -131,6 +165,7 @@ public partial class ErrorProvider
             PInvokeCore.SendMessage(_tipWindow, PInvoke.TTM_SETDELAYTIME, (WPARAM)PInvoke.TTDT_INITIAL);
 
             return true;
+#endif
         }
 
         /// <summary>
@@ -140,6 +175,22 @@ public partial class ErrorProvider
         {
             _timer?.Dispose();
             _timer = null;
+
+#if LIBREWINFORMS_PORTABLE
+            HidePortableToolTip(updateIcon: false);
+            _portableToolTipTimer?.Dispose();
+            _portableToolTipTimer = null;
+            _portableToolTip?.Dispose();
+            _portableToolTip = null;
+            Control root = _parent.TopLevelControl ?? _parent;
+            if (root.IsHandleCreated)
+            {
+                LibrePlatform.Current.Adorners.Remove(root.PortableHandle, _adornerId);
+            }
+
+            _parent.Invalidate(true);
+            return;
+#else
 
             _tipWindow?.DestroyHandle();
             _tipWindow = null;
@@ -156,6 +207,7 @@ public partial class ErrorProvider
                 SET_WINDOW_POS_FLAGS.SWP_HIDEWINDOW | SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOMOVE);
             _parent?.Invalidate(true);
             DestroyHandle();
+#endif
         }
 
         private unsafe void MirrorDcIfNeeded(HDC hdc)
@@ -249,6 +301,13 @@ public partial class ErrorProvider
         /// </summary>
         public void Remove(ControlItem item)
         {
+#if LIBREWINFORMS_PORTABLE
+            if (ReferenceEquals(_portableHoverItem, item))
+            {
+                HidePortableToolTip(updateIcon: false);
+                _portableHoverItem = null;
+            }
+#endif
             _items.Remove(item);
 
             if (_tipWindow is not null)
@@ -299,6 +358,9 @@ public partial class ErrorProvider
         {
             IconRegion iconRegion = _provider.Region;
             Size size = iconRegion.Size;
+#if LIBREWINFORMS_PORTABLE
+            UpdatePortable(timerCaused, iconRegion, size);
+#else
             _windowBounds = Rectangle.Empty;
             for (int i = 0; i < _items.Count; i++)
             {
@@ -367,6 +429,7 @@ public partial class ErrorProvider
             using SaveDcScope save = new(hdc);
             MirrorDcIfNeeded(hdc);
 
+#if !LIBREWINFORMS_PROGPU_DRAWING
             using Graphics g = hdc.CreateGraphics();
             using RegionScope windowRegionHandle = windowRegion.GetRegionScope(g);
             if (PInvoke.SetWindowRgn(this, windowRegionHandle, fRedraw: true) != 0)
@@ -374,6 +437,7 @@ public partial class ErrorProvider
                 // The HWnd owns the region.
                 windowRegionHandle.RelinquishOwnership();
             }
+#endif
 
             PInvoke.SetWindowPos(
                 this,
@@ -385,7 +449,229 @@ public partial class ErrorProvider
                 SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
 
             PInvoke.InvalidateRect(this, lpRect: null, bErase: false);
+#endif
         }
+
+#if LIBREWINFORMS_PORTABLE
+        private void UpdatePortable(bool timerCaused, IconRegion iconRegion, Size size)
+        {
+            _windowBounds = Rectangle.Empty;
+            List<Rectangle> visible = [];
+            for (int index = 0; index < _items.Count; index++)
+            {
+                ControlItem item = _items[index];
+                Rectangle iconBounds = item.GetIconBounds(size);
+                _windowBounds = _windowBounds.IsEmpty
+                    ? iconBounds
+                    : Rectangle.Union(_windowBounds, iconBounds);
+                if (ShouldShowIcon(item, index))
+                {
+                    visible.Add(iconBounds);
+                }
+
+                if (timerCaused && item.BlinkPhase > 0)
+                {
+                    item.BlinkPhase--;
+                }
+            }
+
+            if (timerCaused)
+            {
+                _provider.ShowIcon = !_provider.ShowIcon;
+            }
+
+            Control root = _parent.TopLevelControl ?? _parent;
+            if (!root.IsHandleCreated)
+            {
+                return;
+            }
+
+            if (visible.Count == 0 || _windowBounds.Width <= 0 || _windowBounds.Height <= 0)
+            {
+                LibrePlatform.Current.Adorners.Remove(root.PortableHandle, _adornerId);
+                return;
+            }
+
+            Point parentOrigin = root.PointToClient(_parent.PointToScreen(Point.Empty));
+            Rectangle ownerBounds = _windowBounds;
+            ownerBounds.Offset(parentOrigin);
+            using Graphics graphics = LibrePlatform.Current.Adorners.CreateGraphics(
+                root.PortableHandle,
+                _adornerId,
+                new LibreRectangle(ownerBounds.X, ownerBounds.Y, ownerBounds.Width, ownerBounds.Height),
+                new LibreRectangle(ownerBounds.X, ownerBounds.Y, ownerBounds.Width, ownerBounds.Height));
+            foreach (Rectangle iconBounds in visible)
+            {
+                graphics.DrawIcon(
+                    iconRegion.Icon,
+                    new Rectangle(
+                        iconBounds.X - _windowBounds.X,
+                        iconBounds.Y - _windowBounds.Y,
+                        iconBounds.Width,
+                        iconBounds.Height));
+            }
+        }
+
+        private bool ShouldShowIcon(ControlItem item, int index)
+        {
+            if (item.ToolTipShown)
+            {
+                return true;
+            }
+
+            return _provider.BlinkStyle switch
+            {
+                ErrorBlinkStyle.NeverBlink => true,
+                ErrorBlinkStyle.BlinkIfDifferentError => item.BlinkPhase == 0
+                    || (item.BlinkPhase > 0 && (item.BlinkPhase & 1) == (index & 1)),
+                ErrorBlinkStyle.AlwaysBlink => ((index & 1) == 0) == _provider.ShowIcon,
+                _ => throw new InvalidOperationException($"Unknown error blink style: {_provider.BlinkStyle}."),
+            };
+        }
+
+        private void OnPortableParentMouseMove(object? sender, MouseEventArgs e)
+        {
+            _ = sender;
+            ControlItem? hoveredItem = null;
+            for (int index = _items.Count - 1; index >= 0; index--)
+            {
+                ControlItem item = _items[index];
+                if (ShouldShowIcon(item, index) && item.GetIconBounds(_provider.Region.Size).Contains(e.Location))
+                {
+                    hoveredItem = item;
+                    break;
+                }
+            }
+
+            if (ReferenceEquals(_portableHoverItem, hoveredItem))
+            {
+                return;
+            }
+
+            HidePortableToolTip(updateIcon: true);
+            _portableHoverItem = hoveredItem;
+            if (hoveredItem is null)
+            {
+                return;
+            }
+
+            ToolTip toolTip = EnsurePortableToolTip();
+            StartPortableToolTipTimer(toolTip.InitialDelay, ShowPortableToolTip);
+        }
+
+        private void OnPortableParentMouseLeave(object? sender, EventArgs e)
+        {
+            _ = sender;
+            _ = e;
+            HidePortableToolTip(updateIcon: true);
+            _portableHoverItem = null;
+        }
+
+        private void OnPortableParentMouseDown(object? sender, MouseEventArgs e)
+        {
+            _ = sender;
+            _ = e;
+            HidePortableToolTip(updateIcon: true);
+            _portableHoverItem = null;
+        }
+
+        private void OnPortableParentHandleDestroyed(object? sender, EventArgs e)
+        {
+            _ = sender;
+            _ = e;
+            EnsureDestroyed();
+            _portableHoverItem = null;
+        }
+
+        private void OnPortableParentHandleCreated(object? sender, EventArgs e)
+        {
+            _ = sender;
+            _ = e;
+            if (_items.Count > 0)
+            {
+                Update(timerCaused: false);
+            }
+        }
+
+        private ToolTip EnsurePortableToolTip()
+            => _portableToolTip ??= new ToolTip
+            {
+                ShowAlways = true,
+            };
+
+        private void StartPortableToolTipTimer(int delay, Action action)
+        {
+            _portableToolTipTimer ??= CreateTimer();
+            _portableToolTipTimer.Stop();
+            _portableToolTipTimerAction = action;
+            if (delay == 0)
+            {
+                OnPortableToolTipTimer(_portableToolTipTimer, EventArgs.Empty);
+                return;
+            }
+
+            _portableToolTipTimer.Interval = delay;
+            _portableToolTipTimer.Start();
+
+            Timer CreateTimer()
+            {
+                Timer timer = new();
+                timer.Tick += OnPortableToolTipTimer;
+                return timer;
+            }
+        }
+
+        private void OnPortableToolTipTimer(object? sender, EventArgs e)
+        {
+            _ = sender;
+            _ = e;
+            _portableToolTipTimer?.Stop();
+            Action? action = _portableToolTipTimerAction;
+            _portableToolTipTimerAction = null;
+            action?.Invoke();
+        }
+
+        private void ShowPortableToolTip()
+        {
+            ControlItem? item = _portableHoverItem;
+            int index = item is null ? -1 : _items.IndexOf(item);
+            if (item is null || index < 0 || !ShouldShowIcon(item, index) || string.IsNullOrEmpty(item.Error))
+            {
+                return;
+            }
+
+            ToolTip toolTip = EnsurePortableToolTip();
+            item.ToolTipShown = true;
+            Update(timerCaused: false);
+            Rectangle iconBounds = item.GetIconBounds(_provider.Region.Size);
+            toolTip.Show(item.Error, _parent, iconBounds.Right + 2, iconBounds.Bottom + 2);
+            _portableToolTipVisible = true;
+            if (toolTip.AutoPopDelay > 0)
+            {
+                StartPortableToolTipTimer(toolTip.AutoPopDelay, () => HidePortableToolTip(updateIcon: true));
+            }
+        }
+
+        private void HidePortableToolTip(bool updateIcon)
+        {
+            _portableToolTipTimer?.Stop();
+            _portableToolTipTimerAction = null;
+            if (_portableToolTipVisible && !_parent.IsDisposed)
+            {
+                _portableToolTip?.Hide(_parent);
+            }
+
+            _portableToolTipVisible = false;
+            if (_portableHoverItem is { ToolTipShown: true } item)
+            {
+                item.ToolTipShown = false;
+                if (updateIcon)
+                {
+                    Update(timerCaused: false);
+                }
+            }
+        }
+#endif
 
         /// <summary>
         ///  Handles the WM_GETOBJECT message. Used for accessibility.

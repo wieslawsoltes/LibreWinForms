@@ -834,7 +834,13 @@ public partial class ListBox : ListControl
 
             if (current == SelectionMode.One && IsHandleCreated)
             {
+#if LIBREWINFORMS_PORTABLE
+                return _itemsCollection is not null && SelectedItems.Count > 0
+                    ? Items.IndexOfIdentifier(SelectedItems.GetObjectAt(0))
+                    : -1;
+#else
                 return (int)PInvokeCore.SendMessage(this, PInvoke.LB_GETCURSEL);
+#endif
             }
 
             if (_itemsCollection is not null && SelectedItems.Count > 0)
@@ -1529,6 +1535,9 @@ public partial class ListBox : ListControl
     private int NativeAdd(object item)
     {
         Debug.Assert(IsHandleCreated, "Shouldn't be calling Native methods before the handle is created.");
+#if LIBREWINFORMS_PORTABLE
+        return Items.Count - 1;
+#else
         int insertIndex = (int)PInvokeCore.SendMessage(this, PInvoke.LB_ADDSTRING, 0, GetItemText(item));
         if (insertIndex == PInvoke.LB_ERRSPACE)
         {
@@ -1545,6 +1554,7 @@ public partial class ListBox : ListControl
         }
 
         return insertIndex;
+#endif
     }
 
     /// <summary>
@@ -1553,7 +1563,9 @@ public partial class ListBox : ListControl
     private void NativeClear()
     {
         Debug.Assert(IsHandleCreated, "Shouldn't be calling Native methods before the handle is created.");
+#if !LIBREWINFORMS_PORTABLE
         PInvokeCore.SendMessage(this, PInvoke.LB_RESETCONTENT);
+#endif
     }
 
     /// <summary>
@@ -1562,6 +1574,9 @@ public partial class ListBox : ListControl
     [SkipLocalsInit]
     internal unsafe string NativeGetItemText(int index)
     {
+#if LIBREWINFORMS_PORTABLE
+        return GetItemText(Items[index]) ?? string.Empty;
+#else
         int maxLength = (int)PInvokeCore.SendMessage(this, PInvoke.LB_GETTEXTLEN, (WPARAM)index);
         if (maxLength == PInvoke.LB_ERR)
         {
@@ -1575,6 +1590,7 @@ public partial class ListBox : ListControl
             Debug.Assert(actualLength != PInvoke.LB_ERR, "Should have validated the index above");
             return actualLength == PInvoke.LB_ERR ? string.Empty : buffer[..Math.Min(maxLength, actualLength)].ToString();
         }
+#endif
     }
 
     /// <summary>
@@ -1584,6 +1600,9 @@ public partial class ListBox : ListControl
     private int NativeInsert(int index, object item)
     {
         Debug.Assert(IsHandleCreated, "Shouldn't be calling Native methods before the handle is created.");
+#if LIBREWINFORMS_PORTABLE
+        return index;
+#else
         int insertIndex = (int)PInvokeCore.SendMessage(this, PInvoke.LB_INSERTSTRING, (uint)index, GetItemText(item));
 
         if (insertIndex == PInvoke.LB_ERRSPACE)
@@ -1602,6 +1621,7 @@ public partial class ListBox : ListControl
 
         Debug.Assert(insertIndex == index, $"NativeListBox inserted at {insertIndex} not the requested index of {index}");
         return insertIndex;
+#endif
     }
 
     /// <summary>
@@ -1611,6 +1631,7 @@ public partial class ListBox : ListControl
     {
         Debug.Assert(IsHandleCreated, "Shouldn't be calling Native methods before the handle is created.");
 
+#if !LIBREWINFORMS_PORTABLE
         bool selected = (int)PInvokeCore.SendMessage(this, PInvoke.LB_GETSEL, (WPARAM)index) > 0;
         PInvokeCore.SendMessage(this, PInvoke.LB_DELETESTRING, (WPARAM)index);
 
@@ -1621,6 +1642,7 @@ public partial class ListBox : ListControl
         {
             OnSelectedIndexChanged(EventArgs.Empty);
         }
+#endif
     }
 
     /// <summary>
@@ -1632,6 +1654,7 @@ public partial class ListBox : ListControl
         Debug.Assert(IsHandleCreated, "Should only call Native methods after the handle has been created");
         Debug.Assert(_selectionMode != SelectionMode.None, "Guard against setting selection for None selection mode outside this code.");
 
+#if !LIBREWINFORMS_PORTABLE
         if (_selectionMode == SelectionMode.One)
         {
             PInvokeCore.SendMessage(this, PInvoke.LB_SETCURSEL, (WPARAM)(value ? index : -1));
@@ -1640,6 +1663,7 @@ public partial class ListBox : ListControl
         {
             PInvokeCore.SendMessage(this, PInvoke.LB_SETSEL, (WPARAM)(BOOL)value, (LPARAM)index);
         }
+#endif
     }
 
     /// <summary>
@@ -1651,6 +1675,7 @@ public partial class ListBox : ListControl
     {
         Debug.Assert(IsHandleCreated, "Should only call native methods if handle is created");
 
+#if !LIBREWINFORMS_PORTABLE
         // Clear the selection state.
         int cnt = Items.Count;
         for (int i = 0; i < cnt; i++)
@@ -1688,6 +1713,7 @@ public partial class ListBox : ListControl
 
                 break;
         }
+#endif
     }
 
     protected override void OnChangeUICues(UICuesEventArgs e)
@@ -1741,6 +1767,7 @@ public partial class ListBox : ListControl
     {
         base.OnHandleCreated(e);
 
+#if !LIBREWINFORMS_PORTABLE
         // Get the current locale to set the Scrollbars
         PInvokeCore.SendMessage(this, PInvoke.LB_SETLOCALE, (WPARAM)PInvokeCore.GetThreadLocale());
 
@@ -1796,6 +1823,7 @@ public partial class ListBox : ListControl
         }
 
         UpdateHorizontalExtent();
+#endif
     }
 
     /// <summary>
@@ -2252,7 +2280,9 @@ public partial class ListBox : ListControl
                 width = MaxItemWidth;
             }
 
+#if !LIBREWINFORMS_PORTABLE
             PInvokeCore.SendMessage(this, PInvoke.LB_SETHORIZONTALEXTENT, (WPARAM)width);
+#endif
         }
     }
 
@@ -2417,7 +2447,7 @@ public partial class ListBox : ListControl
             case PInvokeCore.WM_LBUTTONUP:
                 Point point = PARAM.ToPoint(m.LParamInternal);
                 bool captured = Capture;
-                if (captured && PInvoke.WindowFromPoint(PointToScreen(point)) == HWND)
+                if (captured && IsMousePointerDirectlyOver(point))
                 {
                     if (!_doubleClickFired && !ValidationCancelled)
                     {
@@ -2457,7 +2487,7 @@ public partial class ListBox : ListControl
                 break;
 
             case PInvokeCore.WM_RBUTTONUP:
-                if (Capture && PInvoke.WindowFromPoint(PointToScreen((Point)m.LParamInternal)) == HWND)
+                if (Capture && IsMousePointerDirectlyOver((Point)m.LParamInternal))
                 {
                     _selectedItems?.Dirty();
                 }

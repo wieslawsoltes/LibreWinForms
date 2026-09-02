@@ -63,11 +63,17 @@ internal class RadioButtonStandardAdapter : RadioButtonBaseAdapter
         if (Application.RenderWithVisualStyles)
         {
             ButtonBase b = Control;
+#if LIBREWINFORMS_PORTABLE
+            layout.CheckSize = RadioButtonRenderer.GetGlyphSize(
+                e.GraphicsInternal,
+                RadioButtonRenderer.ConvertFromButtonState(GetState(), b.MouseIsOver)).Width;
+#else
             using var screen = GdiCache.GetScreenHdc();
             layout.CheckSize = RadioButtonRenderer.GetGlyphSize(
                 screen,
                 RadioButtonRenderer.ConvertFromButtonState(GetState(), b.MouseIsOver),
                 b.HWNDInternal).Width;
+#endif
         }
         else
         {

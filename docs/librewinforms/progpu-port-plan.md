@@ -1,5 +1,7 @@
 # LibreWinForms ProGPU Port Plan
 
+> The detailed source-first cutover, canonical assembly graph, ProGPU `System.Drawing.*` integration, and deletion gates for `src/LibreWinForms.Portable` are defined in [Source-First Cross-Platform LibreWinForms Plan](source-first-cross-platform-plan.md). That document is authoritative when this historical work log and the target architecture differ.
+
 ## Goal
 
 LibreWinForms is the cross-platform WinForms companion to LibreWPF. It should let existing WinForms-dependent code, including SharpDevelop, move from Windows-only WinForms to a ProGPU/Silk.NET platform without source changes where practical.

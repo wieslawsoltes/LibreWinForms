@@ -1,0 +1,20 @@
+<Project>
+  <!-- Keep this packaging-only SDK project independent from the upstream
+       WinForms Arcade build graph. The installed SDK still references the
+       canonical source graph when a consumer opts into Project mode. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>preview</LangVersion>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <Version Condition="'$(Version)' == ''">0.1.0-preview.45</Version>
+    <PackageVersion Condition="'$(PackageVersion)' == ''">$(Version)</PackageVersion>
+    <Authors>Wieslaw Soltes</Authors>
+    <Company>LibreWinForms</Company>
+    <Product>LibreWinForms</Product>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/wieslawsoltes/LibreWinForms</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/wieslawsoltes/LibreWinForms</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+</Project>

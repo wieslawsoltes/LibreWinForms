@@ -109,12 +109,17 @@ public sealed partial class ImageList : Component, IHandle<HIMAGELIST>
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            throw new PlatformNotSupportedException(
+                "HIMAGELIST export requires the explicit Windows common-controls adapter.");
+#else
             if (_nativeImageList is null)
             {
                 CreateHandle();
             }
 
             return _nativeImageList.HIMAGELIST;
+#endif
         }
     }
 
@@ -522,9 +527,13 @@ public sealed partial class ImageList : Component, IHandle<HIMAGELIST>
     /// </summary>
     public void Draw(Graphics g, int x, int y, int width, int height, int index)
     {
+        ArgumentNullException.ThrowIfNull(g);
         ArgumentOutOfRangeException.ThrowIfNegative(index);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, Images.Count);
 
+#if LIBREWINFORMS_PORTABLE
+        DrawPortable(g, new Rectangle(x, y, width, height), index);
+#else
         HDC dc = (HDC)g.GetHdc();
         try
         {
@@ -544,7 +553,156 @@ public sealed partial class ImageList : Component, IHandle<HIMAGELIST>
         {
             g.ReleaseHdcInternal(dc);
         }
+#endif
     }
+
+#if LIBREWINFORMS_PORTABLE
+    private void DrawPortable(Graphics graphics, Rectangle destination, int index)
+    {
+        FindPortableOriginal(index, out Original original, out int frameIndex);
+        Bitmap bitmap = CreateBitmap(original, out bool ownsBitmap);
+        try
+        {
+            Rectangle source = (original._options & OriginalOptions.ImageStrip) != 0
+                ? new Rectangle(frameIndex * _imageSize.Width, 0, _imageSize.Width, _imageSize.Height)
+                : new Rectangle(Point.Empty, bitmap.Size);
+            graphics.DrawImage(
+                bitmap,
+                destination,
+                source.X,
+                source.Y,
+                source.Width,
+                source.Height,
+                GraphicsUnit.Pixel);
+        }
+        finally
+        {
+            if (ownsBitmap)
+            {
+                bitmap.Dispose();
+            }
+        }
+    }
+
+    private Bitmap GetPortableBitmap(int index)
+    {
+        FindPortableOriginal(index, out Original original, out int frameIndex);
+        Bitmap bitmap = CreateBitmap(original, out bool ownsBitmap);
+        try
+        {
+            var result = new Bitmap(_imageSize.Width, _imageSize.Height, PixelFormat.Format32bppArgb);
+            try
+            {
+                using Graphics graphics = Graphics.FromImage(result);
+                Rectangle source = (original._options & OriginalOptions.ImageStrip) != 0
+                    ? new Rectangle(frameIndex * _imageSize.Width, 0, _imageSize.Width, _imageSize.Height)
+                    : new Rectangle(Point.Empty, bitmap.Size);
+                graphics.DrawImage(
+                    bitmap,
+                    new Rectangle(Point.Empty, _imageSize),
+                    source.X,
+                    source.Y,
+                    source.Width,
+                    source.Height,
+                    GraphicsUnit.Pixel);
+                return result;
+            }
+            catch
+            {
+                result.Dispose();
+                throw;
+            }
+        }
+        finally
+        {
+            if (ownsBitmap)
+            {
+                bitmap.Dispose();
+            }
+        }
+    }
+
+    private void FindPortableOriginal(int index, out Original original, out int frameIndex)
+    {
+        Debug.Assert(_originals is not null);
+        int remaining = index;
+        foreach (Original candidate in _originals!)
+        {
+            if (remaining < candidate._nImages)
+            {
+                original = candidate;
+                frameIndex = remaining;
+                return;
+            }
+
+            remaining -= candidate._nImages;
+        }
+
+        throw new ArgumentOutOfRangeException(nameof(index));
+    }
+
+    private void MaterializePortableOriginals()
+    {
+        Debug.Assert(_originals is not null);
+        int count = Images.Count;
+        var materialized = new List<Original>(count);
+        try
+        {
+            for (int index = 0; index < count; index++)
+            {
+                materialized.Add(new Original(GetPortableBitmap(index), OriginalOptions.OwnsImage));
+            }
+        }
+        catch
+        {
+            DisposePortableOriginals(materialized);
+            throw;
+        }
+
+        DisposePortableOriginals(_originals!);
+        _originals = materialized;
+    }
+
+    private void ReplacePortableImage(int index, Bitmap bitmap)
+    {
+        MaterializePortableOriginals();
+        Original previous = _originals![index];
+        var replacement = new Original((Bitmap)bitmap.Clone(), OriginalOptions.OwnsImage);
+        _originals[index] = replacement;
+        DisposePortableOriginal(previous);
+    }
+
+    private void RemovePortableImage(int index)
+    {
+        MaterializePortableOriginals();
+        Original removed = _originals![index];
+        _originals.RemoveAt(index);
+        DisposePortableOriginal(removed);
+    }
+
+    private void ClearPortableImages()
+    {
+        Debug.Assert(_originals is not null);
+        DisposePortableOriginals(_originals!);
+        _originals!.Clear();
+    }
+
+    private static void DisposePortableOriginals(IEnumerable<Original> originals)
+    {
+        foreach (Original original in originals)
+        {
+            DisposePortableOriginal(original);
+        }
+    }
+
+    private static void DisposePortableOriginal(Original original)
+    {
+        if ((original._options & OriginalOptions.OwnsImage) != 0)
+        {
+            ((IDisposable)original._image).Dispose();
+        }
+    }
+#endif
 
     private static unsafe void CopyBitmapData(BitmapData sourceData, BitmapData targetData)
     {
@@ -602,6 +760,9 @@ public sealed partial class ImageList : Component, IHandle<HIMAGELIST>
         ArgumentOutOfRangeException.ThrowIfNegative(index);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, Images.Count);
 
+#if LIBREWINFORMS_PORTABLE
+        return GetPortableBitmap(index);
+#else
         Bitmap? result = null;
 
         // if the imagelist is 32bpp, if the image slot at index
@@ -694,6 +855,7 @@ public sealed partial class ImageList : Component, IHandle<HIMAGELIST>
         }
 
         return result;
+#endif
     }
 
     /// <summary>

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>$(NetCurrent)</TargetFramework>
+    <AssemblyName>LibreWinForms.CanonicalLifecycle.Tests</AssemblyName>
+    <Nullable>enable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+    <LibreWinFormsUseProGpuSystemDrawing>true</LibreWinFormsUseProGpuSystemDrawing>
+    <LibreWinFormsReferenceMode>Project</LibreWinFormsReferenceMode>
+    <MicrosoftNETCoreAppRefPackageVersion></MicrosoftNETCoreAppRefPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AwesomeAssertions" />
+    <PackageReference Include="Microsoft.DotNet.XUnitV3Extensions" />
+    <ProjectReference Include="..\..\..\LibreWinForms.Platform\LibreWinForms.Platform.csproj" />
+    <ProjectReference Include="..\..\..\System.Windows.Forms\System.Windows.Forms.csproj"
+                      AdditionalProperties="LibreWinFormsUseProGpuSystemDrawing=true;LibreWinFormsReferenceMode=Project;MicrosoftNETCoreAppRefPackageVersion=" />
+  </ItemGroup>
+
+</Project>

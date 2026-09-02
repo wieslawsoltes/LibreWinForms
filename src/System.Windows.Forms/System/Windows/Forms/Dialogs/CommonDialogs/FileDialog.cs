@@ -3,6 +3,9 @@
 
 using System.ComponentModel;
 using System.Drawing.Design;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#endif
 using Windows.Win32.UI.Controls.Dialogs;
 using static Windows.Win32.UI.Controls.Dialogs.OPEN_FILENAME_FLAGS;
 using static Windows.Win32.UI.Shell.FILEOPENDIALOGOPTIONS;
@@ -151,7 +154,12 @@ public abstract partial class FileDialog : CommonDialog
         set => SetOption(OFN_NODEREFERENCELINKS, !value);
     }
 
-    private protected string DialogCaption => PInvokeCore.GetWindowText(_dialogHWnd);
+    private protected string DialogCaption
+#if LIBREWINFORMS_PORTABLE
+        => Title;
+#else
+        => PInvokeCore.GetWindowText(_dialogHWnd);
+#endif
 
     /// <summary>
     ///  Gets or sets a string containing the file name selected in the file dialog box.
@@ -285,7 +293,12 @@ public abstract partial class FileDialog : CommonDialog
     /// <summary>
     ///  Gets the Win32 instance handle for the application.
     /// </summary>
-    protected virtual nint Instance => PInvoke.GetModuleHandle((PCWSTR)null);
+    protected virtual nint Instance
+#if LIBREWINFORMS_PORTABLE
+        => 0;
+#else
+        => PInvoke.GetModuleHandle((PCWSTR)null);
+#endif
 
     /// <summary>
     ///  Gets the Win32 common Open File Dialog OFN_* and FOS_* option flags.
@@ -668,6 +681,10 @@ public abstract partial class FileDialog : CommonDialog
         MessageBoxButtons buttons,
         MessageBoxIcon icon)
     {
+#if LIBREWINFORMS_PORTABLE
+        return MessageBox.Show(null, message, caption, buttons, icon, MessageBoxDefaultButton.Button1, 0)
+            == DialogResult.Yes;
+#else
         HWND focusHandle = PInvoke.GetFocus();
         try
         {
@@ -678,6 +695,7 @@ public abstract partial class FileDialog : CommonDialog
         {
             PInvoke.SetFocus(focusHandle);
         }
+#endif
     }
 
     /// <summary>
@@ -725,6 +743,9 @@ public abstract partial class FileDialog : CommonDialog
     protected override bool RunDialog(IntPtr hWndOwner)
 #pragma warning restore CA1725
     {
+#if LIBREWINFORMS_PORTABLE
+        return RunDialogPortable(hWndOwner);
+#else
         if (Control.CheckForIllegalCrossThreadCalls && Application.OleRequired() != ApartmentState.STA)
         {
             throw new ThreadStateException(string.Format(SR.DebuggingExceptionOnly, SR.ThreadMustBeSTA));
@@ -737,7 +758,181 @@ public abstract partial class FileDialog : CommonDialog
         }
 
         return RunDialogOld((HWND)hWndOwner);
+#endif
     }
+
+#if LIBREWINFORMS_PORTABLE
+    private bool RunDialogPortable(IntPtr owner)
+    {
+        LibreFileDialogRequest request = CreatePortableRequest(owner);
+        while (true)
+        {
+            LibreFileDialogResult result = LibrePlatform.Current.FileDialogs.Show(request);
+            if (!result.Accepted)
+            {
+                return false;
+            }
+
+            if (TryAcceptPortableResult(result))
+            {
+                return true;
+            }
+
+            request = CreatePortableRequest(owner) with
+            {
+                SelectedPaths = result.SelectedPaths.ToArray(),
+                FilterIndex = result.FilterIndex,
+            };
+        }
+    }
+
+    private LibreFileDialogRequest CreatePortableRequest(IntPtr owner)
+    {
+        LibreFileDialogOptions options = LibreFileDialogOptions.None;
+        if (AddExtension) options |= LibreFileDialogOptions.AddExtension;
+        if (AddToRecent) options |= LibreFileDialogOptions.AddToRecent;
+        if (CheckFileExists) options |= LibreFileDialogOptions.CheckFileExists;
+        if (CheckPathExists) options |= LibreFileDialogOptions.CheckPathExists;
+        if (DereferenceLinks) options |= LibreFileDialogOptions.DereferenceLinks;
+        if (RestoreDirectory) options |= LibreFileDialogOptions.RestoreDirectory;
+        if (ShowHelp) options |= LibreFileDialogOptions.ShowHelp;
+        if (ShowHiddenFiles) options |= LibreFileDialogOptions.ShowHiddenFiles;
+        if (SupportMultiDottedExtensions) options |= LibreFileDialogOptions.SupportMultiDottedExtensions;
+        if (ValidateNames) options |= LibreFileDialogOptions.ValidateNames;
+        if (OkRequiresInteraction) options |= LibreFileDialogOptions.OkRequiresInteraction;
+        if (ShowPinnedPlaces) options |= LibreFileDialogOptions.ShowPinnedPlaces;
+        if (AutoUpgradeEnabled) options |= LibreFileDialogOptions.AutoUpgradeEnabled;
+
+        LibreFileDialogKind kind;
+        if (this is OpenFileDialog open)
+        {
+            kind = LibreFileDialogKind.OpenFile;
+            if (open.Multiselect) options |= LibreFileDialogOptions.MultiSelect;
+            if (open.ReadOnlyChecked) options |= LibreFileDialogOptions.ReadOnlyChecked;
+            if (open.SelectReadOnly) options |= LibreFileDialogOptions.SelectReadOnly;
+            if (open.ShowPreview) options |= LibreFileDialogOptions.ShowPreview;
+            if (open.ShowReadOnly) options |= LibreFileDialogOptions.ShowReadOnly;
+        }
+        else if (this is SaveFileDialog save)
+        {
+            kind = LibreFileDialogKind.SaveFile;
+            if (save.CheckWriteAccess) options |= LibreFileDialogOptions.CheckWriteAccess;
+            if (save.CreatePrompt) options |= LibreFileDialogOptions.CreatePrompt;
+            if (save.ExpandedMode) options |= LibreFileDialogOptions.ExpandedMode;
+            if (save.OverwritePrompt) options |= LibreFileDialogOptions.OverwritePrompt;
+        }
+        else
+        {
+            throw new InvalidOperationException("Unknown canonical file-dialog type.");
+        }
+
+        LibreFileDialogPlace[] places =
+        [
+            .. CustomPlaces.Select(static place => new LibreFileDialogPlace(
+                place.Path,
+                place.KnownFolderGuid == Guid.Empty ? null : place.KnownFolderGuid)),
+        ];
+        return new LibreFileDialogRequest(
+            kind,
+            Title,
+            string.Empty,
+            InitialDirectory,
+            FileNames,
+            DefaultExt,
+            CreatePortableFilters(),
+            FilterIndex,
+            options,
+            ClientGuid,
+            places,
+            ShowHelp ? () => OnHelpRequest(EventArgs.Empty) : null,
+            owner == 0 ? default : new LibreHandle(owner, LibreHandleKind.Window));
+    }
+
+    private LibreFileDialogFilter[] CreatePortableFilters()
+    {
+        if (string.IsNullOrEmpty(_filter))
+        {
+            return [];
+        }
+
+        string[] tokens = _filter.Split('|');
+        LibreFileDialogFilter[] filters = new LibreFileDialogFilter[tokens.Length / 2];
+        for (int index = 0; index < filters.Length; index++)
+        {
+            filters[index] = new(
+                tokens[index * 2],
+                tokens[(index * 2) + 1].Split(';', StringSplitOptions.RemoveEmptyEntries));
+        }
+
+        return filters;
+    }
+
+    private bool TryAcceptPortableResult(in LibreFileDialogResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result.SelectedPaths);
+        if (result.SelectedPaths.Count == 0
+            || (this is not OpenFileDialog { Multiselect: true } && result.SelectedPaths.Count != 1)
+            || result.SelectedPaths.Any(string.IsNullOrWhiteSpace))
+        {
+            throw new InvalidOperationException("The file-dialog service returned an invalid path selection.");
+        }
+
+        if (result.FilterIndex < 0
+            || (_filter is not null && (result.FilterIndex < 1 || result.FilterIndex > _filter.Split('|').Length / 2)))
+        {
+            throw new InvalidOperationException("The file-dialog service returned an invalid filter index.");
+        }
+
+        OPEN_FILENAME_FLAGS savedOptions = _fileNameFlags;
+        int savedFilterIndex = FilterIndex;
+        string[]? savedFileNames = _fileNames;
+        bool accepted = false;
+        try
+        {
+            SetOption(OFN_READONLY, result.ReadOnlyChecked);
+            FilterIndex = result.FilterIndex;
+            _fileNames = [.. result.SelectedPaths];
+            if (!ProcessFileNames(_fileNames))
+            {
+                return false;
+            }
+
+            CancelEventArgs eventArgs = new();
+            if (NativeWindow.WndProcShouldBeDebuggable)
+            {
+                OnFileOk(eventArgs);
+            }
+            else
+            {
+                try
+                {
+                    OnFileOk(eventArgs);
+                }
+                catch (Exception exception)
+                {
+                    Application.OnThreadException(exception);
+                }
+            }
+
+            accepted = !eventArgs.Cancel;
+            if (accepted && this is OpenFileDialog { ShowReadOnly: false })
+            {
+                SetOption(OFN_READONLY, false);
+            }
+
+            return accepted;
+        }
+        finally
+        {
+            if (!accepted)
+            {
+                _fileNameFlags = savedOptions;
+                FilterIndex = savedFilterIndex;
+                _fileNames = savedFileNames;
+            }
+        }
+    }
+#endif
 
     private unsafe bool RunDialogOld(HWND owner)
     {

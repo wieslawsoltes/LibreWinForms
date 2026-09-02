@@ -26,14 +26,7 @@ internal abstract class CheckableControlBaseAdapter : ButtonBaseAdapter
             return ButtonAdapter.GetPreferredSizeCore(proposedSize);
         }
 
-        LayoutOptions? options = default;
-        using (var screen = GdiCache.GetScreenHdc())
-        using (PaintEventArgs pe = new(screen, clipRect: default))
-        {
-            options = Layout(pe);
-        }
-
-        return options.GetPreferredSizeCore(proposedSize);
+        return GetPreferredSizeFromLayout(proposedSize);
     }
 
     protected abstract ButtonBaseAdapter CreateButtonAdapter();

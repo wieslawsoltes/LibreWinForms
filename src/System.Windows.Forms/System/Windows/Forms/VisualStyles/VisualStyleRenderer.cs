@@ -2,8 +2,15 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
+#if !LIBREWINFORMS_PROGPU_DRAWING
 using System.Drawing.Interop;
+#endif
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#endif
+#if !LIBREWINFORMS_PORTABLE
 using Microsoft.Win32;
+#endif
 
 namespace System.Windows.Forms.VisualStyles;
 
@@ -13,6 +20,7 @@ namespace System.Windows.Forms.VisualStyles;
 public sealed class VisualStyleRenderer : IHandle<HTHEME>
 {
     private HRESULT _lastHResult;
+#if !LIBREWINFORMS_PORTABLE
     private const int NumberOfPossibleClasses = VisualStyleElement.Count; // used as size for themeHandles
 
     [ThreadStatic]
@@ -22,10 +30,13 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     private static long t_threadCacheVersion;
 
     private static long s_globalCacheVersion;
+#endif
 
     static VisualStyleRenderer()
     {
+#if !LIBREWINFORMS_PORTABLE
         SystemEvents.UserPreferenceChanging += OnUserPreferenceChanging;
+#endif
     }
 
     /// <summary>
@@ -35,10 +46,23 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return Application.UseVisualStyles
+                && PortableVisualStyles.IsEnabled
+                && (Application.VisualStyleState & VisualStyleState.ClientAreaEnabled) == VisualStyleState.ClientAreaEnabled;
+#else
             return (VisualStyleInformation.IsEnabledByUser &&
                ((Application.VisualStyleState & VisualStyleState.ClientAreaEnabled) == VisualStyleState.ClientAreaEnabled));
+#endif
         }
     }
+
+#if LIBREWINFORMS_PORTABLE
+    private static ILibreVisualStyleService PortableVisualStyles
+        => LibrePlatform.IsRegistered
+            ? LibrePlatform.Current.VisualStyles
+            : UnsupportedLibreVisualStyleService.Instance;
+#endif
 
     /// <summary>
     ///  Returns true if visual styles are 1) supported by the OS 2) enabled in the client area
@@ -52,6 +76,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         {
             bool supported = AreClientAreaVisualStylesSupported;
 
+#if !LIBREWINFORMS_PORTABLE
             if (supported)
             {
                 // In some cases, this check isn't enough, since the theme handle creation
@@ -60,6 +85,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
                 IntPtr hTheme = GetHandle("BUTTON", false); // Button is an arbitrary choice.
                 supported = hTheme != IntPtr.Zero;
             }
+#endif
 
             return supported;
         }
@@ -82,6 +108,14 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
 
     internal static bool IsCombinationDefined(string className, int part)
     {
+#if LIBREWINFORMS_PORTABLE
+        if (!IsSupported)
+        {
+            throw new InvalidOperationException(SR.VisualStyleNotActive);
+        }
+
+        return PortableVisualStyles.IsElementDefined(className, part);
+#else
         bool result = false;
 
         if (!IsSupported)
@@ -118,6 +152,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         }
 
         return result;
+#endif
     }
 
     /// <summary>
@@ -170,11 +205,16 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     ///  </para>
     /// </remarks>
     public IntPtr Handle
+#if LIBREWINFORMS_PORTABLE
+        => throw new PlatformNotSupportedException(
+            "HTHEME export requires the explicit Windows UxTheme adapter.");
+#else
         => !IsSupported
             ? throw new InvalidOperationException(VisualStyleInformation.IsEnabledByUser
                 ? SR.VisualStylesDisabledInClientArea
                 : SR.VisualStyleNotActive)
             : (nint)GetHandle(Class);
+#endif
 
     HTHEME IHandle<HTHEME>.Handle => (HTHEME)Handle;
 
@@ -212,8 +252,18 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     {
         ArgumentNullException.ThrowIfNull(dc);
 
+#if LIBREWINFORMS_PORTABLE
+        if (bounds.Width < 0 || bounds.Height < 0)
+        {
+            return;
+        }
+
+        PortableVisualStyles.DrawBackground(GetPortableGraphics(dc), Class, Part, State, bounds, null);
+        _lastHResult = default;
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         DrawBackground(hdc, bounds, HWND.Null);
+#endif
     }
 
     internal unsafe void DrawBackground(HDC dc, Rectangle bounds, HWND hwnd = default)
@@ -241,8 +291,18 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     {
         ArgumentNullException.ThrowIfNull(dc);
 
+#if LIBREWINFORMS_PORTABLE
+        if (bounds.Width < 0 || bounds.Height < 0 || clipRectangle.Width < 0 || clipRectangle.Height < 0)
+        {
+            return;
+        }
+
+        PortableVisualStyles.DrawBackground(GetPortableGraphics(dc), Class, Part, State, bounds, clipRectangle);
+        _lastHResult = default;
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         DrawBackground(hdc, bounds, clipRectangle, HWND.Null);
+#endif
     }
 
     internal unsafe void DrawBackground(HDC dc, Rectangle bounds, Rectangle clipRectangle, HWND hwnd)
@@ -268,8 +328,26 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     {
         ArgumentNullException.ThrowIfNull(dc);
 
+        SourceGenerated.EnumValidator.Validate(edges, nameof(edges));
+        SourceGenerated.EnumValidator.Validate(style, nameof(style));
+        SourceGenerated.EnumValidator.Validate(effects, nameof(effects));
+
+#if LIBREWINFORMS_PORTABLE
+        Rectangle contentBounds = PortableVisualStyles.DrawEdge(
+            GetPortableGraphics(dc),
+            Class,
+            Part,
+            State,
+            bounds,
+            GetPortableEdges(edges),
+            GetPortableEdgeStyle(style),
+            GetPortableEdgeEffects(effects));
+        _lastHResult = default;
+        return contentBounds;
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         return DrawEdge(hdc, bounds, edges, style, effects);
+#endif
     }
 
     internal unsafe Rectangle DrawEdge(HDC dc, Rectangle bounds, Edges edges, EdgeStyle style, EdgeEffects effects)
@@ -342,11 +420,16 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
             return;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        childControl.DrawPortableParentBackground(GetPortableGraphics(dc), bounds);
+        _lastHResult = default;
+#else
         if (childControl.IsHandleCreated)
         {
             using DeviceContextHdcScope hdc = dc.ToHdcScope();
             _lastHResult = PInvoke.DrawThemeParentBackground(childControl.HWND, hdc, bounds);
         }
+#endif
     }
 
     /// <summary>
@@ -372,8 +455,26 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     {
         ArgumentNullException.ThrowIfNull(dc);
 
+#if LIBREWINFORMS_PORTABLE
+        if (bounds.Width < 0 || bounds.Height < 0 || string.IsNullOrEmpty(textToDraw))
+        {
+            return;
+        }
+
+        PortableVisualStyles.DrawText(
+            GetPortableGraphics(dc),
+            Class,
+            Part,
+            State,
+            bounds,
+            textToDraw,
+            drawDisabled,
+            GetPortableTextFormat(flags));
+        _lastHResult = default;
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         DrawText(hdc, bounds, textToDraw, drawDisabled, flags);
+#endif
     }
 
     internal void DrawText(HDC dc, Rectangle bounds, string? textToDraw, bool drawDisabled, TextFormatFlags flags)
@@ -406,8 +507,18 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     {
         ArgumentNullException.ThrowIfNull(dc);
 
+#if LIBREWINFORMS_PORTABLE
+        if (bounds.Width < 0 || bounds.Height < 0)
+        {
+            return Rectangle.Empty;
+        }
+
+        _lastHResult = default;
+        return PortableVisualStyles.GetBackgroundContentRectangle(Class, Part, State, bounds);
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         return GetBackgroundContentRectangle(hdc, bounds);
+#endif
     }
 
     internal Rectangle GetBackgroundContentRectangle(HDC dc, Rectangle bounds)
@@ -433,9 +544,14 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
             return Rectangle.Empty;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.GetBackgroundExtent(Class, Part, State, contentBounds);
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         _lastHResult = PInvoke.GetThemeBackgroundExtent(HTHEME, hdc, Part, State, contentBounds, out RECT extents);
         return extents;
+#endif
     }
 
     /// <summary>
@@ -452,6 +568,11 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
             return null;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        Region? region = PortableVisualStyles.GetBackgroundRegion(Class, Part, State, bounds);
+        _lastHResult = default;
+        return region;
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         HRGN hrgn;
         _lastHResult = PInvoke.GetThemeBackgroundRegion(HTHEME, hdc, Part, State, bounds, out hrgn);
@@ -469,7 +590,380 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         Region region = Region.FromHrgn(hrgn);
         PInvokeCore.DeleteObject(hrgn);
         return region;
+#endif
     }
+
+#if LIBREWINFORMS_PORTABLE
+    private static Graphics GetPortableGraphics(IDeviceContext deviceContext)
+        => deviceContext switch
+        {
+            Graphics graphics => graphics,
+            PaintEventArgs paintEventArgs => paintEventArgs.GraphicsInternal,
+            _ => deviceContext.TryGetGraphics(create: true)
+                ?? throw new PlatformNotSupportedException(
+                    "Portable visual-style drawing requires a managed System.Drawing.Graphics recorder.")
+        };
+
+    private static LibreVisualStyleSizeType GetPortableSizeType(ThemeSizeType type)
+        => type switch
+        {
+            ThemeSizeType.Minimum => LibreVisualStyleSizeType.Minimum,
+            ThemeSizeType.True => LibreVisualStyleSizeType.True,
+            ThemeSizeType.Draw => LibreVisualStyleSizeType.Draw,
+            _ => throw new ArgumentOutOfRangeException(nameof(type)),
+        };
+
+    private static LibreVisualStyleEdges GetPortableEdges(Edges edges)
+    {
+        LibreVisualStyleEdges portable = LibreVisualStyleEdges.None;
+        if (edges.HasFlag(Edges.Left))
+            portable |= LibreVisualStyleEdges.Left;
+        if (edges.HasFlag(Edges.Top))
+            portable |= LibreVisualStyleEdges.Top;
+        if (edges.HasFlag(Edges.Right))
+            portable |= LibreVisualStyleEdges.Right;
+        if (edges.HasFlag(Edges.Bottom))
+            portable |= LibreVisualStyleEdges.Bottom;
+        if (edges.HasFlag(Edges.Diagonal))
+            portable |= LibreVisualStyleEdges.Diagonal;
+        return portable;
+    }
+
+    private static LibreVisualStyleEdgeStyle GetPortableEdgeStyle(EdgeStyle style)
+        => style switch
+        {
+            EdgeStyle.Raised => LibreVisualStyleEdgeStyle.Raised,
+            EdgeStyle.Sunken => LibreVisualStyleEdgeStyle.Sunken,
+            EdgeStyle.Etched => LibreVisualStyleEdgeStyle.Etched,
+            EdgeStyle.Bump => LibreVisualStyleEdgeStyle.Bump,
+            _ => throw new ArgumentOutOfRangeException(nameof(style)),
+        };
+
+    private static LibreVisualStyleEdgeEffects GetPortableEdgeEffects(EdgeEffects effects)
+    {
+        LibreVisualStyleEdgeEffects portable = LibreVisualStyleEdgeEffects.None;
+        if (effects.HasFlag(EdgeEffects.FillInterior))
+            portable |= LibreVisualStyleEdgeEffects.FillInterior;
+        if (effects.HasFlag(EdgeEffects.Flat))
+            portable |= LibreVisualStyleEdgeEffects.Flat;
+        if (effects.HasFlag(EdgeEffects.Soft))
+            portable |= LibreVisualStyleEdgeEffects.Soft;
+        if (effects.HasFlag(EdgeEffects.Mono))
+            portable |= LibreVisualStyleEdgeEffects.Mono;
+        return portable;
+    }
+
+    private static LibreVisualStyleTextFormat GetPortableTextFormat(TextFormatFlags flags)
+    {
+#pragma warning disable CS0618 // ModifyString is obsolete and deliberately rejected.
+        const TextFormatFlags unsupported = TextFormatFlags.ExternalLeading
+            | TextFormatFlags.Internal
+            | TextFormatFlags.ModifyString
+            | TextFormatFlags.NoFullWidthCharacterBreak
+            | TextFormatFlags.PrefixOnly
+            | TextFormatFlags.TextBoxControl;
+#pragma warning restore CS0618
+        const TextFormatFlags accepted = TextFormatFlags.Bottom
+            | TextFormatFlags.EndEllipsis
+            | TextFormatFlags.ExpandTabs
+            | TextFormatFlags.HidePrefix
+            | TextFormatFlags.HorizontalCenter
+            | TextFormatFlags.NoClipping
+            | TextFormatFlags.NoPrefix
+            | TextFormatFlags.PathEllipsis
+            | TextFormatFlags.Right
+            | TextFormatFlags.RightToLeft
+            | TextFormatFlags.SingleLine
+            | TextFormatFlags.VerticalCenter
+            | TextFormatFlags.WordBreak
+            | TextFormatFlags.WordEllipsis
+            | TextFormatFlags.PreserveGraphicsClipping
+            | TextFormatFlags.PreserveGraphicsTranslateTransform
+            | TextFormatFlags.NoPadding
+            | TextFormatFlags.LeftAndRightPadding;
+        TextFormatFlags rejected = (flags & unsupported) | (flags & ~accepted);
+        if (rejected != 0)
+        {
+            throw new PlatformNotSupportedException(
+                $"Portable visual-style text flags '{rejected}' are not implemented.");
+        }
+
+        LibreVisualStyleTextFormat portable = LibreVisualStyleTextFormat.Default;
+        if (flags.HasFlag(TextFormatFlags.HorizontalCenter))
+            portable |= LibreVisualStyleTextFormat.HorizontalCenter;
+        if (flags.HasFlag(TextFormatFlags.Right))
+            portable |= LibreVisualStyleTextFormat.Right;
+        if (flags.HasFlag(TextFormatFlags.VerticalCenter))
+            portable |= LibreVisualStyleTextFormat.VerticalCenter;
+        if (flags.HasFlag(TextFormatFlags.Bottom))
+            portable |= LibreVisualStyleTextFormat.Bottom;
+        if (flags.HasFlag(TextFormatFlags.SingleLine))
+            portable |= LibreVisualStyleTextFormat.SingleLine;
+        if (flags.HasFlag(TextFormatFlags.WordBreak))
+            portable |= LibreVisualStyleTextFormat.WordBreak;
+        if (flags.HasFlag(TextFormatFlags.EndEllipsis))
+            portable |= LibreVisualStyleTextFormat.EndEllipsis;
+        if (flags.HasFlag(TextFormatFlags.PathEllipsis))
+            portable |= LibreVisualStyleTextFormat.PathEllipsis;
+        if (flags.HasFlag(TextFormatFlags.WordEllipsis))
+            portable |= LibreVisualStyleTextFormat.WordEllipsis;
+        if (flags.HasFlag(TextFormatFlags.RightToLeft))
+            portable |= LibreVisualStyleTextFormat.RightToLeft;
+        if (flags.HasFlag(TextFormatFlags.NoClipping))
+            portable |= LibreVisualStyleTextFormat.NoClipping;
+        if (flags.HasFlag(TextFormatFlags.ExpandTabs))
+            portable |= LibreVisualStyleTextFormat.ExpandTabs;
+        if (flags.HasFlag(TextFormatFlags.NoPrefix))
+            portable |= LibreVisualStyleTextFormat.NoPrefix;
+        if (flags.HasFlag(TextFormatFlags.HidePrefix))
+            portable |= LibreVisualStyleTextFormat.HidePrefix;
+        if (flags.HasFlag(TextFormatFlags.NoPadding))
+            portable |= LibreVisualStyleTextFormat.NoPadding;
+        if (flags.HasFlag(TextFormatFlags.LeftAndRightPadding))
+            portable |= LibreVisualStyleTextFormat.LeftAndRightPadding;
+        return portable;
+    }
+
+    private static LibreVisualStyleHitTestOptions GetPortableHitTestOptions(HitTestOptions options)
+    {
+        const HitTestOptions accepted = HitTestOptions.FixedBorder
+            | HitTestOptions.Caption
+            | HitTestOptions.ResizingBorder
+            | HitTestOptions.SizingTemplate
+            | HitTestOptions.SystemSizingMargins;
+        if ((options & ~accepted) != 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options));
+        }
+
+        LibreVisualStyleHitTestOptions portable = LibreVisualStyleHitTestOptions.None;
+        if (options.HasFlag(HitTestOptions.FixedBorder))
+            portable |= LibreVisualStyleHitTestOptions.FixedBorder;
+        if (options.HasFlag(HitTestOptions.Caption))
+            portable |= LibreVisualStyleHitTestOptions.Caption;
+        if (options.HasFlag(HitTestOptions.ResizingBorderLeft))
+            portable |= LibreVisualStyleHitTestOptions.ResizingBorderLeft;
+        if (options.HasFlag(HitTestOptions.ResizingBorderTop))
+            portable |= LibreVisualStyleHitTestOptions.ResizingBorderTop;
+        if (options.HasFlag(HitTestOptions.ResizingBorderRight))
+            portable |= LibreVisualStyleHitTestOptions.ResizingBorderRight;
+        if (options.HasFlag(HitTestOptions.ResizingBorderBottom))
+            portable |= LibreVisualStyleHitTestOptions.ResizingBorderBottom;
+        if (options.HasFlag(HitTestOptions.SizingTemplate))
+            portable |= LibreVisualStyleHitTestOptions.SizingTemplate;
+        if (options.HasFlag(HitTestOptions.SystemSizingMargins))
+            portable |= LibreVisualStyleHitTestOptions.SystemSizingMargins;
+        return portable;
+    }
+
+    private static HitTestCode GetHitTestCode(LibreVisualStyleHitTestCode code)
+        => code switch
+        {
+            LibreVisualStyleHitTestCode.Nowhere => HitTestCode.Nowhere,
+            LibreVisualStyleHitTestCode.Client => HitTestCode.Client,
+            LibreVisualStyleHitTestCode.Left => HitTestCode.Left,
+            LibreVisualStyleHitTestCode.Right => HitTestCode.Right,
+            LibreVisualStyleHitTestCode.Top => HitTestCode.Top,
+            LibreVisualStyleHitTestCode.Bottom => HitTestCode.Bottom,
+            LibreVisualStyleHitTestCode.TopLeft => HitTestCode.TopLeft,
+            LibreVisualStyleHitTestCode.TopRight => HitTestCode.TopRight,
+            LibreVisualStyleHitTestCode.BottomLeft => HitTestCode.BottomLeft,
+            LibreVisualStyleHitTestCode.BottomRight => HitTestCode.BottomRight,
+            _ => throw new ArgumentOutOfRangeException(nameof(code)),
+        };
+
+    private static TextMetrics GetTextMetrics(LibreVisualStyleTextMetrics metrics) => new()
+    {
+        Height = metrics.Height,
+        Ascent = metrics.Ascent,
+        Descent = metrics.Descent,
+        InternalLeading = metrics.InternalLeading,
+        ExternalLeading = metrics.ExternalLeading,
+        AverageCharWidth = metrics.AverageCharWidth,
+        MaxCharWidth = metrics.MaxCharWidth,
+        Weight = metrics.Weight,
+        Overhang = metrics.Overhang,
+        DigitizedAspectX = metrics.DigitizedAspectX,
+        DigitizedAspectY = metrics.DigitizedAspectY,
+        FirstChar = metrics.FirstChar,
+        LastChar = metrics.LastChar,
+        DefaultChar = metrics.DefaultChar,
+        BreakChar = metrics.BreakChar,
+        Italic = metrics.Italic,
+        Underlined = metrics.Underlined,
+        StruckOut = metrics.StruckOut,
+        PitchAndFamily = GetTextPitchAndFamily(metrics.PitchAndFamily),
+        CharSet = GetTextCharacterSet(metrics.CharacterSet),
+    };
+
+    private static TextMetricsPitchAndFamilyValues GetTextPitchAndFamily(
+        LibreVisualStyleTextPitchAndFamily value)
+    {
+        const LibreVisualStyleTextPitchAndFamily accepted = LibreVisualStyleTextPitchAndFamily.FixedPitch
+            | LibreVisualStyleTextPitchAndFamily.Vector
+            | LibreVisualStyleTextPitchAndFamily.TrueType
+            | LibreVisualStyleTextPitchAndFamily.Device;
+        if ((value & ~accepted) != 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(value));
+        }
+
+        TextMetricsPitchAndFamilyValues result = default;
+        if (value.HasFlag(LibreVisualStyleTextPitchAndFamily.FixedPitch))
+            result |= TextMetricsPitchAndFamilyValues.FixedPitch;
+        if (value.HasFlag(LibreVisualStyleTextPitchAndFamily.Vector))
+            result |= TextMetricsPitchAndFamilyValues.Vector;
+        if (value.HasFlag(LibreVisualStyleTextPitchAndFamily.TrueType))
+            result |= TextMetricsPitchAndFamilyValues.TrueType;
+        if (value.HasFlag(LibreVisualStyleTextPitchAndFamily.Device))
+            result |= TextMetricsPitchAndFamilyValues.Device;
+        return result;
+    }
+
+    private static TextMetricsCharacterSet GetTextCharacterSet(LibreVisualStyleTextCharacterSet value)
+        => value switch
+        {
+            LibreVisualStyleTextCharacterSet.Ansi => TextMetricsCharacterSet.Ansi,
+            LibreVisualStyleTextCharacterSet.Default => TextMetricsCharacterSet.Default,
+            LibreVisualStyleTextCharacterSet.Symbol => TextMetricsCharacterSet.Symbol,
+            LibreVisualStyleTextCharacterSet.Mac => TextMetricsCharacterSet.Mac,
+            LibreVisualStyleTextCharacterSet.ShiftJis => TextMetricsCharacterSet.ShiftJis,
+            LibreVisualStyleTextCharacterSet.Hangul => TextMetricsCharacterSet.Hangul,
+            LibreVisualStyleTextCharacterSet.Johab => TextMetricsCharacterSet.Johab,
+            LibreVisualStyleTextCharacterSet.Gb2312 => TextMetricsCharacterSet.Gb2312,
+            LibreVisualStyleTextCharacterSet.ChineseBig5 => TextMetricsCharacterSet.ChineseBig5,
+            LibreVisualStyleTextCharacterSet.Greek => TextMetricsCharacterSet.Greek,
+            LibreVisualStyleTextCharacterSet.Turkish => TextMetricsCharacterSet.Turkish,
+            LibreVisualStyleTextCharacterSet.Vietnamese => TextMetricsCharacterSet.Vietnamese,
+            LibreVisualStyleTextCharacterSet.Hebrew => TextMetricsCharacterSet.Hebrew,
+            LibreVisualStyleTextCharacterSet.Arabic => TextMetricsCharacterSet.Arabic,
+            LibreVisualStyleTextCharacterSet.Baltic => TextMetricsCharacterSet.Baltic,
+            LibreVisualStyleTextCharacterSet.Russian => TextMetricsCharacterSet.Russian,
+            LibreVisualStyleTextCharacterSet.Thai => TextMetricsCharacterSet.Thai,
+            LibreVisualStyleTextCharacterSet.EastEurope => TextMetricsCharacterSet.EastEurope,
+            LibreVisualStyleTextCharacterSet.Oem => TextMetricsCharacterSet.Oem,
+            _ => throw new ArgumentOutOfRangeException(nameof(value)),
+        };
+
+    private static LibreVisualStyleColorProperty GetPortableColorProperty(ColorProperty property)
+        => property switch
+        {
+            ColorProperty.BorderColor => LibreVisualStyleColorProperty.Border,
+            ColorProperty.FillColor => LibreVisualStyleColorProperty.Fill,
+            ColorProperty.TextColor => LibreVisualStyleColorProperty.Text,
+            ColorProperty.AccentColorHint => LibreVisualStyleColorProperty.Accent,
+            _ => throw new PlatformNotSupportedException(
+                $"Portable visual-style color property '{property}' is not implemented."),
+        };
+
+    private static LibreVisualStyleIntegerProperty GetPortableIntegerProperty(IntegerProperty property)
+        => property switch
+        {
+            IntegerProperty.ProgressChunkSize => LibreVisualStyleIntegerProperty.ProgressChunkSize,
+            IntegerProperty.ProgressSpaceSize => LibreVisualStyleIntegerProperty.ProgressSpaceSize,
+            _ => throw new PlatformNotSupportedException(
+                $"Portable visual-style integer property '{property}' is not implemented."),
+        };
+
+    private static LibreVisualStyleBooleanProperty GetPortableBooleanProperty(BooleanProperty property)
+        => property switch
+        {
+            BooleanProperty.Transparent => LibreVisualStyleBooleanProperty.Transparent,
+            BooleanProperty.AutoSize => LibreVisualStyleBooleanProperty.AutoSize,
+            BooleanProperty.BorderOnly => LibreVisualStyleBooleanProperty.BorderOnly,
+            BooleanProperty.Composited => LibreVisualStyleBooleanProperty.Composited,
+            BooleanProperty.BackgroundFill => LibreVisualStyleBooleanProperty.BackgroundFill,
+            BooleanProperty.GlyphTransparent => LibreVisualStyleBooleanProperty.GlyphTransparent,
+            BooleanProperty.GlyphOnly => LibreVisualStyleBooleanProperty.GlyphOnly,
+            BooleanProperty.AlwaysShowSizingBar => LibreVisualStyleBooleanProperty.AlwaysShowSizingBar,
+            BooleanProperty.MirrorImage => LibreVisualStyleBooleanProperty.MirrorImage,
+            BooleanProperty.UniformSizing => LibreVisualStyleBooleanProperty.UniformSizing,
+            BooleanProperty.IntegralSizing => LibreVisualStyleBooleanProperty.IntegralSizing,
+            BooleanProperty.SourceGrow => LibreVisualStyleBooleanProperty.SourceGrow,
+            BooleanProperty.SourceShrink => LibreVisualStyleBooleanProperty.SourceShrink,
+            _ => throw new PlatformNotSupportedException(
+                $"Portable visual-style Boolean property '{property}' is not implemented."),
+        };
+
+    private static LibreVisualStyleEnumProperty GetPortableEnumProperty(EnumProperty property)
+        => property switch
+        {
+            EnumProperty.BackgroundType => LibreVisualStyleEnumProperty.BackgroundType,
+            EnumProperty.BorderType => LibreVisualStyleEnumProperty.BorderType,
+            EnumProperty.FillType => LibreVisualStyleEnumProperty.FillType,
+            EnumProperty.SizingType => LibreVisualStyleEnumProperty.SizingType,
+            EnumProperty.HorizontalAlignment => LibreVisualStyleEnumProperty.HorizontalAlignment,
+            EnumProperty.ContentAlignment => LibreVisualStyleEnumProperty.ContentAlignment,
+            EnumProperty.VerticalAlignment => LibreVisualStyleEnumProperty.VerticalAlignment,
+            EnumProperty.OffsetType => LibreVisualStyleEnumProperty.OffsetType,
+            EnumProperty.IconEffect => LibreVisualStyleEnumProperty.IconEffect,
+            EnumProperty.TextShadowType => LibreVisualStyleEnumProperty.TextShadowType,
+            EnumProperty.ImageLayout => LibreVisualStyleEnumProperty.ImageLayout,
+            EnumProperty.GlyphType => LibreVisualStyleEnumProperty.GlyphType,
+            EnumProperty.ImageSelectType => LibreVisualStyleEnumProperty.ImageSelectType,
+            EnumProperty.GlyphFontSizingType => LibreVisualStyleEnumProperty.GlyphFontSizingType,
+            EnumProperty.TrueSizeScalingType => LibreVisualStyleEnumProperty.TrueSizeScalingType,
+            _ => throw new PlatformNotSupportedException(
+                $"Portable visual-style enum property '{property}' is not implemented."),
+        };
+
+    private static LibreVisualStyleFilenameProperty GetPortableFilenameProperty(FilenameProperty property)
+        => property switch
+        {
+            FilenameProperty.ImageFile => LibreVisualStyleFilenameProperty.ImageFile,
+            FilenameProperty.ImageFile1 => LibreVisualStyleFilenameProperty.ImageFile1,
+            FilenameProperty.ImageFile2 => LibreVisualStyleFilenameProperty.ImageFile2,
+            FilenameProperty.ImageFile3 => LibreVisualStyleFilenameProperty.ImageFile3,
+            FilenameProperty.ImageFile4 => LibreVisualStyleFilenameProperty.ImageFile4,
+            FilenameProperty.ImageFile5 => LibreVisualStyleFilenameProperty.ImageFile5,
+            FilenameProperty.StockImageFile => LibreVisualStyleFilenameProperty.StockImageFile,
+            FilenameProperty.GlyphImageFile => LibreVisualStyleFilenameProperty.GlyphImageFile,
+            _ => throw new PlatformNotSupportedException(
+                $"Portable visual-style filename property '{property}' is not implemented."),
+        };
+
+    private static LibreVisualStyleStringProperty GetPortableStringProperty(StringProperty property)
+        => property switch
+        {
+            StringProperty.Text => LibreVisualStyleStringProperty.Text,
+            _ => throw new PlatformNotSupportedException(
+                $"Portable visual-style string property '{property}' is not implemented."),
+        };
+
+    private static LibreVisualStyleFontProperty GetPortableFontProperty(FontProperty property)
+        => property switch
+        {
+            FontProperty.TextFont => LibreVisualStyleFontProperty.Text,
+            FontProperty.GlyphFont => LibreVisualStyleFontProperty.Glyph,
+            _ => throw new PlatformNotSupportedException(
+                $"Portable visual-style font property '{property}' is not implemented."),
+        };
+
+    private static LibreVisualStyleMarginProperty GetPortableMarginProperty(MarginProperty property)
+        => property switch
+        {
+            MarginProperty.SizingMargins => LibreVisualStyleMarginProperty.Sizing,
+            MarginProperty.ContentMargins => LibreVisualStyleMarginProperty.Content,
+            MarginProperty.CaptionMargins => LibreVisualStyleMarginProperty.Caption,
+            _ => throw new PlatformNotSupportedException(
+                $"Portable visual-style margin property '{property}' is not implemented."),
+        };
+
+    private static LibreVisualStylePointProperty GetPortablePointProperty(PointProperty property)
+        => property switch
+        {
+            PointProperty.Offset => LibreVisualStylePointProperty.Offset,
+            PointProperty.TextShadowOffset => LibreVisualStylePointProperty.TextShadowOffset,
+            PointProperty.MinSize => LibreVisualStylePointProperty.MinimumSize,
+            PointProperty.MinSize1 => LibreVisualStylePointProperty.MinimumSize1,
+            PointProperty.MinSize2 => LibreVisualStylePointProperty.MinimumSize2,
+            PointProperty.MinSize3 => LibreVisualStylePointProperty.MinimumSize3,
+            PointProperty.MinSize4 => LibreVisualStylePointProperty.MinimumSize4,
+            PointProperty.MinSize5 => LibreVisualStylePointProperty.MinimumSize5,
+            _ => throw new PlatformNotSupportedException(
+                $"Portable visual-style point property '{property}' is not implemented."),
+        };
+#endif
 
     /// <summary>
     ///  [See win32 equivalent.]
@@ -478,8 +972,13 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     {
         SourceGenerated.EnumValidator.Validate(prop, nameof(prop));
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.GetBoolean(Class, Part, State, GetPortableBooleanProperty(prop));
+#else
         _lastHResult = PInvoke.GetThemeBool(HTHEME, Part, State, (THEME_PROPERTY_SYMBOL_ID)prop, out BOOL value);
         return value;
+#endif
     }
 
     /// <summary>
@@ -490,8 +989,13 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         // Valid values are 0xed9 to 0xeef
         SourceGenerated.EnumValidator.Validate(prop, nameof(prop));
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.GetColor(Class, Part, State, GetPortableColorProperty(prop));
+#else
         _lastHResult = PInvoke.GetThemeColor(HTHEME, Part, State, (THEME_PROPERTY_SYMBOL_ID)prop, out COLORREF color);
         return color;
+#endif
     }
 
     /// <summary>
@@ -502,8 +1006,13 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         // Valid values are 0xfa1 to 0xfaf
         SourceGenerated.EnumValidator.Validate(prop, nameof(prop));
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.GetEnumValue(Class, Part, State, GetPortableEnumProperty(prop));
+#else
         _lastHResult = PInvoke.GetThemeEnumValue(HTHEME, Part, State, (THEME_PROPERTY_SYMBOL_ID)prop, out int value);
         return value;
+#endif
     }
 
     /// <summary>
@@ -514,6 +1023,10 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         // Valid values are 0xbb9 to 0xbc0
         SourceGenerated.EnumValidator.Validate(prop, nameof(prop));
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.GetFilename(Class, Part, State, GetPortableFilenameProperty(prop));
+#else
         Span<char> filename = stackalloc char[512];
         fixed (char* pFilename = filename)
         {
@@ -521,6 +1034,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         }
 
         return filename.SliceAtFirstNull().ToString();
+#endif
     }
 
     /// <summary>
@@ -533,6 +1047,10 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
 
         SourceGenerated.EnumValidator.Validate(prop, nameof(prop));
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.GetFont(Class, Part, State, GetPortableFontProperty(prop));
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         _lastHResult = PInvoke.GetThemeFont(this, hdc, Part, State, (int)prop, out LOGFONT logfont);
 
@@ -551,6 +1069,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
             // Looks like the font was not true type
             return null;
         }
+#endif
     }
 
     /// <summary>
@@ -561,8 +1080,13 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         // Valid values are 0x961 to 0x978
         SourceGenerated.EnumValidator.Validate(prop, nameof(prop));
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.GetInteger(Class, Part, State, GetPortableIntegerProperty(prop));
+#else
         _lastHResult = PInvoke.GetThemeInt(HTHEME, Part, State, (THEME_PROPERTY_SYMBOL_ID)prop, out int value);
         return value;
+#endif
     }
 
     /// <summary>
@@ -572,8 +1096,13 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     {
         ArgumentNullException.ThrowIfNull(dc);
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.GetPartSize(Class, Part, State, null, GetPortableSizeType(type));
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         return GetPartSize(hdc, type, HWND.Null);
+#endif
     }
 
     internal unsafe Size GetPartSize(HDC dc, ThemeSizeType type, HWND hwnd = default)
@@ -602,9 +1131,14 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         // Valid values are 0x0 to 0x2
         SourceGenerated.EnumValidator.Validate(type, nameof(type));
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.GetPartSize(Class, Part, State, bounds, GetPortableSizeType(type));
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         _lastHResult = PInvoke.GetThemePartSize(HTHEME, hdc, Part, State, bounds, (THEMESIZE)type, out SIZE size);
         return size;
+#endif
     }
 
     /// <summary>
@@ -615,8 +1149,13 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         // valid values are 0xd49 to 0xd50
         SourceGenerated.EnumValidator.Validate(prop, nameof(prop));
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.GetPoint(Class, Part, State, GetPortablePointProperty(prop));
+#else
         _lastHResult = PInvoke.GetThemePosition(HTHEME, Part, State, (THEME_PROPERTY_SYMBOL_ID)prop, out Point point);
         return point;
+#endif
     }
 
     /// <summary>
@@ -629,10 +1168,20 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         // Valid values are 0xe11 to 0xe13
         SourceGenerated.EnumValidator.Validate(prop, nameof(prop));
 
+#if LIBREWINFORMS_PORTABLE
+        LibreVisualStyleMargins margins = PortableVisualStyles.GetMargins(
+            Class,
+            Part,
+            State,
+            GetPortableMarginProperty(prop));
+        _lastHResult = default;
+        return new Padding(margins.Left, margins.Top, margins.Right, margins.Bottom);
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         _lastHResult = PInvoke.GetThemeMargins(HTHEME, hdc, Part, State, (THEME_PROPERTY_SYMBOL_ID)prop, null, out MARGINS margins);
 
         return new Padding(margins.cxLeftWidth, margins.cyTopHeight, margins.cxRightWidth, margins.cyBottomHeight);
+#endif
     }
 
     /// <summary>
@@ -643,6 +1192,10 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         // Valid values are 0xc81 to 0xc81
         SourceGenerated.EnumValidator.Validate(prop, nameof(prop));
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.GetString(Class, Part, State, GetPortableStringProperty(prop));
+#else
         Span<char> aString = stackalloc char[512];
         fixed (char* pString = aString)
         {
@@ -650,6 +1203,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         }
 
         return aString.SliceAtFirstNull().ToString();
+#endif
     }
 
     /// <summary>
@@ -660,6 +1214,17 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         ArgumentNullException.ThrowIfNull(dc);
         textToDraw.ThrowIfNullOrEmpty();
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.MeasureText(
+            GetPortableGraphics(dc),
+            Class,
+            Part,
+            State,
+            bounds: null,
+            textToDraw,
+            GetPortableTextFormat(flags));
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         _lastHResult = PInvoke.GetThemeTextExtent(
             HTHEME,
@@ -673,6 +1238,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
             out RECT rect);
 
         return rect;
+#endif
     }
 
     /// <summary>
@@ -683,6 +1249,17 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         ArgumentNullException.ThrowIfNull(dc);
         textToDraw.ThrowIfNullOrEmpty();
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.MeasureText(
+            GetPortableGraphics(dc),
+            Class,
+            Part,
+            State,
+            bounds,
+            textToDraw,
+            GetPortableTextFormat(flags));
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         _lastHResult = PInvoke.GetThemeTextExtent(
             HTHEME,
@@ -696,6 +1273,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
             out RECT rect);
 
         return rect;
+#endif
     }
 
     /// <summary>
@@ -705,9 +1283,14 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     {
         ArgumentNullException.ThrowIfNull(dc);
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return GetTextMetrics(PortableVisualStyles.GetTextMetrics(GetPortableGraphics(dc), Class, Part, State));
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         _lastHResult = PInvoke.GetThemeTextMetrics(HTHEME, hdc, Part, State, out TEXTMETRICW tm);
         return TextMetrics.FromTEXTMETRICW(tm);
+#endif
     }
 
     /// <summary>
@@ -717,6 +1300,18 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     {
         ArgumentNullException.ThrowIfNull(dc);
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return GetHitTestCode(PortableVisualStyles.HitTestBackground(
+            GetPortableGraphics(dc),
+            Class,
+            Part,
+            State,
+            backgroundRectangle,
+            region: null,
+            pt,
+            GetPortableHitTestOptions(options)));
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         _lastHResult = PInvoke.HitTestThemeBackground(
             HTHEME,
@@ -730,6 +1325,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
             out ushort code);
 
         return (HitTestCode)code;
+#endif
     }
 
     /// <summary>
@@ -740,8 +1336,21 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         ArgumentNullException.ThrowIfNull(g);
         ArgumentNullException.ThrowIfNull(region);
 
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return GetHitTestCode(PortableVisualStyles.HitTestBackground(
+            g,
+            Class,
+            Part,
+            State,
+            backgroundRectangle,
+            region,
+            pt,
+            GetPortableHitTestOptions(options)));
+#else
         IntPtr hRgn = region.GetHrgn(g);
         return HitTestBackground(g, backgroundRectangle, hRgn, pt, options);
+#endif
     }
 
     /// <summary>
@@ -751,6 +1360,24 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     {
         ArgumentNullException.ThrowIfNull(dc);
 
+#if LIBREWINFORMS_PORTABLE
+        if (hRgn != IntPtr.Zero)
+        {
+            throw new PlatformNotSupportedException(
+                "Portable visual-style hit testing does not accept a native HRGN. Use the managed Region overload.");
+        }
+
+        _lastHResult = default;
+        return GetHitTestCode(PortableVisualStyles.HitTestBackground(
+            GetPortableGraphics(dc),
+            Class,
+            Part,
+            State,
+            backgroundRectangle,
+            region: null,
+            pt,
+            GetPortableHitTestOptions(options)));
+#else
         using DeviceContextHdcScope hdc = dc.ToHdcScope();
         _lastHResult = PInvoke.HitTestThemeBackground(
             HTHEME,
@@ -764,6 +1391,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
             out ushort code);
 
         return (HitTestCode)code;
+#endif
     }
 
     /// <summary>
@@ -771,7 +1399,12 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     /// </summary>
     public bool IsBackgroundPartiallyTransparent()
     {
+#if LIBREWINFORMS_PORTABLE
+        _lastHResult = default;
+        return PortableVisualStyles.IsBackgroundPartiallyTransparent(Class, Part, State);
+#else
         return PInvoke.IsThemeBackgroundPartiallyTransparent(HTHEME, Part, State);
+#endif
     }
 
     /// <summary>
@@ -780,6 +1413,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
     /// </summary>
     public int LastHResult => (int)_lastHResult;
 
+#if !LIBREWINFORMS_PORTABLE
     /// <summary>
     ///  Handles the ThemeChanged event. Basically, we need to ensure all per-thread theme handle
     ///  caches are refreshed.
@@ -861,6 +1495,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
 
         return themeHandle.Handle;
     }
+#endif
 
     private static PInvoke.OpenThemeDataScope OpenThemeData(HWND hwnd, string classList)
     {
@@ -868,6 +1503,7 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
         return htheme.IsNull ? throw new InvalidOperationException(SR.VisualStyleHandleCreationFailed) : htheme;
     }
 
+#if !LIBREWINFORMS_PORTABLE
     // This wrapper class is needed for safely cleaning up TLS cache of handles.
     private class ThemeHandle : IDisposable, IHandle<HTHEME>
     {
@@ -906,4 +1542,5 @@ public sealed class VisualStyleRenderer : IHandle<HTHEME>
 
         ~ThemeHandle() => Dispose();
     }
+#endif
 }

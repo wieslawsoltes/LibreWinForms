@@ -784,6 +784,11 @@ public partial class ScrollableControl : Control, IArrangedElement
         {
             Debug.Assert(IsHandleCreated, "Handle is not created");
 
+#if LIBREWINFORMS_PORTABLE
+            // Emulate ScrollWindowEx(SW_SCROLLCHILDREN): canonical WinForms publishes the
+            // displayed child locations after scrolling while preserving size and client size.
+            Invalidate();
+#else
             RECT rcClip = ClientRectangle;
             RECT rcUpdate = ClientRectangle;
             PInvoke.ScrollWindowEx(
@@ -795,6 +800,7 @@ public partial class ScrollableControl : Control, IArrangedElement
                 HRGN.Null,
                 &rcUpdate,
                 SCROLL_WINDOW_FLAGS.SW_INVALIDATE | SCROLL_WINDOW_FLAGS.SW_ERASE | SCROLL_WINDOW_FLAGS.SW_SCROLLCHILDREN);
+#endif
         }
 
         // Force child controls to update bounds.
@@ -803,7 +809,11 @@ public partial class ScrollableControl : Control, IArrangedElement
             Control ctl = Controls[i];
             if (ctl is not null && ctl.IsHandleCreated)
             {
+#if LIBREWINFORMS_PORTABLE
+                ctl.OffsetPortableBounds(xDelta, yDelta);
+#else
                 ctl.UpdateBounds();
+#endif
             }
         }
     }

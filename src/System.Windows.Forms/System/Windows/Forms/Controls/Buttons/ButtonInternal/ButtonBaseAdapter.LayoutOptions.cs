@@ -665,10 +665,10 @@ internal abstract partial class ButtonBaseAdapter
             if (UseCompatibleTextRendering)
             {
                 // GDI+ text rendering.
-                using var screen = GdiCache.GetScreenDCGraphics();
+                using var layoutGraphics = new LayoutGraphicsScope();
                 using StringFormat stringFormat = StringFormat;
                 textSize = Size.Ceiling(
-                    screen.Graphics.MeasureString(Text, Font, new SizeF(proposedSize.Width, proposedSize.Height),
+                    layoutGraphics.Graphics.MeasureString(Text, Font, new SizeF(proposedSize.Width, proposedSize.Height),
                     stringFormat));
             }
             else if (!string.IsNullOrEmpty(Text))

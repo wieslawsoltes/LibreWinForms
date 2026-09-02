@@ -6,6 +6,9 @@ using System.Drawing;
 using System.Drawing.Design;
 using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#endif
 using Windows.Win32.System.Com;
 using Windows.Win32.System.Ole;
 
@@ -23,7 +26,18 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
 
     private readonly byte[]? _cursorData;
     private HCURSOR _handle;
+#if !LIBREWINFORMS_PORTABLE
     private readonly bool _freeHandle;
+#endif
+#if LIBREWINFORMS_PORTABLE
+    private readonly LibreCursorShape? _portableShape;
+    private readonly Bitmap? _portableBitmap;
+    private bool _portableDisposed;
+    [ThreadStatic]
+    private static Cursor? s_portableCurrent;
+    [ThreadStatic]
+    private static bool s_portableCurrentInitialized;
+#endif
 
     /// <summary>
     ///  If created by the <see cref="Cursors"/> class, this is the property name that created it.
@@ -33,22 +47,77 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     internal unsafe Cursor(PCWSTR nResourceId, string cursorsProperty)
     {
         GC.SuppressFinalize(this);
+#if !LIBREWINFORMS_PORTABLE
         _freeHandle = false;
+#endif
         CursorsProperty = cursorsProperty;
+#if LIBREWINFORMS_PORTABLE
+        _portableShape = GetPortableShape(cursorsProperty);
+#else
         _handle = PInvoke.LoadCursor(HINSTANCE.Null, nResourceId);
         if (_handle.IsNull)
         {
             throw new Win32Exception(string.Format(SR.FailedToLoadCursor, Marshal.GetLastWin32Error()));
         }
+#endif
     }
 
     internal Cursor(string resource, string cursorsProperty)
+#if !LIBREWINFORMS_PORTABLE
         : this(typeof(Cursors).Assembly.GetManifestResourceStream(typeof(Cursor), resource).OrThrowIfNull())
+#endif
     {
         GC.SuppressFinalize(this);
         CursorsProperty = cursorsProperty;
+#if !LIBREWINFORMS_PORTABLE
         _freeHandle = false;
+#endif
+#if LIBREWINFORMS_PORTABLE
+        _portableShape = GetPortableShape(cursorsProperty);
+#endif
     }
+
+#if LIBREWINFORMS_PORTABLE
+    internal LibreCursorShape PortableShape
+        => _portableShape
+            ?? throw new PlatformNotSupportedException("Only platform-provided cursors can be applied by the portable backend.");
+
+    private static LibreCursorShape GetPortableShape(string cursorsProperty)
+        => cursorsProperty switch
+        {
+            nameof(Cursors.AppStarting) => LibreCursorShape.AppStarting,
+            nameof(Cursors.Arrow) or nameof(Cursors.Default) => LibreCursorShape.Arrow,
+            nameof(Cursors.Cross) => LibreCursorShape.Cross,
+            nameof(Cursors.IBeam) => LibreCursorShape.IBeam,
+            nameof(Cursors.No) => LibreCursorShape.No,
+            nameof(Cursors.SizeAll) => LibreCursorShape.SizeAll,
+            nameof(Cursors.SizeNESW) => LibreCursorShape.SizeNESW,
+            nameof(Cursors.SizeNS) => LibreCursorShape.SizeNS,
+            nameof(Cursors.SizeNWSE) => LibreCursorShape.SizeNWSE,
+            nameof(Cursors.SizeWE) => LibreCursorShape.SizeWE,
+            nameof(Cursors.UpArrow) => LibreCursorShape.UpArrow,
+            nameof(Cursors.WaitCursor) => LibreCursorShape.Wait,
+            nameof(Cursors.Help) => LibreCursorShape.Help,
+            nameof(Cursors.Hand) => LibreCursorShape.Hand,
+            nameof(Cursors.HSplit) => LibreCursorShape.HSplit,
+            nameof(Cursors.VSplit) => LibreCursorShape.VSplit,
+            nameof(Cursors.NoMove2D) => LibreCursorShape.NoMove2D,
+            nameof(Cursors.NoMoveHoriz) => LibreCursorShape.NoMoveHoriz,
+            nameof(Cursors.NoMoveVert) => LibreCursorShape.NoMoveVert,
+            nameof(Cursors.PanEast) => LibreCursorShape.PanEast,
+            nameof(Cursors.PanNE) => LibreCursorShape.PanNE,
+            nameof(Cursors.PanNorth) => LibreCursorShape.PanNorth,
+            nameof(Cursors.PanNW) => LibreCursorShape.PanNW,
+            nameof(Cursors.PanSE) => LibreCursorShape.PanSE,
+            nameof(Cursors.PanSouth) => LibreCursorShape.PanSouth,
+            nameof(Cursors.PanSW) => LibreCursorShape.PanSW,
+            nameof(Cursors.PanWest) => LibreCursorShape.PanWest,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(cursorsProperty),
+                cursorsProperty,
+                "Unknown platform cursor property."),
+        };
+#endif
 
     /// <summary>
     ///  Initializes a new instance of the <see cref="Cursor"/> class from the specified <paramref name="handle"/>.
@@ -61,7 +130,9 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
             throw new ArgumentException(string.Format(SR.InvalidGDIHandle, (typeof(Cursor)).Name), nameof(handle));
         }
 
+#if !LIBREWINFORMS_PORTABLE
         _freeHandle = false;
+#endif
         _handle = (HCURSOR)handle;
     }
 
@@ -71,10 +142,16 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     public Cursor(string fileName)
     {
         _cursorData = File.ReadAllBytes(fileName);
+#if !LIBREWINFORMS_PORTABLE
         _freeHandle = true;
+#endif
+#if LIBREWINFORMS_PORTABLE
+        _portableBitmap = PortableCursorDecoder.Decode(_cursorData);
+#else
         LoadPicture(
             new ComManagedStream(new MemoryStream(_cursorData)),
             nameof(fileName));
+#endif
     }
 
     /// <summary>
@@ -102,13 +179,19 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
 
         stream.CopyTo(memoryStream);
         _cursorData = memoryStream.ToArray();
+#if !LIBREWINFORMS_PORTABLE
         _freeHandle = true;
+#endif
 
+#if LIBREWINFORMS_PORTABLE
+        _portableBitmap = PortableCursorDecoder.Decode(_cursorData);
+#else
         // stream.CopyTo causes both streams to advance. So reset it for LoadPicture.
         memoryStream.Position = 0;
         LoadPicture(
             new ComManagedStream(memoryStream),
             nameof(stream));
+#endif
     }
 
     /// <summary>
@@ -119,11 +202,21 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return Rectangle.Empty;
+#else
             PInvoke.GetClipCursor(out RECT rect);
             return rect;
+#endif
         }
         set
         {
+#if LIBREWINFORMS_PORTABLE
+            if (!value.IsEmpty)
+            {
+                throw new PlatformNotSupportedException("Cursor confinement requires a platform cursor-clipping service.");
+            }
+#else
             if (value.IsEmpty)
             {
                 PInvoke.ClipCursor((RECT*)null);
@@ -133,6 +226,7 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
                 RECT rect = value;
                 PInvoke.ClipCursor(&rect);
             }
+#endif
         }
     }
 
@@ -144,11 +238,32 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return s_portableCurrentInitialized ? s_portableCurrent : Cursors.Default;
+#else
             HCURSOR cursor = PInvoke.GetCursor();
             return cursor.IsNull ? null : new Cursor(cursor);
+#endif
         }
-        set => PInvoke.SetCursor(value?._handle ?? HCURSOR.Null);
+        set
+        {
+#if LIBREWINFORMS_PORTABLE
+            s_portableCurrent = value;
+            s_portableCurrentInitialized = true;
+            Control.ApplyPortableCursorOverride(value);
+#else
+            PInvoke.SetCursor(value?._handle ?? HCURSOR.Null);
+#endif
+        }
     }
+
+#if LIBREWINFORMS_PORTABLE
+    internal static void SetPortableCurrentFromInput(Cursor cursor)
+    {
+        s_portableCurrent = cursor;
+        s_portableCurrentInitialized = true;
+    }
+#endif
 
     /// <summary>
     ///  Gets the Win32 handle for this <see cref="Cursor"/>.
@@ -157,6 +272,12 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            if (_portableShape is not null)
+            {
+                throw new PlatformNotSupportedException("Platform-provided portable cursors do not expose Win32 handles.");
+            }
+#endif
             ObjectDisposedException.ThrowIf(_handle.IsNull, this);
             return (nint)_handle;
         }
@@ -181,10 +302,21 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return Control.MousePosition;
+#else
             PInvoke.GetCursorPos(out Point p);
             return p;
+#endif
         }
-        set => PInvoke.SetCursorPos(value.X, value.Y);
+        set
+        {
+#if LIBREWINFORMS_PORTABLE
+            throw new PlatformNotSupportedException("Cursor positioning requires a typed platform pointer-warp service.");
+#else
+            PInvoke.SetCursorPos(value.X, value.Y);
+#endif
+        }
     }
 
     /// <summary>
@@ -194,6 +326,14 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            ObjectDisposedException.ThrowIf(_portableDisposed, this);
+            if (_portableBitmap is not null)
+            {
+                return _portableBitmap.Size;
+            }
+#endif
+
             if (s_cursorSize.IsEmpty)
             {
                 s_cursorSize = SystemInformation.CursorSize;
@@ -230,11 +370,19 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     /// </summary>
     public void Dispose()
     {
+#if LIBREWINFORMS_PORTABLE
+        if (_portableBitmap is not null && !_portableDisposed)
+        {
+            _portableDisposed = true;
+            _portableBitmap.Dispose();
+        }
+#else
         if (!_handle.IsNull && _freeHandle)
         {
             PInvoke.DestroyCursor(_handle);
             _handle = HCURSOR.Null;
         }
+#endif
 
         GC.SuppressFinalize(this);
     }
@@ -249,11 +397,47 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     {
         ArgumentNullException.ThrowIfNull(graphics);
 
+#if LIBREWINFORMS_PORTABLE
+        ObjectDisposedException.ThrowIf(_portableDisposed, this);
+        if (_portableBitmap is null)
+        {
+            throw new NotSupportedException(
+                "Platform-provided cursors are rendered by the window host and do not expose bitmap pixels.");
+        }
+
+        int targetX = targetRect.IsEmpty ? 0 : targetRect.X;
+        int targetY = targetRect.IsEmpty ? 0 : targetRect.Y;
+        int targetWidth = targetRect.IsEmpty ? _portableBitmap.Width : Math.Max(0, targetRect.Width);
+        int targetHeight = targetRect.IsEmpty ? _portableBitmap.Height : Math.Max(0, targetRect.Height);
+        int sourceX = imageRect.IsEmpty ? 0 : imageRect.X;
+        int sourceY = imageRect.IsEmpty ? 0 : imageRect.Y;
+        int sourceWidth = imageRect.IsEmpty ? _portableBitmap.Width : Math.Max(0, imageRect.Width);
+        int sourceHeight = imageRect.IsEmpty ? _portableBitmap.Height : Math.Max(0, imageRect.Height);
+
+        if (!stretch)
+        {
+            targetWidth = Math.Min(targetWidth, sourceWidth);
+            targetHeight = Math.Min(targetHeight, sourceHeight);
+            sourceWidth = targetWidth;
+            sourceHeight = targetHeight;
+        }
+
+        if (targetWidth == 0 || targetHeight == 0 || sourceWidth == 0 || sourceHeight == 0)
+        {
+            return;
+        }
+
+        graphics.DrawImage(
+            _portableBitmap,
+            new Rectangle(targetX, targetY, targetWidth, targetHeight),
+            new Rectangle(sourceX, sourceY, sourceWidth, sourceHeight),
+            GraphicsUnit.Pixel);
+#else
         // Support GDI+ Translate method
         targetRect.X += (int)graphics.Transform.OffsetX;
         targetRect.Y += (int)graphics.Transform.OffsetY;
 
-        using DeviceContextHdcScope dc = new(graphics, applyGraphicsState: false);
+        using DeviceContextHdcScope dc = graphics.ToHdcScope(ApplyGraphicsProperties.None);
 
         int imageX = 0;
         int imageY = 0;
@@ -342,6 +526,7 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
 
         // Let GDI+ restore clipping
         return;
+#endif
     }
 
     /// <summary>
@@ -469,12 +654,34 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
 
     public static bool operator ==(Cursor? left, Cursor? right)
     {
-        return right is null || left is null ? left is null && right is null : left._handle == right._handle;
+        if (right is null || left is null)
+        {
+            return left is null && right is null;
+        }
+
+#if LIBREWINFORMS_PORTABLE
+        if (left._portableShape is not null || right._portableShape is not null)
+        {
+            return left._portableShape == right._portableShape;
+        }
+#endif
+
+        return left._handle == right._handle;
     }
 
     public static bool operator !=(Cursor? left, Cursor? right) => !(left == right);
 
-    public override unsafe int GetHashCode() => (int)_handle.Value;
+    public override unsafe int GetHashCode()
+    {
+#if LIBREWINFORMS_PORTABLE
+        if (_portableShape is { } shape)
+        {
+            return shape.GetHashCode();
+        }
+#endif
+
+        return (int)_handle.Value;
+    }
 
     public override bool Equals(object? obj) => obj is Cursor cursor && this == cursor;
 }

@@ -1687,9 +1687,14 @@ internal abstract partial class GridEntry : GridItem, ITypeDescriptorContext
             }
             else
             {
-                using DeviceContextHdcScope hdc = new(g);
+#if LIBREWINFORMS_PORTABLE
+                VisualStyleRenderer explorerTreeRenderer = new(VisualStyleElement.ExplorerTreeView.Glyph.Opened);
+                explorerTreeRenderer.DrawBackground(g, outline);
+#else
+                using DeviceContextHdcScope hdc = g.ToHdcScope();
                 VisualStyleRenderer explorerTreeRenderer = new(VisualStyleElement.ExplorerTreeView.Glyph.Opened);
                 explorerTreeRenderer.DrawBackground(hdc, outline, hwnd);
+#endif
             }
 
             unsafe void RedrawExplorerTreeViewClosedGlyph(
@@ -1698,6 +1703,9 @@ internal abstract partial class GridEntry : GridItem, ITypeDescriptorContext
                 Rectangle rectangle,
                 HWND hwnd)
             {
+#if LIBREWINFORMS_PORTABLE
+                explorerTreeRenderer.DrawBackground(graphics, rectangle);
+#else
                 Color backgroundColor = ColorInversionNeededInHighContrast ? InvertColor(OwnerGrid.LineColor) : OwnerGrid.LineColor;
                 using CreateDcScope compatibleDC = new(default);
 
@@ -1713,6 +1721,7 @@ internal abstract partial class GridEntry : GridItem, ITypeDescriptorContext
                 using Bitmap bitmap = Image.FromHbitmap(compatibleBitmap);
                 ControlPaint.InvertForeColorIfNeeded(bitmap, backgroundColor);
                 graphics.DrawImage(bitmap, rectangle, 0, 0, bitmap.Width, bitmap.Height, GraphicsUnit.Pixel);
+#endif
             }
         }
 

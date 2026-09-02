@@ -10,12 +10,23 @@ using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Windows.Forms.Automation;
 using System.Windows.Forms.Layout;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#endif
+#if !LIBREWINFORMS_PORTABLE
 using Windows.Win32.Graphics.Dwm;
+#endif
+#if !LIBREWINFORMS_PROGPU_DRAWING
 using Windows.Win32.Graphics.GdiPlus;
+#endif
+#if !LIBREWINFORMS_PORTABLE
 using Windows.Win32.System.Ole;
+#endif
 using Windows.Win32.UI.Accessibility;
 using Windows.Win32.UI.Input.KeyboardAndMouse;
+#if !LIBREWINFORMS_PORTABLE
 using Com = Windows.Win32.System.Com;
+#endif
 using Encoding = System.Text.Encoding;
 
 namespace System.Windows.Forms;
@@ -72,8 +83,24 @@ public unsafe partial class Control :
             : false;
 #pragma warning restore IDE0075
 
-    private static readonly uint WM_GETCONTROLNAME = PInvoke.RegisterWindowMessage("WM_GETCONTROLNAME");
-    private static readonly uint WM_GETCONTROLTYPE = PInvoke.RegisterWindowMessage("WM_GETCONTROLTYPE");
+#if LIBREWINFORMS_PORTABLE
+#pragma warning disable CA1802 // Windows builds initialize these IDs dynamically with RegisterWindowMessage.
+#endif
+    private static readonly uint WM_GETCONTROLNAME =
+#if LIBREWINFORMS_PORTABLE
+        0xC001;
+#else
+        PInvoke.RegisterWindowMessage("WM_GETCONTROLNAME");
+#endif
+    private static readonly uint WM_GETCONTROLTYPE =
+#if LIBREWINFORMS_PORTABLE
+        0xC002;
+#else
+        PInvoke.RegisterWindowMessage("WM_GETCONTROLTYPE");
+#endif
+#if LIBREWINFORMS_PORTABLE
+#pragma warning restore CA1802
+#endif
 
     private static readonly object s_autoSizeChangedEvent = new();
     private static readonly object s_keyDownEvent = new();
@@ -147,7 +174,13 @@ public unsafe partial class Control :
     private static readonly object s_previewKeyDownEvent = new();
     private static readonly object s_dataContextEvent = new();
 
+#if LIBREWINFORMS_PORTABLE
+#pragma warning disable CS0649, IDE0044 // Win32 registered-message storage is intentionally inactive in the typed dispatcher lane.
+#endif
     private static MessageId s_threadCallbackMessage;
+#if LIBREWINFORMS_PORTABLE
+#pragma warning restore CS0649, IDE0044
+#endif
     private static ContextCallback? s_invokeMarshaledCallbackHelperDelegate;
 
     [ThreadStatic]
@@ -170,8 +203,6 @@ public unsafe partial class Control :
 
     private const byte RequiredScalingEnabledMask = 0x10;
     private const byte RequiredScalingMask = 0x0F;
-
-    private const byte HighOrderBitMask = 0x80;
 
     private static Font? s_defaultFont;
 
@@ -228,7 +259,13 @@ public unsafe partial class Control :
     private static readonly int s_deviceDpiInternal = PropertyStore.CreateKey();
     private static readonly int s_originalDeviceDpiInternal = PropertyStore.CreateKey();
 
+#if LIBREWINFORMS_PORTABLE
+#pragma warning disable CS0414, IDE0044, CA1823 // The shared source retains the Win32 comctl32 initialization state for Windows builds.
+#endif
     private static bool s_needToLoadComCtl = true;
+#if LIBREWINFORMS_PORTABLE
+#pragma warning restore CS0414, IDE0044, CA1823
+#endif
 
     // This switch determines the default text rendering engine to use by some controls that support switching rendering engine.
     // CheckedListBox, PropertyGrid, GroupBox, Label and LinkLabel, and ButtonBase controls.
@@ -376,6 +413,10 @@ public unsafe partial class Control :
 
         if (_width != 0 && _height != 0)
         {
+#if LIBREWINFORMS_PORTABLE
+            _clientWidth = _width;
+            _clientHeight = _height;
+#else
             RECT rect = default;
 
             CreateParams cp = CreateParams;
@@ -383,6 +424,7 @@ public unsafe partial class Control :
             AdjustWindowRectExForControlDpi(ref rect, (WINDOW_STYLE)cp.Style, false, (WINDOW_EX_STYLE)cp.ExStyle);
             _clientWidth = _width - rect.Width;
             _clientHeight = _height - rect.Height;
+#endif
         }
 
         // Set up for async operations on this thread.
@@ -1116,7 +1158,12 @@ public unsafe partial class Control :
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     [SRCategory(nameof(SR.CatFocus))]
     [SRDescription(nameof(SR.ControlCanFocusDescr))]
-    public bool CanFocus => IsHandleCreated && PInvoke.IsWindowVisible(this) && PInvoke.IsWindowEnabled(this);
+    public bool CanFocus
+#if LIBREWINFORMS_PORTABLE
+        => IsHandleCreated && Visible && Enabled;
+#else
+        => IsHandleCreated && PInvoke.IsWindowVisible(this) && PInvoke.IsWindowEnabled(this);
+#endif
 
     /// <summary>
     ///  Determines if events can be fired on the control. If this control is being
@@ -1146,6 +1193,23 @@ public unsafe partial class Control :
     [SRDescription(nameof(SR.ControlCaptureDescr))]
     public bool Capture
     {
+#if LIBREWINFORMS_PORTABLE
+        get => GetPortableTopLevelControl()._portableCapturedControl == this;
+        set
+        {
+            Control root = GetPortableTopLevelControl();
+            if (value)
+            {
+                root._portableCapturedControl = this;
+            }
+            else if (root._portableCapturedControl == this)
+            {
+                root._portableCapturedControl = null;
+            }
+
+            root.RefreshPortableCursor();
+        }
+#else
         get => IsHandleCreated && PInvoke.GetCapture() == HWND;
         set
         {
@@ -1163,6 +1227,7 @@ public unsafe partial class Control :
                 PInvoke.ReleaseCapture();
             }
         }
+#endif
     }
 
     /// <summary>
@@ -1303,6 +1368,9 @@ public unsafe partial class Control :
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return IsHandleCreated && PortableContainsFocus();
+#else
             if (!IsHandleCreated)
             {
                 return false;
@@ -1310,6 +1378,7 @@ public unsafe partial class Control :
 
             HWND focusHwnd = PInvoke.GetFocus();
             return !focusHwnd.IsNull && (focusHwnd == Handle || PInvoke.IsChild(this, focusHwnd));
+#endif
         }
     }
 
@@ -1375,6 +1444,7 @@ public unsafe partial class Control :
         get
         {
             // CLR4.0 or later, comctl32.dll needs to be loaded explicitly.
+#if !LIBREWINFORMS_PORTABLE
             if (s_needToLoadComCtl)
             {
                 if ((PInvoke.GetModuleHandle(Libraries.Comctl32) != 0)
@@ -1388,6 +1458,7 @@ public unsafe partial class Control :
                     throw new Win32Exception(lastWin32Error, string.Format(SR.LoadDLLError, Libraries.Comctl32));
                 }
             }
+#endif
 
             // In a typical control this is accessed ten times to create and show a control.
             // It is a net memory savings, then, to maintain a copy on control.
@@ -1532,9 +1603,21 @@ public unsafe partial class Control :
     ///  handle for this control. If the control's handle hasn't been
     ///  created yet, this method will return the current thread's ID.
     /// </summary>
-    internal uint CreateThreadId => IsHandleCreated
-        ? PInvokeCore.GetWindowThreadProcessId(this, out _)
-        : PInvokeCore.GetCurrentThreadId();
+    internal uint CreateThreadId
+    {
+        get
+        {
+#if LIBREWINFORMS_PORTABLE
+            return IsHandleCreated
+                ? unchecked((uint)PortableDispatcher.ManagedThreadId)
+                : unchecked((uint)Environment.CurrentManagedThreadId);
+#else
+            return IsHandleCreated
+                ? PInvokeCore.GetWindowThreadProcessId(this, out _)
+                : PInvokeCore.GetCurrentThreadId();
+#endif
+        }
+    }
 
     /// <summary>
     ///  Retrieves the cursor that will be displayed when the mouse is over this
@@ -1576,6 +1659,9 @@ public unsafe partial class Control :
             // Other things can change the cursor. We always want to force the correct cursor.
             if (IsHandleCreated)
             {
+#if LIBREWINFORMS_PORTABLE
+                GetPortableTopLevelControl().RefreshPortableCursor(force: true);
+#else
                 // We want to instantly change the cursor if the mouse is within our bounds.
                 // This includes the case where the mouse is over one of our children.
                 PInvoke.GetCursorPos(out Point p);
@@ -1584,6 +1670,7 @@ public unsafe partial class Control :
                 {
                     PInvokeCore.SendMessage(this, PInvokeCore.WM_SETCURSOR, (WPARAM)HWND, (LPARAM)(int)PInvoke.HTCLIENT);
                 }
+#endif
             }
 
             if (!resolvedCursor.Equals(value))
@@ -1877,7 +1964,13 @@ public unsafe partial class Control :
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     [SRDescription(nameof(SR.ControlFocusedDescr))]
     public virtual bool Focused
+#if LIBREWINFORMS_PORTABLE
+        => IsHandleCreated
+            && GetPortableTopLevelControl()._portableWindowFocused
+            && GetPortableTopLevelControl()._portableFocusedControl == this;
+#else
         => IsHandleCreated && PInvoke.GetFocus() == InternalHandle;
+#endif
 
     /// <summary>
     ///  Retrieves the current font for this control. This will be the font used
@@ -2396,7 +2489,11 @@ public unsafe partial class Control :
                 control = marshalingControl;
             }
 
+#if LIBREWINFORMS_PORTABLE
+            return !control.PortableDispatcher.CheckAccess();
+#else
             return PInvokeCore.GetWindowThreadProcessId(control, out _) != PInvokeCore.GetCurrentThreadId();
+#endif
         }
     }
 
@@ -2597,6 +2694,9 @@ public unsafe partial class Control :
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return s_portableModifierKeys;
+#else
             Keys modifiers = 0;
 
             if (PInvoke.GetKeyState((int)Keys.ShiftKey) < 0)
@@ -2615,6 +2715,7 @@ public unsafe partial class Control :
             }
 
             return modifiers;
+#endif
         }
     }
 
@@ -2626,6 +2727,9 @@ public unsafe partial class Control :
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return s_portableMouseButtons;
+#else
             MouseButtons buttons = default;
 
             if (PInvoke.GetKeyState((int)Keys.LButton) < 0)
@@ -2654,6 +2758,7 @@ public unsafe partial class Control :
             }
 
             return buttons;
+#endif
         }
     }
 
@@ -2664,8 +2769,12 @@ public unsafe partial class Control :
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return s_portableMousePosition;
+#else
             PInvoke.GetCursorPos(out Point pt);
             return pt;
+#endif
         }
     }
 
@@ -2822,6 +2931,13 @@ public unsafe partial class Control :
             return oldRegion;
         }
 
+#if LIBREWINFORMS_PROGPU_DRAWING
+        // The retained Region remains authoritative for the portable window
+        // backend. A platform window adapter will project it to a native shape
+        // when that backend supports shaped top-level surfaces.
+        return oldRegion;
+#else
+
         if (region is null)
         {
             PInvoke.SetWindowRgn(this, default, PInvoke.IsWindowVisible(this));
@@ -2839,6 +2955,7 @@ public unsafe partial class Control :
         }
 
         return oldRegion;
+#endif
     }
 
     /// <summary>
@@ -3361,15 +3478,17 @@ public unsafe partial class Control :
                 else
                 {
                     // if we're in the hidden state, we need to manufacture an update message so everyone knows it.
-                    uint actionMask = PInvoke.UISF_HIDEACCEL << 16;
                     _uiCuesState |= UICuesStates.KeyboardHidden;
 
                     // The side effect of this initial state is that adding new controls may clear the accelerator
                     // state (has been this way forever)
+#if !LIBREWINFORMS_PORTABLE
+                    uint actionMask = PInvoke.UISF_HIDEACCEL << 16;
                     PInvokeCore.SendMessage(
                         TopMostParent,
                         PInvokeCore.WM_CHANGEUISTATE,
                         (WPARAM)(actionMask | PInvoke.UIS_SET));
+#endif
                 }
             }
 
@@ -3409,13 +3528,14 @@ public unsafe partial class Control :
                     _uiCuesState |= UICuesStates.FocusHidden;
 
                     // if we're in the hidden state, we need to manufacture an update message so everyone knows it.
-                    int actionMask = (int)(PInvoke.UISF_HIDEACCEL | PInvoke.UISF_HIDEFOCUS) << 16;
-
                     // The side effect of this initial state is that adding new controls may clear the focus cue state
                     // state (has been this way forever)
+#if !LIBREWINFORMS_PORTABLE
+                    int actionMask = (int)(PInvoke.UISF_HIDEACCEL | PInvoke.UISF_HIDEFOCUS) << 16;
                     PInvokeCore.SendMessage(TopMostParent,
                         PInvokeCore.WM_CHANGEUISTATE,
                         (WPARAM)(actionMask | (int)PInvoke.UIS_SET));
+#endif
                 }
             }
 
@@ -3443,6 +3563,13 @@ public unsafe partial class Control :
             if (GetState(States.UseWaitCursor) != value)
             {
                 SetState(States.UseWaitCursor, value);
+
+#if LIBREWINFORMS_PORTABLE
+                if (IsHandleCreated)
+                {
+                    GetPortableTopLevelControl().RefreshPortableCursor(force: true);
+                }
+#endif
 
                 if (ChildControls is { } children)
                 {
@@ -3551,6 +3678,29 @@ public unsafe partial class Control :
     /// </summary>
     private unsafe void WaitForWaitHandle(WaitHandle waitHandle)
     {
+#if LIBREWINFORMS_PORTABLE
+        while (!waitHandle.WaitOne(10, false))
+        {
+            if (AppDomain.CurrentDomain.IsFinalizingForUnload())
+            {
+                throw new InvalidAsynchronousStateException(SR.ThreadNoLongerValid);
+            }
+
+            if (IsDisposed && _threadCallbackList is not null && _threadCallbackList.Count > 0)
+            {
+                lock (_threadCallbackList)
+                {
+                    Exception ex = new ObjectDisposedException(GetType().Name);
+                    while (_threadCallbackList.Count > 0)
+                    {
+                        ThreadMethodEntry entry = _threadCallbackList.Dequeue();
+                        entry._exception = ex;
+                        entry.Complete();
+                    }
+                }
+            }
+        }
+#else
         uint threadId = CreateThreadId;
         Application.ThreadContext? ctx = Application.ThreadContext.FromId(threadId);
         if (ctx is null)
@@ -3604,6 +3754,7 @@ public unsafe partial class Control :
 
             processed = waitHandle.WaitOne(1000, false);
         }
+#endif
     }
 
     /// <summary>
@@ -3625,8 +3776,13 @@ public unsafe partial class Control :
     /// </summary>
     private protected WINDOW_EX_STYLE ExtendedWindowStyle
     {
+#if LIBREWINFORMS_PORTABLE
+        get => _window.PortableExtendedStyle;
+        set => _window.PortableExtendedStyle = value;
+#else
         get => (WINDOW_EX_STYLE)PInvokeCore.GetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE);
         set => PInvokeCore.SetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, (nint)value);
+#endif
     }
 
     /// <summary>
@@ -3634,8 +3790,13 @@ public unsafe partial class Control :
     /// </summary>
     internal WINDOW_STYLE WindowStyle
     {
+#if LIBREWINFORMS_PORTABLE
+        get => _window.PortableStyle;
+        set => _window.PortableStyle = value;
+#else
         get => (WINDOW_STYLE)PInvokeCore.GetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_STYLE);
         set => PInvokeCore.SetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_STYLE, (nint)value);
+#endif
     }
 
     /// <summary>
@@ -3663,6 +3824,9 @@ public unsafe partial class Control :
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return _text ?? string.Empty;
+#else
             if (!IsHandleCreated)
             {
                 return _text ?? string.Empty;
@@ -3670,6 +3834,7 @@ public unsafe partial class Control :
 
             using var scope = MultithreadSafeCallScope.Create();
             return PInvokeCore.GetWindowText(this);
+#endif
         }
         set
         {
@@ -3677,6 +3842,13 @@ public unsafe partial class Control :
 
             if (!WindowText.Equals(value))
             {
+#if LIBREWINFORMS_PORTABLE
+                _text = value.Length == 0 ? null : value;
+                if (IsHandleCreated)
+                {
+                    SetPortableWindowTitle(value);
+                }
+#else
                 if (IsHandleCreated)
                 {
                     PInvoke.SetWindowText(this, value);
@@ -3685,6 +3857,7 @@ public unsafe partial class Control :
                 {
                     _text = value.Length == 0 ? null : value;
                 }
+#endif
             }
         }
     }
@@ -4381,7 +4554,9 @@ public unsafe partial class Control :
 
         if (_updateCount == 0)
         {
+#if !LIBREWINFORMS_PORTABLE
             PInvokeCore.SendMessage(this, PInvokeCore.WM_SETREDRAW, (WPARAM)(BOOL)false);
+#endif
         }
 
         _updateCount++;
@@ -4396,13 +4571,21 @@ public unsafe partial class Control :
         {
             _parent.Controls.SetChildIndex(this, 0);
         }
+#if LIBREWINFORMS_PORTABLE
+        else if (IsHandleCreated && GetTopLevel() && PortableWindowEnabled)
+#else
         else if (IsHandleCreated && GetTopLevel() && PInvoke.IsWindowEnabled(this))
+#endif
         {
+#if LIBREWINFORMS_PORTABLE
+            _window.SetPortableZOrder(LibreWindowZOrder.Front);
+#else
             PInvoke.SetWindowPos(
                 this,
                 HWND.HWND_TOP,
                 0, 0, 0, 0,
                 SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE);
+#endif
         }
     }
 
@@ -4542,7 +4725,47 @@ public unsafe partial class Control :
 
     internal Graphics CreateGraphicsInternal()
     {
-        return Graphics.FromHwndInternal(Handle);
+#if LIBREWINFORMS_PORTABLE
+        _ = Handle;
+        Control root = this;
+        int originX = 0;
+        int originY = 0;
+        while (root.ParentInternal is { } parent)
+        {
+            originX = checked(originX + root._x);
+            originY = checked(originY + root._y);
+            root = parent;
+        }
+
+        _ = root.Handle;
+        Rectangle visibleClip = new(originX, originY, _clientWidth, _clientHeight);
+        Control descendant = this;
+        int ancestorOriginX = originX;
+        int ancestorOriginY = originY;
+        while (descendant.ParentInternal is { } ancestor)
+        {
+            ancestorOriginX = checked(ancestorOriginX - descendant._x);
+            ancestorOriginY = checked(ancestorOriginY - descendant._y);
+            visibleClip = Rectangle.Intersect(
+                visibleClip,
+                new Rectangle(
+                    ancestorOriginX,
+                    ancestorOriginY,
+                    ancestor._clientWidth,
+                    ancestor._clientHeight));
+            descendant = ancestor;
+        }
+
+        return root._window.CreateGraphicsPortable(
+            new LibrePoint(originX, originY),
+            new LibreRectangle(
+                visibleClip.X,
+                visibleClip.Y,
+                visibleClip.Width,
+                visibleClip.Height));
+#else
+        return Graphics.FromHwnd(Handle);
+#endif
     }
 
     /// <summary>
@@ -4553,6 +4776,26 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected virtual void CreateHandle()
     {
+#if LIBREWINFORMS_PORTABLE
+        ObjectDisposedException.ThrowIf(GetState(States.Disposed), this);
+        if (GetState(States.CreatingHandle))
+        {
+            return;
+        }
+
+        try
+        {
+            SetState(States.CreatingHandle, true);
+            CreateParams cp = CreateParams;
+            SetState(States.Mirrored, (cp.ExStyle & (int)WINDOW_EX_STYLE.WS_EX_LAYOUTRTL) != 0);
+            _window.CreateHandle(cp);
+            OnHandleCreated(EventArgs.Empty);
+        }
+        finally
+        {
+            SetState(States.CreatingHandle, false);
+        }
+#else
         ObjectDisposedException.ThrowIf(GetState(States.Disposed), this);
 
         if (GetState(States.CreatingHandle))
@@ -4617,6 +4860,7 @@ public unsafe partial class Control :
         {
             LayoutTransaction.DoLayout(ParentInternal, this, PropertyNames.Bounds);
         }
+#endif
     }
 
     /// <summary>
@@ -4707,6 +4951,15 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected virtual void DestroyHandle()
     {
+#if LIBREWINFORMS_PORTABLE
+        if (IsHandleCreated)
+        {
+            OnHandleDestroyed(EventArgs.Empty);
+        }
+
+        _window.DestroyHandle();
+        _trackMouseEvent = default;
+#else
         if (RecreatingHandle && _threadCallbackList is not null)
         {
             // See if we have a thread marshaling request pending. If so, we will need to
@@ -4762,6 +5015,7 @@ public unsafe partial class Control :
         }
 
         _trackMouseEvent = default;
+#endif
     }
 
     /// <summary>
@@ -4955,6 +5209,9 @@ public unsafe partial class Control :
     {
         DataObject dataObject = CreateRuntimeDataObjectForDrag(data);
 
+#if LIBREWINFORMS_PORTABLE
+        return DoPortableDragDrop(dataObject, allowedEffects, dragImage, cursorOffset, useDefaultDragImage);
+#else
         DROPEFFECT finalEffect;
 
         try
@@ -4976,6 +5233,7 @@ public unsafe partial class Control :
         }
 
         return (DragDropEffects)finalEffect;
+#endif
     }
 
     /// <summary>
@@ -5005,7 +5263,7 @@ public unsafe partial class Control :
 
         using Bitmap image = new(width, height, bitmap.PixelFormat);
         using Graphics g = Graphics.FromImage(image);
-        using DeviceContextHdcScope hDc = new(g, applyGraphicsState: false);
+        using DeviceContextHdcScope hDc = g.ToHdcScope(ApplyGraphicsProperties.None);
 
         // Send the WM_PRINT message.
         PInvokeCore.SendMessage(
@@ -5016,7 +5274,7 @@ public unsafe partial class Control :
 
         // Now BLT the result to the destination bitmap.
         using Graphics destGraphics = Graphics.FromImage(bitmap);
-        using DeviceContextHdcScope desthDC = new(destGraphics, applyGraphicsState: false);
+        using DeviceContextHdcScope desthDC = destGraphics.ToHdcScope(ApplyGraphicsProperties.None);
         PInvokeCore.BitBlt(
             desthDC,
             targetBounds.X,
@@ -5051,7 +5309,11 @@ public unsafe partial class Control :
         if (!asyncResult.IsCompleted)
         {
             Control marshaler = FindMarshalingControl();
+#if LIBREWINFORMS_PORTABLE
+            if (marshaler.PortableDispatcher.CheckAccess())
+#else
             if (PInvokeCore.GetWindowThreadProcessId(marshaler, out _) == PInvokeCore.GetCurrentThreadId())
+#endif
             {
                 marshaler.InvokeMarshaledCallbacks();
             }
@@ -5076,7 +5338,9 @@ public unsafe partial class Control :
             _updateCount--;
             if (_updateCount == 0)
             {
+#if !LIBREWINFORMS_PORTABLE
                 PInvokeCore.SendMessage(this, PInvokeCore.WM_SETREDRAW, (WPARAM)(BOOL)true);
+#endif
                 if (invalidate)
                 {
                     Invalidate();
@@ -5187,10 +5451,17 @@ public unsafe partial class Control :
     /// </summary>
     private protected virtual bool FocusInternal()
     {
+#if LIBREWINFORMS_PORTABLE
+        if (CanFocus)
+        {
+            GetPortableTopLevelControl().SetPortableFocus(this);
+        }
+#else
         if (CanFocus)
         {
             PInvoke.SetFocus(this);
         }
+#endif
 
         if (Focused && ParentInternal is not null)
         {
@@ -5222,6 +5493,11 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     public static Control? FromChildHandle(IntPtr handle)
     {
+#if LIBREWINFORMS_PORTABLE
+        // Every portable control owns a managed logical handle registered by NativeWindow.
+        // There is no OS HWND parent chain to traverse after a direct map miss.
+        return FromHandle(handle);
+#else
         HWND hwnd = (HWND)handle;
         while (!hwnd.IsNull)
         {
@@ -5235,6 +5511,7 @@ public unsafe partial class Control :
         }
 
         return null;
+#endif
     }
 
     /// <summary>
@@ -5306,10 +5583,34 @@ public unsafe partial class Control :
             throw new InvalidEnumArgumentException(nameof(skipValue), value, typeof(GetChildAtPointSkip));
         }
 
+#if LIBREWINFORMS_PORTABLE
+        _ = Handle;
+        if (ChildControls is not { } children)
+        {
+            return null;
+        }
+
+        for (int index = 0; index < children.Count; index++)
+        {
+            Control child = children[index];
+            if (!child.Bounds.Contains(pt)
+                || ((skipValue & GetChildAtPointSkip.Invisible) != 0 && !child.Visible)
+                || ((skipValue & GetChildAtPointSkip.Disabled) != 0 && !child.Enabled)
+                || ((skipValue & GetChildAtPointSkip.Transparent) != 0 && child.RenderTransparent))
+            {
+                continue;
+            }
+
+            return child;
+        }
+
+        return null;
+#else
         HWND hwnd = PInvoke.ChildWindowFromPointEx(this, pt, (CWP_FLAGS)value);
         Control? control = FromChildHandle(hwnd);
 
         return (control == this) ? null : control;
+#endif
     }
 
     private protected virtual string? GetCaptionForTool(ToolTip toolTip) =>
@@ -5901,6 +6202,10 @@ public unsafe partial class Control :
         }
         else if (IsHandleCreated)
         {
+#if LIBREWINFORMS_PROGPU_DRAWING
+            using Graphics graphics = CreateGraphicsInternal();
+            OnInvalidated(new InvalidateEventArgs(Rectangle.Ceiling(region.GetBounds(graphics))));
+#else
             Debug.Assert(region.GetPointer() != null);
 
             using Graphics graphics = CreateGraphicsInternal();
@@ -5925,6 +6230,7 @@ public unsafe partial class Control :
             }
 
             OnInvalidated(new InvalidateEventArgs(Rectangle.Ceiling(region.GetBounds(graphics))));
+#endif
         }
     }
 
@@ -5947,6 +6253,9 @@ public unsafe partial class Control :
     {
         if (IsHandleCreated)
         {
+#if LIBREWINFORMS_PORTABLE
+            InvalidatePortable(ClientRectangle);
+#else
             if (invalidateChildren)
             {
                 PInvoke.RedrawWindow(
@@ -5964,6 +6273,7 @@ public unsafe partial class Control :
                     lpRect: null,
                     bErase: !_controlStyle.HasFlag(ControlStyles.Opaque));
             }
+#endif
 
             NotifyInvalidate(ClientRectangle);
         }
@@ -5994,6 +6304,9 @@ public unsafe partial class Control :
         }
         else if (IsHandleCreated)
         {
+#if LIBREWINFORMS_PORTABLE
+            InvalidatePortable(rc);
+#else
             RECT rcArea = rc;
             if (invalidateChildren)
             {
@@ -6012,6 +6325,7 @@ public unsafe partial class Control :
                     &rcArea,
                     bErase: !_controlStyle.HasFlag(ControlStyles.Opaque));
             }
+#endif
 
             NotifyInvalidate(rc);
         }
@@ -6327,11 +6641,18 @@ public unsafe partial class Control :
     /// </returns>
     protected virtual bool IsInputChar(char charCode)
     {
+#if LIBREWINFORMS_PORTABLE
+        // Portable windows do not have a native dialog procedure to answer WM_GETDLGCODE.
+        // Returning false preserves the base Control behavior: preprocessing gets a chance
+        // to handle dialog characters, then unhandled characters are dispatched normally.
+        return false;
+#else
         int mask = charCode == (char)(int)Keys.Tab
             ? (int)(PInvoke.DLGC_WANTCHARS | PInvoke.DLGC_WANTALLKEYS | PInvoke.DLGC_WANTTAB)
             : (int)(PInvoke.DLGC_WANTCHARS | PInvoke.DLGC_WANTALLKEYS);
 
         return ((int)PInvokeCore.SendMessage(this, PInvokeCore.WM_GETDLGCODE) & mask) != 0;
+#endif
     }
 
     /// <summary>
@@ -6354,6 +6675,12 @@ public unsafe partial class Control :
             return false;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        // Portable windows do not have a native dialog procedure to answer WM_GETDLGCODE.
+        // Derived controls can retain their typed IsInputKey overrides; the base control
+        // lets preprocessing try dialog-key routing before normal key dispatch.
+        return false;
+#else
         uint mask = PInvoke.DLGC_WANTALLKEYS;
         switch (keyData & Keys.KeyCode)
         {
@@ -6370,6 +6697,7 @@ public unsafe partial class Control :
 
         return IsHandleCreated
             && ((uint)PInvokeCore.SendMessage(this, PInvokeCore.WM_GETDLGCODE) & mask) != 0;
+#endif
     }
 
     /// <summary>
@@ -6463,6 +6791,12 @@ public unsafe partial class Control :
 
     private static void AdjustWindowRectExForDpi(ref RECT rect, WINDOW_STYLE style, bool bMenu, WINDOW_EX_STYLE exStyle, int dpi)
     {
+#if LIBREWINFORMS_PORTABLE
+        // Portable ILibreWindow bounds currently describe the drawable client surface.
+        // Native decoration insets belong to the window backend, so there is no Win32
+        // non-client rectangle to add here.
+        return;
+#else
         if ((ScaleHelper.IsThreadPerMonitorV2Aware || ScaleHelper.IsScalingRequired) && OsVersion.IsWindows10_1703OrGreater())
         {
             PInvoke.AdjustWindowRectExForDpi(ref rect, style, bMenu, exStyle, (uint)dpi);
@@ -6471,6 +6805,7 @@ public unsafe partial class Control :
         {
             PInvoke.AdjustWindowRectEx(ref rect, style, bMenu, exStyle);
         }
+#endif
     }
 
     private object MarshaledInvoke(Control caller, Delegate method, object?[]? args, bool synchronous)
@@ -6497,7 +6832,12 @@ public unsafe partial class Control :
 
         // We don't want to wait if we're on the same thread, or else we'll deadlock.
         // It is important that syncSameThread always be false for asynchronous calls.
-        bool syncSameThread = synchronous && PInvokeCore.GetWindowThreadProcessId(this, out _) == PInvokeCore.GetCurrentThreadId();
+        bool syncSameThread = synchronous
+#if LIBREWINFORMS_PORTABLE
+            && PortableDispatcher.CheckAccess();
+#else
+            && PInvokeCore.GetWindowThreadProcessId(this, out _) == PInvokeCore.GetCurrentThreadId();
+#endif
 
         // Store the compressed stack information from the thread that is calling the Invoke()
         // so we can assign the same security context to the thread that will actually execute
@@ -6523,10 +6863,12 @@ public unsafe partial class Control :
 
         lock (_threadCallbackList)
         {
+#if !LIBREWINFORMS_PORTABLE
             if (s_threadCallbackMessage == PInvokeCore.WM_NULL)
             {
                 s_threadCallbackMessage = PInvoke.RegisterWindowMessage($"{Application.WindowMessagesVersion}_ThreadCallbackMessage");
             }
+#endif
 
             _threadCallbackList.Enqueue(tme);
         }
@@ -6537,7 +6879,11 @@ public unsafe partial class Control :
         }
         else
         {
+#if LIBREWINFORMS_PORTABLE
+            PortableDispatcher.Post(InvokeMarshaledCallbacks);
+#else
             PInvokeCore.PostMessage(this, s_threadCallbackMessage);
+#endif
         }
 
         if (synchronous)
@@ -6854,7 +7200,14 @@ public unsafe partial class Control :
 
         if (IsHandleCreated)
         {
+#if LIBREWINFORMS_PORTABLE
+            if (ReferenceEquals(GetPortableTopLevelControl(), this))
+            {
+                SetPortableWindowEnabled(Enabled);
+            }
+#else
             PInvoke.EnableWindow(this, Enabled);
+#endif
 
             // User-paint controls should repaint when their enabled state changes
             if (GetStyle(ControlStyles.UserPaint))
@@ -7346,6 +7699,11 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected virtual void OnHandleCreated(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        InitializePortableDpi();
+        SetAcceptDrops(AllowDrop);
+        ((EventHandler?)Events[s_handleCreatedEvent])?.Invoke(this, e);
+#else
         if (IsHandleCreated)
         {
             // Setting fonts is for some reason incredibly expensive.
@@ -7421,7 +7779,9 @@ public unsafe partial class Control :
                 SetState(States.ThreadMarshalPending, false);
             }
         }
+#endif
 
+#if !LIBREWINFORMS_PORTABLE
         void HandleHighDpi()
         {
             if (!DpiAwarenessContext.IsEquivalent(DPI_AWARENESS_CONTEXT.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2))
@@ -7467,6 +7827,7 @@ public unsafe partial class Control :
                 form.AdjustFormPosition();
             }
         }
+#endif
     }
 
     private void OnSetScrollPosition(object? sender, EventArgs e)
@@ -7517,6 +7878,10 @@ public unsafe partial class Control :
     {
         ((EventHandler?)Events[s_handleDestroyedEvent])?.Invoke(this, e);
 
+#if LIBREWINFORMS_PORTABLE
+        SetAcceptDrops(false);
+        ReflectParent = null;
+#else
         // The Accessibility Object for this Control
         if (Properties.TryGetValue(s_accessibilityProperty, out AccessibleObject? accObj)
             && accObj is ControlAccessibleObject controlAccObj)
@@ -7566,6 +7931,7 @@ public unsafe partial class Control :
             // Some ActiveX controls throw exceptions when you ask for the text property after you have destroyed their
             // handle. We don't want those exceptions to bubble all the way to the top, since we leave our state in a mess.
         }
+#endif
     }
 
     /// <summary>
@@ -7985,9 +8351,13 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected virtual void OnPaintBackground(PaintEventArgs pevent)
     {
+#if LIBREWINFORMS_PORTABLE
+        PaintBackground(pevent, ClientRectangle);
+#else
         // We need the true client rectangle as clip rectangle causes problems on "Windows Classic" theme.
         PInvokeCore.GetClientRect(new HandleRef<HWND>(_window, InternalHandle), out RECT rect);
         PaintBackground(pevent, rect);
+#endif
     }
 
     // Transparent control support
@@ -8211,6 +8581,13 @@ public unsafe partial class Control :
 
         Color color = backColor;
 
+#if LIBREWINFORMS_PORTABLE
+        if (!color.IsFullyTransparent())
+        {
+            using var brush = color.GetCachedSolidBrushScope();
+            e.Graphics.FillRectangle(brush, rectangle);
+        }
+#else
         // Note: PaintEvent.HDC == 0 if GDI+ has used the HDC -- it wouldn't be safe for us
         // to use it without enough bookkeeping to negate any performance gain of using GDI.
         if (!color.HasTransparency())
@@ -8225,6 +8602,7 @@ public unsafe partial class Control :
             using var brush = color.GetCachedSolidBrushScope();
             e.Graphics.FillRectangle(brush, rectangle);
         }
+#endif
     }
 
     // Paints a red rectangle with a red X, painted on a white background
@@ -8265,6 +8643,24 @@ public unsafe partial class Control :
     {
         Control? parent = ParentInternal;
 
+#if LIBREWINFORMS_PORTABLE
+        Graphics graphics = e.GraphicsInternal;
+        using GraphicsStateScope saveState = new(graphics);
+        if (transparentRegion is not null)
+        {
+            graphics.Clip = transparentRegion;
+        }
+
+        if (parent is null)
+        {
+            using SolidBrush brush = new(SystemColors.Control);
+            graphics.FillRectangle(brush, rectangle);
+        }
+        else
+        {
+            DrawPortableParentBackground(graphics, rectangle);
+        }
+#else
         if (parent is null)
         {
             // For whatever reason, our parent can't paint our background, but we need some kind of background
@@ -8332,7 +8728,44 @@ public unsafe partial class Control :
             InvokePaintBackground(parent, newArgs);
             InvokePaint(parent, newArgs);
         }
+#endif
     }
+
+#if LIBREWINFORMS_PORTABLE
+    internal void DrawPortableParentBackground(Graphics graphics, Rectangle bounds)
+    {
+        ArgumentNullException.ThrowIfNull(graphics);
+
+        Control? parent = ParentInternal;
+        if (parent is null || bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            return;
+        }
+
+        Rectangle parentClip = new(
+            checked(bounds.X + Left),
+            checked(bounds.Y + Top),
+            bounds.Width,
+            bounds.Height);
+        System.Drawing.Drawing2D.GraphicsState state = graphics.Save();
+        try
+        {
+            graphics.TranslateTransform(-Left, -Top);
+            graphics.SetClip(parentClip, System.Drawing.Drawing2D.CombineMode.Intersect);
+            using PaintEventArgs parentPaint = new(
+                graphics,
+                parentClip,
+                DrawingEventFlags.SaveState | DrawingEventFlags.GraphicsStateUnclean);
+            InvokePaintBackground(parent, parentPaint);
+            parentPaint.ResetGraphics();
+            InvokePaint(parent, parentPaint);
+        }
+        finally
+        {
+            graphics.Restore(state);
+        }
+    }
+#endif
 
     private void PaintWithErrorHandling(PaintEventArgs e, short layer)
     {
@@ -8581,8 +9014,13 @@ public unsafe partial class Control :
     /// </summary>
     public Point PointToClient(Point p)
     {
+#if LIBREWINFORMS_PORTABLE
+        Point origin = PortableClientOriginOnScreen();
+        return new Point(checked(p.X - origin.X), checked(p.Y - origin.Y));
+#else
         PInvokeCore.MapWindowPoints((HWND)default, this, ref p);
         return p;
+#endif
     }
 
     /// <summary>
@@ -8590,8 +9028,24 @@ public unsafe partial class Control :
     /// </summary>
     public Point PointToScreen(Point p)
     {
+#if LIBREWINFORMS_PORTABLE
+        Point origin = PortableClientOriginOnScreen();
+        return new Point(checked(p.X + origin.X), checked(p.Y + origin.Y));
+#else
         PInvokeCore.MapWindowPoints(this, (HWND)default, ref p);
         return p;
+#endif
+    }
+
+    internal bool IsMousePointerDirectlyOver(Point clientPosition)
+    {
+#if LIBREWINFORMS_PORTABLE
+        Control root = GetPortableTopLevelControl();
+        Point rootPosition = root.PointToClient(PointToScreen(clientPosition));
+        return root.PortableHitTest(rootPosition) == this;
+#else
+        return PInvoke.WindowFromPoint(PointToScreen(clientPosition)) == HWND;
+#endif
     }
 
     /// <summary>
@@ -9045,6 +9499,12 @@ public unsafe partial class Control :
             return;  // PERF: don't WM_QUERYUISTATE if we don't have to.
         }
 
+#if LIBREWINFORMS_PORTABLE
+        TopMostParent.UpdatePortableUICues(
+            showKeyboard: keyCode is Keys.F10 or Keys.Menu,
+            showFocus: keyCode == Keys.Tab);
+        return;
+#else
         Control? topMostParent = null;
         uint current = (uint)PInvokeCore.SendMessage(this, PInvokeCore.WM_QUERYUISTATE);
 
@@ -9102,7 +9562,45 @@ public unsafe partial class Control :
                 PInvoke.GetParent(topMostParent).IsNull ? PInvokeCore.WM_CHANGEUISTATE : PInvokeCore.WM_UPDATEUISTATE,
                 (WPARAM)((int)PInvoke.UIS_CLEAR | ((int)toClear << 16)));
         }
+#endif
     }
+
+#if LIBREWINFORMS_PORTABLE
+    private void UpdatePortableUICues(bool showKeyboard, bool showFocus)
+    {
+        UICues cues = UICues.None;
+
+        if (showKeyboard
+            && (_uiCuesState & UICuesStates.KeyboardMask) != UICuesStates.KeyboardShow)
+        {
+            _uiCuesState &= ~UICuesStates.KeyboardMask;
+            _uiCuesState |= UICuesStates.KeyboardShow;
+            cues |= UICues.ChangeKeyboard | UICues.ShowKeyboard;
+        }
+
+        if (showFocus
+            && (_uiCuesState & UICuesStates.FocusMask) != UICuesStates.FocusShow)
+        {
+            _uiCuesState &= ~UICuesStates.FocusMask;
+            _uiCuesState |= UICuesStates.FocusShow;
+            cues |= UICues.ChangeFocus | UICues.ShowFocus;
+        }
+
+        if ((cues & UICues.Changed) != 0)
+        {
+            OnChangeUICues(new UICuesEventArgs(cues));
+            Invalidate();
+        }
+
+        if (ChildControls is { } children)
+        {
+            for (int i = 0; i < children.Count; i++)
+            {
+                children[i].UpdatePortableUICues(showKeyboard, showFocus);
+            }
+        }
+    }
+#endif
 
     /// <summary>
     ///  Raises the event associated with key with the event data of
@@ -9220,6 +9718,59 @@ public unsafe partial class Control :
 
     internal virtual void RecreateHandleCore()
     {
+#if LIBREWINFORMS_PORTABLE
+        lock (this)
+        {
+            if (!IsHandleCreated)
+            {
+                return;
+            }
+
+            bool focused = ContainsFocus;
+            bool created = GetState(States.Created);
+
+            if (GetState(States.TrackingMouseEvent))
+            {
+                SetState(States.MouseEnterPending, true);
+                UnhookMouseEvent();
+            }
+
+            SetState(States.Recreate, true);
+            try
+            {
+                // Logical child handles have no native parent to park. Top-level controls
+                // dispose and recreate their typed platform window; their managed child tree
+                // and child logical handles remain authoritative and stable.
+                DestroyHandle();
+                CreateHandle();
+            }
+            catch
+            {
+                if (!IsHandleCreated)
+                {
+                    SetState(States.Created, false);
+                }
+
+                throw;
+            }
+            finally
+            {
+                SetState(States.Recreate, false);
+            }
+
+            if (created)
+            {
+                CreateControl();
+            }
+
+            if (focused)
+            {
+                Focus();
+            }
+
+            GC.KeepAlive(this);
+        }
+#else
         lock (this)
         {
             if (!IsHandleCreated)
@@ -9381,6 +9932,7 @@ public unsafe partial class Control :
 
             GC.KeepAlive(this);
         }
+#endif
     }
 
     /// <summary>
@@ -9388,9 +9940,14 @@ public unsafe partial class Control :
     /// </summary>
     public Rectangle RectangleToClient(Rectangle r)
     {
+#if LIBREWINFORMS_PORTABLE
+        r.Location = PointToClient(r.Location);
+        return r;
+#else
         RECT rect = r;
         PInvokeCore.MapWindowPoints(HWND.Null, this, ref rect);
         return rect;
+#endif
     }
 
     /// <summary>
@@ -9398,9 +9955,14 @@ public unsafe partial class Control :
     /// </summary>
     public Rectangle RectangleToScreen(Rectangle r)
     {
+#if LIBREWINFORMS_PORTABLE
+        r.Location = PointToScreen(r.Location);
+        return r;
+#else
         RECT rect = r;
         PInvokeCore.MapWindowPoints(this, HWND.Null, ref rect);
         return rect;
+#endif
     }
 
     /// <summary>
@@ -9562,6 +10124,9 @@ public unsafe partial class Control :
 
         try
         {
+#if LIBREWINFORMS_PORTABLE
+            LibrePlatform.Current.DragDrop.SetTargetEnabled(_window.PortableHandle, accept);
+#else
             if (Application.OleRequired() != ApartmentState.STA)
             {
                 throw new ThreadStateException(SR.ThreadMustBeSTA);
@@ -9586,6 +10151,7 @@ public unsafe partial class Control :
                 }
             }
 
+#endif
             SetState(States.DropTarget, accept);
         }
         catch (Exception e)
@@ -10049,11 +10615,15 @@ public unsafe partial class Control :
         }
         else if (IsHandleCreated && GetTopLevel())
         {
+#if LIBREWINFORMS_PORTABLE
+            _window.SetPortableZOrder(LibreWindowZOrder.Back);
+#else
             PInvoke.SetWindowPos(
                 this,
                 HWND.HWND_BOTTOM,
                 0, 0, 0, 0,
                 SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE);
+#endif
         }
     }
 
@@ -10168,6 +10738,17 @@ public unsafe partial class Control :
             x = adjustedBounds.X;
             y = adjustedBounds.Y;
 
+#if LIBREWINFORMS_PORTABLE
+            // Portable child handles are logical, while top-level bounds belong to the typed
+            // platform window. Keep the canonical managed bounds authoritative for both.
+            OnBoundsUpdate(x, y, width, height);
+            if (IsHandleCreated && GetTopLevel())
+            {
+                _window.SetPortableBounds(new LibreRectangle(x, y, width, height));
+            }
+
+            UpdateBounds(x, y, width, height, width, height);
+#else
             if (!IsHandleCreated)
             {
                 // Handle is not created, just record our new position and we're done.
@@ -10201,6 +10782,7 @@ public unsafe partial class Control :
                     // UpdateBounds(x, y, width, height);
                 }
             }
+#endif
         }
         finally
         {
@@ -10261,6 +10843,14 @@ public unsafe partial class Control :
     {
         Debug.Assert(value != -1, "Outdated call to SetParentHandle");
 
+#if LIBREWINFORMS_PORTABLE
+        // Portable child handles are stable logical identities, not native child windows. The
+        // canonical ControlCollection and ParentInternal relationship is authoritative for
+        // layout, painting, input hit testing, and z-order, so there is no native parent to
+        // synchronize or parking window to use here.
+        Debug.Assert(!IsHandleCreated || Handle != value, "Cycle created in SetParentHandle");
+        return;
+#else
         if (IsHandleCreated)
         {
             HWND parentHandle = PInvoke.GetParent(this);
@@ -10328,6 +10918,7 @@ public unsafe partial class Control :
                 Application.UnparkHandle(this, _window.DpiAwarenessContext);
             }
         }
+#endif
     }
 
     private protected void SetState(States flag, bool value)
@@ -10407,6 +10998,43 @@ public unsafe partial class Control :
 
     protected virtual void SetVisibleCore(bool value)
     {
+#if LIBREWINFORMS_PORTABLE
+        if (value == Visible)
+        {
+            return;
+        }
+
+        if (!value)
+        {
+            SelectNextIfFocused();
+        }
+
+        SetState(States.Visible, value);
+        try
+        {
+            if (value)
+            {
+                CreateControl();
+            }
+
+            if (IsHandleCreated)
+            {
+                _window.SetPortableVisibility(value);
+            }
+        }
+        catch
+        {
+            SetState(States.Visible, !value);
+            throw;
+        }
+
+        using (new LayoutTransaction(_parent, this, PropertyNames.Visible))
+        {
+            OnVisibleChanged(EventArgs.Empty);
+        }
+
+        UpdateRoot();
+#else
         if (value != Visible)
         {
             if (!value)
@@ -10532,6 +11160,7 @@ public unsafe partial class Control :
                 &value,
                 (uint)sizeof(BOOL)).AssertSuccess();
         }
+#endif
     }
 
     /// <summary>
@@ -10711,12 +11340,20 @@ public unsafe partial class Control :
         return align;
     }
 
-    private void SetWindowFont() => PInvokeCore.SendMessage(this, PInvokeCore.WM_SETFONT, (WPARAM)FontHandle, (LPARAM)(BOOL)false);
+    private void SetWindowFont()
+    {
+#if !LIBREWINFORMS_PORTABLE
+        PInvokeCore.SendMessage(this, PInvokeCore.WM_SETFONT, (WPARAM)FontHandle, (LPARAM)(BOOL)false);
+#else
+        _ = this;
+#endif
+    }
 
     private void SetWindowStyle(int flag, bool value)
     {
-        int styleFlags = (int)PInvokeCore.GetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_STYLE);
-        PInvokeCore.SetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_STYLE, value ? styleFlags | flag : styleFlags & ~flag);
+        WINDOW_STYLE styleFlags = WindowStyle;
+        WINDOW_STYLE changedStyle = (WINDOW_STYLE)(uint)flag;
+        WindowStyle = value ? styleFlags | changedStyle : styleFlags & ~changedStyle;
     }
 
     /// <summary>
@@ -10841,9 +11478,256 @@ public unsafe partial class Control :
     {
         if (IsHandleCreated)
         {
+#if LIBREWINFORMS_PORTABLE
+            GetPortableTopLevelControl()._window.PresentPortable();
+#else
             PInvoke.UpdateWindow(this);
+#endif
         }
     }
+
+#if LIBREWINFORMS_PORTABLE
+    internal bool PortableWindowEnabled => _window.PortableEnabled;
+
+    internal void SetPortableWindowEnabled(bool enabled)
+        => GetPortableTopLevelControl()._window.SetPortableEnabled(enabled);
+
+    internal void SetPortableWindowTitle(string title)
+        => _window.SetPortableTitle(title);
+
+    internal void SetPortableWindowState(LibreWindowState state)
+        => _window.SetPortableState(state);
+
+    internal void SetPortableWindowTopMost(bool topMost)
+        => _window.SetPortableTopMost(topMost);
+
+    internal void SetPortableWindowOpacity(double opacity)
+        => _window.SetPortableOpacity(opacity);
+
+    internal void SetPortableWindowShowInTaskbar(bool showInTaskbar)
+        => _window.SetPortableShowInTaskbar(showInTaskbar);
+
+    internal void SetPortableWindowSizeConstraints(LibreSize minimum, LibreSize maximum)
+        => _window.SetPortableSizeConstraints(minimum, maximum);
+
+    internal void SetPortableOwner(IWin32Window? owner)
+        => _window.SetPortableOwner(owner?.Handle ?? 0);
+
+    internal void ActivatePortableWindow() => _window.ActivatePortable();
+
+    internal void SetPortableWindowIcons(IReadOnlyList<LibreWindowIcon> icons)
+        => GetPortableTopLevelControl()._window.SetPortableIcons(icons);
+
+    internal void UpdatePortableBounds(LibreRectangle bounds)
+        => UpdateBounds(bounds.X, bounds.Y, bounds.Width, bounds.Height, bounds.Width, bounds.Height);
+
+    internal void UpdatePortablePresentationScale(double scale)
+    {
+        Control root = GetPortableTopLevelControl();
+        if (root is Form form
+            && root._window.PortableCoordinateMode == LibreWindowCoordinateMode.DevicePixels)
+        {
+            LibreRectangle suggested = root._window.PortableBounds;
+            form.ApplyPortableDpiChange(
+                LibreWindowCoordinates.ToDeviceDpi(scale),
+                new Rectangle(suggested.X, suggested.Y, suggested.Width, suggested.Height));
+        }
+
+        root._window.InvalidatePortable(dirtyRectangle: null);
+    }
+
+    private void InitializePortableDpi()
+    {
+        if (!ScaleHelper.IsThreadPerMonitorV2Aware)
+        {
+            return;
+        }
+
+        Control root = GetPortableTopLevelControl();
+        if (root._window.PortableCoordinateMode != LibreWindowCoordinateMode.DevicePixels)
+        {
+            return;
+        }
+
+        ApplyDpiChangeBeforeParent(
+            LibreWindowCoordinates.ToDeviceDpi(root._window.PortablePresentationScale),
+            raiseEvent: false);
+    }
+
+    private void InvalidatePortable(Rectangle dirtyRectangle)
+    {
+        Control root = this;
+        int offsetX = 0;
+        int offsetY = 0;
+        while (root.ParentInternal is { } parent)
+        {
+            offsetX = checked(offsetX + root._x);
+            offsetY = checked(offsetY + root._y);
+            root = parent;
+        }
+
+        root._window.InvalidatePortable(new LibreRectangle(
+            checked(offsetX + dirtyRectangle.X),
+            checked(offsetY + dirtyRectangle.Y),
+            dirtyRectangle.Width,
+            dirtyRectangle.Height));
+    }
+
+    private Control GetPortableTopLevelControl()
+    {
+        Control root = this;
+        while (root.ParentInternal is { } parent)
+        {
+            root = parent;
+        }
+
+        return root;
+    }
+
+    internal void PaintPortableFrame(ILibrePaintFrame frame)
+    {
+        ArgumentNullException.ThrowIfNull(frame);
+        LibreRectangle surface = frame.SurfaceBounds;
+        Rectangle surfaceRectangle = new(surface.X, surface.Y, surface.Width, surface.Height);
+        if (surfaceRectangle.Width <= 0 || surfaceRectangle.Height <= 0)
+        {
+            return;
+        }
+
+        if (frame is ILibreRetainedPaintFrame retainedFrame)
+        {
+            PaintPortableRetainedControlTree(retainedFrame, Point.Empty, surfaceRectangle);
+            return;
+        }
+
+        // Flat backends receive a fresh recording and therefore require the complete
+        // logical control tree so a sub-rectangle never erases unchanged siblings.
+        PaintPortableControlTree(frame.Graphics, Point.Empty, surfaceRectangle);
+    }
+
+    private void PaintPortableRetainedControlTree(
+        ILibreRetainedPaintFrame frame,
+        Point absoluteLocation,
+        Rectangle surfaceClip)
+    {
+        if (!Visible || _width <= 0 || _height <= 0 || _window.PortableHandle.IsNull)
+        {
+            return;
+        }
+
+        Rectangle absoluteBounds = new(absoluteLocation.X, absoluteLocation.Y, _width, _height);
+        Rectangle absoluteClip = Rectangle.Intersect(surfaceClip, absoluteBounds);
+        if (absoluteClip.IsEmpty)
+        {
+            return;
+        }
+
+        Rectangle localClip = new(
+            absoluteClip.X - absoluteLocation.X,
+            absoluteClip.Y - absoluteLocation.Y,
+            absoluteClip.Width,
+            absoluteClip.Height);
+        using (ILibrePaintLayer layer = frame.OpenLayer(
+            _window.PortableHandle,
+            new LibreRectangle(absoluteBounds.X, absoluteBounds.Y, absoluteBounds.Width, absoluteBounds.Height),
+            new LibreRectangle(absoluteClip.X, absoluteClip.Y, absoluteClip.Width, absoluteClip.Height)))
+        {
+            if (layer.Graphics is { } graphics)
+            {
+                using PaintEventArgs paintEvent = new(
+                    graphics,
+                    localClip,
+                    DrawingEventFlags.SaveState | DrawingEventFlags.GraphicsStateUnclean);
+                PaintWithErrorHandling(paintEvent, PaintLayerBackground);
+                paintEvent.ResetGraphics();
+                PaintWithErrorHandling(paintEvent, PaintLayerForeground);
+            }
+        }
+
+        if (ChildControls is not { } children)
+        {
+            return;
+        }
+
+        // WinForms index zero is the top of z-order, so retain back-to-front.
+        for (int index = children.Count - 1; index >= 0; index--)
+        {
+            Control child = children[index];
+            child.PaintPortableRetainedControlTree(
+                frame,
+                new Point(
+                    checked(absoluteLocation.X + child._x),
+                    checked(absoluteLocation.Y + child._y)),
+                absoluteClip);
+        }
+    }
+
+    private void PaintPortableControlTree(Graphics graphics, Point absoluteLocation, Rectangle surfaceClip)
+    {
+        if (!Visible || _width <= 0 || _height <= 0)
+        {
+            return;
+        }
+
+        Rectangle absoluteBounds = new(absoluteLocation.X, absoluteLocation.Y, _width, _height);
+        Rectangle absoluteClip = Rectangle.Intersect(surfaceClip, absoluteBounds);
+        if (absoluteClip.IsEmpty)
+        {
+            return;
+        }
+
+        Rectangle localClip = new(
+            absoluteClip.X - absoluteLocation.X,
+            absoluteClip.Y - absoluteLocation.Y,
+            absoluteClip.Width,
+            absoluteClip.Height);
+        System.Drawing.Drawing2D.GraphicsState controlState = graphics.Save();
+        try
+        {
+            graphics.TranslateTransform(absoluteLocation.X, absoluteLocation.Y);
+            graphics.SetClip(localClip, System.Drawing.Drawing2D.CombineMode.Intersect);
+            using PaintEventArgs paintEvent = new(
+                graphics,
+                localClip,
+                DrawingEventFlags.SaveState | DrawingEventFlags.GraphicsStateUnclean);
+            PaintWithErrorHandling(paintEvent, PaintLayerBackground);
+            paintEvent.ResetGraphics();
+            PaintWithErrorHandling(paintEvent, PaintLayerForeground);
+        }
+        finally
+        {
+            graphics.Restore(controlState);
+        }
+
+        if (ChildControls is not { } children)
+        {
+            return;
+        }
+
+        // WinForms index zero is the top of z-order, so record back-to-front.
+        for (int index = children.Count - 1; index >= 0; index--)
+        {
+            Control child = children[index];
+            child.PaintPortableControlTree(
+                graphics,
+                new Point(
+                    checked(absoluteLocation.X + child._x),
+                    checked(absoluteLocation.Y + child._y)),
+                absoluteClip);
+        }
+    }
+
+    internal void OffsetPortableBounds(int xDelta, int yDelta)
+        => UpdateBounds(
+            checked(_x + xDelta),
+            checked(_y + yDelta),
+            _width,
+            _height,
+            _clientWidth,
+            _clientHeight);
+
+    internal LibreHandle PortableHandle => _window.PortableHandle;
+#endif
 
     /// <summary>
     ///  Updates the bounds of the control based on the handle the control is bound to.
@@ -10851,6 +11735,11 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected internal void UpdateBounds()
     {
+#if LIBREWINFORMS_PORTABLE
+        // Bounds changes are pushed from ILibreWindowEvents; logical child controls already
+        // keep their managed values current in SetBoundsCore.
+        return;
+#else
         RECT rect = default;
         int clientWidth = 0;
         int clientHeight = 0;
@@ -10874,6 +11763,7 @@ public unsafe partial class Control :
             rect.Height,
             clientWidth,
             clientHeight);
+#endif
     }
 
     /// <summary>
@@ -11023,6 +11913,12 @@ public unsafe partial class Control :
             return;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        // Logical child controls are ordered by the canonical ControlCollection. The retained
+        // portable renderer consumes that managed ordering and there is no child native window
+        // whose z-order needs to be synchronized.
+        return;
+#else
         HWND previous = HWND.HWND_TOP;
         for (int i = Controls.GetChildIndex(control); --i >= 0;)
         {
@@ -11050,6 +11946,7 @@ public unsafe partial class Control :
                 _state &= ~States.NoZOrder;
             }
         }
+#endif
     }
 
     /// <summary>
@@ -11101,6 +11998,7 @@ public unsafe partial class Control :
             SetState(States.Mirrored, ((WINDOW_EX_STYLE)cp.ExStyle).HasFlag(WINDOW_EX_STYLE.WS_EX_LAYOUTRTL));
         }
 
+#if !LIBREWINFORMS_PORTABLE
         PInvoke.SetWindowPos(
             this,
             HWND.HWND_TOP,
@@ -11110,6 +12008,7 @@ public unsafe partial class Control :
                 | SET_WINDOW_POS_FLAGS.SWP_NOMOVE
                 | SET_WINDOW_POS_FLAGS.SWP_NOSIZE
                 | SET_WINDOW_POS_FLAGS.SWP_NOZORDER);
+#endif
 
         Invalidate(true);
     }
@@ -11131,6 +12030,10 @@ public unsafe partial class Control :
     {
         _window.ReleaseHandle();
     }
+
+#if LIBREWINFORMS_PORTABLE
+    internal void DispatchPortableMessage(uint message) => _window.DispatchPortableMessage(message);
+#endif
 
     private void WmClose(ref Message m)
     {
@@ -11563,10 +12466,6 @@ public unsafe partial class Control :
     {
         DefWndProc(ref m);
 
-        // Cache the current DPI before updating DeviceDpiInternal.
-        OriginalDeviceDpiInternal = DeviceDpiInternal;
-        int oldDeviceDpi = DeviceDpiInternal;
-
         // In order to support tests, will be querying Dpi from the message first.
         int newDeviceDpi = (short)m.WParamInternal.LOWORD;
 
@@ -11576,9 +12475,22 @@ public unsafe partial class Control :
             newDeviceDpi = (int)PInvoke.GetDpiForWindow(this);
         }
 
+        ApplyDpiChangeBeforeParent(newDeviceDpi, raiseEvent: true);
+    }
+
+    private void ApplyDpiChangeBeforeParent(int newDeviceDpi, bool raiseEvent)
+    {
+        // Cache the current DPI before updating DeviceDpiInternal.
+        OriginalDeviceDpiInternal = DeviceDpiInternal;
+        int oldDeviceDpi = DeviceDpiInternal;
+
         if (OriginalDeviceDpiInternal == newDeviceDpi)
         {
-            OnDpiChangedBeforeParent(EventArgs.Empty);
+            if (raiseEvent)
+            {
+                OnDpiChangedBeforeParent(EventArgs.Empty);
+            }
+
             return;
         }
 
@@ -11589,7 +12501,11 @@ public unsafe partial class Control :
 
         if (fontDpi == DeviceDpiInternal)
         {
-            OnDpiChangedBeforeParent(EventArgs.Empty);
+            if (raiseEvent)
+            {
+                OnDpiChangedBeforeParent(EventArgs.Empty);
+            }
+
             return;
         }
 
@@ -11621,8 +12537,17 @@ public unsafe partial class Control :
             RescaleConstantsForDpi(OriginalDeviceDpiInternal, DeviceDpiInternal);
         }
 
-        OnDpiChangedBeforeParent(EventArgs.Empty);
+        if (raiseEvent)
+        {
+            OnDpiChangedBeforeParent(EventArgs.Empty);
+        }
     }
+
+    internal void ApplyPortableDpiChangeBeforeParent(int newDeviceDpi)
+        => ApplyDpiChangeBeforeParent(newDeviceDpi, raiseEvent: true);
+
+    internal void ApplyPortableDpiChangeAfterParent()
+        => OnDpiChangedAfterParent(EventArgs.Empty);
 
     /// <summary>
     ///  Handles the WM_DPICHANGED_AFTERPARENT message
@@ -11686,7 +12611,7 @@ public unsafe partial class Control :
             bool fireClick = _controlStyle.HasFlag(ControlStyles.StandardClick)
                 && GetState(States.MousePressed)
                 && !IsDisposed
-                && PInvoke.WindowFromPoint(screenLocation) == HWND;
+                && IsMousePointerDirectlyOver(location);
 
             if (fireClick && !ValidationCancelled)
             {
@@ -12893,8 +13818,12 @@ public unsafe partial class Control :
 
     internal virtual Rectangle GetToolNativeScreenRectangle()
     {
+#if LIBREWINFORMS_PORTABLE
+        return RectangleToScreen(ClientRectangle);
+#else
         PInvokeCore.GetWindowRect(this, out var rect);
         return rect;
+#endif
     }
 
     internal virtual bool AllowsKeyboardToolTip()
@@ -12911,8 +13840,19 @@ public unsafe partial class Control :
 
     internal static unsafe bool AreCommonNavigationalKeysDown()
     {
+#if LIBREWINFORMS_PORTABLE
+        return s_portableKeysDown is { } keysDown
+            && (keysDown.Contains(Keys.Tab)
+                || keysDown.Contains(Keys.Up)
+                || keysDown.Contains(Keys.Down)
+                || keysDown.Contains(Keys.Left)
+                || keysDown.Contains(Keys.Right)
+                || keysDown.Contains(Keys.Menu)
+                || keysDown.Contains(Keys.F10)
+                || keysDown.Contains(Keys.Escape));
+#else
         static bool IsKeyDown(Keys key, ReadOnlySpan<byte> stateArray)
-            => (stateArray[(int)key] & HighOrderBitMask) != 0;
+            => (stateArray[(int)key] & 0x80) != 0;
 
         ReadOnlySpan<byte> stateArray = stackalloc byte[256];
 
@@ -12929,6 +13869,7 @@ public unsafe partial class Control :
                 || IsKeyDown(Keys.F10, stateArray)
                 || IsKeyDown(Keys.Escape, stateArray);
         }
+#endif
     }
 
     internal virtual ToolInfoWrapper<Control> GetToolInfoWrapper(TOOLTIP_FLAGS flags, string? caption, ToolTip tooltip)
