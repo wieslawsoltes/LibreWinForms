@@ -51,8 +51,8 @@ public class ProGpuDispatcherTests
         services.FontDialogs.Should().BeOfType<ManagedLibreFontDialogService>();
         services.Clipboard.Should().BeOfType<ProGpuClipboardService>();
         services.Clipboard.IsSupported.Should().BeTrue();
-        services.DragDrop.Should().BeSameAs(UnsupportedLibreDragDropService.Instance);
-        services.DragDrop.IsSupported.Should().BeFalse();
+        services.DragDrop.Should().BeOfType<ProGpuDragDropService>();
+        services.DragDrop.IsSupported.Should().BeTrue();
         if (OperatingSystem.IsLinux())
         {
             services.FileDialogs.Should().BeOfType<PreferredLinuxLibreFileDialogService>();
@@ -97,6 +97,35 @@ public class ProGpuDispatcherTests
     }
 
     [Fact]
+    public void DragDrop_RunsNestedLocalSessionAndDropsOnPointerRelease()
+    {
+        using ProGpuDispatcher dispatcher = new();
+        LibreHandle target = new(42, LibreHandleKind.LogicalControl);
+        TestDragInputSource input = new(
+            dispatcher,
+            new ProGpuDragInput(ProGpuDragInputKind.Pointer, new LibrePoint(10, 20), KeyState: 1),
+            [
+                new ProGpuDragInput(ProGpuDragInputKind.Pointer, new LibrePoint(15, 25), KeyState: 1),
+                new ProGpuDragInput(ProGpuDragInputKind.Pointer, new LibrePoint(15, 25), KeyState: 0),
+            ]);
+        ProGpuDragDropService dragDrop = new(dispatcher, input);
+        dragDrop.SetTargetEnabled(target, enabled: true);
+        TestDragDropSession session = new(target);
+        LibreDragDropRequest request = new(
+            new LibreHandle(7, LibreHandleKind.LogicalControl),
+            new TestDataTransfer(new Dictionary<string, object?> { ["UnicodeText"] = "drag" }),
+            LibreDragDropEffects.Copy | LibreDragDropEffects.Move,
+            default,
+            UseDefaultDragImage: false);
+
+        dragDrop.DoDragDrop(request, session).Should().Be(LibreDragDropEffects.Copy);
+
+        input.EndCount.Should().Be(1);
+        session.Sequence.Should().Equal("enter", "feedback", "over", "feedback", "over", "feedback", "drop");
+        session.LastScreenPosition.Should().Be(new LibrePoint(15, 25));
+    }
+
+    [Fact]
     public void FontCatalog_ProjectsRealProGpuFamiliesAndMetadata()
     {
         IReadOnlyList<LibreFontFamilyInfo> families = new ProGpuFontCatalog().GetFamilies();
@@ -116,6 +145,81 @@ public class ProGpuDispatcherTests
 
         public object? GetData(string format, bool autoConvert)
             => data.TryGetValue(format, out object? value) ? value : null;
+    }
+
+    private sealed class TestDragInputSource(
+        ProGpuDispatcher dispatcher,
+        ProGpuDragInput initial,
+        IReadOnlyList<ProGpuDragInput> inputs) : IProGpuDragInputSource
+    {
+        internal int EndCount { get; private set; }
+
+        public ProGpuDragInput BeginDrag(IProGpuDragInputSink sink)
+        {
+            foreach (ProGpuDragInput input in inputs)
+            {
+                ProGpuDragInput captured = input;
+                dispatcher.Post(() => sink.Input(captured));
+            }
+
+            return initial;
+        }
+
+        public void EndDrag(IProGpuDragInputSink sink) => EndCount++;
+    }
+
+    private sealed class TestDragDropSession(LibreHandle target) : ILibreDragDropSession
+    {
+        internal List<string> Sequence { get; } = [];
+
+        internal LibrePoint LastScreenPosition { get; private set; }
+
+        public LibreHandle HitTest(LibrePoint screenPosition)
+        {
+            LastScreenPosition = screenPosition;
+            return target;
+        }
+
+        public LibreDragTransition Enter(
+            LibreHandle hitTarget,
+            int keyState,
+            LibrePoint screenPosition,
+            LibreDragDropEffects effect)
+        {
+            Sequence.Add("enter");
+            return new LibreDragTransition(hitTarget, LibreDragDropEffects.Copy);
+        }
+
+        public LibreDragDropEffects Over(
+            LibreHandle activeTarget,
+            int keyState,
+            LibrePoint screenPosition,
+            LibreDragDropEffects effect)
+        {
+            Sequence.Add("over");
+            return LibreDragDropEffects.Copy;
+        }
+
+        public void Leave(LibreHandle activeTarget) => Sequence.Add("leave");
+
+        public LibreDragDropEffects Drop(
+            LibreHandle activeTarget,
+            int keyState,
+            LibrePoint screenPosition,
+            LibreDragDropEffects effect)
+        {
+            Sequence.Add("drop");
+            return effect;
+        }
+
+        public LibreDragAction QueryContinue(int keyState, bool escapePressed)
+            => escapePressed ? LibreDragAction.Cancel : LibreDragAction.Continue;
+
+        public bool GiveFeedback(LibreDragDropEffects effect)
+        {
+            Sequence.Add("feedback");
+            return true;
+        }
     }
 
     [Fact]

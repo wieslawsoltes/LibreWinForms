@@ -48,6 +48,8 @@ public readonly record struct LibreDragTransition(
 /// </summary>
 public interface ILibreDragDropSession
 {
+    LibreHandle HitTest(LibrePoint screenPosition);
+
     LibreDragTransition Enter(
         LibreHandle hitTarget,
         int keyState,

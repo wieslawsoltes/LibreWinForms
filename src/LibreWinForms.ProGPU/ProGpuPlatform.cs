@@ -35,6 +35,7 @@ public static class ProGpuPlatform
         ProGpuTimerService timers = new(dispatcher);
         SilkMonitorService monitors = new();
         SilkWindowService windows = new(dispatcher, handles, monitors);
+        ProGpuDragDropService dragDrop = new(dispatcher, windows);
         ProGpuPaintService painting = new(dispatcher, handles, windows);
         ProGpuPopupSurfaceService popups = new(dispatcher, windows, painting);
         ProGpuTextRendererService textRenderer = new();
@@ -106,7 +107,7 @@ public static class ProGpuPlatform
                 new ProGpuFontCatalog()),
             fileDialogs,
             new DefaultLibreInputLanguageService(CultureInfo.CurrentCulture),
-            UnsupportedLibreDragDropService.Instance,
+            dragDrop,
             popups,
             new ProGpuClipboardService(dispatcher));
     }

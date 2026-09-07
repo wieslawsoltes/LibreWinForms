@@ -17,7 +17,7 @@ using DrawingColor = System.Drawing.Color;
 
 namespace LibreWinForms.ProGPU;
 
-public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindowOwnerService
+public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindowOwnerService, IProGpuDragInputSource
 {
     private readonly ProGpuDispatcher _dispatcher;
     private readonly ILibreHandleRegistry _handles;
@@ -25,6 +25,9 @@ public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindo
     private readonly Lock _windowSync = new();
     private readonly HashSet<SilkLibreWindow> _windows = [];
     private readonly ProGpuReversibleDrawingStore _reversibleDrawing = new();
+    private IProGpuDragInputSink? _dragInputSink;
+    private ProGpuDragInput _lastDragInput;
+    private int _dragKeyState;
 
     public SilkWindowService(ProGpuDispatcher dispatcher, ILibreHandleRegistry handles)
         : this(dispatcher, handles, new SilkMonitorService())
@@ -100,6 +103,91 @@ public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindo
         {
             _windows.Remove(window);
         }
+    }
+
+    internal ProGpuDragInput BeginDrag(IProGpuDragInputSink sink)
+    {
+        ArgumentNullException.ThrowIfNull(sink);
+        lock (_windowSync)
+        {
+            if (_dragInputSink is not null)
+            {
+                throw new InvalidOperationException("A Silk drag operation is already active.");
+            }
+
+            _dragInputSink = sink;
+            return _lastDragInput;
+        }
+    }
+
+    ProGpuDragInput IProGpuDragInputSource.BeginDrag(IProGpuDragInputSink sink) => BeginDrag(sink);
+
+    internal void EndDrag(IProGpuDragInputSink sink)
+    {
+        lock (_windowSync)
+        {
+            if (ReferenceEquals(_dragInputSink, sink))
+            {
+                _dragInputSink = null;
+            }
+        }
+    }
+
+    void IProGpuDragInputSource.EndDrag(IProGpuDragInputSink sink) => EndDrag(sink);
+
+    internal bool RecordDragInput(SilkLibreWindow window, in LibreInputEvent inputEvent)
+    {
+        ProGpuDragInput input;
+        IProGpuDragInputSink? sink;
+        lock (_windowSync)
+        {
+            int button = inputEvent.Button switch
+            {
+                LibrePointerButton.Primary => 0x0001,
+                LibrePointerButton.Secondary => 0x0002,
+                LibrePointerButton.Middle => 0x0010,
+                _ => 0,
+            };
+            if (inputEvent.Kind == LibreInputEventKind.PointerDown)
+            {
+                _dragKeyState |= button;
+            }
+            else if (inputEvent.Kind == LibreInputEventKind.PointerUp)
+            {
+                _dragKeyState &= ~button;
+            }
+
+            _dragKeyState &= ~(0x0004 | 0x0008 | 0x0020);
+            if (inputEvent.Modifiers.HasFlag(LibreInputModifiers.Shift)) _dragKeyState |= 0x0004;
+            if (inputEvent.Modifiers.HasFlag(LibreInputModifiers.Control)) _dragKeyState |= 0x0008;
+            if (inputEvent.Modifiers.HasFlag(LibreInputModifiers.Alt)) _dragKeyState |= 0x0020;
+
+            ProGpuDragInputKind kind = inputEvent.Kind == LibreInputEventKind.KeyDown
+                && inputEvent.Key == LibreKey.Escape
+                    ? ProGpuDragInputKind.Escape
+                    : ProGpuDragInputKind.Pointer;
+            if (inputEvent.Kind is LibreInputEventKind.PointerDown
+                or LibreInputEventKind.PointerUp
+                or LibreInputEventKind.PointerMove)
+            {
+                LibreRectangle bounds = window.Bounds;
+                _lastDragInput = new ProGpuDragInput(
+                    kind,
+                    new LibrePoint(
+                        checked(bounds.X + inputEvent.Position.X),
+                        checked(bounds.Y + inputEvent.Position.Y)),
+                    _dragKeyState);
+            }
+            else
+            {
+                _lastDragInput = _lastDragInput with { Kind = kind, KeyState = _dragKeyState };
+            }
+
+            input = _lastDragInput;
+            sink = _dragInputSink;
+        }
+
+        return sink?.Input(input) == true;
     }
 
     internal void RefreshReversibleDrawing(SilkLibreWindow window)
@@ -1586,6 +1674,11 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
 
     private void DeliverInput(in LibreInputEvent inputEvent)
     {
+        if (_service.RecordDragInput(this, inputEvent))
+        {
+            return;
+        }
+
         if (_enabled || inputEvent.Kind == LibreInputEventKind.FocusLost)
         {
             _events.Input(inputEvent);

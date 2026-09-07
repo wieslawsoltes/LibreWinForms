@@ -63,6 +63,35 @@ public unsafe partial class Control
         Point cursorOffset,
         bool useDefaultDragImage) : ILibreDragDropSession
     {
+        public LibreHandle HitTest(LibrePoint screenPosition)
+        {
+            Point screenPoint = new(screenPosition.X, screenPosition.Y);
+            Form? active = Form.ActiveForm;
+            Control? target = active is null ? null : HitTestForm(active, screenPoint);
+            if (target is not null)
+            {
+                return target.PortableHandle;
+            }
+
+            FormCollection openForms = Application.OpenForms;
+            for (int index = openForms.Count - 1; index >= 0; index--)
+            {
+                Form form = openForms[index];
+                if (ReferenceEquals(form, active))
+                {
+                    continue;
+                }
+
+                target = HitTestForm(form, screenPoint);
+                if (target is not null)
+                {
+                    return target.PortableHandle;
+                }
+            }
+
+            return default;
+        }
+
         public LibreDragTransition Enter(
             LibreHandle hitTarget,
             int keyState,
@@ -170,8 +199,50 @@ public unsafe partial class Control
             return target?.AllowDrop == true ? target : null;
         }
 
+        private static Control? HitTestForm(Form form, Point screenPoint)
+        {
+            if (!form.Visible || !form.Enabled || !form.Bounds.Contains(screenPoint))
+            {
+                return null;
+            }
+
+            Control current = form;
+            while (true)
+            {
+                Point clientPoint = current.PointToClient(screenPoint);
+                if (!current.ClientRectangle.Contains(clientPoint))
+                {
+                    break;
+                }
+
+                Control? child = current.GetChildAtPoint(
+                    clientPoint,
+                    GetChildAtPointSkip.Invisible | GetChildAtPointSkip.Disabled);
+                if (child is null)
+                {
+                    break;
+                }
+
+                current = child;
+            }
+
+            while (!current.AllowDrop)
+            {
+                if (current.ParentInternal is not { } parent)
+                {
+                    return null;
+                }
+
+                current = parent;
+            }
+
+            return current;
+        }
+
         private static Control? ResolveTarget(LibreHandle handle)
-            => handle.Kind == LibreHandleKind.LogicalControl ? FromHandle(handle.Value) : null;
+            => handle.Kind is LibreHandleKind.LogicalControl or LibreHandleKind.Window
+                ? FromHandle(handle.Value)
+                : null;
     }
 }
 #endif

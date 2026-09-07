@@ -360,10 +360,10 @@ public class CanonicalLifecycleTests
             Bounds = new Rectangle(300, 400, 240, 180),
             StartPosition = FormStartPosition.Manual
         };
-        using Control source = new() { Name = "source", Location = new Point(7, 9) };
-        using Control parent = new() { Name = "parent", Location = new Point(20, 30), AllowDrop = true };
-        using Control child = new() { Name = "child", Location = new Point(4, 5) };
-        using Control second = new() { Name = "second", Location = new Point(70, 80), AllowDrop = true };
+        using Control source = new() { Name = "source", Location = new Point(7, 9), Size = new Size(20, 20) };
+        using Control parent = new() { Name = "parent", Location = new Point(20, 30), Size = new Size(40, 40), AllowDrop = true };
+        using Control child = new() { Name = "child", Location = new Point(4, 5), Size = new Size(20, 20) };
+        using Control second = new() { Name = "second", Location = new Point(70, 80), Size = new Size(30, 30), AllowDrop = true };
         parent.Controls.Add(child);
         form.Controls.AddRange([source, parent, second]);
         form.Show();
@@ -436,6 +436,9 @@ public class CanonicalLifecycleTests
             request.Data.Formats.Should().BeEquivalentTo([DataFormats.FileDrop, DataFormats.UnicodeText]);
             request.Data.Contains(DataFormats.UnicodeText, autoConvert: false).Should().BeTrue();
             request.Data.GetData(DataFormats.UnicodeText, autoConvert: false).Should().Be("canonical drag text");
+            session.HitTest(new LibrePoint(327, 439)).Should().Be(parentHandle);
+            session.HitTest(new LibrePoint(371, 481)).Should().Be(secondHandle);
+            session.HitTest(new LibrePoint(1, 1)).Should().Be(default(LibreHandle));
             session.QueryContinue(keyState: 8, escapePressed: false).Should().Be(LibreDragAction.Continue);
             session.GiveFeedback(LibreDragDropEffects.Copy).Should().BeFalse();
 
