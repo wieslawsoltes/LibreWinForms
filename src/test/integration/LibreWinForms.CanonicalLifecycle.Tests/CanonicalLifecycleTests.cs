@@ -26,6 +26,28 @@ public class CanonicalLifecycleTests
     private delegate int AddValues(int left, int right);
 
     [Fact]
+    public void Clipboard_UsesCanonicalDataObjectThroughTypedPlatformService()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        DataObject custom = new();
+        custom.SetText("designer text");
+        custom.SetData("CF_DESIGNERCOMPONENTS", autoConvert: false, new[] { "button1" });
+
+        Clipboard.SetDataObject(custom, copy: true);
+
+        platform.ClipboardPersist.Should().BeTrue();
+        platform.ClipboardRetryTimes.Should().Be(10);
+        platform.ClipboardRetryDelay.Should().Be(100);
+        Clipboard.GetDataObject().Should().BeSameAs(custom);
+        Clipboard.GetText().Should().Be("designer text");
+        Clipboard.ContainsData("CF_DESIGNERCOMPONENTS").Should().BeTrue();
+
+        Clipboard.Clear();
+        Clipboard.GetDataObject().Should().BeNull();
+        Clipboard.GetText().Should().BeEmpty();
+    }
+
+    [Fact]
     public void ApplicationIdle_CoalescesDispatcherPostAndHonorsSubscriberRemoval()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -5730,7 +5752,8 @@ public class CanonicalLifecycleTests
         ILibreFontDialogService,
         ILibreFileDialogService,
         ILibreInputLanguageService,
-        ILibreDragDropService
+        ILibreDragDropService,
+        ILibreClipboardService
     {
         private static readonly LibreInputLanguageDescriptor[] s_inputLanguages =
         [
@@ -5778,6 +5801,7 @@ public class CanonicalLifecycleTests
                 this,
                 this,
                 this,
+                this,
                 this);
         }
 
@@ -5803,6 +5827,10 @@ public class CanonicalLifecycleTests
             _externalWindowOwners.Clear();
             DragDropHandler = null;
             DragDropTargets.Clear();
+            ClipboardData = null;
+            ClipboardPersist = false;
+            ClipboardRetryTimes = 0;
+            ClipboardRetryDelay = 0;
             ReversibleDrawCalls.Clear();
             Adorners.Clear();
             AdornerRemoveCount = 0;
@@ -5895,6 +5923,14 @@ public class CanonicalLifecycleTests
         internal Func<LibreDragDropRequest, ILibreDragDropSession, LibreDragDropEffects>? DragDropHandler { get; set; }
 
         internal HashSet<LibreHandle> DragDropTargets { get; } = [];
+
+        internal ILibreDataTransfer? ClipboardData { get; private set; }
+
+        internal bool ClipboardPersist { get; private set; }
+
+        internal int ClipboardRetryTimes { get; private set; }
+
+        internal int ClipboardRetryDelay { get; private set; }
 
         internal List<ReversibleDrawCall> ReversibleDrawCalls { get; } = [];
 
@@ -6483,6 +6519,18 @@ public class CanonicalLifecycleTests
             LibreDragDropRequest request,
             ILibreDragDropSession session)
             => DragDropHandler?.Invoke(request, session) ?? LibreDragDropEffects.None;
+
+        public void Clear() => ClipboardData = null;
+
+        public ILibreDataTransfer? GetData() => ClipboardData;
+
+        public void SetData(ILibreDataTransfer data, bool persist, int retryTimes, int retryDelay)
+        {
+            ClipboardData = data;
+            ClipboardPersist = persist;
+            ClipboardRetryTimes = retryTimes;
+            ClipboardRetryDelay = retryDelay;
+        }
 
         internal int DispatcherPostCount => Volatile.Read(ref _dispatcherPostCount);
 

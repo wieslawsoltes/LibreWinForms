@@ -488,6 +488,8 @@ public class LibrePlatformTests
 
         services.DragDrop.Should().BeSameAs(UnsupportedLibreDragDropService.Instance);
         services.DragDrop.IsSupported.Should().BeFalse();
+        services.Clipboard.Should().BeSameAs(UnsupportedLibreClipboardService.Instance);
+        services.Clipboard.IsSupported.Should().BeFalse();
         Action create = () => new LibrePlatformServices(
             test, test, test.Handles, test, test, test, test, test, test, test,
             test, test, test, test, test, test, test, test, null!);

@@ -107,7 +107,8 @@ public static class ProGpuPlatform
             fileDialogs,
             new DefaultLibreInputLanguageService(CultureInfo.CurrentCulture),
             UnsupportedLibreDragDropService.Instance,
-            popups);
+            popups,
+            new ProGpuClipboardService(dispatcher));
     }
 
     public static void Register() => LibrePlatform.Register(CreateServices());

@@ -404,7 +404,8 @@ public sealed class LibrePlatformServices : IDisposable
         ILibreFileDialogService fileDialogs,
         ILibreInputLanguageService inputLanguages,
         ILibreDragDropService dragDrop,
-        ILibrePopupSurfaceService? popups = null)
+        ILibrePopupSurfaceService? popups = null,
+        ILibreClipboardService? clipboard = null)
     {
         Dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         ThreadDispatchers = dispatcher as ILibreThreadDispatcherProvider
@@ -434,6 +435,7 @@ public sealed class LibrePlatformServices : IDisposable
         InputLanguages = inputLanguages ?? throw new ArgumentNullException(nameof(inputLanguages));
         DragDrop = dragDrop ?? throw new ArgumentNullException(nameof(dragDrop));
         Popups = popups ?? UnsupportedLibrePopupSurfaceService.Instance;
+        Clipboard = clipboard ?? UnsupportedLibreClipboardService.Instance;
     }
 
     public ILibreDispatcher Dispatcher { get; }
@@ -484,6 +486,8 @@ public sealed class LibrePlatformServices : IDisposable
 
     public ILibrePopupSurfaceService Popups { get; }
 
+    public ILibreClipboardService Clipboard { get; }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
@@ -492,6 +496,7 @@ public sealed class LibrePlatformServices : IDisposable
         }
 
         HashSet<IDisposable> disposed = new(ReferenceEqualityComparer.Instance);
+        DisposeService(Clipboard, disposed);
         DisposeService(Popups, disposed);
         DisposeService(DragDrop, disposed);
         DisposeService(InputLanguages, disposed);

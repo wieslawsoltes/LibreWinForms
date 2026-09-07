@@ -49,6 +49,8 @@ public class ProGpuDispatcherTests
         services.MessageBoxes.Should().BeOfType<ManagedLibreMessageBoxService>();
         services.ColorDialogs.Should().BeOfType<ManagedLibreColorDialogService>();
         services.FontDialogs.Should().BeOfType<ManagedLibreFontDialogService>();
+        services.Clipboard.Should().BeOfType<ProGpuClipboardService>();
+        services.Clipboard.IsSupported.Should().BeTrue();
         services.DragDrop.Should().BeSameAs(UnsupportedLibreDragDropService.Instance);
         services.DragDrop.IsSupported.Should().BeFalse();
         if (OperatingSystem.IsLinux())
@@ -64,6 +66,37 @@ public class ProGpuDispatcherTests
     }
 
     [Fact]
+    public void Clipboard_PreservesRichDataAndSynchronizesSystemText()
+    {
+        using ProGpuDispatcher dispatcher = new();
+        string? systemText = null;
+        ProGpuClipboardService clipboard = new(
+            dispatcher,
+            () => systemText,
+            value => systemText = value);
+        TestDataTransfer rich = new(new Dictionary<string, object?>
+        {
+            ["UnicodeText"] = "inside",
+            ["CF_DESIGNERCOMPONENTS"] = new[] { "button1" },
+        });
+
+        clipboard.SetData(rich, persist: true, retryTimes: 10, retryDelay: 100);
+
+        systemText.Should().Be("inside");
+        clipboard.GetData().Should().BeSameAs(rich);
+
+        systemText = "outside";
+        ILibreDataTransfer? external = clipboard.GetData();
+        external.Should().NotBeNull().And.NotBeSameAs(rich);
+        external!.Contains("UnicodeText", autoConvert: true).Should().BeTrue();
+        external.GetData("Text", autoConvert: true).Should().Be("outside");
+
+        clipboard.Clear();
+        systemText.Should().BeEmpty();
+        clipboard.GetData().Should().BeNull();
+    }
+
+    [Fact]
     public void FontCatalog_ProjectsRealProGpuFamiliesAndMetadata()
     {
         IReadOnlyList<LibreFontFamilyInfo> families = new ProGpuFontCatalog().GetFamilies();
@@ -73,6 +106,16 @@ public class ProGpuDispatcherTests
         families.Should().Contain(static family => family.IsVector);
         families.Should().OnlyContain(static family =>
             family.HasRegular || family.HasBold || family.HasItalic || family.HasBoldItalic);
+    }
+
+    private sealed class TestDataTransfer(IReadOnlyDictionary<string, object?> data) : ILibreDataTransfer
+    {
+        public IReadOnlyList<string> Formats { get; } = [.. data.Keys];
+
+        public bool Contains(string format, bool autoConvert) => data.ContainsKey(format);
+
+        public object? GetData(string format, bool autoConvert)
+            => data.TryGetValue(format, out object? value) ? value : null;
     }
 
     [Fact]

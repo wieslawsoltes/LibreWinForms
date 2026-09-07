@@ -14,7 +14,7 @@ namespace System.Windows.Forms;
 /// <summary>
 ///  Provides methods to place data on and retrieve data from the system clipboard. This class cannot be inherited.
 /// </summary>
-public static class Clipboard
+public static partial class Clipboard
 {
     /// <summary>
     ///  Places non-persistent data on the system <see cref="Clipboard"/>.
@@ -44,12 +44,20 @@ public static class Clipboard
 
         // Wrap if we're not already a DataObject
         DataObject dataObject = data as DataObject ?? new WrappingDataObject(data);
+#if LIBREWINFORMS_PORTABLE
+        LibreWinForms.Platform.LibrePlatform.Current.Clipboard.SetData(
+            new PortableClipboardDataTransfer(dataObject),
+            copy,
+            retryTimes,
+            retryDelay);
+#else
         HRESULT result = ClipboardCore.SetData(dataObject, copy, retryTimes, retryDelay);
 
         if (result.Failed)
         {
             throw new ExternalException(SR.ClipboardOperationFailed, (int)result);
         }
+#endif
     }
 
     /// <summary>
@@ -57,6 +65,9 @@ public static class Clipboard
     /// </summary>
     public static unsafe IDataObject? GetDataObject()
     {
+#if LIBREWINFORMS_PORTABLE
+        return GetPortableDataObject();
+#else
         HRESULT result = ClipboardCore.GetDataObject<DataObject, IDataObject>(out IDataObject? dataObject);
         if (result.Failed)
         {
@@ -65,6 +76,7 @@ public static class Clipboard
         }
 
         return dataObject;
+#endif
     }
 
     /// <summary>
@@ -72,11 +84,15 @@ public static class Clipboard
     /// </summary>
     public static unsafe void Clear()
     {
+#if LIBREWINFORMS_PORTABLE
+        LibreWinForms.Platform.LibrePlatform.Current.Clipboard.Clear();
+#else
         HRESULT result = ClipboardCore.Clear();
         if (result.Failed)
         {
             throw new ExternalException(SR.ClipboardOperationFailed, (int)result);
         }
+#endif
     }
 
     /// <summary>
@@ -453,8 +469,16 @@ public static class Clipboard
     /// <summary>
     ///  Clears the Clipboard and then adds a collection of file names in the <see cref="DataFormats.FileDrop"/> format.
     /// </summary>
-    public static void SetFileDropList(StringCollection filePaths) =>
+    public static void SetFileDropList(StringCollection filePaths)
+    {
+#if LIBREWINFORMS_PORTABLE
+        DataObject dataObject = new();
+        dataObject.SetFileDropList(filePaths);
+        SetDataObject(dataObject, copy: true);
+#else
         ClipboardCore.SetFileDropList(filePaths);
+#endif
+    }
 
     /// <summary>
     ///  Clears the Clipboard and then adds an <see cref="Image"/> in the <see cref="DataFormats.Bitmap"/> format.
