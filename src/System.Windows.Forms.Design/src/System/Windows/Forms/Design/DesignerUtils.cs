@@ -24,6 +24,7 @@ internal static class DesignerUtils
     private static HatchBrush s_selectionBorderBrush =
         new(HatchStyle.Percent50, SystemColors.ControlDarkDark, SystemColors.ControlDarkDark);
     // Pens and Brushes used via GDI to render our grabhandles
+#if !LIBREWINFORMS_PORTABLE
     private static HBRUSH s_grabHandleFillBrushPrimary =
         PInvokeCore.CreateSolidBrush((COLORREF)(uint)ColorTranslator.ToWin32(SystemColors.Window));
     private static HBRUSH s_grabHandleFillBrush =
@@ -32,6 +33,7 @@ internal static class DesignerUtils
         PInvokeCore.CreatePen(PEN_STYLE.PS_SOLID, cWidth: 1, (COLORREF)(uint)ColorTranslator.ToWin32(SystemColors.ControlText));
     private static HPEN s_grabHandlePen =
         PInvokeCore.CreatePen(PEN_STYLE.PS_SOLID, cWidth: 1, (COLORREF)(uint)ColorTranslator.ToWin32(SystemColors.Window));
+#endif
 
     // The box-like image used as the user is dragging comps from the toolbox
     private static Bitmap? s_boxImage;
@@ -169,6 +171,7 @@ internal static class DesignerUtils
         s_selectionBorderBrush.Dispose();
         s_selectionBorderBrush = new HatchBrush(HatchStyle.Percent50, SystemColors.ControlDarkDark, SystemColors.ControlDarkDark);
 
+#if !LIBREWINFORMS_PORTABLE
         PInvokeCore.DeleteObject(s_grabHandleFillBrushPrimary);
         s_grabHandleFillBrushPrimary = PInvokeCore.CreateSolidBrush((COLORREF)(uint)ColorTranslator.ToWin32(SystemColors.Window));
 
@@ -180,6 +183,7 @@ internal static class DesignerUtils
 
         PInvokeCore.DeleteObject(s_grabHandlePen);
         s_grabHandlePen = PInvokeCore.CreatePen(PEN_STYLE.PS_SOLID, cWidth: 1, (COLORREF)(uint)ColorTranslator.ToWin32(SystemColors.Window));
+#endif
     }
 
     /// <summary>
@@ -245,6 +249,14 @@ internal static class DesignerUtils
     /// </summary>
     public static void DrawGrabHandle(Graphics graphics, Rectangle bounds, bool isPrimary)
     {
+#if LIBREWINFORMS_PORTABLE
+        Color fillColor = isPrimary ? SystemColors.Window : SystemColors.ControlText;
+        Color borderColor = isPrimary ? SystemColors.ControlText : SystemColors.Window;
+        using var brush = new SolidBrush(fillColor);
+        using var pen = new Pen(borderColor);
+        graphics.FillRectangle(brush, bounds);
+        graphics.DrawRectangle(pen, bounds.Left, bounds.Top, Math.Max(0, bounds.Width - 1), Math.Max(0, bounds.Height - 1));
+#else
         using DeviceContextHdcScope hDC = graphics.ToHdcScope(ApplyGraphicsProperties.None);
 
         // Set our pen and brush based on primary selection
@@ -253,6 +265,7 @@ internal static class DesignerUtils
 
         // Draw our rounded rect grab handle
         PInvoke.RoundRect(hDC, bounds.Left, bounds.Top, bounds.Right, bounds.Bottom, 2, 2);
+#endif
     }
 
     /// <summary>
@@ -260,6 +273,13 @@ internal static class DesignerUtils
     /// </summary>
     public static void DrawNoResizeHandle(Graphics graphics, Rectangle bounds, bool isPrimary)
     {
+#if LIBREWINFORMS_PORTABLE
+        Color fillColor = isPrimary ? SystemColors.Window : SystemColors.ControlText;
+        using var brush = new SolidBrush(fillColor);
+        using var pen = new Pen(SystemColors.ControlText);
+        graphics.FillRectangle(brush, bounds);
+        graphics.DrawRectangle(pen, bounds.Left, bounds.Top, Math.Max(0, bounds.Width - 1), Math.Max(0, bounds.Height - 1));
+#else
         using DeviceContextHdcScope hDC = graphics.ToHdcScope(ApplyGraphicsProperties.None);
 
         // Set our pen and brush based on primary selection
@@ -268,6 +288,7 @@ internal static class DesignerUtils
 
         // Draw our rect no-resize handle
         PInvokeCore.Rectangle(hDC, bounds.Left, bounds.Top, bounds.Right, bounds.Bottom);
+#endif
     }
 
     /// <summary>
@@ -275,6 +296,25 @@ internal static class DesignerUtils
     /// </summary>
     public static void DrawLockedHandle(Graphics graphics, Rectangle bounds, bool isPrimary)
     {
+#if LIBREWINFORMS_PORTABLE
+        using var pen = new Pen(SystemColors.ControlText);
+        using var primaryBrush = new SolidBrush(SystemColors.Window);
+        using var secondaryBrush = new SolidBrush(SystemColors.ControlText);
+        Rectangle upper = new(
+            bounds.Left + s_lockedHandleUpperOffset,
+            bounds.Top,
+            s_lockedHandleSizeUpper,
+            s_lockedHandleSizeUpper);
+        Rectangle lower = new(
+            bounds.Left,
+            bounds.Top + s_lockedHandleLowerOffset,
+            bounds.Width,
+            Math.Max(0, bounds.Height - s_lockedHandleLowerOffset));
+        graphics.FillRectangle(primaryBrush, upper);
+        graphics.DrawRectangle(pen, upper.Left, upper.Top, Math.Max(0, upper.Width - 1), Math.Max(0, upper.Height - 1));
+        graphics.FillRectangle(isPrimary ? primaryBrush : secondaryBrush, lower);
+        graphics.DrawRectangle(pen, lower.Left, lower.Top, Math.Max(0, lower.Width - 1), Math.Max(0, lower.Height - 1));
+#else
         using DeviceContextHdcScope hDC = graphics.ToHdcScope(ApplyGraphicsProperties.None);
 
         using SelectObjectScope penSelection = new(hDC, s_grabHandlePenPrimary);
@@ -292,6 +332,7 @@ internal static class DesignerUtils
         // Lower rect - its fillbrush depends on the primary selection
         PInvokeCore.SelectObject(hDC, isPrimary ? s_grabHandleFillBrushPrimary : s_grabHandleFillBrush);
         PInvokeCore.Rectangle(hDC, bounds.Left, bounds.Top + s_lockedHandleLowerOffset, bounds.Right, bounds.Bottom);
+#endif
     }
 
     /// <summary>

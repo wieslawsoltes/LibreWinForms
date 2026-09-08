@@ -270,7 +270,11 @@ public sealed partial class BehaviorService : IDisposable
         }
 
         Point pt = new(c.Left, c.Top);
+#if LIBREWINFORMS_PORTABLE
+        pt = _adornerWindow.PointToClient(c.Parent.PointToScreen(pt));
+#else
         PInvokeCore.MapWindowPoints(c.Parent, _adornerWindow, ref pt);
+#endif
         if (c.Parent.IsMirrored)
         {
             pt.X -= c.Width;
@@ -284,8 +288,17 @@ public sealed partial class BehaviorService : IDisposable
     /// </summary>
     public Point MapAdornerWindowPoint(IntPtr handle, Point pt)
     {
+#if LIBREWINFORMS_PORTABLE
+        if (Control.FromHandle(handle) is Control control)
+        {
+            return _adornerWindow.PointToClient(control.PointToScreen(pt));
+        }
+
+        return pt;
+#else
         PInvokeCore.MapWindowPoints((HWND)handle, _adornerWindow, ref pt);
         return pt;
+#endif
     }
 
     /// <summary>

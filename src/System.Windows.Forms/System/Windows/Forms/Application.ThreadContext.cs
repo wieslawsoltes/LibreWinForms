@@ -21,8 +21,10 @@ public sealed partial class Application
     /// </summary>
     internal abstract unsafe partial class ThreadContext : MarshalByRefObject, IHandle<HANDLE>
     {
+#if !LIBREWINFORMS_PORTABLE
         private bool _oleInitialized;
         private bool _externalOleInit;
+#endif
         private bool _inThreadException;
         private bool _filterSnapshotValid;
 
@@ -615,6 +617,12 @@ public sealed partial class Application
 
         internal unsafe ApartmentState OleRequired()
         {
+#if LIBREWINFORMS_PORTABLE
+            // Portable backends provide drag/drop and clipboard services through
+            // typed platform contracts rather than COM apartment initialization.
+            // Treat the UI dispatcher as the STA-equivalent expected by WinForms.
+            return ApartmentState.STA;
+#else
             if (!_oleInitialized)
             {
                 HRESULT hr = PInvokeCore.OleInitialize(pvReserved: (void*)null);
@@ -630,6 +638,7 @@ public sealed partial class Application
             }
 
             return _externalOleInit ? ApartmentState.MTA : ApartmentState.STA;
+#endif
         }
 
         private void OnAppThreadExit(object? sender, EventArgs e) => Dispose(postQuit: true);

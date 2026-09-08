@@ -1427,6 +1427,88 @@ public class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void TextRendererAcceptsNoFullWidthCharacterBreakForPropertyGridLayout()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var bitmap = new Bitmap(240, 80);
+        using Graphics graphics = Graphics.FromImage(bitmap);
+
+        Size measured = TextRenderer.MeasureText(
+            graphics,
+            "managed",
+            SystemFonts.DefaultFont,
+            new Size(80, 40),
+            TextFormatFlags.WordBreak
+                | TextFormatFlags.LeftAndRightPadding
+                | TextFormatFlags.NoFullWidthCharacterBreak);
+
+        measured.Should().Be(new Size(37, 19));
+    }
+
+    [Fact]
+    public void OleRequiredUsesPortableStaEquivalentWithoutNativeOle()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        Assert.Equal(ApartmentState.STA, Application.OleRequired());
+    }
+
+    [Fact]
+    public void ListViewColumnWidthRemainsManagedAfterPortableHandleCreation()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var listView = new ListView { View = View.Details };
+        ColumnHeader column = listView.Columns.Add("Name", 173);
+
+        listView.CreateControl();
+
+        column.Width.Should().Be(173);
+        column.Width = 211;
+        column.Width.Should().Be(211);
+    }
+
+    [Fact]
+    public void ImageListStreamerRoundTripsDesignerResxWithoutBinaryFormatter()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using var source = new ImageList { ImageSize = new Size(8, 8) };
+        using var red = new Bitmap(8, 8, PixelFormat.Format32bppArgb);
+        using var blue = new Bitmap(8, 8, PixelFormat.Format32bppArgb);
+        using (Graphics graphics = Graphics.FromImage(red))
+        {
+            graphics.Clear(Color.FromArgb(128, Color.Red));
+        }
+
+        using (Graphics graphics = Graphics.FromImage(blue))
+        {
+            graphics.Clear(Color.Blue);
+        }
+
+        source.Images.Add(red);
+        source.Images.Add(blue);
+
+        using var text = new StringWriter(CultureInfo.InvariantCulture);
+        using (var writer = new System.Resources.ResXResourceWriter(text))
+        {
+            writer.AddResource("images", source.ImageStream);
+            writer.Generate();
+        }
+
+        using var reader = new System.Resources.ResXResourceReader(new StringReader(text.ToString()));
+        System.Collections.IDictionaryEnumerator resources = reader.GetEnumerator();
+        resources.MoveNext().Should().BeTrue();
+        using ImageListStreamer streamer = resources.Value.Should().BeOfType<ImageListStreamer>().Subject;
+        using var restored = new ImageList { ImageStream = streamer };
+
+        restored.ImageSize.Should().Be(new Size(8, 8));
+        restored.Images.Count.Should().Be(2);
+        using Bitmap restoredRed = (Bitmap)restored.Images[0];
+        using Bitmap restoredBlue = (Bitmap)restored.Images[1];
+        restoredRed.GetPixel(4, 4).A.Should().Be(128);
+        restoredRed.GetPixel(4, 4).R.Should().Be(255);
+        restoredBlue.GetPixel(4, 4).ToArgb().Should().Be(Color.Blue.ToArgb());
+    }
+
+    [Fact]
     public void ControlPaintDisabledTextUsesTypedManagedServiceWithoutHdc()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);

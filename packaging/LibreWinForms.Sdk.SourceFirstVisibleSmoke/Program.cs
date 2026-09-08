@@ -1,6 +1,8 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.ComponentModel;
+using System.ComponentModel.Design;
 using LibreWinForms.Platform;
 
 namespace LibreWinForms.Sdk.SourceFirstVisibleSmoke;
@@ -28,8 +30,23 @@ internal static class Program
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
         ApplicationConfiguration.Initialize();
 
+        using UserControl designRoot = new();
+        IDesigner rootDesigner = TypeDescriptor.CreateDesigner(designRoot, typeof(IRootDesigner))
+            ?? throw new InvalidOperationException("The canonical UserControl root designer could not be resolved.");
+        if (rootDesigner is not IRootDesigner)
+        {
+            throw new InvalidOperationException(
+                $"The canonical UserControl designer is not a root designer ({rootDesigner.GetType().FullName}).");
+        }
+
         bool shown = false;
         bool painted = false;
+        using ProgressBar progressBar = new()
+        {
+            Location = new Point(24, 72),
+            Size = new Size(240, 24),
+            Value = 50
+        };
 
         using Form form = new()
         {
@@ -42,10 +59,16 @@ internal static class Program
             Location = new Point(24, 24),
             Text = "Source-built System.Windows.Forms"
         });
+        form.Controls.Add(progressBar);
         form.Paint += (_, _) => painted = true;
         form.Shown += (_, _) =>
         {
             shown = true;
+            if (!progressBar.IsHandleCreated)
+            {
+                throw new InvalidOperationException("The portable ProgressBar did not create its managed handle.");
+            }
+
             form.Invalidate();
             form.Update();
             form.Close();

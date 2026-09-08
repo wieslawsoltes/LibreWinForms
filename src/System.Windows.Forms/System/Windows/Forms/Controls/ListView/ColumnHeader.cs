@@ -385,6 +385,7 @@ public partial class ColumnHeader : Component, ICloneable
     {
         get
         {
+#if !LIBREWINFORMS_PORTABLE
             // Since we can't keep our private width in sync with the real width because
             // we don't get notified when the user changes it, we need to get this info
             // from the underlying control every time we're asked.
@@ -402,6 +403,7 @@ public partial class ColumnHeader : Component, ICloneable
                     }
                 }
             }
+#endif
 
             return _width;
         }

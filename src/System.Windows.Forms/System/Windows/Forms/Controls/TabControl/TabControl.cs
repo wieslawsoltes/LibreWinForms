@@ -970,11 +970,7 @@ public partial class TabControl : Control
         if (!RecreatingHandle)
         {
             using ThemingScope scope = new(Application.UseVisualStyles);
-            PInvoke.InitCommonControlsEx(new INITCOMMONCONTROLSEX()
-            {
-                dwSize = (uint)sizeof(INITCOMMONCONTROLSEX),
-                dwICC = INITCOMMONCONTROLSEX_ICC.ICC_TAB_CLASSES
-            });
+            CommonControlInitializer.Initialize(INITCOMMONCONTROLSEX_ICC.ICC_TAB_CLASSES);
         }
 
         base.CreateHandle();

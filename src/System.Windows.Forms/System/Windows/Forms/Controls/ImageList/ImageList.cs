@@ -23,7 +23,9 @@ namespace System.Windows.Forms;
 [SRDescription(nameof(SR.DescriptionImageList))]
 public sealed partial class ImageList : Component, IHandle<HIMAGELIST>
 {
+#if !LIBREWINFORMS_PORTABLE
     private static readonly Color s_fakeTransparencyColor = Color.FromArgb(0x0d, 0x0b, 0x0c);
+#endif
     private static readonly Size s_defaultImageSize = new(16, 16);
 
     private static int s_maxImageWidth;
@@ -208,6 +210,26 @@ public sealed partial class ImageList : Component, IHandle<HIMAGELIST>
                 return;
             }
 
+#if LIBREWINFORMS_PORTABLE
+            if (value.GetPortableImages() is not { } portableImages)
+            {
+                return;
+            }
+
+            bool recreatingHandle = Images.Count > 0;
+            ClearPortableImages();
+            _imageSize = value.PortableImageSize;
+            foreach (Bitmap image in portableImages)
+            {
+                _originals!.Add(new Original((Bitmap)image.Clone(), OriginalOptions.OwnsImage));
+            }
+
+            Images.ResetKeys();
+            if (recreatingHandle)
+            {
+                OnRecreateHandle(EventArgs.Empty);
+            }
+#else
             if (value.GetNativeImageList() is not { } himl || himl == _nativeImageList)
             {
                 return;
@@ -242,6 +264,7 @@ public sealed partial class ImageList : Component, IHandle<HIMAGELIST>
             {
                 OnRecreateHandle(EventArgs.Empty);
             }
+#endif
         }
     }
 
@@ -430,7 +453,7 @@ public sealed partial class ImageList : Component, IHandle<HIMAGELIST>
 
         using (ThemingScope scope = new(Application.UseVisualStyles))
         {
-            PInvoke.InitCommonControls();
+            CommonControlInitializer.Initialize();
 
             _nativeImageList?.Dispose();
             _nativeImageList = new NativeImageList(_imageSize, flags);

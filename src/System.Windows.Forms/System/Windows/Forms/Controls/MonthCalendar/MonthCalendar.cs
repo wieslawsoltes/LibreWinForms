@@ -1120,11 +1120,7 @@ public partial class MonthCalendar : Control
         if (!RecreatingHandle)
         {
             using ThemingScope scope = new(Application.UseVisualStyles);
-            PInvoke.InitCommonControlsEx(new INITCOMMONCONTROLSEX()
-            {
-                dwSize = (uint)sizeof(INITCOMMONCONTROLSEX),
-                dwICC = INITCOMMONCONTROLSEX_ICC.ICC_DATE_CLASSES
-            });
+            CommonControlInitializer.Initialize(INITCOMMONCONTROLSEX_ICC.ICC_DATE_CLASSES);
         }
 
         base.CreateHandle();

@@ -5263,6 +5263,12 @@ public unsafe partial class Control :
 
         using Bitmap image = new(width, height, bitmap.PixelFormat);
         using Graphics g = Graphics.FromImage(image);
+#if LIBREWINFORMS_PORTABLE
+        PaintPortableControlTree(g, Point.Empty, new Rectangle(0, 0, width, height));
+
+        using Graphics destination = Graphics.FromImage(bitmap);
+        destination.DrawImageUnscaled(image, new Rectangle(targetBounds.X, targetBounds.Y, width, height));
+#else
         using DeviceContextHdcScope hDc = g.ToHdcScope(ApplyGraphicsProperties.None);
 
         // Send the WM_PRINT message.
@@ -5285,6 +5291,7 @@ public unsafe partial class Control :
             0,
             0,
             ROP_CODE.SRCCOPY);
+#endif
     }
 
     /// <summary>

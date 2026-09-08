@@ -735,11 +735,7 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
 
         using (ThemingScope scope = new(Application.UseVisualStyles))
         {
-            PInvoke.InitCommonControlsEx(new INITCOMMONCONTROLSEX
-            {
-                dwSize = (uint)sizeof(INITCOMMONCONTROLSEX),
-                dwICC = INITCOMMONCONTROLSEX_ICC.ICC_TAB_CLASSES
-            });
+            CommonControlInitializer.Initialize(INITCOMMONCONTROLSEX_ICC.ICC_TAB_CLASSES);
 
             // Avoid reentrant call to CreateHandle.
             CreateParams cp = CreateParams;

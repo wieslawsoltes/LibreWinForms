@@ -961,11 +961,7 @@ public partial class DateTimePicker : Control
         if (!RecreatingHandle)
         {
             using ThemingScope scope = new(Application.UseVisualStyles);
-            PInvoke.InitCommonControlsEx(new INITCOMMONCONTROLSEX
-            {
-                dwSize = (uint)sizeof(INITCOMMONCONTROLSEX),
-                dwICC = INITCOMMONCONTROLSEX_ICC.ICC_DATE_CLASSES
-            });
+            CommonControlInitializer.Initialize(INITCOMMONCONTROLSEX_ICC.ICC_DATE_CLASSES);
         }
 
         _creationTime = DateTime.Now;

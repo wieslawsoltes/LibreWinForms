@@ -617,7 +617,6 @@ public static class TextRenderer
         const TextFormatFlags unsupported = TextFormatFlags.ExternalLeading
             | TextFormatFlags.Internal
             | TextFormatFlags.ModifyString
-            | TextFormatFlags.NoFullWidthCharacterBreak
             | TextFormatFlags.PrefixOnly;
 #pragma warning restore CS0618
         const TextFormatFlags accepted = TextFormatFlags.Bottom
@@ -638,7 +637,8 @@ public static class TextRenderer
             | TextFormatFlags.PreserveGraphicsTranslateTransform
             | TextFormatFlags.NoPadding
             | TextFormatFlags.LeftAndRightPadding
-            | TextFormatFlags.TextBoxControl;
+            | TextFormatFlags.TextBoxControl
+            | TextFormatFlags.NoFullWidthCharacterBreak;
         TextFormatFlags rejected = (flags & unsupported) | (flags & ~accepted);
         if (rejected != 0)
         {

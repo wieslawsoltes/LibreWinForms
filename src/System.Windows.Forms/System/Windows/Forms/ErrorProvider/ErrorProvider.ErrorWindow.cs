@@ -136,11 +136,7 @@ public partial class ErrorProvider
 
             CreateHandle(cparams);
 
-            PInvoke.InitCommonControlsEx(new INITCOMMONCONTROLSEX
-            {
-                dwSize = (uint)sizeof(INITCOMMONCONTROLSEX),
-                dwICC = INITCOMMONCONTROLSEX_ICC.ICC_TAB_CLASSES
-            });
+            CommonControlInitializer.Initialize(INITCOMMONCONTROLSEX_ICC.ICC_TAB_CLASSES);
 
             cparams = new()
             {

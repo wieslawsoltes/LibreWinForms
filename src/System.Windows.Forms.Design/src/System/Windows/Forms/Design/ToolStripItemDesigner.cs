@@ -934,11 +934,13 @@ internal class ToolStripItemDesigner : ComponentDesigner
                 acc.AddState(AccessibleStates.Selected);
                 if (tool is not null)
                 {
+#if !LIBREWINFORMS_PORTABLE
                     PInvoke.NotifyWinEvent(
                         (uint)AccessibleEvents.SelectionAdd,
                         owner,
                         (int)OBJECT_IDENTIFIER.OBJID_CLIENT,
                         focusIndex + 1);
+#endif
                 }
 
                 if (currentSelection == ToolStripItem)
@@ -946,11 +948,13 @@ internal class ToolStripItemDesigner : ComponentDesigner
                     acc.AddState(AccessibleStates.Focused);
                     if (tool is not null)
                     {
+#if !LIBREWINFORMS_PORTABLE
                         PInvoke.NotifyWinEvent(
                             (uint)AccessibleEvents.Focus,
                             owner,
                             (int)OBJECT_IDENTIFIER.OBJID_CLIENT,
                             focusIndex + 1);
+#endif
                     }
                 }
             }

@@ -41,6 +41,21 @@ The properties reported in issues [#10](https://github.com/wieslawsoltes/LibreWi
 2. Important upstream inheritance spines, especially `DataGridViewElement` and `DataGridViewBand`, are absent. Properties inherited from those types disappear together.
 3. CI exercises selected applications and behavior scenarios but does not enforce the official WinForms public contract.
 
+## Major-core completion checkpoint: 2026-09-08
+
+The latest source-first continuation closes the highest-impact failures found by loading and mutating SharpDevelop's real 36-component `LineCounterBrowser` designer rather than another compatibility fixture. It keeps the upstream public types and introduces no SharpDevelop-specific runtime object:
+
+1. canonical common-control construction now passes through one typed `CommonControlInitializer`; native Windows retains COMCTL32 initialization and portable controls retain their managed handles and state;
+2. portable `ProgressBar` now paints and invalidates through ProGPU `Graphics`, while `ListView` keeps its managed item, selection, view, and column-width state authoritative after synthetic handle creation;
+3. `ImageListStreamer` reads classic down-level WinForms ILHEAD/color/mask streams and writes the same four-column 32-bit BMP transport, including alpha; portable `.resx` serialization routes supported WinForms types through the explicit safe NRBF writer and does not fall back to removed `BinaryFormatter` behavior;
+4. `Control.DrawToBitmap`, designer-frame overlays, coordinate mapping, drag/drop setup, selection handles, and design-time accessibility notifications now have managed portable paths instead of reaching USER32, OLE32, or an HDC; native Windows keeps the original paths;
+5. `Application.OleRequired()` reports the portable UI dispatcher's STA-equivalent without initializing COM, and `TextRenderer` accepts `NoFullWidthCharacterBreak` as an intentional no-op because the portable text contract has no distinct full-width line-break mode; and
+6. completed designer-load diagnostics are snapshotted before the upstream serialization session clears them, so real consumer failures remain visible without runtime reflection or diagnostic field scanning.
+
+Focused public gates verify managed `ColumnHeader.Width` after handle creation and a two-image ARGB `ImageList` round trip through `ResXResourceWriter`/`ResXResourceReader`, including a semi-transparent pixel and no BinaryFormatter. The current real-consumer gate attaches all 36 components and reports `Success` for property-grid selection/value visibility, code-flush persistence, toolbox creation, move, resize, undo/redo, delete undo/redo, and final removal. The former repeated `ColumnHeader.Width` USER32 failures and `ImageStream` BinaryFormatter failure are absent.
+
+The proposed two-day release path is now deliberately narrow: freeze additional feature families after the owner-draw/selection-overlay gate is green; run the complete canonical, package, SharpDevelop, SVG.NET/resvg/W3C, official System.Drawing, allocation, and BenchmarkDotNet gates; then update coordinated gitlinks and require every exact-head PR check plus GitHub mergeability. Hosted display-server, mixed-scale topology, cross-process rich clipboard/drag-and-drop, and lower-priority visual-fidelity work remain named follow-ups and must not delay the major-core merge unless a required CI lane exposes a regression.
+
 The implemented direction is defined in the [source-first cross-platform plan](./source-first-cross-platform-plan.md): the copied compatibility implementation was replaced with builds of the canonical managed source, with platform behavior behind typed seams. API compatibility is enforced as a gate, and remaining behavior gaps are repaired in their canonical source-owned subsystem rather than by adding properties to a second object model.
 
 ### Contract scope: modern WinForms versus .NET Framework WinForms
