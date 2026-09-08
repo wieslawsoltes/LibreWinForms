@@ -37,6 +37,8 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     private static Cursor? s_portableCurrent;
     [ThreadStatic]
     private static bool s_portableCurrentInitialized;
+    [ThreadStatic]
+    private static int s_portableDisplayCount;
 #endif
 
     /// <summary>
@@ -555,7 +557,17 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     /// <summary>
     ///  Hides the cursor. For every call to Cursor.hide() there must be a balancing call to Cursor.show().
     /// </summary>
-    public static void Hide() => PInvoke.ShowCursor(bShow: false);
+    public static void Hide()
+    {
+#if LIBREWINFORMS_PORTABLE
+        if (--s_portableDisplayCount == -1)
+        {
+            Control.ApplyPortableCursorVisibility(visible: false);
+        }
+#else
+        PInvoke.ShowCursor(bShow: false);
+#endif
+    }
 
     private Size GetIconSize(HICON iconHandle)
     {
@@ -645,7 +657,17 @@ public sealed class Cursor : IDisposable, ISerializable, IHandle<HICON>, IHandle
     ///  Displays the cursor. For every call to Cursor.show() there must have been
     ///  a previous call to Cursor.hide().
     /// </summary>
-    public static void Show() => PInvoke.ShowCursor(bShow: true);
+    public static void Show()
+    {
+#if LIBREWINFORMS_PORTABLE
+        if (++s_portableDisplayCount == 0)
+        {
+            Control.ApplyPortableCursorVisibility(visible: true);
+        }
+#else
+        PInvoke.ShowCursor(bShow: true);
+#endif
+    }
 
     /// <summary>
     ///  Retrieves a human readable string representing this <see cref="Cursor"/>.

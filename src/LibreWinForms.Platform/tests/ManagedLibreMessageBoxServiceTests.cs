@@ -388,6 +388,11 @@ public class ManagedLibreMessageBoxServiceTests
                 _ = shape;
             }
 
+            public void SetCursorVisible(bool visible)
+            {
+                _ = visible;
+            }
+
             public void SetSizeConstraints(LibreSize minimum, LibreSize maximum)
             {
                 _ = minimum;

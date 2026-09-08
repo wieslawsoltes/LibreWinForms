@@ -314,6 +314,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private LibreSize _minimumSize;
     private LibreSize _maximumSize;
     private LibreCursorShape _cursorShape = LibreCursorShape.Arrow;
+    private bool _cursorVisible = true;
     private double _reportedDpiScale = 1.0;
     private double _reportedFramebufferScale = 1.0;
     private readonly bool _initializing = true;
@@ -626,6 +627,18 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         VerifyAccess();
         _ = ToSilkStandardCursor(shape);
         _cursorShape = shape;
+        ApplyCursor();
+    }
+
+    public void SetCursorVisible(bool visible)
+    {
+        VerifyAccess();
+        if (_cursorVisible == visible)
+        {
+            return;
+        }
+
+        _cursorVisible = visible;
         ApplyCursor();
     }
 
@@ -1614,7 +1627,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         foreach (IMouse mouse in _input.Mice)
         {
             ICursor cursor = mouse.Cursor;
-            cursor.CursorMode = CursorMode.Normal;
+            cursor.CursorMode = _cursorVisible ? CursorMode.Normal : CursorMode.Hidden;
             cursor.Type = CursorType.Standard;
             cursor.StandardCursor = cursor.IsSupported(requested)
                 ? requested

@@ -8,7 +8,7 @@ namespace System.Windows.Forms;
 
 public static partial class Clipboard
 {
-    private static IDataObject? GetPortableDataObject()
+    private static DataObject? GetPortableDataObject()
     {
         ILibreDataTransfer? transfer = LibrePlatform.Current.Clipboard.GetData();
         if (transfer is null)

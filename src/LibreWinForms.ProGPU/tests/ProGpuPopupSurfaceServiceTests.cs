@@ -198,6 +198,10 @@ public sealed class ProGpuPopupSurfaceServiceTests
         {
         }
 
+        public void SetCursorVisible(bool visible)
+        {
+        }
+
         public void SetSizeConstraints(LibreSize minimum, LibreSize maximum)
         {
             LastMinimumSize = minimum;

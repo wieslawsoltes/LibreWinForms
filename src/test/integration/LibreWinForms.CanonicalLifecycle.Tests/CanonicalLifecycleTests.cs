@@ -5184,6 +5184,18 @@ public class CanonicalLifecycleTests
         platform.LastCursorShape.Should().Be(LibreCursorShape.Wait);
         cursorChanged.Should().BeGreaterThan(20);
         platform.CursorChangeCount.Should().BeGreaterThan(20);
+
+        Cursor.Hide();
+        platform.LastCursorVisible.Should().BeFalse();
+        platform.CursorVisibilityChangeCount.Should().Be(1);
+        Cursor.Hide();
+        platform.CursorVisibilityChangeCount.Should().Be(1);
+        Cursor.Show();
+        platform.LastCursorVisible.Should().BeFalse();
+        platform.CursorVisibilityChangeCount.Should().Be(1);
+        Cursor.Show();
+        platform.LastCursorVisible.Should().BeTrue();
+        platform.CursorVisibilityChangeCount.Should().Be(2);
     }
 
     [Fact]
@@ -5878,6 +5890,8 @@ public class CanonicalLifecycleTests
             WindowZOrderChangeCount = 0;
             LastCursorShape = null;
             CursorChangeCount = 0;
+            LastCursorVisible = true;
+            CursorVisibilityChangeCount = 0;
             LastWindowIcons = [];
             VisualStyleDrawCount = 0;
             VisualStyleEdgeDrawCount = 0;
@@ -6386,6 +6400,10 @@ public class CanonicalLifecycleTests
         internal LibreCursorShape? LastCursorShape { get; private set; }
 
         internal int CursorChangeCount { get; private set; }
+
+        internal bool LastCursorVisible { get; private set; }
+
+        internal int CursorVisibilityChangeCount { get; private set; }
 
         internal LibreSize LastWindowMinimumSize { get; private set; }
 
@@ -7307,6 +7325,12 @@ public class CanonicalLifecycleTests
             {
                 _platform.LastCursorShape = shape;
                 _platform.CursorChangeCount++;
+            }
+
+            public void SetCursorVisible(bool visible)
+            {
+                _platform.LastCursorVisible = visible;
+                _platform.CursorVisibilityChangeCount++;
             }
 
             public void SetSizeConstraints(LibreSize minimum, LibreSize maximum)

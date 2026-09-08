@@ -305,6 +305,9 @@ public interface ILibreWindow : IDisposable
     /// <summary>Applies a platform-provided cursor to this top-level window.</summary>
     void SetCursor(LibreCursorShape shape);
 
+    /// <summary>Shows or hides the pointer while it is over this top-level window.</summary>
+    void SetCursorVisible(bool visible);
+
     /// <summary>
     ///  Atomically replaces the managed-coordinate window-size limits. Zero maximum dimensions
     ///  are unbounded. Implementations convert the values to their native coordinate space.

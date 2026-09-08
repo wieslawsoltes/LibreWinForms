@@ -6,7 +6,9 @@ using System.Drawing;
 using System.Formats.Nrbf;
 using System.Private.Windows.Ole;
 using System.Reflection.Metadata;
+#if !LIBREWINFORMS_PORTABLE
 using System.Runtime.InteropServices;
+#endif
 using System.Runtime.Serialization.Formatters.Binary;
 
 namespace System.Windows.Forms;

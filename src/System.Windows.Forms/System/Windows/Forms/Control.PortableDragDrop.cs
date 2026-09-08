@@ -76,8 +76,8 @@ public unsafe partial class Control
             FormCollection openForms = Application.OpenForms;
             for (int index = openForms.Count - 1; index >= 0; index--)
             {
-                Form form = openForms[index];
-                if (ReferenceEquals(form, active))
+                Form? form = openForms[index];
+                if (form is null || ReferenceEquals(form, active))
                 {
                     continue;
                 }

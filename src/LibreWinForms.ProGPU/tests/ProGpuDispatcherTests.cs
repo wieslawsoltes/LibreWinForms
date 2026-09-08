@@ -391,6 +391,8 @@ public class ProGpuDispatcherTests
 
         public void SetCursor(LibreCursorShape shape) { }
 
+        public void SetCursorVisible(bool visible) { }
+
         public void SetSizeConstraints(LibreSize minimum, LibreSize maximum) { }
 
         public LibreWindowCoordinateMode CoordinateMode => LibreWindowCoordinateMode.Logical;

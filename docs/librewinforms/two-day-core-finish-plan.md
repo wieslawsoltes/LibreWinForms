@@ -54,4 +54,6 @@ Deferred work remains tracked behavior debt; it is not replaced with compatibili
 
 - ProGPU `bffde4689a5d6f0bd4e8de1290046bcb1728704a` is pushed on #140 and passes the local 621-test drawing suite, official-corpus manifest, ApiCompat, documentation, and package checks recorded in the main source-first plan.
 - The next LibreWinForms head contains the exact ProGPU pin plus typed clipboard and application-local drag/drop implementations with focused contracts.
+- The SharpDevelop P0 audit also removes AvalonEdit's remaining USER32 cursor-visibility dependency: canonical `Cursor.Hide`/`Show` now preserve the WinForms balanced display count and drive Silk cursor modes through `ILibreWindow`.
+- The combined source-first gate passes native canonical Forms at 0 warnings/0 errors, ProGPU canonical Forms at the established 613 reviewed warnings/0 errors, platform 52/52, backend 54/54, lifecycle 131/131, drawing 621/621, ApiCompat 0 missing types/0 missing members/13 reviewed differences, and the retired-runtime ledger at 26/0/0.
 - The locally available base refs report no merge conflict for either existing PR. Hosted mergeability and CI status must be rechecked after GitHub connectivity returns.

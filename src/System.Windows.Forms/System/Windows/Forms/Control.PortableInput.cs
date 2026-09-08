@@ -294,6 +294,11 @@ public unsafe partial class Control
         s_portablePointerRoot._portableAppliedCursorShape = shape;
     }
 
+    internal static void ApplyPortableCursorVisibility(bool visible)
+    {
+        s_portablePointerRoot?._window.SetPortableCursorVisible(visible);
+    }
+
     private Control? PortableHitTest(Point position)
     {
         if (!Visible || !Enabled || !ClientRectangle.Contains(position))
