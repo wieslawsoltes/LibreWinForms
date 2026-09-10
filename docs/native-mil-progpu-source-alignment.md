@@ -2,7 +2,7 @@
 
 The LibreWPF native MIL integration requires canonical LibreWinForms and LibreWPF
 to consume the same ProGPU source commit. This change pins
-`e198118396353e6029c9a362dd0f5d6b31492427`, the integration of ProGPU main #140
+`38b6a7a4cb048c3f489f4d1a3e6111e090fe6410`, the integration of ProGPU main #140
 with native MIL and its post-merge fixes. It does not add a WinForms-local graphics
 implementation or waive the exact source-graph gate.
 
@@ -11,7 +11,13 @@ The dependency remains under review in
 [LibreWPF #115](https://github.com/wieslawsoltes/LibreWPF/pull/115).
 Merge this alignment only after the ProGPU dependency and required CI are ready.
 
-The latest pin corrects the native NuGet consumer's owner assertions: zero-list
+The latest pin adds shared native document row/cell placement and fixed column
+tracks for the LibreWPF table dependency. Both native providers build, CTest
+passes 20/20, managed contract tests pass 9/9, and the default consumer passes
+locally with both providers. WPF source table interaction, automatic widths,
+row spans and final exact-head package/platform qualification remain open.
+
+The preceding pin corrects the native NuGet consumer's owner assertions: zero-list
 queries return an owner in summary, list queries in ordered records. The complete
 consumer passes locally against the current native libraries; exact-head all-RID
 package CI remains required. No shader or package gate was changed.
