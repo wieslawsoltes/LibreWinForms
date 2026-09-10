@@ -2,7 +2,7 @@
 
 The LibreWPF native MIL integration requires canonical LibreWinForms and LibreWPF
 to consume the same ProGPU source commit. This change pins
-`08a23ba7c92e6f702c9fd2ab725dc4ee49d3f686`, the integration of ProGPU main #140
+`e198118396353e6029c9a362dd0f5d6b31492427`, the integration of ProGPU main #140
 with native MIL and its post-merge fixes. It does not add a WinForms-local graphics
 implementation or waive the exact source-graph gate.
 
@@ -11,7 +11,12 @@ The dependency remains under review in
 [LibreWPF #115](https://github.com/wieslawsoltes/LibreWPF/pull/115).
 Merge this alignment only after the ProGPU dependency and required CI are ready.
 
-The latest pin adds native measured-block placement for the actual LibreWPF
+The latest pin corrects the native NuGet consumer's owner assertions: zero-list
+queries return an owner in summary, list queries in ordered records. The complete
+consumer passes locally against the current native libraries; exact-head all-RID
+package CI remains required. No shader or package gate was changed.
+
+The preceding pin adds native measured-block placement for the actual LibreWPF
 BlockUIContainer dependency, keeping non-text metrics separate from paragraph
 lines. Both native providers build; local native tests pass 20/20, managed
 document-contract tests pass 8/8, and generated contracts verify. Source child
