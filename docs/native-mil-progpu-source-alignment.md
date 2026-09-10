@@ -2,7 +2,7 @@
 
 The LibreWPF native MIL integration requires canonical LibreWinForms and LibreWPF
 to consume the same ProGPU source commit. This change pins
-`e574a911a6d89d562276b1ca4bb08fadf62cc184`, the integration of ProGPU main #140
+`3fbbd1fbf23035b9059e89acc0e035c20c2bd097`, the integration of ProGPU main #140
 with native MIL and its post-merge fixes. It does not add a WinForms-local graphics
 implementation or waive the exact source-graph gate.
 
@@ -11,11 +11,21 @@ The dependency remains under review in
 [LibreWPF #115](https://github.com/wieslawsoltes/LibreWPF/pull/115).
 Merge this alignment only after the ProGPU dependency and required CI are ready.
 
-The latest pin includes main #160, the MSVC inline-fixture compile fix, native
+The latest pin includes native excluded-paragraph and fragment interaction
+transport, sorted native export manifests and native browser diagnostics. It
+also includes the SVG checksum correction supported by an isolated old-shader
+failure, paired managed/native curve tests and full ten-frame review. The
+existing numeric performance limits, X64 requirement and quality gates remain
+unchanged. Producer CI is still pending at alignment time; previous green
+LibreWinForms checks do not qualify this new pin. Source Figure/Floater ownership,
+application closure and final package/platform validation remain open.
+
+The preceding pin includes main #160, the MSVC inline-fixture compile fix, native
 measured text interaction, owned inline snapshots and the explicit neutral
 inline-text provider capability. Focused neutral contract tests pass 2/2.
 WPF source object/anchor admission and exact-head package qualification remain
-open, as does ProGPU's SVG performance checksum mismatch. No gate is relaxed.
+open at that checkpoint, as did ProGPU's SVG performance checksum mismatch.
+No gate is relaxed by dependency alignment.
 
 The preceding pin adds native measured inline paragraphs and corrects the native
 C++ SDK packaging graph: MIL's Direct2D core dependency is now staged for all
