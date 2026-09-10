@@ -2,7 +2,7 @@
 
 The LibreWPF native MIL integration requires canonical LibreWinForms and LibreWPF
 to consume the same ProGPU source commit. This change pins
-`2bf43d76c628060f9a919f107c58ebe5ed50130e`, the integration of ProGPU main #140
+`08a23ba7c92e6f702c9fd2ab725dc4ee49d3f686`, the integration of ProGPU main #140
 with native MIL and its post-merge fixes. It does not add a WinForms-local graphics
 implementation or waive the exact source-graph gate.
 
@@ -11,7 +11,14 @@ The dependency remains under review in
 [LibreWPF #115](https://github.com/wieslawsoltes/LibreWPF/pull/115).
 Merge this alignment only after the ProGPU dependency and required CI are ready.
 
-The latest pin adds native source-cluster word-space justification required by the
+The latest pin adds native measured-block placement for the actual LibreWPF
+BlockUIContainer dependency, keeping non-text metrics separate from paragraph
+lines. Both native providers build; local native tests pass 20/20, managed
+document-contract tests pass 8/8, and generated contracts verify. Source child
+visual/editing integration and final package/platform qualification remain open.
+No WinForms source behavior changes or package gates are bypassed by this pin.
+
+The preceding pin adds native source-cluster word-space justification required by the
 LibreWPF editor application. ProGPU local native tests pass 20/20, and the WPF
 native host passes styled/RTL caret, selection and hit geometry coverage. Full
 application qualification still stops at rich-editor decoration scopes; script-
