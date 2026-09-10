@@ -14,10 +14,13 @@ internal static class Program
     [STAThread]
     private static int Main()
     {
+        TimeSpan watchdogTimeout = OperatingSystem.IsWindows()
+            ? TimeSpan.FromSeconds(120)
+            : TimeSpan.FromSeconds(60);
         using System.Threading.Timer watchdog = new(
             static _ => Environment.Exit(WatchdogExitCode),
             state: null,
-            dueTime: TimeSpan.FromSeconds(30),
+            dueTime: watchdogTimeout,
             period: Timeout.InfiniteTimeSpan);
 
         if (!LibrePlatform.IsRegistered)
@@ -71,7 +74,10 @@ internal static class Program
 
             form.Invalidate();
             form.Update();
-            form.Close();
+            // Let the visible lifecycle return through the platform dispatcher.
+            // Closing synchronously inside Shown can race native activation on a
+            // cold hosted Windows runner and leave Application.Run waiting.
+            _ = form.BeginInvoke((Action)form.Close);
         };
 
         try
