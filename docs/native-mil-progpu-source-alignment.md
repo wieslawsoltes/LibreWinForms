@@ -2,7 +2,7 @@
 
 The LibreWPF native MIL integration requires canonical LibreWinForms and LibreWPF
 to consume the same ProGPU source commit. This change pins
-`160cb12b87bc45f736df23425d5c0a7bdd8c76ca`, the integration of ProGPU main #140
+`b88034192307d0f12f76af1461b54441c4041cf3`, the integration of ProGPU main #140
 with native MIL and its post-merge fixes. It does not add a WinForms-local graphics
 implementation or waive the exact source-graph gate.
 
@@ -25,3 +25,9 @@ The latest local native run passes 19/19 suites. Managed renderer tests pass
 4,576 with seven platform-specific skips; headless tests pass 280/280 and focused
 cached-picture tests pass 39/39. These are ProGPU component results, not this
 repository's own CI or application/package qualification.
+
+The latest pin corrects an oriented-surface Viewport3D qualification fixture:
+reversed winding now carries reversed normals before comparing exact visible
+lighting. That entry passes locally on Metal. Failure-only cached-sibling
+diagnostics preserve every pixel assertion. Hosted cached Viewport3D failures
+on D3D12 and Vulkan, SVG review and exact-head release gates remain open.
