@@ -2,7 +2,7 @@
 
 The LibreWPF native MIL integration requires canonical LibreWinForms and LibreWPF
 to consume the same ProGPU source commit. This change pins
-`9e05651abbe4e6a9ed8adc4445eab9c210b09dde`, the integration of ProGPU main #140
+`e7a6b89ecb8dca4318e5ca2e22d8b7c7cc7194d3`, the integration of ProGPU main #140
 with native MIL and its post-merge fixes. It does not add a WinForms-local graphics
 implementation or waive the exact source-graph gate.
 
@@ -10,6 +10,14 @@ The dependency remains under review in
 [ProGPU #139](https://github.com/wieslawsoltes/ProGPU/pull/139), with consumer work in
 [LibreWPF #115](https://github.com/wieslawsoltes/LibreWPF/pull/115).
 Merge this alignment only after the ProGPU dependency and required CI are ready.
+
+The latest change corrects only Dawn provider fixture assertions and documentation:
+list-query owners belong to returned records, while a zero-list query returns its
+owner in summary. The pinned provider reproduces the old assertion failure and
+passes its complete native executable after the correction. All other ProGPU CI
+checks passed at 9e05651a, and this repository's seven checks passed at c67b04a8.
+Fresh exact-head CI and downstream application/package gates remain required.
+The following earlier checkpoints retain their historical qualification scope.
 The base is `12b4a1be0`; its tree equals the previously selected `5aa13b540`.
 Only this documentation and the ProGPU gitlink change.
 
