@@ -2,7 +2,7 @@
 
 The LibreWPF native MIL integration requires canonical LibreWinForms and LibreWPF
 to consume the same ProGPU source commit. This change pins
-`fc5670fc95b1c68c593131d3c786a7fbf7655950`, the integration of ProGPU main #140
+`9e05651abbe4e6a9ed8adc4445eab9c210b09dde`, the integration of ProGPU main #140
 with native MIL and its post-merge fixes. It does not add a WinForms-local graphics
 implementation or waive the exact source-graph gate.
 
@@ -46,3 +46,10 @@ suite at `03acd40c` passes 20/20 in the Parallels VM; its graphics test takes
 314 seconds. Local native tests pass 19/19. The final `fc5670fc` change is only
 SVG baseline documentation/inventory, not production code. Fresh exact-head CI,
 payload provenance and package/application qualification remain required.
+
+`9e05651a` separates direct straight-alpha masked-image blending from the mixed
+retained image pipeline, preserving all existing pixel limits and MIL behavior.
+Both local native providers rebuild, all 19 native suites and 121 managed native
+interop tests pass, and local Metal masked-image pixels are unchanged. Hosted W3C
+and resvg quality pass at `fc5670fc`; the new head still requires fresh CI,
+especially the Windows WARP masked-image differential that exposed this issue.
