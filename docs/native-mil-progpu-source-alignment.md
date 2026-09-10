@@ -2,7 +2,7 @@
 
 The LibreWPF native MIL integration requires canonical LibreWinForms and LibreWPF
 to consume the same ProGPU source commit. This change pins
-`38b6a7a4cb048c3f489f4d1a3e6111e090fe6410`, the integration of ProGPU main #140
+`26a6030f6a72bdb2256a8fba80d79770086e5544`, the integration of ProGPU main #140
 with native MIL and its post-merge fixes. It does not add a WinForms-local graphics
 implementation or waive the exact source-graph gate.
 
@@ -11,7 +11,15 @@ The dependency remains under review in
 [LibreWPF #115](https://github.com/wieslawsoltes/LibreWPF/pull/115).
 Merge this alignment only after the ProGPU dependency and required CI are ready.
 
-The latest pin adds shared native document row/cell placement and fixed column
+The latest pin adds native measured inline paragraphs and corrects the native
+C++ SDK packaging graph: MIL's Direct2D core dependency is now staged for all
+desktop RIDs and linked transitively by the exported CMake target. The preceding
+38b6a7a4 exact-head package build failed on that missing static dependency; it
+must not be used as qualified package evidence. Local native/managed consumers
+pass with the fix, but fresh hosted CI and downstream application qualification
+remain required. This pin does not admit WPF inline controls or anchored content.
+
+The preceding pin adds shared native document row/cell placement and fixed column
 tracks for the LibreWPF table dependency. Both native providers build, CTest
 passes 20/20, managed contract tests pass 9/9, and the default consumer passes
 locally with both providers. WPF source table interaction, automatic widths,
