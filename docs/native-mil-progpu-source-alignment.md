@@ -2,7 +2,7 @@
 
 The LibreWPF native MIL integration requires canonical LibreWinForms and LibreWPF
 to consume the same ProGPU source commit. This change pins
-`978a62eb06ad5435e128d540f3e25d95a7c2cf95`, the integration of ProGPU main #140
+`160cb12b87bc45f736df23425d5c0a7bdd8c76ca`, the integration of ProGPU main #140
 with native MIL and its post-merge fixes. It does not add a WinForms-local graphics
 implementation or waive the exact source-graph gate.
 
@@ -15,11 +15,13 @@ Only this documentation and the ProGPU gitlink change.
 
 ProGPU's System.Drawing tests pass 621/621 locally. That is upstream component
 evidence, not a rebuilt or runtime-qualified LibreWinForms package. ProGPU still
-has native/managed rendering test failures, pending SVG image review and remaining
+has pending hosted Windows GPU validation, SVG image review and remaining
 exact-head package/platform qualification. LibreWinForms CI and the canonical
 LibreWPF integration must run against this pin; preserve their normal gates.
 
 The follow-up pin includes native sharp-rectangle/zero-extent stroke preparation
-repairs and Windows fixture compilation correction. Native local qualification
-is 18/19 suites and the focused managed stroke run passes 24/24; neither result
-replaces this repository's own CI or application/package qualification.
+repairs, grouped/direct stroke agreement and Windows fixture corrections.
+The latest local native run passes 19/19 suites. Managed renderer tests pass
+4,576 with seven platform-specific skips; headless tests pass 280/280 and focused
+cached-picture tests pass 39/39. These are ProGPU component results, not this
+repository's own CI or application/package qualification.
