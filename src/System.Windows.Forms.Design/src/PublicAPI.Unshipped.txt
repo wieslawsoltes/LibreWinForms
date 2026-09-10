@@ -1,6 +1,1 @@
 #nullable enable
-System.ComponentModel.Design.IPortableDesignSurfaceServiceCleanup
-System.ComponentModel.Design.IPortableDesignSurfaceServiceCleanup.RemoveDesignerHostServices() -> void
-System.Windows.Forms.Design.IPortableToolStripKeyboardHandlingService
-System.Windows.Forms.Design.IPortableToolStripKeyboardHandlingService.ProcessUpDown(bool down) -> void
-System.Windows.Forms.Design.IPortableToolStripKeyboardHandlingService.TemplateNodeActive.get -> bool

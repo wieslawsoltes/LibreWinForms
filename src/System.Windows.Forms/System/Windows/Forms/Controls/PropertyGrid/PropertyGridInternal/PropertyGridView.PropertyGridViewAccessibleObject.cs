@@ -429,7 +429,11 @@ internal partial class PropertyGridView
 
             // Convert to client coordinates
             Point point = new(x, y);
+#if LIBREWINFORMS_PORTABLE
+            point = owner.PointToClient(point);
+#else
             PInvoke.ScreenToClient(owner, ref point);
+#endif
 
             // Find the grid entry at the given client coordinates
             Point position = owner.FindPosition(point.X, point.Y);

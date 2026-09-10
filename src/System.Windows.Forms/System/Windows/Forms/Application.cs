@@ -39,6 +39,9 @@ public sealed partial class Application
     private static string? s_safeTopLevelCaptionSuffix;
     private static bool s_comCtlSupportsVisualStylesInitialized;
     private static bool s_comCtlSupportsVisualStyles;
+#if LIBREWINFORMS_PORTABLE
+    private static VisualStyleState s_visualStyleState = VisualStyleState.ClientAndNonClientAreasEnabled;
+#endif
     private static FormCollection? s_forms;
     private static readonly Lock s_internalSyncObject = new();
     private static bool s_useWaitCursor;
@@ -97,6 +100,11 @@ public sealed partial class Application
 
     private static unsafe bool InitializeComCtlSupportsVisualStyles()
     {
+#if LIBREWINFORMS_PORTABLE
+        // comctl32 capability is a native-control concern. Portable managed visual-style rendering
+        // is exposed separately through RenderWithVisualStyles.
+        return false;
+#else
         if (UseVisualStyles)
         {
             // At this point, we may not have loaded ComCtl6 yet, but it will eventually be loaded,
@@ -131,6 +139,7 @@ public sealed partial class Application
         {
             return PInvoke.GetProcAddress(hModule, (PCSTR)ptr) != 0;
         }
+#endif
     }
 
     /// <summary>
@@ -590,7 +599,11 @@ public sealed partial class Application
     ///  of the controls in your app.
     /// </summary>
     public static bool RenderWithVisualStyles
+#if LIBREWINFORMS_PORTABLE
+        => VisualStyleRenderer.IsSupported;
+#else
         => ComCtlSupportsVisualStyles && VisualStyleRenderer.IsSupported;
+#endif
 
     /// <summary>
     ///  Gets or sets the format string to apply to top level window captions
@@ -706,6 +719,9 @@ public sealed partial class Application
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return s_visualStyleState;
+#else
             if (!VisualStyleInformation.IsSupportedByOS)
             {
                 return VisualStyleState.NoneEnabled;
@@ -713,9 +729,14 @@ public sealed partial class Application
 
             VisualStyleState vState = (VisualStyleState)PInvoke.GetThemeAppProperties();
             return vState;
+#endif
         }
         set
         {
+#if LIBREWINFORMS_PORTABLE
+            SourceGenerated.EnumValidator.Validate(value, nameof(value));
+            s_visualStyleState = value;
+#else
             if (VisualStyleInformation.IsSupportedByOS)
             {
                 PInvoke.SetThemeAppProperties((SET_THEME_APP_PROPERTIES_FLAGS)value);
@@ -724,9 +745,11 @@ public sealed partial class Application
                 // We do it this way to ensure that we get all top level windows -- whether we created them or not.
                 PInvokeCore.EnumWindows(SendThemeChanged);
             }
+#endif
         }
     }
 
+#if !LIBREWINFORMS_PORTABLE
     /// <summary>
     ///  This helper broadcasts out a WM_THEMECHANGED to appropriate top level windows of this app.
     /// </summary>
@@ -765,6 +788,7 @@ public sealed partial class Application
 
         return true;
     }
+#endif
 
     /// <summary>
     ///  Occurs when the application is about to shut down.
@@ -955,6 +979,11 @@ public sealed partial class Application
     [UnconditionalSuppressMessage("SingleFile", "IL3002", Justification = "Single-file case is handled")]
     public static void EnableVisualStyles()
     {
+#if LIBREWINFORMS_PORTABLE
+        // Portable visual styles are supplied by the registered typed platform service.
+        // Preserve the application opt-in independently of backend registration order.
+        UseVisualStyles = true;
+#else
         // Pull manifest from our resources
         Module module = typeof(Application).Module;
         var moduleHandle = PInvoke.GetModuleHandle(module.Name);
@@ -978,6 +1007,7 @@ public sealed partial class Application
         }
 
         Debug.Assert(UseVisualStyles, "Enable Visual Styles failed");
+#endif
 
         s_comCtlSupportsVisualStylesInitialized = false;
     }

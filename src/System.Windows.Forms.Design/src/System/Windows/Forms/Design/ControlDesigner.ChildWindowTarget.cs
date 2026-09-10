@@ -77,7 +77,9 @@ public partial class ControlDesigner
                 if (m.Msg == (int)PInvokeCore.WM_CREATE)
                 {
                     Debug.Assert(_handle != IntPtr.Zero, "Handle for control not created");
+#if !LIBREWINFORMS_PORTABLE
                     PInvokeCore.RevokeDragDrop(_handle);
+#endif
                 }
             }
         }

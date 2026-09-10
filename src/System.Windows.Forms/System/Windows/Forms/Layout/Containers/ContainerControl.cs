@@ -309,7 +309,13 @@ public class ContainerControl : ScrollableControl, IContainerControl
         {
             if (_currentAutoScaleDimensions.IsEmpty)
             {
+#if LIBREWINFORMS_PORTABLE
+                // Portable font autoscaling uses the managed text renderer. Avoid exporting an
+                // HFONT from a cross-platform System.Drawing implementation.
+                _currentAutoScaleDimensions = GetCurrentAutoScaleDimensions(default);
+#else
                 _currentAutoScaleDimensions = GetCurrentAutoScaleDimensions(FontHandle);
+#endif
             }
 
             return _currentAutoScaleDimensions;
@@ -322,7 +328,11 @@ public class ContainerControl : ScrollableControl, IContainerControl
         switch (AutoScaleMode)
         {
             case AutoScaleMode.Font:
+#if LIBREWINFORMS_PORTABLE
+                currentAutoScaleDimensions = GetFontAutoScaleDimensions(Font);
+#else
                 currentAutoScaleDimensions = GetFontAutoScaleDimensions(fontHandle);
+#endif
                 break;
 
             case AutoScaleMode.Dpi:
@@ -622,6 +632,28 @@ public class ContainerControl : ScrollableControl, IContainerControl
         Debug.WriteLineIf(_activeControl is not null
             && !Contains(_activeControl), "ActiveControl is not a child of this ContainerControl");
 
+#if LIBREWINFORMS_PORTABLE
+        if (_activeControl is { Visible: true } activeControl)
+        {
+            if (!activeControl.Focused)
+            {
+                activeControl.Focus();
+            }
+
+            return;
+        }
+
+        ContainerControl? portableContainer = this;
+        while (portableContainer is not null && !portableContainer.Visible)
+        {
+            portableContainer = portableContainer.ParentInternal?.GetContainerControl() as ContainerControl;
+        }
+
+        if (portableContainer is { Visible: true, Focused: false })
+        {
+            portableContainer.Focus();
+        }
+#else
         if (_activeControl is not null && _activeControl.Visible)
         {
             // Avoid focus loops, especially with ComboBoxes.
@@ -653,6 +685,7 @@ public class ContainerControl : ScrollableControl, IContainerControl
                 PInvoke.SetFocus(containerControl);
             }
         }
+#endif
     }
 
     private SizeF GetParentAutoScaleFactor()
@@ -684,11 +717,15 @@ public class ContainerControl : ScrollableControl, IContainerControl
     {
         if (GetTopLevel())
         {
+#if LIBREWINFORMS_PORTABLE
+            return RectangleToScreen(ClientRectangle);
+#else
             // Get window's client rectangle (i.e. without chrome) expressed in screen coordinates
             PInvokeCore.GetClientRect(this, out RECT clientRectangle);
             Point topLeftPoint = default;
             PInvoke.ClientToScreen(this, ref topLeftPoint);
             return new Rectangle(topLeftPoint.X, topLeftPoint.Y, clientRectangle.right, clientRectangle.bottom);
+#endif
         }
 
         return base.GetToolNativeScreenRectangle();
@@ -697,6 +734,22 @@ public class ContainerControl : ScrollableControl, IContainerControl
     /// <summary>
     ///  This method calculates the auto scale dimensions based on the control's current font.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    private static SizeF GetFontAutoScaleDimensions(Font font)
+    {
+        Size textSize = TextRenderer.MeasureText(
+            FontMeasureString,
+            font,
+            TextRenderer.MaxSize,
+            TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
+
+        // Note: intentional integer round off here for Win32 compatibility.
+        float averageCharacterWidth = (int)Math.Round(textSize.Width / (float)FontMeasureString.Length);
+        return new SizeF(averageCharacterWidth, font.Height);
+    }
+#endif
+
+#if !LIBREWINFORMS_PORTABLE
     private unsafe SizeF GetFontAutoScaleDimensions(HFONT fontHandle)
     {
         SizeF retval = SizeF.Empty;
@@ -742,6 +795,7 @@ public class ContainerControl : ScrollableControl, IContainerControl
 
         return retval;
     }
+#endif
 
     /// <summary>
     ///  This method is called when one of the auto scale properties changes, indicating that we
@@ -1406,6 +1460,14 @@ public class ContainerControl : ScrollableControl, IContainerControl
 
             if (IsHandleCreated)
             {
+#if LIBREWINFORMS_PORTABLE
+                SetBoundsCore(
+                    suggestedRectangle.X,
+                    suggestedRectangle.Y,
+                    suggestedRectangle.Width,
+                    suggestedRectangle.Height,
+                    BoundsSpecified.All);
+#else
                 PInvoke.SetWindowPos(
                     this,
                     HWND.HWND_TOP,
@@ -1414,6 +1476,7 @@ public class ContainerControl : ScrollableControl, IContainerControl
                     suggestedRectangle.Width,
                     suggestedRectangle.Height,
                     SET_WINDOW_POS_FLAGS.SWP_NOZORDER | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+#endif
             }
         }
         finally

@@ -35,6 +35,15 @@ public partial class ListBox
             {
                 if (_owner.IsHandleCreated)
                 {
+#if LIBREWINFORMS_PORTABLE
+                    if (_lastVersion != InnerArray.Version)
+                    {
+                        _lastVersion = InnerArray.Version;
+                        _count = InnerArray.GetCount(SelectedObjectMask);
+                    }
+
+                    return _count;
+#else
                     SelectionMode current = _owner._selectionModeChanging ? _owner._cachedSelectionMode : _owner._selectionMode;
                     switch (current)
                     {
@@ -56,6 +65,7 @@ public partial class ListBox
                     }
 
                     return 0;
+#endif
                 }
 
                 // If the handle hasn't been created, we must do this the hard way.
@@ -126,7 +136,9 @@ public partial class ListBox
                 _stateDirty = false;
                 if (_owner.IsHandleCreated)
                 {
+#if !LIBREWINFORMS_PORTABLE
                     _owner.NativeUpdateSelection();
+#endif
                 }
             }
         }

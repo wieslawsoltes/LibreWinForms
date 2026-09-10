@@ -1,0 +1,109 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>$(NetCurrent)</TargetFramework>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <IsPackable>true</IsPackable>
+    <PackageId>LibreWinForms.System.Windows.Forms</PackageId>
+    <Title>LibreWinForms canonical System.Windows.Forms</Title>
+    <Description>Source-built canonical System.Windows.Forms for the LibreWinForms ProGPU cross-platform runtime.</Description>
+    <RepositoryUrl>https://github.com/wieslawsoltes/LibreWinForms</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>librewinforms;winforms;progpu;silk.net;cross-platform;source-built</PackageTags>
+    <SuppressDependenciesWhenPacking>false</SuppressDependenciesWhenPacking>
+    <!-- MSBuild Pack cannot emit nuspec <references>; net11 consumers use the
+         validated ref/ asset group and packages.config is not supported. -->
+    <NoWarn>$(NoWarn);NU5131</NoWarn>
+    <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == ''">0.1.0-preview.62</LibreWinFormsProGpuPackageVersion>
+    <LibreWinFormsPortableSupportPackageVersion Condition="'$(LibreWinFormsPortableSupportPackageVersion)' == ''">10.0.10</LibreWinFormsPortableSupportPackageVersion>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);CollectCanonicalWinFormsPackageFiles</TargetsForTfmSpecificContentInPackage>
+    <CanonicalWinFormsProject>$(RepoRoot)src/System.Windows.Forms.Design/src/System.Windows.Forms.Design.csproj</CanonicalWinFormsProject>
+    <CanonicalWinFormsOutput>$(ArtifactsDir)bin/System.Windows.Forms/$(Configuration)/$(TargetFramework)/</CanonicalWinFormsOutput>
+    <CanonicalWinFormsObject>$(ArtifactsDir)obj/System.Windows.Forms/$(Configuration)/$(TargetFramework)/</CanonicalWinFormsObject>
+    <CanonicalWinFormsDesignOutput>$(ArtifactsDir)bin/System.Windows.Forms.Design/$(Configuration)/$(TargetFramework)/</CanonicalWinFormsDesignOutput>
+    <CanonicalWinFormsDesignObject>$(ArtifactsDir)obj/System.Windows.Forms.Design/$(Configuration)/$(TargetFramework)/</CanonicalWinFormsDesignObject>
+    <CanonicalPrimitivesObject>$(ArtifactsDir)obj/System.Windows.Forms.Primitives/$(Configuration)/$(TargetFramework)/</CanonicalPrimitivesObject>
+    <CanonicalCoreObject>$(ArtifactsDir)obj/System.Private.Windows.Core/$(Configuration)/$(TargetFramework)/</CanonicalCoreObject>
+    <CanonicalGdiPlusOutput>$(ArtifactsDir)bin/System.Private.Windows.GdiPlus/$(Configuration)/$(TargetFramework)/</CanonicalGdiPlusOutput>
+    <CanonicalGdiPlusObject>$(ArtifactsDir)obj/System.Private.Windows.GdiPlus/$(Configuration)/$(TargetFramework)/</CanonicalGdiPlusObject>
+    <CanonicalPlatformOutput>$(ArtifactsDir)bin/LibreWinForms.Platform/$(Configuration)/$(TargetFramework)/</CanonicalPlatformOutput>
+    <CanonicalPlatformObject>$(ArtifactsDir)obj/LibreWinForms.Platform/$(Configuration)/$(TargetFramework)/</CanonicalPlatformObject>
+    <_LibreWinFormsDotNet>$(RepoRoot)eng/common/dotnet.sh</_LibreWinFormsDotNet>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageVersion Include="ProGPU.System.Drawing.Common" Version="$(LibreWinFormsProGpuPackageVersion)" />
+    <PackageVersion Update="System.CodeDom" Version="$(LibreWinFormsPortableSupportPackageVersion)" />
+    <PackageVersion Update="System.Configuration.ConfigurationManager" Version="$(LibreWinFormsPortableSupportPackageVersion)" />
+    <PackageVersion Update="System.Formats.Nrbf" Version="$(LibreWinFormsPortableSupportPackageVersion)" />
+    <PackageVersion Update="System.Resources.Extensions" Version="$(LibreWinFormsPortableSupportPackageVersion)" />
+    <PackageVersion Update="System.Windows.Extensions" Version="$(LibreWinFormsPortableSupportPackageVersion)" />
+    <PackageReference Include="ProGPU.System.Drawing.Common" />
+    <PackageReference Include="System.CodeDom" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" />
+    <PackageReference Include="System.Resources.Extensions" />
+    <PackageReference Include="System.Windows.Extensions" />
+    <None Include="$(RepoRoot)README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+  <Target Name="BuildCanonicalWinFormsPackagePayload"
+          Condition="'$(LibreWinFormsSkipCanonicalPackageBuild)' != 'true'">
+    <!-- A separate process prevents Pack's inner TargetFramework global property from
+         leaking into the canonical multi-project graph and its netstandard generator. -->
+    <Exec WorkingDirectory="$(RepoRoot)"
+          Command="&quot;$(_LibreWinFormsDotNet)&quot; build &quot;$(CanonicalWinFormsProject)&quot; --configuration &quot;$(Configuration)&quot; --no-incremental -p:NetCurrent=&quot;$(TargetFramework)&quot; -p:SystemCodeDomPackageVersion=&quot;$(LibreWinFormsPortableSupportPackageVersion)&quot; -p:LibreWinFormsReferenceMode=Project -p:LibreWinFormsUseProGpuSystemDrawing=true -p:ContinuousIntegrationBuild=$(ContinuousIntegrationBuild)" />
+  </Target>
+
+  <Target Name="CollectCanonicalWinFormsPackageFiles"
+          DependsOnTargets="BuildCanonicalWinFormsPackagePayload">
+    <Error Condition="!Exists('$(CanonicalWinFormsOutput)System.Windows.Forms.dll')"
+           Text="The canonical source-built System.Windows.Forms payload was not produced." />
+    <Error Condition="!Exists('$(CanonicalWinFormsObject)ref/System.Windows.Forms.dll')"
+           Text="The canonical System.Windows.Forms reference assembly was not produced." />
+    <Error Condition="!Exists('$(CanonicalWinFormsDesignOutput)System.Windows.Forms.Design.dll')"
+           Text="The canonical source-built System.Windows.Forms.Design payload was not produced." />
+    <Error Condition="!Exists('$(CanonicalWinFormsDesignObject)ref/System.Windows.Forms.Design.dll')"
+           Text="The canonical System.Windows.Forms.Design reference assembly was not produced." />
+    <Error Condition="!Exists('$(CanonicalPlatformOutput)LibreWinForms.Platform.dll')"
+           Text="The source-built LibreWinForms platform contract payload was not produced." />
+    <Error Condition="!Exists('$(CanonicalPlatformObject)ref/LibreWinForms.Platform.dll')"
+           Text="The LibreWinForms platform contract reference assembly was not produced." />
+
+    <ItemGroup>
+      <_CanonicalRuntimeFile Include="$(CanonicalWinFormsOutput)System.Windows.Forms.dll;
+                                     $(CanonicalWinFormsOutput)System.Windows.Forms.xml;
+                                     $(CanonicalWinFormsDesignOutput)System.Windows.Forms.Design.dll;
+                                     $(CanonicalWinFormsDesignOutput)System.Windows.Forms.Design.xml;
+                                     $(CanonicalWinFormsOutput)System.Windows.Forms.Primitives.dll;
+                                     $(CanonicalWinFormsOutput)System.Windows.Forms.Primitives.xml;
+                                     $(CanonicalWinFormsOutput)System.Private.Windows.Core.dll;
+                                     $(CanonicalWinFormsOutput)System.Private.Windows.Core.xml;
+                                     $(CanonicalGdiPlusOutput)System.Private.Windows.GdiPlus.dll;
+                                     $(CanonicalGdiPlusOutput)System.Private.Windows.GdiPlus.xml;
+                                     $(CanonicalWinFormsOutput)Accessibility.dll;
+                                     $(CanonicalPlatformOutput)LibreWinForms.Platform.dll;
+                                     $(CanonicalPlatformOutput)LibreWinForms.Platform.xml" />
+      <_CanonicalSatelliteFile Include="$(CanonicalWinFormsOutput)**/System.Windows.Forms.resources.dll;
+                                       $(CanonicalWinFormsOutput)**/System.Windows.Forms.Primitives.resources.dll;
+                                       $(CanonicalWinFormsDesignOutput)**/System.Windows.Forms.Design.resources.dll" />
+      <_CanonicalReferenceFile Include="$(CanonicalWinFormsObject)ref/System.Windows.Forms.dll;
+                                       $(CanonicalWinFormsDesignObject)ref/System.Windows.Forms.Design.dll;
+                                       $(CanonicalPrimitivesObject)ref/System.Windows.Forms.Primitives.dll;
+                                       $(CanonicalCoreObject)ref/System.Private.Windows.Core.dll;
+                                       $(CanonicalGdiPlusObject)ref/System.Private.Windows.GdiPlus.dll;
+                                       $(CanonicalWinFormsOutput)Accessibility.dll;
+                                       $(CanonicalPlatformObject)ref/LibreWinForms.Platform.dll" />
+
+      <TfmSpecificPackageFile Include="@(_CanonicalRuntimeFile)">
+        <PackagePath>lib/$(TargetFramework)/%(_CanonicalRuntimeFile.FileName)%(_CanonicalRuntimeFile.Extension)</PackagePath>
+      </TfmSpecificPackageFile>
+      <TfmSpecificPackageFile Include="@(_CanonicalSatelliteFile)">
+        <PackagePath>lib/$(TargetFramework)/%(_CanonicalSatelliteFile.RecursiveDir)%(_CanonicalSatelliteFile.FileName)%(_CanonicalSatelliteFile.Extension)</PackagePath>
+      </TfmSpecificPackageFile>
+      <TfmSpecificPackageFile Include="@(_CanonicalReferenceFile)">
+        <PackagePath>ref/$(TargetFramework)/%(_CanonicalReferenceFile.FileName)%(_CanonicalReferenceFile.Extension)</PackagePath>
+      </TfmSpecificPackageFile>
+    </ItemGroup>
+  </Target>
+</Project>

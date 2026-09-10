@@ -227,7 +227,9 @@ public partial class ListView : Control
         SetStyle(ControlStyles.UseTextForAccessibility, false);
 
         _odCacheFont = Font;
+#if !LIBREWINFORMS_PORTABLE
         _odCacheFontHandle = FontHandle;
+#endif
         SetBounds(0, 0, 121, 97);
 
         _listItemCollection = new ListViewItemCollection(new ListViewNativeItemCollection(this));
@@ -636,8 +638,10 @@ public partial class ListView : Control
             // Keep the scrollbar if we are just updating styles.
             if (IsHandleCreated)
             {
+#if !LIBREWINFORMS_PORTABLE
                 int currentStyle = (int)PInvokeCore.GetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_STYLE);
                 cp.Style |= currentStyle & (int)(WINDOW_STYLE.WS_HSCROLL | WINDOW_STYLE.WS_VSCROLL);
+#endif
             }
 
             cp.Style |= (int)PInvoke.LVS_SHAREIMAGELISTS;
@@ -1830,6 +1834,7 @@ public partial class ListView : Control
 
             _viewStyle = value;
 
+#if !LIBREWINFORMS_PORTABLE
             if (IsHandleCreated && Application.ComCtlSupportsVisualStyles)
             {
                 PInvokeCore.SendMessage(this, PInvoke.LVM_SETVIEW, (WPARAM)(int)_viewStyle);
@@ -1845,11 +1850,14 @@ public partial class ListView : Control
             {
                 UpdateStyles();
             }
+#endif
 
+#if !LIBREWINFORMS_PORTABLE
             if (IsHandleCreated && _viewStyle == View.Details)
             {
                 ApplyDarkModeOnDemand();
             }
+#endif
 
             UpdateListViewItemsLocations();
         }
@@ -2560,11 +2568,7 @@ public partial class ListView : Control
         if (!RecreatingHandle)
         {
             using ThemingScope scope = new(Application.UseVisualStyles);
-            PInvoke.InitCommonControlsEx(new INITCOMMONCONTROLSEX
-            {
-                dwSize = (uint)sizeof(INITCOMMONCONTROLSEX),
-                dwICC = INITCOMMONCONTROLSEX_ICC.ICC_LISTVIEW_CLASSES
-            });
+            CommonControlInitializer.Initialize(INITCOMMONCONTROLSEX_ICC.ICC_LISTVIEW_CLASSES);
         }
 
         if (BackgroundImage is not null)
@@ -4056,7 +4060,7 @@ public partial class ListView : Control
             item.Host(this, itemID, -1);
 
             // if there's no handle created, just ad them to our list items array.
-            if (!IsHandleCreated)
+            if (!IsHandleCreated || ListViewHandleDestroyed)
             {
                 Debug.Assert(_listViewItems is not null, "listItemsArray is null, but the handle isn't created");
                 _listViewItems.Insert(displayIndex + i, item);
@@ -4065,7 +4069,7 @@ public partial class ListView : Control
 
         // finally if the handle is created, do the actual add into the real list view
         //
-        if (IsHandleCreated)
+        if (IsHandleCreated && !ListViewHandleDestroyed)
         {
             InsertItemsNative(displayIndex, items);
         }
@@ -4508,6 +4512,9 @@ public partial class ListView : Control
         // The solution is to send LVM_UPDATE to the native list view EVEN if the list view is not in SmallIcon or LargeIcon.
         if (!VirtualMode && IsHandleCreated && AutoArrange)
         {
+#if LIBREWINFORMS_PORTABLE
+            Invalidate();
+#else
             BeginUpdate();
             try
             {
@@ -4517,6 +4524,7 @@ public partial class ListView : Control
             {
                 EndUpdate();
             }
+#endif
         }
 
         // If font changes and we have headers, they need to be explicitly invalidated.
@@ -4530,6 +4538,12 @@ public partial class ListView : Control
 
         base.OnHandleCreated(e);
 
+#if LIBREWINFORMS_PORTABLE
+        // A portable backend handle is not a native common-controls ListView.
+        // Keep the canonical managed collections authoritative.
+        ListViewHandleDestroyed = true;
+        Invalidate();
+#else
         int version = (int)PInvokeCore.SendMessage(this, PInvoke.CCM_GETVERSION);
         if (version < 5)
         {
@@ -4662,6 +4676,7 @@ public partial class ListView : Control
         // We need to wait for the next message loop
         // to apply dark mode on demand.
         BeginInvoke(ApplyDarkModeOnDemand);
+#endif
     }
 
     private void ApplyDarkModeOnDemand()
@@ -4708,6 +4723,10 @@ public partial class ListView : Control
 
     protected override void OnHandleDestroyed(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        ListViewHandleDestroyed = true;
+        base.OnHandleDestroyed(e);
+#else
         // don't save the list view items state when in virtual mode : it is the responsibility of the
         // user to cache the list view items in virtual mode
         if (!Disposing && !VirtualMode)
@@ -4743,6 +4762,7 @@ public partial class ListView : Control
         }
 
         base.OnHandleDestroyed(e);
+#endif
     }
 
     protected override void OnGotFocus(EventArgs e)
@@ -4838,7 +4858,12 @@ public partial class ListView : Control
         // handle and always sends notifications to the same handle.
         if (IsHandleCreated)
         {
+#if LIBREWINFORMS_PORTABLE
+            PerformLayout();
+            Invalidate();
+#else
             RecreateHandleInternal();
+#endif
         }
     }
 
@@ -5235,7 +5260,7 @@ public partial class ListView : Control
 
     internal unsafe void SetColumnInfo(LVCOLUMNW_MASK mask, ColumnHeader ch)
     {
-        if (!IsHandleCreated)
+        if (!IsHandleCreated || ListViewHandleDestroyed)
         {
             return;
         }
@@ -5335,7 +5360,7 @@ public partial class ListView : Control
             width = PInvoke.LVSCW_AUTOSIZE;
         }
 
-        if (IsHandleCreated)
+        if (IsHandleCreated && !ListViewHandleDestroyed)
         {
             PInvokeCore.SendMessage(this, PInvoke.LVM_SETCOLUMNWIDTH, (WPARAM)columnIndex, LPARAM.MAKELPARAM(width, 0));
         }
@@ -5629,7 +5654,7 @@ public partial class ListView : Control
 
     internal void UpdateListViewItemsLocations()
     {
-        if (!VirtualMode && IsHandleCreated && AutoArrange && (View == View.LargeIcon || View == View.SmallIcon))
+        if (!VirtualMode && IsHandleCreated && !ListViewHandleDestroyed && AutoArrange && (View == View.LargeIcon || View == View.SmallIcon))
         {
             // This only has an affect for large icon and small icon views.
             try
@@ -6446,6 +6471,10 @@ public partial class ListView : Control
 
     internal void RecreateHandleInternal()
     {
+#if LIBREWINFORMS_PORTABLE
+        PerformLayout();
+        Invalidate();
+#else
         // For some reason, if CheckBoxes are set to true and the list view has a state imageList,
         // then the native listView destroys the state imageList.
         // (Yes, it does exactly that even though our wrapper sets LVS_SHAREIMAGELISTS
@@ -6456,6 +6485,7 @@ public partial class ListView : Control
         }
 
         RecreateHandle();
+#endif
     }
 
     private unsafe void WmReflectNotify(ref Message m)

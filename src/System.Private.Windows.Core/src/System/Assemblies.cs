@@ -34,8 +34,12 @@ internal static class Assemblies
     /// <summary>
     ///  The full name of the System.Design assembly on .NET Framework 4.x.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+    public const string SystemDesign = "System.Windows.Forms.Design";
+#else
     public const string SystemDesign =
         "System.Design, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a";
+#endif
 
     private static Assembly? s_mscorlibFacadeAssembly;
     internal static Assembly MscorlibAssembly => s_mscorlibFacadeAssembly

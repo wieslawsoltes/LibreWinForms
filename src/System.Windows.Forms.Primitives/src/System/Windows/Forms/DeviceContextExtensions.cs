@@ -120,9 +120,9 @@ internal static partial class DeviceContextExtensions
         return newColor.ToArgb() == color.ToArgb() ? color : newColor;
     }
 
-    internal static Graphics CreateGraphics(this HDC hdc) => Graphics.FromHdcInternal(hdc);
-    internal static Graphics CreateGraphics(this CreateDcScope hdc) => Graphics.FromHdcInternal(hdc.HDC);
-    internal static Graphics CreateGraphics(this GetDcScope hdc) => Graphics.FromHdcInternal(hdc.HDC);
+    internal static Graphics CreateGraphics(this HDC hdc) => Graphics.FromHdc(hdc);
+    internal static Graphics CreateGraphics(this CreateDcScope hdc) => Graphics.FromHdc(hdc.HDC);
+    internal static Graphics CreateGraphics(this GetDcScope hdc) => Graphics.FromHdc(hdc.HDC);
 
     internal static void DrawAndFillEllipse(
         this DeviceContextHdcScope hdc,

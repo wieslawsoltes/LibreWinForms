@@ -594,6 +594,7 @@ public abstract partial class ScrollBar : Control
             return;
         }
 
+#if !LIBREWINFORMS_PORTABLE
         SCROLLINFO si = new()
         {
             cbSize = (uint)sizeof(SCROLLINFO),
@@ -615,6 +616,7 @@ public abstract partial class ScrollBar : Control
 
         si.nTrackPos = 0;
         PInvoke.SetScrollInfo(this, SCROLLBAR_CONSTANTS.SB_CTL, ref si, true);
+#endif
     }
 
     private void WmReflectScroll(ref Message m)

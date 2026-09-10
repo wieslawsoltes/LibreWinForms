@@ -655,7 +655,13 @@ public abstract partial class BasicDesignerLoader : DesignerLoader, IDesignerLoa
                 }
             }
 
+#if LIBREWINFORMS_PORTABLE
+            // The serialization session clears its live Errors collection when it is
+            // disposed below. Preserve the completed load diagnostics for the host.
+            errors = _serializationManager!.Errors?.Cast<object>().ToArray() ?? Array.Empty<object>();
+#else
             errors = _serializationManager!.Errors;
+#endif
         }
         finally
         {

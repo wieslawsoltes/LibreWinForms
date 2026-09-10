@@ -231,7 +231,7 @@ public abstract partial class UpDownBase
             MouseEventArgs me = _parent.TranslateMouseEvent(this, e);
             if (e.Button == MouseButtons.Left)
             {
-                if (!_parent.ValidationCancelled && PInvoke.WindowFromPoint(PointToScreen(e.Location)) == HWND)
+                if (!_parent.ValidationCancelled && IsMousePointerDirectlyOver(e.Location))
                 {
                     if (!_doubleClickFired)
                     {

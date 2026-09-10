@@ -17,7 +17,9 @@ namespace System.Windows.Forms.Design;
 internal class ListViewDesigner : ControlDesigner
 {
     private DesignerActionListCollection _actionLists;
+#if !LIBREWINFORMS_PORTABLE
     private HDHITTESTINFO _hdrhit;
+#endif
     private bool _inShowErrorDialog;
 
     /// <summary>
@@ -59,15 +61,20 @@ internal class ListViewDesigner : ControlDesigner
         set
         {
             ((ListView)Component).View = value;
+#if !LIBREWINFORMS_PORTABLE
             if (value == View.Details)
             {
                 HookChildHandles((HWND)Control.Handle);
             }
+#endif
         }
     }
 
     protected override unsafe bool GetHitTest(Point point)
     {
+#if LIBREWINFORMS_PORTABLE
+        return false;
+#else
         // We override GetHitTest to make the header in report view UI-active.
 
         ListView listView = (ListView)Component;
@@ -91,6 +98,7 @@ internal class ListViewDesigner : ControlDesigner
         }
 
         return false;
+#endif
     }
 
     public override void Initialize(IComponent component)
@@ -103,10 +111,12 @@ internal class ListViewDesigner : ControlDesigner
         AutoResizeHandles = true;
 
         base.Initialize(component);
+#if !LIBREWINFORMS_PORTABLE
         if (lv.View == View.Details)
         {
             HookChildHandles((HWND)Control.Handle);
         }
+#endif
     }
 
     protected override void PreFilterProperties(IDictionary properties)

@@ -84,8 +84,13 @@ internal class DesignerFrame : Control, IOverlayService, ISplitWindowService, IC
     {
         if (_designer is not null && _designer.IsHandleCreated)
         {
+#if LIBREWINFORMS_PORTABLE
+            _ = focus;
+            _designer.Invalidate(true);
+#else
             PInvokeCore.SendMessage(_designer, PInvokeCore.WM_NCACTIVATE, (WPARAM)(BOOL)focus);
             PInvoke.RedrawWindow(_designer, lprcUpdate: null, HRGN.Null, REDRAW_WINDOW_FLAGS.RDW_FRAME);
+#endif
         }
     }
 
@@ -115,11 +120,13 @@ internal class DesignerFrame : Control, IOverlayService, ISplitWindowService, IC
         ISelectionService? selSvc = _designerSite.GetService<ISelectionService>();
         if (selSvc?.PrimarySelection is Control { IsDisposed: false } ctrl)
         {
+#if !LIBREWINFORMS_PORTABLE
             PInvoke.NotifyWinEvent(
                 (uint)AccessibleEvents.Focus,
                 ctrl,
                 (int)OBJECT_IDENTIFIER.OBJID_CLIENT,
                 (int)PInvoke.CHILDID_SELF);
+#endif
         }
     }
 
@@ -400,12 +407,17 @@ internal class DesignerFrame : Control, IOverlayService, ISplitWindowService, IC
         /// </summary>
         private void ParentOverlay(Control control)
         {
+#if LIBREWINFORMS_PORTABLE
+            control.Parent = this;
+            control.BringToFront();
+#else
             PInvoke.SetParent(control, this);
             PInvoke.SetWindowPos(
                 control,
                 HWND.HWND_TOP,
                 0, 0, 0, 0,
                 SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOMOVE);
+#endif
         }
 
         /// <summary>
@@ -510,11 +522,15 @@ internal class DesignerFrame : Control, IOverlayService, ISplitWindowService, IC
                 {
                     foreach (Control c in _overlayList)
                     {
+#if LIBREWINFORMS_PORTABLE
+                        c.BringToFront();
+#else
                         PInvoke.SetWindowPos(
                             c,
                             HWND.HWND_TOP,
                             0, 0, 0, 0,
                             SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOMOVE);
+#endif
                     }
                 }
             }

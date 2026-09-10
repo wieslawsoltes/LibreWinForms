@@ -11,7 +11,7 @@ using System.Windows.Forms.Design.Behavior;
 
 namespace System.Windows.Forms.Design;
 
-internal class ToolStripKeyboardHandlingService : IPortableToolStripKeyboardHandlingService
+internal class ToolStripKeyboardHandlingService
 {
     private ISelectionService _selectionService;
     private IComponentChangeService _componentChangeService;
@@ -62,7 +62,6 @@ internal class ToolStripKeyboardHandlingService : IPortableToolStripKeyboardHand
         _designerHost = (IDesignerHost)_provider.GetService(typeof(IDesignerHost));
         Debug.Assert(_designerHost is not null, "ToolStripKeyboardHandlingService relies on the selection service, which is unavailable.");
         _designerHost?.AddService(this);
-        _designerHost?.AddService<IPortableToolStripKeyboardHandlingService>(this);
 
         _componentChangeService = (IComponentChangeService)_designerHost.GetService(typeof(IComponentChangeService));
         Debug.Assert(_componentChangeService is not null, "ToolStripKeyboardHandlingService relies on the componentChange service, which is unavailable.");
@@ -178,6 +177,7 @@ internal class ToolStripKeyboardHandlingService : IPortableToolStripKeyboardHand
                                 focusIndex = owner.Items.IndexOf(curDesignerNode);
                             }
 
+#if !LIBREWINFORMS_PORTABLE
                             PInvoke.NotifyWinEvent(
                                 (uint)AccessibleEvents.SelectionAdd,
                                 owner,
@@ -188,6 +188,7 @@ internal class ToolStripKeyboardHandlingService : IPortableToolStripKeyboardHand
                                 owner,
                                 (int)OBJECT_IDENTIFIER.OBJID_CLIENT,
                                 focusIndex + 1);
+#endif
                         }
                     }
                 }
@@ -234,8 +235,6 @@ internal class ToolStripKeyboardHandlingService : IPortableToolStripKeyboardHand
             }
         }
     }
-
-    bool IPortableToolStripKeyboardHandlingService.TemplateNodeActive => TemplateNodeActive;
 
     // boolean which returns if the TemplateNode contextMenu is open.
     internal bool TemplateNodeContextMenuOpen
@@ -472,7 +471,6 @@ internal class ToolStripKeyboardHandlingService : IPortableToolStripKeyboardHand
                 keyboardHandlingService.RestoreCommands();
                 // clean up.
                 keyboardHandlingService.RemoveCommands();
-                _designerHost.RemoveService<IPortableToolStripKeyboardHandlingService>();
                 _designerHost.RemoveService<ToolStripKeyboardHandlingService>();
             }
         }

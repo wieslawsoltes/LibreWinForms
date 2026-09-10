@@ -2,7 +2,11 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#else
 using Microsoft.Win32;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -11,7 +15,11 @@ namespace System.Windows.Forms;
 /// </summary>
 public partial class Screen
 {
+#if LIBREWINFORMS_PORTABLE
+    private readonly string _monitorId;
+#else
     private readonly HMONITOR _hmonitor;
+#endif
 
     /// <summary>
     ///  Bounds of the screen
@@ -35,6 +43,7 @@ public partial class Screen
 
     private readonly int _bitDepth;
 
+#if !LIBREWINFORMS_PORTABLE
     private static readonly Lock s_syncLock = new(); // used to lock this class before syncing to SystemEvents
 
     private static int s_desktopChangedCount = -1; // static counter of desktop size changes
@@ -46,6 +55,19 @@ public partial class Screen
     private static readonly HMONITOR s_primaryMonitor = (HMONITOR)unchecked((nint)0xBAADF00D);
 
     private static Screen[]? s_screens;
+#endif
+
+#if LIBREWINFORMS_PORTABLE
+    internal Screen(LibreMonitor monitor)
+    {
+        _monitorId = monitor.Id;
+        _bounds = ToRectangle(monitor.Bounds);
+        _workingArea = ToRectangle(monitor.WorkArea);
+        _primary = monitor.IsPrimary;
+        _deviceName = string.IsNullOrWhiteSpace(monitor.DisplayName) ? monitor.Id : monitor.DisplayName;
+        _bitDepth = monitor.BitsPerPixel;
+    }
+#else
 
     internal Screen(HMONITOR monitor) : this(monitor, default)
     {
@@ -93,6 +115,7 @@ public partial class Screen
             PInvokeCore.DeleteDC(screenDC);
         }
     }
+#endif
 
     /// <summary>
     ///  Gets an array of all of the displays on the system.
@@ -101,6 +124,21 @@ public partial class Screen
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            IReadOnlyList<LibreMonitor> monitors = LibrePlatform.Current.Monitors.GetMonitors();
+            if (monitors.Count == 0)
+            {
+                throw new InvalidOperationException("The platform monitor inventory is empty.");
+            }
+
+            Screen[] screens = new Screen[monitors.Count];
+            for (int index = 0; index < monitors.Count; index++)
+            {
+                screens[index] = new Screen(monitors[index]);
+            }
+
+            return screens;
+#else
             if (s_screens is null)
             {
                 if (SystemInformation.MultiMonitorSupport)
@@ -125,6 +163,7 @@ public partial class Screen
             }
 
             return s_screens;
+#endif
         }
     }
 
@@ -155,6 +194,18 @@ public partial class Screen
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            Screen[] screens = AllScreens;
+            foreach (Screen screen in screens)
+            {
+                if (screen.Primary)
+                {
+                    return screen;
+                }
+            }
+
+            return screens[0];
+#else
             if (SystemInformation.MultiMonitorSupport)
             {
                 Screen[] screens = AllScreens;
@@ -172,6 +223,7 @@ public partial class Screen
             {
                 return new Screen(s_primaryMonitor, default);
             }
+#endif
         }
     }
 
@@ -182,6 +234,9 @@ public partial class Screen
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return _workingArea;
+#else
             // if the static Screen class has a different desktop change count
             // than this instance then update the count and recalculate our working area
             if (_currentDesktopChangedCount != DesktopChangedCount)
@@ -208,9 +263,11 @@ public partial class Screen
             }
 
             return _workingArea;
+#endif
         }
     }
 
+#if !LIBREWINFORMS_PORTABLE
     /// <summary>
     ///  Screen instances call this property to determine if their WorkingArea cache needs to be invalidated.
     /// </summary>
@@ -237,27 +294,41 @@ public partial class Screen
             return s_desktopChangedCount;
         }
     }
+#endif
 
     /// <summary>
     ///  Specifies a value that indicates whether the specified object is equal to this one.
     /// </summary>
-    public override bool Equals(object? obj) => obj is Screen comp && _hmonitor == comp._hmonitor;
+    public override bool Equals(object? obj)
+#if LIBREWINFORMS_PORTABLE
+        => obj is Screen comp && StringComparer.Ordinal.Equals(_monitorId, comp._monitorId);
+#else
+        => obj is Screen comp && _hmonitor == comp._hmonitor;
+#endif
 
     /// <summary>
     ///  Retrieves a <see cref="Screen"/> for the monitor that contains the specified point.
     /// </summary>
     public static Screen FromPoint(Point point)
+#if LIBREWINFORMS_PORTABLE
+        => FromLibreRectangle(new(point.X, point.Y, 0, 0));
+#else
         => SystemInformation.MultiMonitorSupport
         ? new Screen(PInvokeCore.MonitorFromPoint(point, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONEAREST))
         : new Screen(s_primaryMonitor);
+#endif
 
     /// <summary>
     ///  Retrieves a <see cref="Screen"/> for the monitor that contains the largest region of the rectangle.
     /// </summary>
     public static Screen FromRectangle(Rectangle rect)
+#if LIBREWINFORMS_PORTABLE
+        => FromLibreRectangle(new(rect.X, rect.Y, rect.Width, rect.Height));
+#else
         => SystemInformation.MultiMonitorSupport
         ? new Screen(PInvokeCore.MonitorFromRect(rect, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONEAREST))
         : new Screen(s_primaryMonitor, default);
+#endif
 
     /// <summary>
     ///  Retrieves a <see cref="Screen"/> for the monitor that contains the largest region of the window of the control.
@@ -266,16 +337,28 @@ public partial class Screen
     {
         ArgumentNullException.ThrowIfNull(control);
 
+#if LIBREWINFORMS_PORTABLE
+        Control topLevel = control.TopLevelControl ?? control;
+        return FromRectangle(topLevel.Bounds);
+#else
         return FromHandle(control.Handle);
+#endif
     }
 
     /// <summary>
     ///  Retrieves a <see cref="Screen"/> for the monitor that contains the largest region of the window.
     /// </summary>
     public static Screen FromHandle(IntPtr hwnd)
+#if LIBREWINFORMS_PORTABLE
+    {
+        Control? control = Control.FromHandle(hwnd);
+        return control is not null ? FromControl(control) : FromPoint(Control.MousePosition);
+    }
+#else
         => SystemInformation.MultiMonitorSupport
         ? new Screen(PInvokeCore.MonitorFromWindow((HWND)hwnd, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONEAREST))
         : new Screen(s_primaryMonitor, default);
+#endif
 
     /// <summary>
     ///  Retrieves the working area for the monitor that is closest to the specified point.
@@ -310,8 +393,14 @@ public partial class Screen
     /// <summary>
     ///  Computes and retrieves a hash code for an object.
     /// </summary>
-    public override int GetHashCode() => PARAM.ToInt(_hmonitor);
+    public override int GetHashCode()
+#if LIBREWINFORMS_PORTABLE
+        => StringComparer.Ordinal.GetHashCode(_monitorId);
+#else
+        => PARAM.ToInt(_hmonitor);
+#endif
 
+#if !LIBREWINFORMS_PORTABLE
     /// <summary>
     ///  Called by the SystemEvents class when our display settings are changing. We cache screen information and
     ///  at this point we must invalidate our cache.
@@ -337,6 +426,15 @@ public partial class Screen
             Interlocked.Increment(ref s_desktopChangedCount);
         }
     }
+#endif
+
+#if LIBREWINFORMS_PORTABLE
+    private static Screen FromLibreRectangle(LibreRectangle bounds)
+        => new(LibrePlatform.Current.Monitors.GetNearest(bounds));
+
+    private static Rectangle ToRectangle(LibreRectangle rectangle)
+        => new(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height);
+#endif
 
     /// <summary>
     ///  Retrieves a string representing this object.

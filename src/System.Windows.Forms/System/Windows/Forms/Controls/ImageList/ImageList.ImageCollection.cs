@@ -6,7 +6,9 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Design;
+#if !LIBREWINFORMS_PORTABLE
 using System.Drawing.Imaging;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -143,6 +145,11 @@ public sealed partial class ImageList
                 }
 
                 AssertInvariant();
+#if LIBREWINFORMS_PORTABLE
+                _owner.ReplacePortableImage(index, bitmap);
+                _owner.OnChangeHandle(EventArgs.Empty);
+                return;
+#else
                 bool ownsImage = false;
                 if (_owner.UseTransparentColor && bitmap.RawFormat.Guid != ImageFormat.Icon.Guid)
                 {
@@ -180,6 +187,7 @@ public sealed partial class ImageList
                         bitmap.Dispose();
                     }
                 }
+#endif
             }
         }
 
@@ -414,7 +422,11 @@ public sealed partial class ImageList
         public void Clear()
         {
             AssertInvariant();
+#if LIBREWINFORMS_PORTABLE
+            _owner.ClearPortableImages();
+#else
             _owner._originals?.Clear();
+#endif
 
             _imageInfoCollection.Clear();
 
@@ -545,10 +557,14 @@ public sealed partial class ImageList
             ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, Count);
 
             AssertInvariant();
+#if LIBREWINFORMS_PORTABLE
+            _owner.RemovePortableImage(index);
+#else
             if (!PInvoke.ImageList.Remove(_owner, index))
             {
                 throw new InvalidOperationException(SR.ImageListRemoveFailed);
             }
+#endif
 
             if ((_imageInfoCollection is not null) && (index >= 0 && index < _imageInfoCollection.Count))
             {

@@ -5,9 +5,15 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.ComponentModel.Design;
 using System.Drawing;
+#if LIBREWINFORMS_PORTABLE
+using System.Drawing.Imaging;
+using LibreWinForms.Platform;
+#endif
 using System.Runtime.InteropServices;
 using System.Windows.Forms.Layout;
+#if !LIBREWINFORMS_PORTABLE
 using System.Windows.Forms.VisualStyles;
+#endif
 using Windows.Win32.Graphics.Dwm;
 using Windows.Win32.System.Threading;
 using Windows.Win32.UI.Accessibility;
@@ -26,6 +32,10 @@ namespace System.Windows.Forms;
 [DesignerCategory("Form")]
 public partial class Form : ContainerControl
 {
+#if LIBREWINFORMS_PORTABLE
+    [ThreadStatic]
+    private static Form? s_portableActiveForm;
+#endif
     private static readonly object s_activatedEvent = new();
     private static readonly object s_closingEvent = new();
     private static readonly object s_closedEvent = new();
@@ -158,7 +168,9 @@ public partial class Form : ContainerControl
     private Rectangle _restoreBounds = new(-1, -1, -1, -1);
     private CloseReason _closeReason = CloseReason.None;
 
+#if !LIBREWINFORMS_PORTABLE
     private VisualStyleRenderer? _sizeGripRenderer;
+#endif
 
     // Cache Form's size for the DPI. When Form is moved between the monitors with different DPI settings, we use
     // cached values to set the size matching the DPI on the Form instead of recalculating the size again. This help
@@ -283,7 +295,26 @@ public partial class Form : ContainerControl
     /// <summary>
     ///  Gets the currently active form for this application.
     /// </summary>
-    public static Form? ActiveForm => FromHandle(PInvokeCore.GetForegroundWindow()) as Form;
+    public static Form? ActiveForm
+#if LIBREWINFORMS_PORTABLE
+        => s_portableActiveForm is { IsDisposed: false, Visible: true } activeForm ? activeForm : null;
+#else
+        => FromHandle(PInvokeCore.GetForegroundWindow()) as Form;
+#endif
+
+#if LIBREWINFORMS_PORTABLE
+    internal static void SetPortableActiveForm(Form? form)
+    {
+        if (form is null)
+        {
+            s_portableActiveForm = null;
+        }
+        else if (!form.IsDisposed)
+        {
+            s_portableActiveForm = form;
+        }
+    }
+#endif
 
     /// <summary>
     ///
@@ -757,7 +788,21 @@ public partial class Form : ContainerControl
         {
             CreateParams cp = base.CreateParams;
 
-            if (IsHandleCreated && WindowStyle.HasFlag(WINDOW_STYLE.WS_DISABLED))
+#if LIBREWINFORMS_PORTABLE
+            // Portable NativeWindow translates this canonical style into LibreWindowOptions.TopMost
+            // before creating the platform window. Native Windows reapplies TopMost after creation.
+            if (TopLevel && TopMost)
+            {
+                cp.ExStyle |= (int)WINDOW_EX_STYLE.WS_EX_TOPMOST;
+            }
+#endif
+
+            if (IsHandleCreated &&
+#if LIBREWINFORMS_PORTABLE
+                !PortableWindowEnabled)
+#else
+                WindowStyle.HasFlag(WINDOW_STYLE.WS_DISABLED))
+#endif
             {
                 // Forms that are parent of a modal dialog must keep their WS_DISABLED style
                 cp.Style |= (int)WINDOW_STYLE.WS_DISABLED;
@@ -775,7 +820,11 @@ public partial class Form : ContainerControl
 
             if (Properties.TryGetValue(s_propDialogOwner, out IWin32Window? dialogOwner))
             {
+#if LIBREWINFORMS_PORTABLE
+                cp.Parent = dialogOwner.Handle;
+#else
                 cp.Parent = GetSafeHandle(dialogOwner).Handle;
+#endif
             }
 
             FillInCreateParamsBorderStyles(cp);
@@ -1237,6 +1286,15 @@ public partial class Form : ContainerControl
             }
         }
 
+#if LIBREWINFORMS_PORTABLE
+        if (IsHandleCreated)
+        {
+            SetPortableWindowSizeConstraints(
+                new LibreSize(MinimumSize.Width, MinimumSize.Height),
+                new LibreSize(MaximumSize.Width, MaximumSize.Height));
+        }
+#endif
+
         OnMaximumSizeChanged(EventArgs.Empty);
     }
 
@@ -1353,6 +1411,7 @@ public partial class Form : ContainerControl
                 Size = new Size(Math.Max(size.Width, value.Width), Math.Max(size.Height, value.Height));
             }
 
+#if !LIBREWINFORMS_PORTABLE
             if (IsHandleCreated)
             {
                 // "Move" the form to the same size and position to prevent windows from moving it
@@ -1366,7 +1425,17 @@ public partial class Form : ContainerControl
                     Size.Height,
                     SET_WINDOW_POS_FLAGS.SWP_NOZORDER | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
             }
+#endif
         }
+
+#if LIBREWINFORMS_PORTABLE
+        if (IsHandleCreated)
+        {
+            SetPortableWindowSizeConstraints(
+                new LibreSize(MinimumSize.Width, MinimumSize.Height),
+                new LibreSize(MaximumSize.Width, MaximumSize.Height));
+        }
+#endif
 
         OnMinimumSizeChanged(EventArgs.Empty);
     }
@@ -1589,11 +1658,15 @@ public partial class Form : ContainerControl
                 _formState[s_formStateLayered] = (TransparencyKey != Color.Empty) ? 1 : 0;
                 if (oldLayered != (_formState[s_formStateLayered] != 0))
                 {
+#if LIBREWINFORMS_PORTABLE
+                    UpdateStyles();
+#else
                     CreateParams cp = CreateParams;
                     if ((int)ExtendedWindowStyle != cp.ExStyle)
                     {
                         PInvokeCore.SetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_EXSTYLE, cp.ExStyle);
                     }
+#endif
                 }
             }
 
@@ -1816,7 +1889,11 @@ public partial class Form : ContainerControl
                 _formState[s_formStateTaskBar] = value ? 1 : 0;
                 if (IsHandleCreated)
                 {
+#if LIBREWINFORMS_PORTABLE
+                    SetPortableWindowShowInTaskbar(value);
+#else
                     RecreateHandle();
+#endif
                 }
             }
         }
@@ -1839,7 +1916,9 @@ public partial class Form : ContainerControl
             _formStateEx[s_formStateExShowIcon] = value ? 1 : 0;
             if (!value)
             {
+#if !LIBREWINFORMS_PORTABLE
                 UpdateStyles();
+#endif
             }
 
             UpdateWindowIcon(true);
@@ -2062,11 +2141,15 @@ public partial class Form : ContainerControl
         {
             if (IsHandleCreated && TopLevel)
             {
+#if LIBREWINFORMS_PORTABLE
+                SetPortableWindowTopMost(value);
+#else
                 PInvoke.SetWindowPos(
                     this,
                     value ? HWND.HWND_TOPMOST : HWND.HWND_NOTOPMOST,
                     0, 0, 0, 0,
                     SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE);
+#endif
             }
 
             _formState[s_formStateTopMost] = value ? 1 : 0;
@@ -2174,6 +2257,7 @@ public partial class Form : ContainerControl
         {
             base.SetVisibleCore(value);
 
+#if !LIBREWINFORMS_PORTABLE
             // We need to force this call if we were created
             // with a STARTUPINFO structure (e.g. launched from explorer), since
             // it won't send a WM_SHOWWINDOW the first time it's called.
@@ -2183,6 +2267,7 @@ public partial class Form : ContainerControl
             {
                 PInvokeCore.SendMessage(this, PInvokeCore.WM_SHOWWINDOW, (WPARAM)(BOOL)value);
             }
+#endif
         }
         else
         {
@@ -2553,6 +2638,18 @@ public partial class Form : ContainerControl
                     break;
             }
 
+#if LIBREWINFORMS_PORTABLE
+            if (IsHandleCreated)
+            {
+                SetPortableWindowState(value switch
+                {
+                    FormWindowState.Normal => LibreWindowState.Normal,
+                    FormWindowState.Minimized => LibreWindowState.Minimized,
+                    FormWindowState.Maximized => LibreWindowState.Maximized,
+                    _ => throw new ArgumentOutOfRangeException(nameof(value), value, "Unknown form window state."),
+                });
+            }
+#else
             if (IsHandleCreated && Visible)
             {
                 switch (value)
@@ -2568,6 +2665,7 @@ public partial class Form : ContainerControl
                         break;
                 }
             }
+#endif
 
             // Now set the local property to the passed in value so that
             // when UpdateWindowState is by the ShowWindow call above, the window state in effect when
@@ -2575,6 +2673,37 @@ public partial class Form : ContainerControl
             _formState[s_formStateWindowState] = (int)value;
         }
     }
+
+#if LIBREWINFORMS_PORTABLE
+    internal void UpdatePortableWindowState(LibreWindowState state)
+    {
+        FormWindowState value = state switch
+        {
+            LibreWindowState.Normal => FormWindowState.Normal,
+            LibreWindowState.Minimized => FormWindowState.Minimized,
+            LibreWindowState.Maximized or LibreWindowState.FullScreen => FormWindowState.Maximized,
+            _ => throw new ArgumentOutOfRangeException(nameof(state), state, "Unknown portable window state."),
+        };
+
+        FormWindowState oldState = WindowState;
+        if (oldState == value)
+        {
+            return;
+        }
+
+        if (oldState != FormWindowState.Minimized && value == FormWindowState.Minimized)
+        {
+            SuspendLayoutForMinimize();
+        }
+        else if (oldState == FormWindowState.Minimized && value != FormWindowState.Minimized)
+        {
+            ResumeLayoutFromMinimize();
+        }
+
+        SetState(States.SizeLockedByOS, value != FormWindowState.Normal);
+        _formState[s_formStateWindowState] = (int)value;
+    }
+#endif
 
     /// <summary>
     ///  Gets or sets the text to display in the caption bar of the form.
@@ -2584,7 +2713,9 @@ public partial class Form : ContainerControl
         get => base.WindowText;
         set
         {
+#if !LIBREWINFORMS_PORTABLE
             string oldText = WindowText;
+#endif
             base.WindowText = value;
 
             // For non-default FormBorderStyles, we do not set the WS_CAPTION style if
@@ -2594,10 +2725,12 @@ public partial class Form : ContainerControl
             // WS_CAPTION. Fixed this by making sure we call UpdateStyles() when
             // we transition from a non-null value to a null value or vice versa in
             // Form.WindowText.
+#if !LIBREWINFORMS_PORTABLE
             if (string.IsNullOrEmpty(oldText) || string.IsNullOrEmpty(value))
             {
                 UpdateFormStyles();
             }
+#endif
         }
     }
 
@@ -2830,7 +2963,12 @@ public partial class Form : ContainerControl
             }
             else
             {
+#if LIBREWINFORMS_PORTABLE
+                SetPortableActiveForm(this);
+                ActivatePortableWindow();
+#else
                 PInvoke.SetForegroundWindow(this);
+#endif
             }
         }
     }
@@ -3248,7 +3386,11 @@ public partial class Form : ContainerControl
         if (IsHandleCreated)
         {
             _closeReason = CloseReason.UserClosing;
+#if LIBREWINFORMS_PORTABLE
+            DispatchPortableMessage(PInvokeCore.WM_CLOSE);
+#else
             PInvokeCore.SendMessage(this, PInvokeCore.WM_CLOSE);
+#endif
         }
         else
         {
@@ -3338,6 +3480,11 @@ public partial class Form : ContainerControl
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected override void CreateHandle()
     {
+#if LIBREWINFORMS_PORTABLE
+        base.CreateHandle();
+        UpdateHandleWithOwner();
+        UpdateWindowIcon(false);
+#else
         // In the windows MDI code we have to suspend menu
         // updates on the parent while creating the handle. Otherwise if the
         // child is created maximized, the menu ends up with two sets of
@@ -3429,6 +3576,7 @@ public partial class Form : ContainerControl
             //
             UpdateStyles();
         }
+#endif
     }
 
     // Deactivates active MDI child and temporarily marks it as un-focusable,
@@ -3709,11 +3857,17 @@ public partial class Form : ContainerControl
                     IWin32Window? dialogOwner = Properties.GetValueOrDefault<IWin32Window>(s_propDialogOwner);
                     if ((OwnerInternal is not null) || (dialogOwner is not null))
                     {
+#if LIBREWINFORMS_PORTABLE
+                        desktop = dialogOwner is not null
+                            ? Screen.FromHandle(dialogOwner.Handle)
+                            : Screen.FromControl(OwnerInternal!);
+#else
                         HandleRef<HWND> ownerHandle = dialogOwner is not null
                             ? GetSafeHandle(dialogOwner)
                             : new(OwnerInternal!);
                         desktop = Screen.FromHandle(ownerHandle.Handle);
                         GC.KeepAlive(ownerHandle.Wrapper);
+#endif
                     }
                     else
                     {
@@ -3781,7 +3935,7 @@ public partial class Form : ContainerControl
         try
         {
             // Get the screen HDC
-            using Graphics graphics = Graphics.FromHwndInternal(0);
+            using Graphics graphics = Graphics.FromHwnd(0);
             string magicString = "The quick brown fox jumped over the lazy dog.";
             double magicNumber = 44.549996948242189; // chosen for compatibility with older versions of windows forms, but approximately magicString.Length
             float stringWidth = graphics.MeasureString(magicString, font).Width;
@@ -3900,6 +4054,33 @@ public partial class Form : ContainerControl
 
         Point p = default;
         Size s = Size;
+#if LIBREWINFORMS_PORTABLE
+        Control? owner = OwnerInternal;
+        if (owner is null
+            && Properties.GetValueOrDefault<IWin32Window>(s_propDialogOwner) is Control dialogOwner)
+        {
+            owner = dialogOwner.TopLevelControl ?? dialogOwner;
+        }
+
+        if (owner is not null)
+        {
+            Rectangle ownerRect = owner.Bounds;
+            Rectangle screenRect = Screen.FromControl(owner).WorkingArea;
+            p.X = Math.Clamp(
+                ownerRect.X + (ownerRect.Width - s.Width) / 2,
+                screenRect.X,
+                Math.Max(screenRect.X, screenRect.Right - s.Width));
+            p.Y = Math.Clamp(
+                ownerRect.Y + (ownerRect.Height - s.Height) / 2,
+                screenRect.Y,
+                Math.Max(screenRect.Y, screenRect.Bottom - s.Height));
+            Location = p;
+        }
+        else
+        {
+            CenterToScreen();
+        }
+#else
         HWND ownerHandle = (HWND)PInvokeCore.GetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_HWNDPARENT);
 
         if (!ownerHandle.IsNull)
@@ -3934,6 +4115,7 @@ public partial class Form : ContainerControl
         {
             CenterToScreen();
         }
+#endif
     }
 
     /// <summary>
@@ -3952,6 +4134,12 @@ public partial class Form : ContainerControl
         }
         else
         {
+#if LIBREWINFORMS_PORTABLE
+            IWin32Window? dialogOwner = Properties.GetValueOrDefault<IWin32Window>(s_propDialogOwner);
+            desktop = dialogOwner is Control ownerControl
+                ? Screen.FromControl(ownerControl)
+                : Screen.FromPoint(MousePosition);
+#else
             HWND hWndOwner = default;
             if (TopLevel)
             {
@@ -3959,6 +4147,7 @@ public partial class Form : ContainerControl
             }
 
             desktop = !hWndOwner.IsNull ? Screen.FromHandle(hWndOwner) : Screen.FromPoint(MousePosition);
+#endif
         }
 
         Rectangle screenRect = desktop.WorkingArea;
@@ -4190,6 +4379,7 @@ public partial class Form : ContainerControl
         _formStateEx[s_formStateExUseMdiChildProc] = (IsMdiChild && Visible) ? 1 : 0;
         base.OnHandleCreated(e);
 
+#if !LIBREWINFORMS_PORTABLE
         UpdateLayered();
 
         // Normally, we update the form's title properties here after the handle is created.
@@ -4209,6 +4399,7 @@ public partial class Form : ContainerControl
         {
             SetScreenCaptureModeInternal(FormScreenCaptureMode);
         }
+#endif
     }
 
     /// <summary>
@@ -4221,6 +4412,12 @@ public partial class Form : ContainerControl
     {
         base.OnHandleDestroyed(e);
         _formStateEx[s_formStateExUseMdiChildProc] = 0;
+#if LIBREWINFORMS_PORTABLE
+        if (s_portableActiveForm == this)
+        {
+            s_portableActiveForm = null;
+        }
+#endif
 
         // Remove the form from OpenForms collection only if we're not recreating the handle of this form
         // (e.g., when ShowInTaskbar or RightToLeft properties get changed).
@@ -4384,16 +4581,18 @@ public partial class Form : ContainerControl
         // user has specified that the mouse should snap to the
         // Accept button using the Mouse applet in the control panel,
         // we have to respect that setting each time our form is made visible.
-        bool data = false;
         if (IsHandleCreated
             && Visible
             && (AcceptButton is not null)
-            && PInvokeCore.SystemParametersInfo(SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETSNAPTODEFBUTTON, ref data)
-            && data)
+            && SystemInformation.IsSnapToDefaultEnabled)
         {
             Control button = (Control)AcceptButton;
             Point pointToSnap = new(button.Left + button.Width / 2, button.Top + button.Height / 2);
+#if LIBREWINFORMS_PORTABLE
+            pointToSnap = PointToScreen(pointToSnap);
+#else
             PInvoke.ClientToScreen(this, ref pointToSnap);
+#endif
             if (!button.IsWindowObscured)
             {
                 Cursor.Position = pointToSnap;
@@ -4441,6 +4640,17 @@ public partial class Form : ContainerControl
         if (_formState[s_formStateRenderSizeGrip] != 0)
         {
             Size size = ClientSize;
+#if LIBREWINFORMS_PORTABLE
+            DrawPortableSizeGrip(
+                e.Graphics,
+                BackColor,
+                new Rectangle(
+                    RightToLeft == RightToLeft.Yes && RightToLeftLayout ? 0 : size.Width - SizeGripSize,
+                    size.Height - SizeGripSize,
+                    SizeGripSize,
+                    SizeGripSize),
+                RightToLeft == RightToLeft.Yes && RightToLeftLayout);
+#else
             if (Application.RenderWithVisualStyles)
             {
                 _sizeGripRenderer ??= new VisualStyleRenderer(VisualStyleElement.Status.Gripper.Normal);
@@ -4460,6 +4670,7 @@ public partial class Form : ContainerControl
                     SizeGripSize,
                     SizeGripSize);
             }
+#endif
         }
 
         if (IsMdiContainer)
@@ -4467,6 +4678,26 @@ public partial class Form : ContainerControl
             e.GraphicsInternal.FillRectangle(SystemBrushes.AppWorkspace, ClientRectangle);
         }
     }
+
+#if LIBREWINFORMS_PORTABLE
+    private static void DrawPortableSizeGrip(Graphics graphics, Color backColor, Rectangle bounds, bool leftAligned)
+    {
+        using SolidBrush shadow = new(ControlPaint.Dark(backColor));
+        using SolidBrush highlight = new(ControlPaint.LightLight(backColor));
+        for (int row = 0; row < 3; row++)
+        {
+            int y = bounds.Bottom - 4 - (row * 4);
+            for (int column = 0; column <= row; column++)
+            {
+                int x = leftAligned
+                    ? bounds.Left + 2 + (column * 4)
+                    : bounds.Right - 4 - (column * 4);
+                graphics.FillRectangle(shadow, x, y, 2, 2);
+                graphics.FillRectangle(highlight, x, y, 1, 1);
+            }
+        }
+    }
+#endif
 
     /// <summary>
     ///  Raises the Resize event.
@@ -4565,6 +4796,47 @@ public partial class Form : ContainerControl
 
         OnDpiChanged(e);
     }
+
+#if LIBREWINFORMS_PORTABLE
+    internal void ApplyPortableDpiChange(int newDeviceDpi, Rectangle suggestedRectangle)
+    {
+        int oldDeviceDpi = DeviceDpiInternal;
+        if (oldDeviceDpi == newDeviceDpi)
+        {
+            return;
+        }
+
+        ApplyPortableDpiToChildrenBeforeParent(this, newDeviceDpi);
+        DeviceDpiInternal = newDeviceDpi;
+        OnDpiChanged(new DpiChangedEventArgs(oldDeviceDpi, newDeviceDpi, suggestedRectangle));
+        ApplyPortableDpiToChildrenAfterParent(this);
+    }
+
+    private static void ApplyPortableDpiToChildrenBeforeParent(Control parent, int newDeviceDpi)
+    {
+        foreach (Control child in parent.Controls)
+        {
+            ApplyPortableDpiToChildrenBeforeParent(child, newDeviceDpi);
+            if (child.IsHandleCreated)
+            {
+                child.ApplyPortableDpiChangeBeforeParent(newDeviceDpi);
+            }
+        }
+    }
+
+    private static void ApplyPortableDpiToChildrenAfterParent(Control parent)
+    {
+        foreach (Control child in parent.Controls)
+        {
+            if (child.IsHandleCreated)
+            {
+                child.ApplyPortableDpiChangeAfterParent();
+            }
+
+            ApplyPortableDpiToChildrenAfterParent(child);
+        }
+    }
+#endif
 
     /// <summary>
     ///  Allows derived form to handle WM_GETDPISCALEDSIZE message.
@@ -4896,6 +5168,31 @@ public partial class Form : ContainerControl
 
     internal override unsafe void RecreateHandleCore()
     {
+#if LIBREWINFORMS_PORTABLE
+        FormStartPosition oldStartPosition = FormStartPosition.Manual;
+        if (StartPosition != FormStartPosition.Manual)
+        {
+            oldStartPosition = StartPosition;
+            StartPosition = FormStartPosition.Manual;
+        }
+
+        _inRecreateHandle = true;
+        try
+        {
+            base.RecreateHandleCore();
+        }
+        finally
+        {
+            _inRecreateHandle = false;
+        }
+
+        if (oldStartPosition != FormStartPosition.Manual)
+        {
+            StartPosition = oldStartPosition;
+        }
+
+        GC.KeepAlive(this);
+#else
         WINDOWPLACEMENT wp = default;
 
         FormStartPosition oldStartPosition = FormStartPosition.Manual;
@@ -4959,6 +5256,7 @@ public partial class Form : ContainerControl
         }
 
         GC.KeepAlive(this);
+#endif
     }
 
     private void SetFormTitleProperties()
@@ -5292,7 +5590,10 @@ public partial class Form : ContainerControl
             _restoreBounds.Height = height;
         }
 
-        // Enforce maximum size...
+#if !LIBREWINFORMS_PORTABLE
+        // Enforce the Windows window-manager tracking limits. Portable backends apply their
+        // native limits through ILibreWindow; Control.ApplyBoundsConstraints above still
+        // enforces the public MinimumSize and MaximumSize properties on every platform.
         if (WindowState == FormWindowState.Normal && (Height != height || Width != width))
         {
             Size max = SystemInformation.MaxWindowTrackSize;
@@ -5326,6 +5627,7 @@ public partial class Form : ContainerControl
                 width = min.Width;
             }
         }
+#endif
 
         base.SetBoundsCore(x, y, width, height, specified);
     }
@@ -5438,6 +5740,52 @@ public partial class Form : ContainerControl
     ///   If the operating system is in a non-interactive mode, this method will throw an <see cref="InvalidOperationException"/>.
     ///  </para>
     /// </remarks>
+#if LIBREWINFORMS_PORTABLE
+    private static IWin32Window? ResolvePortableOwner(
+        IWin32Window? owner,
+        out Form? ownerForm)
+    {
+        if (owner is null)
+        {
+            ownerForm = ActiveForm;
+            return ownerForm;
+        }
+
+        Control? ownerControl = owner as Control ?? Control.FromHandle(owner.Handle);
+        if (ownerControl is not null)
+        {
+            if (ownerControl.TopLevelControlInternal is Form resolvedOwnerForm)
+            {
+                ownerForm = resolvedOwnerForm;
+                return resolvedOwnerForm;
+            }
+
+            throw new ArgumentException(
+                "A portable WinForms control owner must resolve to a live top-level Form.",
+                nameof(owner));
+        }
+
+        LibreHandle externalOwner = GetPortableExternalOwnerHandle(owner);
+        if (LibrePlatform.Current.ExternalWindowOwners.IsLive(externalOwner))
+        {
+            ownerForm = null;
+            return owner;
+        }
+
+        throw new ArgumentException(
+            "A portable WinForms owner must resolve to a live top-level window.",
+            nameof(owner));
+    }
+
+    private static LibreHandle GetPortableExternalOwnerHandle(IWin32Window owner)
+    {
+        nint ownerHandle = owner.Handle;
+        return ownerHandle == 0
+            ? default
+            : new LibreHandle(ownerHandle, LibreHandleKind.Window);
+    }
+#endif
+
     public void Show(IWin32Window? owner)
     {
         if (owner == this)
@@ -5465,6 +5813,17 @@ public partial class Form : ContainerControl
             throw new InvalidOperationException(SR.CantShowModalOnNonInteractive);
         }
 
+#if LIBREWINFORMS_PORTABLE
+        IWin32Window? portableOwnerWindow = ResolvePortableOwner(owner, out Form? portableOwner);
+        Properties.AddOrRemoveValue(s_propDialogOwner, portableOwnerWindow);
+        Form? oldOwner = OwnerInternal;
+        if (owner is not null && portableOwner is not null && portableOwner != oldOwner)
+        {
+            Owner = portableOwner;
+        }
+
+        Visible = true;
+#else
         if ((owner is not null) && !owner.GetExtendedStyle().HasFlag(WINDOW_EX_STYLE.WS_EX_TOPMOST))
         {
             // It's not the top-most window
@@ -5496,6 +5855,7 @@ public partial class Form : ContainerControl
         }
 
         Visible = true;
+#endif
     }
 
     /// <summary>
@@ -5691,6 +6051,13 @@ public partial class Form : ContainerControl
             throw new InvalidOperationException(SR.CantShowModalOnNonInteractive);
         }
 
+#if LIBREWINFORMS_PORTABLE
+        IWin32Window? portableOwnerWindow = ResolvePortableOwner(owner, out Form? portableOwner);
+        LibreHandle externalPortableOwner = portableOwner is null && portableOwnerWindow is not null
+            ? GetPortableExternalOwnerHandle(portableOwnerWindow)
+            : default;
+        bool restoreExternalOwnerEnabled = false;
+#else
         if ((owner is not null) && !owner.GetExtendedStyle().HasFlag(WINDOW_EX_STYLE.WS_EX_TOPMOST))
         {
             // It's not the top-most window
@@ -5699,6 +6066,7 @@ public partial class Form : ContainerControl
                 owner = ownerControl.TopLevelControlInternal;
             }
         }
+#endif
 
         CalledOnLoad = false;
         CalledMakeVisible = false;
@@ -5706,6 +6074,10 @@ public partial class Form : ContainerControl
         // for modal dialogs make sure we reset close reason.
         CloseReason = CloseReason.None;
 
+#if LIBREWINFORMS_PORTABLE
+        (portableOwner ?? ActiveForm)?.CancelPortableCapture();
+        Properties.AddOrRemoveValue(s_propDialogOwner, portableOwnerWindow);
+#else
         HWND captureHwnd = PInvoke.GetCapture();
         if (!captureHwnd.IsNull)
         {
@@ -5715,6 +6087,7 @@ public partial class Form : ContainerControl
 
         HWND activeHwnd = PInvoke.GetActiveWindow();
         HandleRef<HWND> ownerHwnd = owner is null ? GetHandleRef(activeHwnd) : GetSafeHandle(owner);
+#endif
 
         Form? oldOwner = OwnerInternal;
 
@@ -5737,6 +6110,19 @@ public partial class Form : ContainerControl
             // GetActiveWindow.
             CreateControl();
 
+#if LIBREWINFORMS_PORTABLE
+            if (portableOwnerWindow is not null && portableOwnerWindow != this)
+            {
+                if (portableOwner is not null && owner is not null && portableOwner != oldOwner)
+                {
+                    Owner = portableOwner;
+                }
+                else
+                {
+                    SetPortableOwner(portableOwnerWindow);
+                }
+            }
+#else
             if (!ownerHwnd.IsNull && ownerHwnd.Handle != HWND)
             {
                 // Catch the case of a window trying to own its owner
@@ -5762,20 +6148,50 @@ public partial class Form : ContainerControl
                     PInvokeCore.SetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_HWNDPARENT, ownerHwnd);
                 }
             }
+#endif
 
             try
             {
                 // If the DialogResult was already set, then there's no need to actually display the dialog.
                 if (_dialogResult == DialogResult.None)
                 {
+#if LIBREWINFORMS_PORTABLE
+                    if (!externalPortableOwner.IsNull
+                        && LibrePlatform.Current.ExternalWindowOwners.TryGetState(
+                            externalPortableOwner,
+                            out LibreExternalWindowOwnerState externalOwnerState)
+                        && externalOwnerState.IsEnabled)
+                    {
+                        restoreExternalOwnerEnabled =
+                            LibrePlatform.Current.ExternalWindowOwners.TrySetEnabled(
+                                externalPortableOwner,
+                                enabled: false);
+                    }
+#endif
                     // Application.RunDialog sets this dialog to be visible.
                     Application.RunDialog(this);
                 }
             }
             finally
             {
-                // Call SetActiveWindow before setting Visible = false.
+#if LIBREWINFORMS_PORTABLE
+                if (restoreExternalOwnerEnabled)
+                {
+                    LibrePlatform.Current.ExternalWindowOwners.TrySetEnabled(
+                        externalPortableOwner,
+                        enabled: true);
+                }
 
+                if (portableOwner is { IsDisposed: false, Visible: true })
+                {
+                    portableOwner.Activate();
+                }
+                else if (!externalPortableOwner.IsNull)
+                {
+                    LibrePlatform.Current.ExternalWindowOwners.TryActivate(externalPortableOwner);
+                }
+#else
+                // Call SetActiveWindow before setting Visible = false.
                 if (!PInvoke.IsWindow(activeHwnd))
                 {
                     activeHwnd = ownerHwnd.Handle;
@@ -5789,6 +6205,7 @@ public partial class Form : ContainerControl
                 {
                     PInvoke.SetActiveWindow(ownerHwnd);
                 }
+#endif
 
                 SetVisibleCore(false);
                 if (IsHandleCreated)
@@ -5813,7 +6230,9 @@ public partial class Form : ContainerControl
         {
             Owner = oldOwner;
             Properties.RemoveValue(s_propDialogOwner);
+#if !LIBREWINFORMS_PORTABLE
             GC.KeepAlive(ownerHwnd.Wrapper);
+#endif
         }
 
         return DialogResult;
@@ -6112,6 +6531,18 @@ public partial class Form : ContainerControl
     {
         if (IsHandleCreated && TopLevel)
         {
+#if LIBREWINFORMS_PORTABLE
+            IWin32Window? owner = OwnerInternal;
+            if (owner is null
+                && Properties.TryGetValue(s_propDialogOwner, out IWin32Window? dialogOwner))
+            {
+                owner = dialogOwner is Control dialogOwnerControl
+                    ? dialogOwnerControl.TopLevelControlInternal
+                    : dialogOwner;
+            }
+
+            SetPortableOwner(owner);
+#else
             IHandle<HWND> ownerHwnd = NullHandle<HWND>.Instance;
             if (Properties.TryGetValue(s_propOwner, out Form? owner))
             {
@@ -6127,6 +6558,7 @@ public partial class Form : ContainerControl
 
             PInvokeCore.SetWindowLong(this, WINDOW_LONG_PTR_INDEX.GWL_HWNDPARENT, ownerHwnd);
             GC.KeepAlive(ownerHwnd);
+#endif
         }
     }
 
@@ -6136,6 +6568,12 @@ public partial class Form : ContainerControl
     /// </summary>
     private void UpdateLayered()
     {
+#if LIBREWINFORMS_PORTABLE
+        if (IsHandleCreated && TopLevel)
+        {
+            SetPortableWindowOpacity(double.IsFinite(Opacity) ? Opacity : 0d);
+        }
+#else
         if ((_formState[s_formStateLayered] != 0) && IsHandleCreated && TopLevel)
         {
             BOOL result;
@@ -6161,6 +6599,7 @@ public partial class Form : ContainerControl
                 throw new Win32Exception();
             }
         }
+#endif
     }
 
     private unsafe void UpdateMenuHandles(bool recreateMenu = false)
@@ -6423,7 +6862,9 @@ public partial class Form : ContainerControl
     protected override void OnStyleChanged(EventArgs e)
     {
         base.OnStyleChanged(e);
+#if !LIBREWINFORMS_PORTABLE
         AdjustSystemMenu();
+#endif
     }
 
     /// <summary>
@@ -6431,6 +6872,42 @@ public partial class Form : ContainerControl
     /// </summary>
     private unsafe void UpdateWindowIcon(bool redrawFrame, int dpi = 0)
     {
+#if LIBREWINFORMS_PORTABLE
+        if (!IsHandleCreated)
+        {
+            return;
+        }
+
+        Icon? icon = ((FormBorderStyle == FormBorderStyle.FixedDialog && _formState[s_formStateIconSet] == 0) || !ShowIcon)
+            ? null
+            : Icon;
+        if (icon is null)
+        {
+            SetPortableWindowIcons([]);
+            return;
+        }
+
+        if (dpi == 0)
+        {
+            dpi = DeviceDpi;
+        }
+
+        List<LibreWindowIcon> icons = [CreatePortableWindowIcon(icon)];
+        int smallSize = Math.Max(1, checked((int)Math.Round(16.0 * dpi / ScaleHelper.InitialSystemDpi)));
+        if (icon.Width != smallSize || icon.Height != smallSize)
+        {
+            using Icon smallIcon = new(icon, smallSize, smallSize);
+            icons.Add(CreatePortableWindowIcon(smallIcon));
+        }
+
+        SetPortableWindowIcons(icons);
+        if (redrawFrame)
+        {
+            Invalidate();
+        }
+
+        return;
+#else
         if (IsHandleCreated)
         {
             Icon? icon;
@@ -6489,7 +6966,40 @@ public partial class Form : ContainerControl
                 PInvoke.RedrawWindow(this, lprcUpdate: null, HRGN.Null, REDRAW_WINDOW_FLAGS.RDW_INVALIDATE | REDRAW_WINDOW_FLAGS.RDW_FRAME);
             }
         }
+#endif
     }
+
+#if LIBREWINFORMS_PORTABLE
+    private static unsafe LibreWindowIcon CreatePortableWindowIcon(Icon icon)
+    {
+        using Bitmap bitmap = icon.ToBitmap();
+        Rectangle bounds = new(0, 0, bitmap.Width, bitmap.Height);
+        BitmapData data = bitmap.LockBits(bounds, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        try
+        {
+            byte[] rgba = new byte[checked(bitmap.Width * bitmap.Height * 4)];
+            for (int y = 0; y < bitmap.Height; y++)
+            {
+                ReadOnlySpan<byte> source = new((byte*)data.Scan0 + checked(y * data.Stride), bitmap.Width * 4);
+                Span<byte> destination = rgba.AsSpan(y * bitmap.Width * 4, bitmap.Width * 4);
+                for (int x = 0; x < bitmap.Width; x++)
+                {
+                    int offset = x * 4;
+                    destination[offset] = source[offset + 2];
+                    destination[offset + 1] = source[offset + 1];
+                    destination[offset + 2] = source[offset];
+                    destination[offset + 3] = source[offset + 3];
+                }
+            }
+
+            return new LibreWindowIcon(bitmap.Width, bitmap.Height, rgba);
+        }
+        finally
+        {
+            bitmap.UnlockBits(data);
+        }
+    }
+#endif
 
     /// <summary>
     ///  Update the window state from the handle, if created.

@@ -75,9 +75,14 @@ public static class CheckBoxRenderer
     {
         InitializeRenderer((int)state);
 
+#if LIBREWINFORMS_PORTABLE
+        Rectangle glyphBounds = new(glyphLocation, GetGlyphSize(deviceContext, state, hwnd));
+        t_visualStyleRenderer.DrawBackground(deviceContext, glyphBounds);
+#else
         using DeviceContextHdcScope hdc = deviceContext.ToHdcScope();
         Rectangle glyphBounds = new(glyphLocation, GetGlyphSize(hdc, state, hwnd));
         t_visualStyleRenderer.DrawBackground(hdc, glyphBounds, hwnd);
+#endif
     }
 
     /// <inheritdoc cref="DrawCheckBox(Graphics, Point, Rectangle, string?, Font?, TextFormatFlags, Image, Rectangle, bool, CheckBoxState)"/>
@@ -236,8 +241,13 @@ public static class CheckBoxRenderer
             return new Size(13, 13);
         }
 
+#if LIBREWINFORMS_PORTABLE
+        InitializeRenderer((int)state);
+        return t_visualStyleRenderer.GetPartSize(deviceContext, ThemeSizeType.Draw);
+#else
         using DeviceContextHdcScope hdc = deviceContext.ToHdcScope();
         return GetGlyphSize(hdc, state, hwnd);
+#endif
     }
 
     internal static Size GetGlyphSize(HDC hdc, CheckBoxState state, HWND hwnd)

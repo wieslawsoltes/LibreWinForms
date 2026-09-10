@@ -52,7 +52,17 @@ public class GiveFeedbackEventArgs : EventArgs, IGiveFeedbackEvent
     /// </remarks>
     public Bitmap? DragImage { get; set; }
 
+#if LIBREWINFORMS_PROGPU_DRAWING
+    IBitmap? IGiveFeedbackEvent.DragImage => DragImage is null ? null : new ProGpuBitmapAdapter(DragImage);
+
+    private sealed class ProGpuBitmapAdapter(Bitmap bitmap) : IBitmap
+    {
+        public HBITMAP GetHbitmap() => (HBITMAP)bitmap.GetHbitmap();
+        public Size Size => bitmap.Size;
+    }
+#else
     IBitmap? IGiveFeedbackEvent.DragImage => DragImage;
+#endif
 
     /// <summary>
     ///  Gets or sets the drag image cursor offset.

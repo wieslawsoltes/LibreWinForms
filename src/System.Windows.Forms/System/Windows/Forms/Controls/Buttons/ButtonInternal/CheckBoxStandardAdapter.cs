@@ -94,14 +94,7 @@ internal sealed class CheckBoxStandardAdapter : CheckBoxBaseAdapter
         }
         else
         {
-            LayoutOptions? options = default;
-            using (var screen = GdiCache.GetScreenHdc())
-            using (PaintEventArgs pe = new(screen, clipRect: default))
-            {
-                options = Layout(pe);
-            }
-
-            return options.GetPreferredSizeCore(proposedSize);
+            return GetPreferredSizeFromLayout(proposedSize);
         }
     }
 
@@ -117,6 +110,15 @@ internal sealed class CheckBoxStandardAdapter : CheckBoxBaseAdapter
 
         if (Application.RenderWithVisualStyles)
         {
+#if LIBREWINFORMS_PORTABLE
+            layout.CheckSize = CheckBoxRenderer.GetGlyphSize(
+                e.GraphicsInternal,
+                CheckBoxRenderer.ConvertFromButtonState(
+                    GetState(),
+                    isMixed: true,
+                    Control.MouseIsOver),
+                Control.HWNDInternal).Width;
+#else
             using var screen = GdiCache.GetScreenHdc();
             layout.CheckSize = CheckBoxRenderer.GetGlyphSize(
                 screen,
@@ -125,6 +127,7 @@ internal sealed class CheckBoxStandardAdapter : CheckBoxBaseAdapter
                     isMixed: true,
                     Control.MouseIsOver),
                 Control.HWNDInternal).Width;
+#endif
         }
         else
         {

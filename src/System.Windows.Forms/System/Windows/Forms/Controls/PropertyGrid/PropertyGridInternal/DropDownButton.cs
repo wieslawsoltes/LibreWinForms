@@ -139,6 +139,9 @@ internal sealed partial class DropDownButton : Button
                 dropDownButtonRect);
         }
 
+#if LIBREWINFORMS_PORTABLE
+        ComboBoxRenderer.DrawDropDownButton(pevent.Graphics, dropDownButtonRect, state);
+#else
         using (DeviceContextHdcScope hdc = new(pevent))
         {
             ComboBoxRenderer.DrawDropDownButtonForHandle(
@@ -147,6 +150,7 @@ internal sealed partial class DropDownButton : Button
                 state,
                 ScaleHelper.IsScalingRequirementMet ? HWNDInternal : HWND.Null);
         }
+#endif
 
         // Redraw focus cues.
         //

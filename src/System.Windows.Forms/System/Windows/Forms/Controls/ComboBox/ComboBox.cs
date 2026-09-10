@@ -57,6 +57,10 @@ public partial class ComboBox : ListControl
 
     private int _selectedIndex = -1;  // used when we don't have a handle.
     private bool _allowCommit = true;
+#if LIBREWINFORMS_PORTABLE
+    private int _portableSelectionStart;
+    private int _portableSelectionLength;
+#endif
 
     // When the style is "simple", the requested height is used for the actual height of the control. When the
     // style is non-simple, the height of the control is determined by the OS.
@@ -99,7 +103,9 @@ public partial class ComboBox : ListControl
     /// </summary>
     private AutoCompleteStringCollection? _autoCompleteCustomSource;
     private StringSource? _stringSource;
+#if !LIBREWINFORMS_PORTABLE
     private bool _fromHandleCreate;
+#endif
 
     private ComboBoxChildListUiaProvider? _childListAccessibleObject;
     private ComboBoxChildEditUiaProvider? _childEditAccessibleObject;
@@ -151,10 +157,12 @@ public partial class ComboBox : ListControl
                 throw new NotSupportedException(SR.ComboBoxAutoCompleteModeOnlyNoneAllowed);
             }
 
+#if !LIBREWINFORMS_PORTABLE
             if (Application.OleRequired() != ApartmentState.STA)
             {
                 throw new ThreadStateException(SR.ThreadMustBeSTA);
             }
+#endif
 
             bool resetAutoComplete = false;
             if (_autoCompleteMode != AutoCompleteMode.None && value == AutoCompleteMode.None)
@@ -193,10 +201,12 @@ public partial class ComboBox : ListControl
                 throw new NotSupportedException(SR.ComboBoxAutoCompleteSourceOnlyListItemsAllowed);
             }
 
+#if !LIBREWINFORMS_PORTABLE
             if (Application.OleRequired() != ApartmentState.STA)
             {
                 throw new ThreadStateException(SR.ThreadMustBeSTA);
             }
+#endif
 
             _autoCompleteSource = value;
             SetAutoComplete(false, true);
@@ -441,10 +451,12 @@ public partial class ComboBox : ListControl
             if (Properties.GetValueOrDefault<int>(s_propDropDownWidth) != value)
             {
                 Properties.AddValue(s_propDropDownWidth, value);
+#if !LIBREWINFORMS_PORTABLE
                 if (IsHandleCreated)
                 {
                     PInvokeCore.SendMessage(this, PInvoke.CB_SETDROPPEDWIDTH, (WPARAM)value);
                 }
+#endif
             }
         }
     }
@@ -581,6 +593,11 @@ public partial class ComboBox : ListControl
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return Properties.TryGetValue(s_propItemHeight, out int portableItemHeight)
+                ? portableItemHeight
+                : FontHeight + 2;
+#else
             DrawMode drawMode = DrawMode;
             if (drawMode == DrawMode.OwnerDrawFixed ||
                 drawMode == DrawMode.OwnerDrawVariable ||
@@ -594,6 +611,7 @@ public partial class ComboBox : ListControl
 
             int height = (int)PInvokeCore.SendMessage(this, PInvoke.CB_GETITEMHEIGHT);
             return height == -1 ? throw new Win32Exception() : height;
+#endif
         }
         set
         {
@@ -820,12 +838,21 @@ public partial class ComboBox : ListControl
         // controls to be the same height.
         Size textExtent = Size.Empty;
 
+#if LIBREWINFORMS_PORTABLE
+        // This is the character that Windows uses to determine the extent.
+        textExtent = TextRenderer.MeasureText(
+            "0",
+            Font,
+            TextRenderer.MaxSize,
+            TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
+#else
         using (var hfont = GdiCache.GetHFONTScope(Font))
         using (var screen = GdiCache.GetScreenHdc())
         {
             // this is the character that Windows uses to determine the extent
             textExtent = screen.HDC.GetTextExtent("0", hfont);
         }
+#endif
 
         int dyEdit = textExtent.Height + SystemInformation.Border3DSize.Height;
 
@@ -869,7 +896,11 @@ public partial class ComboBox : ListControl
     [SRDescription(nameof(SR.ComboBoxSelectedIndexDescr))]
     public override int SelectedIndex
     {
+#if LIBREWINFORMS_PORTABLE
+        get => _selectedIndex;
+#else
         get => IsHandleCreated ? (int)PInvokeCore.SendMessage(this, PInvoke.CB_GETCURSEL) : _selectedIndex;
+#endif
         set
         {
             if (SelectedIndex == value)
@@ -880,6 +911,9 @@ public partial class ComboBox : ListControl
             ArgumentOutOfRangeException.ThrowIfLessThan(value, -1);
             ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(value, _itemsCollection?.Count ?? 0);
 
+#if LIBREWINFORMS_PORTABLE
+            _selectedIndex = value;
+#else
             if (IsHandleCreated)
             {
                 PInvokeCore.SendMessage(this, PInvoke.CB_SETCURSEL, (WPARAM)value);
@@ -888,6 +922,7 @@ public partial class ComboBox : ListControl
             {
                 _selectedIndex = value;
             }
+#endif
 
             UpdateText();
 
@@ -955,11 +990,23 @@ public partial class ComboBox : ListControl
         {
             if (DropDownStyle != ComboBoxStyle.DropDownList)
             {
+#if LIBREWINFORMS_PORTABLE
+                string replacement = value ?? string.Empty;
+                string text = Text;
+                int selectionStart = SelectionStart;
+                int selectionLength = SelectionLength;
+                Text = string.Concat(
+                    text.AsSpan(0, selectionStart),
+                    replacement,
+                    text.AsSpan(selectionStart + selectionLength));
+                Select(selectionStart + replacement.Length, 0);
+#else
                 CreateControl();
                 if (IsHandleCreated && _childEdit is not null)
                 {
                     PInvokeCore.SendMessage(_childEdit, PInvokeCore.EM_REPLACESEL, (WPARAM)(-1), value ?? string.Empty);
                 }
+#endif
             }
         }
     }
@@ -974,10 +1021,14 @@ public partial class ComboBox : ListControl
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return _portableSelectionLength;
+#else
             int end = 0;
             int start = 0;
             PInvokeCore.SendMessage(this, PInvoke.CB_GETEDITSEL, (WPARAM)(&start), (LPARAM)(&end));
             return end - start;
+#endif
         }
         set
         {
@@ -996,9 +1047,13 @@ public partial class ComboBox : ListControl
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return _portableSelectionStart;
+#else
             int value = 0;
             PInvokeCore.SendMessage(this, PInvoke.CB_GETEDITSEL, (WPARAM)(&value));
             return value;
+#endif
         }
         set
         {
@@ -1960,6 +2015,12 @@ public partial class ComboBox : ListControl
         ArgumentOutOfRangeException.ThrowIfNegative(index);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, _itemsCollection?.Count ?? 0);
 
+#if LIBREWINFORMS_PORTABLE
+        using Graphics graphics = CreateGraphicsInternal();
+        MeasureItemEventArgs measureItem = new(graphics, index, ItemHeight);
+        OnMeasureItem(measureItem);
+        return measureItem.ItemHeight;
+#else
         if (IsHandleCreated)
         {
             int h = (int)PInvokeCore.SendMessage(this, PInvoke.CB_GETITEMHEIGHT, (WPARAM)index);
@@ -1967,6 +2028,7 @@ public partial class ComboBox : ListControl
         }
 
         return ItemHeight;
+#endif
     }
 
     internal HandleRef<HWND> GetListHandle()
@@ -2113,6 +2175,9 @@ public partial class ComboBox : ListControl
             return;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        Invalidate(invalidateChildren: true);
+#else
         // Control.Invalidate(true) doesn't invalidate the non-client region.
         PInvoke.RedrawWindow(
             this,
@@ -2122,6 +2187,7 @@ public partial class ComboBox : ListControl
                 | REDRAW_WINDOW_FLAGS.RDW_FRAME
                 | REDRAW_WINDOW_FLAGS.RDW_ERASE
                 | REDRAW_WINDOW_FLAGS.RDW_ALLCHILDREN);
+#endif
     }
 
     /// <summary>
@@ -2155,8 +2221,12 @@ public partial class ComboBox : ListControl
     private int NativeAdd(object item)
     {
         Debug.Assert(IsHandleCreated, "Shouldn't be calling Native methods before the handle is created.");
+#if LIBREWINFORMS_PORTABLE
+        return Math.Max(0, (_itemsCollection?.Count ?? 1) - 1);
+#else
         int insertIndex = (int)PInvokeCore.SendMessage(this, PInvoke.CB_ADDSTRING, (WPARAM)0, GetItemText(item));
         return insertIndex < 0 ? throw new OutOfMemoryException(SR.ComboBoxItemOverflow) : insertIndex;
+#endif
     }
 
     /// <summary>
@@ -2165,6 +2235,7 @@ public partial class ComboBox : ListControl
     private void NativeClear()
     {
         Debug.Assert(IsHandleCreated, "Shouldn't be calling Native methods before the handle is created.");
+#if !LIBREWINFORMS_PORTABLE
         string? saved = null;
         if (DropDownStyle != ComboBoxStyle.DropDownList)
         {
@@ -2176,6 +2247,7 @@ public partial class ComboBox : ListControl
         {
             WindowText = saved;
         }
+#endif
     }
 
     /// <summary>
@@ -2184,6 +2256,9 @@ public partial class ComboBox : ListControl
     [SkipLocalsInit]
     private unsafe string NativeGetItemText(int index)
     {
+#if LIBREWINFORMS_PORTABLE
+        return GetItemText(Items[index]) ?? string.Empty;
+#else
         int maxLength = (int)PInvokeCore.SendMessage(this, PInvoke.CB_GETLBTEXTLEN, (WPARAM)index);
         if (maxLength == PInvoke.LB_ERR)
         {
@@ -2197,6 +2272,7 @@ public partial class ComboBox : ListControl
             Debug.Assert(actualLength != PInvoke.LB_ERR, "Should have validated the index above");
             return actualLength == PInvoke.LB_ERR ? string.Empty : buffer[..Math.Min(maxLength, actualLength)].ToString();
         }
+#endif
     }
 
     /// <summary>
@@ -2206,6 +2282,9 @@ public partial class ComboBox : ListControl
     private int NativeInsert(int index, object item)
     {
         Debug.Assert(IsHandleCreated, "Shouldn't be calling Native methods before the handle is created.");
+#if LIBREWINFORMS_PORTABLE
+        return index;
+#else
         int insertIndex = (int)PInvokeCore.SendMessage(this, PInvoke.CB_INSERTSTRING, (WPARAM)index, GetItemText(item));
         if (insertIndex < 0)
         {
@@ -2214,6 +2293,7 @@ public partial class ComboBox : ListControl
 
         Debug.Assert(insertIndex == index, $"NativeComboBox inserted at {insertIndex} not the requested index of {index}");
         return insertIndex;
+#endif
     }
 
     /// <summary>
@@ -2233,7 +2313,9 @@ public partial class ComboBox : ListControl
             Invalidate();
         }
 
+#if !LIBREWINFORMS_PORTABLE
         PInvokeCore.SendMessage(this, PInvoke.CB_DELETESTRING, (WPARAM)index);
+#endif
     }
 
     internal override void RecreateHandleCore()
@@ -2266,6 +2348,17 @@ public partial class ComboBox : ListControl
     {
         base.OnHandleCreated(e);
 
+#if LIBREWINFORMS_PORTABLE
+        // The portable handle is a managed logical handle. ComboBox items, selection, and editing state are already
+        // authoritative in the canonical managed fields and collections, so there are no native child windows or
+        // native item store to discover and initialize.
+        if (DropDownStyle == ComboBoxStyle.Simple)
+        {
+            Height = _requestedHeight;
+        }
+
+        return;
+#else
         if (MaxLength > 0)
         {
             PInvokeCore.SendMessage(this, PInvoke.CB_LIMITTEXT, (WPARAM)MaxLength);
@@ -2361,6 +2454,7 @@ public partial class ComboBox : ListControl
         }
 
         // NOTE: Setting SelectedIndex must be the last thing we do.
+#endif
     }
 
     /// <summary>
@@ -3091,6 +3185,11 @@ public partial class ComboBox : ListControl
     /// </summary>
     private void SetAutoComplete(bool reset, bool recreate)
     {
+#if LIBREWINFORMS_PORTABLE
+        // The logical ComboBox has no native edit child or shell auto-complete provider.
+        GC.KeepAlive(this);
+        return;
+#else
         if (!IsHandleCreated || _childEdit is null)
         {
             return;
@@ -3213,6 +3312,7 @@ public partial class ComboBox : ListControl
         PInvoke.SHAutoComplete(_childEdit.HWND, (SHELL_AUTOCOMPLETE_FLAGS)AutoCompleteSource | mode);
 
         GC.KeepAlive(this);
+#endif
     }
 
     /// <summary>
@@ -3227,8 +3327,16 @@ public partial class ComboBox : ListControl
         // but start + length cannot be negative... this means Length is far negative...
         ArgumentOutOfRangeException.ThrowIfLessThan(length, -start);
 
+#if LIBREWINFORMS_PORTABLE
+        int textLength = Text.Length;
+        int normalizedStart = Math.Min(start, textLength);
+        int normalizedEnd = (int)Math.Clamp((long)start + length, 0, textLength);
+        _portableSelectionStart = Math.Min(normalizedStart, normalizedEnd);
+        _portableSelectionLength = Math.Abs(normalizedEnd - normalizedStart);
+#else
         int end = start + length;
         PInvokeCore.SendMessage(this, PInvoke.CB_SETEDITSEL, (WPARAM)0, LPARAM.MAKELPARAM(start, end));
+#endif
     }
 
     /// <summary>
@@ -3362,6 +3470,13 @@ public partial class ComboBox : ListControl
     /// </summary>
     private void UpdateItemHeight()
     {
+#if LIBREWINFORMS_PORTABLE
+        // The portable control is managed; there is no native combo-box window
+        // that owns item-height state. Keep owner-draw changes in the managed
+        // lifecycle and let GetItemHeight manufacture MeasureItemEventArgs when
+        // a variable-height item is queried.
+        InvalidateEverything();
+#else
         if (!IsHandleCreated)
         {
             // If we don't create control here we report item heights incorrectly later on.
@@ -3388,6 +3503,7 @@ public partial class ComboBox : ListControl
                 }
             }
         }
+#endif
     }
 
     /// <summary>
@@ -3604,8 +3720,13 @@ public partial class ComboBox : ListControl
         m.ResultInternal = (LRESULT)1;
     }
 
+#if LIBREWINFORMS_PORTABLE
+    // The managed portable path never enters the native window procedure that consumes this HBRUSH.
+    private static readonly IntPtr s_darkEditBrush = IntPtr.Zero;
+#else
     private static readonly IntPtr s_darkEditBrush
         = PInvokeCore.CreateSolidBrush(ColorTranslator.ToWin32(Color.FromArgb(64, 64, 64)));
+#endif
 
     /// <summary>
     ///  The ComboBox's window procedure. Inheriting classes can override this
@@ -3790,7 +3911,7 @@ public partial class ComboBox : ListControl
                         PInvokeCore.SelectClipRgn(dc, windowRegion);
                     }
 
-                    using Graphics g = Graphics.FromHdcInternal((IntPtr)dc);
+                    using Graphics g = Graphics.FromHdc((IntPtr)dc);
                     FlatComboBoxAdapter.DrawFlatCombo(this, g);
 
                     // Special handling for disabled DropDownList in dark mode
@@ -3830,7 +3951,7 @@ public partial class ComboBox : ListControl
                     {
                         if (!GetStyle(ControlStyles.UserPaint) && (FlatStyle == FlatStyle.Flat || FlatStyle == FlatStyle.Popup))
                         {
-                            using Graphics g = Graphics.FromHdcInternal((HDC)m.WParamInternal);
+                            using Graphics g = Graphics.FromHdc((HDC)m.WParamInternal);
                             FlatComboBoxAdapter.DrawFlatCombo(this, g);
                         }
 

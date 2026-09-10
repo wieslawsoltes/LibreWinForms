@@ -3,7 +3,9 @@
 
 using System.ComponentModel;
 using System.Drawing;
+#if !LIBREWINFORMS_PORTABLE
 using System.Runtime.InteropServices;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -15,12 +17,16 @@ public abstract class CommonDialog : Component
 {
     private static readonly object s_helpRequestEvent = new();
     private const int CDM_SETDEFAULTFOCUS = (int)PInvokeCore.WM_USER + 0x51;
+#if !LIBREWINFORMS_PORTABLE
     private static MessageId s_helpMessage;
 
     private nint _priorWindowProcedure;
+#endif
     private bool _inShowDialog;
     private HWND _defaultControlHwnd;
+#if !LIBREWINFORMS_PORTABLE
     private readonly WNDPROC _hookProc;
+#endif
     private readonly unsafe delegate* unmanaged[Stdcall]<HWND, uint, WPARAM, LPARAM, nuint> _functionPointer;
 
     /// <summary>
@@ -28,9 +34,13 @@ public abstract class CommonDialog : Component
     /// </summary>
     public unsafe CommonDialog()
     {
+#if !LIBREWINFORMS_PORTABLE
         // Keep the delegate in a field to avoid having it collected prematurely.
         _hookProc = HookProcInternal;
         _functionPointer = (delegate* unmanaged[Stdcall]<HWND, uint, WPARAM, LPARAM, nuint>)(void*)Marshal.GetFunctionPointerForDelegate(_hookProc);
+#else
+        _functionPointer = null;
+#endif
     }
 
     [SRCategory(nameof(SR.CatData))]
@@ -114,14 +124,23 @@ public abstract class CommonDialog : Component
         handler?.Invoke(this, e);
     }
 
+#if !LIBREWINFORMS_PORTABLE
     private LRESULT OwnerWndProcInternal(HWND hWnd, uint msg, WPARAM wparam, LPARAM lparam)
         => (LRESULT)OwnerWndProc(hWnd, (int)msg, (nint)wparam, lparam);
+#endif
 
     /// <summary>
     ///  Defines the owner window procedure that is overridden to add specific functionality to a common dialog box.
     /// </summary>
     protected virtual unsafe IntPtr OwnerWndProc(IntPtr hWnd, int msg, IntPtr wparam, IntPtr lparam)
     {
+#if LIBREWINFORMS_PORTABLE
+        _ = hWnd;
+        _ = msg;
+        _ = wparam;
+        _ = lparam;
+        return IntPtr.Zero;
+#else
         if (msg == (int)s_helpMessage)
         {
             if (NativeWindow.WndProcShouldBeDebuggable)
@@ -144,6 +163,7 @@ public abstract class CommonDialog : Component
         }
 
         return PInvokeCore.CallWindowProc((void*)_priorWindowProcedure, (HWND)hWnd, (uint)msg, (nuint)wparam, lparam);
+#endif
     }
 
     /// <summary>
@@ -186,6 +206,25 @@ public abstract class CommonDialog : Component
 
         _inShowDialog = true;
 
+#if LIBREWINFORMS_PORTABLE
+        try
+        {
+            nint ownerHandle = GetPortableOwnerHandle(owner);
+            Application.BeginModalMessageLoop();
+            try
+            {
+                return RunDialog(ownerHandle) ? DialogResult.OK : DialogResult.Cancel;
+            }
+            finally
+            {
+                Application.EndModalMessageLoop();
+            }
+        }
+        finally
+        {
+            _inShowDialog = false;
+        }
+#else
         // This will be used if there is no owner or active window.
         // Declared here so it can be kept alive.
         NativeWindow? nativeWindow = null;
@@ -261,5 +300,23 @@ public abstract class CommonDialog : Component
         GC.KeepAlive(ownerHwnd.Wrapper);
 
         return result;
+#endif
     }
+
+#if LIBREWINFORMS_PORTABLE
+    private static nint GetPortableOwnerHandle(IWin32Window? owner)
+    {
+        IWin32Window? resolved = owner;
+        if (resolved is Control control)
+        {
+            resolved = control.TopLevelControlInternal ?? control;
+        }
+        else if (resolved is null)
+        {
+            resolved = Form.ActiveForm;
+        }
+
+        return resolved?.Handle ?? 0;
+    }
+#endif
 }

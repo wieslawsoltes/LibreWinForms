@@ -3,7 +3,11 @@
 
 using System.Collections.Concurrent;
 using System.Drawing;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#else
 using Microsoft.Win32;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -44,7 +48,14 @@ public static partial class ToolStripManager
 
     static ToolStripManager()
     {
+#if LIBREWINFORMS_PORTABLE
+        ILibreSystemSettingsService systemSettings = LibrePlatform.IsRegistered
+            ? LibrePlatform.Current.SystemSettings
+            : DefaultLibreSystemSettingsService.Instance;
+        systemSettings.SettingsChanged += OnSystemSettingsChanged;
+#else
         SystemEvents.UserPreferenceChanging += OnUserPreferenceChanging;
+#endif
     }
 
     internal static Font DefaultFont
@@ -263,6 +274,15 @@ public static partial class ToolStripManager
     internal static bool IsThreadUsingToolStrips()
         => t_activeToolStrips is not null && t_activeToolStrips.Count > 0;
 
+#if LIBREWINFORMS_PORTABLE
+    private static void OnSystemSettingsChanged(object? sender, LibreSystemSettingsChangedEventArgs e)
+    {
+        if (e.Includes(LibreSystemSettingsChangeKind.Window))
+        {
+            ClearDefaultFontCache();
+        }
+    }
+#else
     private static void OnUserPreferenceChanging(object sender, UserPreferenceChangingEventArgs e)
     {
         // Using changing here so that the cache will be cleared by the time the ToolStrip
@@ -275,6 +295,12 @@ public static partial class ToolStripManager
             return;
         }
 
+        ClearDefaultFontCache();
+    }
+#endif
+
+    private static void ClearDefaultFontCache()
+    {
         if (ScaleHelper.IsThreadPerMonitorV2Aware)
         {
             s_defaultFontCache.Clear();

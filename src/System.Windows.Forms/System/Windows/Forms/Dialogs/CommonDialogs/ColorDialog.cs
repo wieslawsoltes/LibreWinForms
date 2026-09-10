@@ -3,6 +3,10 @@
 
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+#if LIBREWINFORMS_PORTABLE
+using System.Drawing;
+using LibreWinForms.Platform;
+#endif
 using Windows.Win32.UI.Controls.Dialogs;
 
 namespace System.Windows.Forms;
@@ -105,7 +109,12 @@ public class ColorDialog : CommonDialog
     /// <summary>
     ///  Our HINSTANCE from Windows.
     /// </summary>
-    protected virtual nint Instance => PInvoke.GetModuleHandle((PCWSTR)null);
+    protected virtual nint Instance
+#if LIBREWINFORMS_PORTABLE
+        => 0;
+#else
+        => PInvoke.GetModuleHandle((PCWSTR)null);
+#endif
 
     /// <summary>
     ///  Returns our CHOOSECOLOR options.
@@ -156,6 +165,47 @@ public class ColorDialog : CommonDialog
 
     protected override unsafe bool RunDialog(IntPtr hwndOwner)
     {
+#if LIBREWINFORMS_PORTABLE
+        Color[] customColors = new Color[_customColors.Length];
+        for (int index = 0; index < _customColors.Length; index++)
+        {
+            customColors[index] = ColorTranslator.FromWin32((int)(uint)_customColors[index]);
+        }
+
+        LibreColorDialogOptions options = LibreColorDialogOptions.None;
+        if (AllowFullOpen) options |= LibreColorDialogOptions.AllowFullOpen;
+        if (AnyColor) options |= LibreColorDialogOptions.AnyColor;
+        if (FullOpen && AllowFullOpen) options |= LibreColorDialogOptions.FullOpen;
+        if (ShowHelp) options |= LibreColorDialogOptions.ShowHelp;
+        if (SolidColorOnly) options |= LibreColorDialogOptions.SolidColorOnly;
+        LibreColorDialogResult result = LibrePlatform.Current.ColorDialogs.Show(new LibreColorDialogRequest(
+            Color,
+            customColors,
+            options,
+            ShowHelp ? () => OnHelpRequest(EventArgs.Empty) : null,
+            hwndOwner == 0 ? default : new LibreHandle(hwndOwner, LibreHandleKind.Window)));
+        if (!result.Accepted)
+        {
+            return false;
+        }
+
+        if (result.CustomColors is null || result.CustomColors.Count > _customColors.Length)
+        {
+            throw new InvalidOperationException("The color-dialog service returned an invalid custom-color snapshot.");
+        }
+
+        _color = result.Color.IsEmpty
+            ? Color.Black
+            : Color.FromArgb(result.Color.R, result.Color.G, result.Color.B);
+        Array.Fill(_customColors, (COLORREF)0x00FFFFFF);
+        for (int index = 0; index < result.CustomColors.Count; index++)
+        {
+            Color color = result.CustomColors[index];
+            _customColors[index] = (COLORREF)ColorTranslator.ToWin32(color.IsEmpty ? Color.White : color);
+        }
+
+        return true;
+#else
         CHOOSECOLOR_FLAGS flags = (CHOOSECOLOR_FLAGS)Options | CHOOSECOLOR_FLAGS.CC_RGBINIT | CHOOSECOLOR_FLAGS.CC_ENABLEHOOK;
 
         // Our docs say AllowFullOpen takes precedence over FullOpen; ChooseColor implements the opposite
@@ -192,6 +242,7 @@ public class ColorDialog : CommonDialog
         }
 
         return true;
+#endif
     }
 
     /// <summary>

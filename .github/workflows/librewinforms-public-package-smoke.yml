@@ -55,7 +55,7 @@ jobs:
           <Project Sdk="LibreWinForms.Sdk/${LIBREWINFORMS_VERSION}">
             <PropertyGroup>
               <OutputType>WinExe</OutputType>
-              <TargetFramework>net10.0</TargetFramework>
+              <TargetFramework>net11.0</TargetFramework>
               <UseWindowsForms>true</UseWindowsForms>
               <ImplicitUsings>enable</ImplicitUsings>
               <Nullable>enable</Nullable>
@@ -111,4 +111,4 @@ jobs:
             --configuration Release \
             --no-restore
 
-          test -f "${project_dir}/bin/Release/net10.0/PublicTemplate.dll"
+          test -f "${project_dir}/bin/Release/net11.0/PublicTemplate.dll"

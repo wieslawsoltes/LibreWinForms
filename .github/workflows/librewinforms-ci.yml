@@ -14,62 +14,198 @@ permissions:
   contents: read
 
 jobs:
-  packages:
-    name: Package lane
-    runs-on: macos-15
-    timeout-minutes: 120
-    env:
-      LIBREWINFORMS_DEV_PACKAGE_VERSION: 0.1.0-preview.45
-      LIBREWINFORMS_BRIDGE_PACKAGE_VERSION: 0.1.0-preview.45
-      LIBREWINFORMS_PROGPU_PACKAGE_VERSION: 0.1.0-preview.55
-      LIBREWINFORMS_BRIDGE_REF: librewpf-v0.1.0-preview.45
+  source-first-shadow:
+    name: Canonical source and ProGPU submodule lane
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install software WebGPU adapter
+        shell: bash
+        run: |
+          ./external/ProGPU/eng/progpu-install-linux-packages.sh \
+            libvulkan1 \
+            mesa-vulkan-drivers
+
+      - name: Setup .NET 10 for ProGPU
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Setup LibreWinForms repository SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Validate canonical source and local ProGPU graph
+        shell: bash
+        run: ./eng/librewinforms-source-first.sh
+
+      - name: Pack and consume canonical source-first package
+        shell: bash
+        run: ./eng/librewinforms-pack-source-first.sh
+
+      - name: Upload canonical source-first package
+        uses: actions/upload-artifact@v4
+        with:
+          name: canonical-source-first-package
+          path: artifacts/packages/source-first/*.nupkg
+          if-no-files-found: error
+
+  source-first-visible:
+    name: Visible canonical package (${{ matrix.os }})
+    needs: source-first-shadow
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-15
+          - windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux display and software WebGPU adapter
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes xvfb libglfw3 libvulkan1 mesa-vulkan-drivers
+
+      - name: Setup .NET 10 for ProGPU dependencies
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Setup LibreWinForms repository SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Download canonical package closure
+        uses: actions/download-artifact@v4
+        with:
+          name: canonical-source-first-package
+          path: artifacts/packages/source-first
+
+      - name: Run visible installed-SDK package smoke
+        shell: bash
+        env:
+          LIBREWINFORMS_VISIBLE_DOTNET: dotnet
+        run: ./eng/librewinforms-source-first-visible-smoke.sh
+
+  appkit-adapter:
+    name: AppKit adapter lane
+    runs-on: macos-15
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup .NET 10 for ProGPU
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Setup LibreWinForms repository SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build and test typed AppKit file-dialog adapter
+        shell: bash
+        run: |
+          dotnet run \
+            --project src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj \
+            --configuration Release \
+            -- \
+            --minimum-expected-tests 6 \
+            --filter-class '*MacOsAppKitFileDialogTests*'
+
+  packages:
+    name: Package lane
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      LIBREWINFORMS_DEV_PACKAGE_VERSION: 0.1.0-preview.45
+      LIBREWINFORMS_BRIDGE_PACKAGE_VERSION: 0.1.0-preview.45
+      LIBREWINFORMS_PROGPU_PACKAGE_VERSION: 0.1.0-preview.62
+      LIBREWINFORMS_BRIDGE_REF: librewpf-v0.1.0-preview.45
+      LIBREWINFORMS_CANONICAL_WFI_REF: feature/canonical-wfi-source-build
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Checkout LibreWPF bridge packages
         uses: actions/checkout@v4
         with:
           repository: wieslawsoltes/wpf
           ref: ${{ env.LIBREWINFORMS_BRIDGE_REF }}
-          path: wpf-bridge
+          path: artifacts/checkouts/wpf-bridge
           submodules: recursive
+
+      - name: Checkout canonical LibreWPF WFI source
+        uses: actions/checkout@v4
+        with:
+          repository: wieslawsoltes/LibreWPF
+          ref: ${{ env.LIBREWINFORMS_CANONICAL_WFI_REF }}
+          path: artifacts/checkouts/wpf-canonical
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
 
+      - name: Align canonical LibreWPF ProGPU checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          qualified_progpu_commit="$(git -C external/ProGPU rev-parse HEAD)"
+          git -C artifacts/checkouts/wpf-canonical submodule update --init external/ProGPU
+          git -C artifacts/checkouts/wpf-canonical/external/ProGPU fetch --depth=1 origin "${qualified_progpu_commit}"
+          git -C artifacts/checkouts/wpf-canonical/external/ProGPU checkout --detach "${qualified_progpu_commit}"
+          test "$(git -C artifacts/checkouts/wpf-canonical/external/ProGPU rev-parse HEAD)" = "$(git -C external/ProGPU rev-parse HEAD)"
+
+      - name: Build canonical WindowsFormsIntegration from LibreWPF source
+        shell: bash
+        run: |
+          set -euo pipefail
+          canonical_wfi_commit="$(git -C artifacts/checkouts/wpf-canonical rev-parse HEAD)"
+          LIBREWINFORMS_CANONICAL_WFI_SOURCE_ROOT="${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-canonical" \
+          LIBREWINFORMS_CANONICAL_WFI_EXPECTED_COMMIT="${canonical_wfi_commit}" \
+          LIBREWINFORMS_CANONICAL_WFI_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-canonical/artifacts/packages/CanonicalWinForms" \
+          ./eng/librewinforms-build-canonical-wfi.sh
+          echo "LIBREWINFORMS_CANONICAL_WFI_COMMIT=${canonical_wfi_commit}" >> "${GITHUB_ENV}"
+          echo "LIBREWINFORMS_CANONICAL_WFI_PACKAGE_SOURCE=${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-canonical/artifacts/packages/CanonicalWinForms" >> "${GITHUB_ENV}"
+
       - name: Stage immutable LibreWPF bridge packages
         shell: bash
         run: |
           set -euo pipefail
-          LIBREWINFORMS_BRIDGE_CHECKOUT="${GITHUB_WORKSPACE}/wpf-bridge" \
-          LIBREWINFORMS_BRIDGE_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping" \
+          LIBREWINFORMS_BRIDGE_CHECKOUT="${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-bridge" \
+          LIBREWINFORMS_BRIDGE_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-bridge/artifacts/packages/Release/NonShipping" \
           ./eng/librewinforms-fetch-librewpf-packages.sh
-
-      - name: Run LibreWinForms behavior tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          restore_sources="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping;https://api.nuget.org/v3/index.json"
-          dotnet run \
-            --project src/LibreWinForms.Portable/LibreWinForms.System.Windows.Forms.Tests/LibreWinForms.System.Windows.Forms.Tests.csproj \
-            --configuration Release \
-            -p:LibreWinFormsReferenceMode=Package \
-            -p:LibreWinFormsBridgePackageVersion="${LIBREWINFORMS_BRIDGE_PACKAGE_VERSION}" \
-            -p:LibreWinFormsProGpuPackageVersion="${LIBREWINFORMS_PROGPU_PACKAGE_VERSION}" \
-            -p:RestoreSources="${restore_sources}"
 
       - name: Pack LibreWinForms
         shell: bash
         run: |
           set -euo pipefail
-          export LIBREWINFORMS_RESTORE_SOURCES="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping;https://api.nuget.org/v3/index.json"
-          export LIBREWINFORMS_STRONG_NAME_KEY_FILE="${GITHUB_WORKSPACE}/wpf-bridge/external/ProGPU/eng/ProGPU.snk"
-          export LIBREWINFORMS_BRIDGE_COMMIT="$(git -C wpf-bridge rev-parse HEAD)"
-          export LIBREWINFORMS_PROGPU_COMMIT="$(git -C wpf-bridge/external/ProGPU rev-parse HEAD)"
+          export LIBREWINFORMS_PROGPU_COMMIT="$(git -C external/ProGPU rev-parse HEAD)"
           export LIBREWINFORMS_REQUIRE_CLEAN=1
           ./eng/librewinforms-pack.sh
 
@@ -77,7 +213,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          export LIBREWINFORMS_BRIDGE_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/wpf-bridge/artifacts/packages/Release/NonShipping"
+          export LIBREWINFORMS_BRIDGE_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-bridge/artifacts/packages/Release/NonShipping"
           ./eng/librewinforms-package-smoke.sh
 
       - name: Upload packages

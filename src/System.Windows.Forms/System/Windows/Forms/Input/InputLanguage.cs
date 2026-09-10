@@ -2,8 +2,12 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Globalization;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#else
 using Microsoft.Win32;
 using Windows.Win32.UI.Input.KeyboardAndMouse;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -35,11 +39,23 @@ public sealed class InputLanguage
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            LibreInputLanguageDescriptor language = PortableService.Current;
+            return new InputLanguage(language.Token);
+#else
             Application.OleRequired();
             return new InputLanguage(PInvoke.GetKeyboardLayout(0));
+#endif
         }
         set
         {
+#if LIBREWINFORMS_PORTABLE
+            value ??= DefaultInputLanguage;
+            if (!PortableService.TryActivate(value.Handle))
+            {
+                throw new ArgumentException(SR.ErrorBadInputLanguage, nameof(value));
+            }
+#else
             // OleInitialize needs to be called before we can call ActivateKeyboardLayout.
             Application.OleRequired();
             value ??= DefaultInputLanguage;
@@ -49,6 +65,7 @@ public sealed class InputLanguage
             {
                 throw new ArgumentException(SR.ErrorBadInputLanguage, nameof(value));
             }
+#endif
         }
     }
 
@@ -59,9 +76,13 @@ public sealed class InputLanguage
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return new InputLanguage(PortableService.Default.Token);
+#else
             nint handle = 0;
             PInvokeCore.SystemParametersInfo(SYSTEM_PARAMETERS_INFO_ACTION.SPI_GETDEFAULTINPUTLANG, ref handle);
             return new InputLanguage(handle);
+#endif
         }
     }
 
@@ -77,6 +98,16 @@ public sealed class InputLanguage
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            IReadOnlyList<LibreInputLanguageDescriptor> installed = PortableService.Installed;
+            InputLanguage[] languages = new InputLanguage[installed.Count];
+            for (int i = 0; i < installed.Count; i++)
+            {
+                languages[i] = new InputLanguage(installed[i].Token);
+            }
+
+            return new InputLanguageCollection(languages);
+#else
             int size = PInvoke.GetKeyboardLayoutList(0, null);
 
             var handles = new HKL[size];
@@ -93,10 +124,13 @@ public sealed class InputLanguage
             }
 
             return new InputLanguageCollection(ils);
+#endif
         }
     }
 
+#if !LIBREWINFORMS_PORTABLE
     private const string KeyboardLayoutsRegistryPath = @"SYSTEM\CurrentControlSet\Control\Keyboard Layouts";
+#endif
 
     /// <summary>
     ///  Returns the name of the current keyboard layout as it appears in the Windows
@@ -106,9 +140,15 @@ public sealed class InputLanguage
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return TryGetPortableDescriptor(out LibreInputLanguageDescriptor? language)
+                ? language.LayoutName
+                : SR.UnknownInputLanguageLayout;
+#else
             // https://learn.microsoft.com/windows/win32/intl/using-registry-string-redirection#create-resources-for-keyboard-layout-strings
             using RegistryKey? key = Registry.LocalMachine.OpenSubKey($@"{KeyboardLayoutsRegistryPath}\{LayoutId}");
             return key.GetMUIString("Layout Display Name", "Layout Text") ?? SR.UnknownInputLanguageLayout;
+#endif
         }
     }
 
@@ -126,6 +166,11 @@ public sealed class InputLanguage
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return TryGetPortableDescriptor(out LibreInputLanguageDescriptor? language)
+                ? language.LayoutId
+                : _handle.ToInt64().ToString("X8", CultureInfo.InvariantCulture);
+#else
             // There is no good way to do this in Windows. GetKeyboardLayoutName does what we want, but only for the
             // current input language; setting and resetting the current input language would generate spurious
             // InputLanguageChanged events. Try to extract needed information manually.
@@ -174,10 +219,13 @@ public sealed class InputLanguage
             }
 
             return device.ToString("X8");
+#endif
         }
     }
 
+#if !LIBREWINFORMS_PORTABLE
     private const string UserProfileRegistryPath = @"Control Panel\International\User Profile";
+#endif
 
     /// <summary>
     ///  Returns the
@@ -190,6 +238,14 @@ public sealed class InputLanguage
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            if (TryGetPortableDescriptor(out LibreInputLanguageDescriptor? language))
+            {
+                return language.LanguageTag;
+            }
+
+            throw new ArgumentException(SR.ErrorBadInputLanguage);
+#else
             // According to the GetKeyboardLayout API function docs low word of HKL contains input language identifier.
             int langId = PARAM.LOWORD(_handle);
 
@@ -228,8 +284,19 @@ public sealed class InputLanguage
             }
 
             return CultureInfo.GetCultureInfo(langId).Name;
+#endif
         }
     }
+
+#if LIBREWINFORMS_PORTABLE
+    private static ILibreInputLanguageService PortableService
+        => LibrePlatform.IsRegistered
+            ? LibrePlatform.Current.InputLanguages
+            : DefaultLibreInputLanguageService.Instance;
+
+    private bool TryGetPortableDescriptor([NotNullWhen(true)] out LibreInputLanguageDescriptor? language)
+        => PortableService.TryGet(_handle, out language!);
+#endif
 
     /// <summary>
     ///  Creates an InputLanguageChangedEventArgs given a windows message.

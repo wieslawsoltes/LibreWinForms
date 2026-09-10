@@ -17,10 +17,12 @@ global using AppContextSwitches = System.Windows.Forms.Primitives.LocalAppContex
 global using ClipboardCore = System.Private.Windows.Ole.ClipboardCore<
     System.Windows.Forms.Ole.WinFormsOleServices>;
 global using Color = System.Drawing.Color;
+#if !LIBREWINFORMS_PORTABLE
 global using Composition = System.Private.Windows.Ole.Composition<
     System.Windows.Forms.Ole.WinFormsOleServices,
     System.Windows.Forms.Nrbf.WinFormsNrbfSerializer,
     System.Windows.Forms.DataFormats.Format>;
+#endif
 global using DataFormatsCore = System.Private.Windows.Ole.DataFormatsCore<
     System.Windows.Forms.DataFormats.Format>;
 global using DragDropHelper = System.Private.Windows.Ole.DragDropHelper<

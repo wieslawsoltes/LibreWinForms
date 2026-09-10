@@ -1,23 +1,13 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.ComponentModel.Design.Serialization;
-
 namespace System.ComponentModel.Design;
 
 /// <summary>
 ///  A service container that supports "fixed" services. Fixed services cannot be removed.
 /// </summary>
-internal sealed class DesignSurfaceServiceContainer : ServiceContainer, IPortableDesignSurfaceServiceCleanup
+internal sealed class DesignSurfaceServiceContainer : ServiceContainer
 {
-    private static readonly Type[] s_designerHostServices =
-    [
-        typeof(IDesignerHost),
-        typeof(IContainer),
-        typeof(IComponentChangeService),
-        typeof(IDesignerLoaderHost2)
-    ];
-
     private readonly HashSet<Type> _fixedServices = [];
 
     /// <summary>
@@ -26,7 +16,6 @@ internal sealed class DesignSurfaceServiceContainer : ServiceContainer, IPortabl
     internal DesignSurfaceServiceContainer(IServiceProvider? parentProvider) : base(parentProvider)
     {
         AddFixedService(typeof(DesignSurfaceServiceContainer), this);
-        AddFixedService(typeof(IPortableDesignSurfaceServiceCleanup), this);
     }
 
     /// <summary>
@@ -45,17 +34,6 @@ internal sealed class DesignSurfaceServiceContainer : ServiceContainer, IPortabl
     {
         _fixedServices.Remove(serviceType);
         RemoveService(serviceType);
-    }
-
-    void IPortableDesignSurfaceServiceCleanup.RemoveDesignerHostServices()
-    {
-        foreach (Type serviceType in s_designerHostServices)
-        {
-            if (GetService(serviceType) is IDesignerHost)
-            {
-                RemoveFixedService(serviceType);
-            }
-        }
     }
 
     /// <summary>

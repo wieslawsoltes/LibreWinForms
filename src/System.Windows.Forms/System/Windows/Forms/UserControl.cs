@@ -245,6 +245,9 @@ public class UserControl : ContainerControl
             return false;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        return ContainsFocus;
+#else
         HWND hwndFocus = PInvoke.GetFocus();
         if (hwndFocus.IsNull)
         {
@@ -252,6 +255,7 @@ public class UserControl : ContainerControl
         }
 
         return HWND == hwndFocus || PInvoke.IsChild(this, hwndFocus);
+#endif
     }
 
     /// <summary>

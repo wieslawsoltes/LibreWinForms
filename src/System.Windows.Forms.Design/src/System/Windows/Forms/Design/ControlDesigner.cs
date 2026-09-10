@@ -60,7 +60,9 @@ public partial class ControlDesigner : ComponentDesigner
     private bool _ctrlSelect;                           // if the CTRL key was down at the mouse down
     private bool _toolPassThrough;                      // a tool is selected, allow the parent to draw a rect for it.
     private bool _removalNotificationHooked;
+#if !LIBREWINFORMS_PORTABLE
     private bool _revokeDragDrop = true;
+#endif
     private bool _hadDragDrop;
 
     private DesignerControlCollection? _controls;
@@ -287,7 +289,11 @@ public partial class ControlDesigner : ComponentDesigner
         Point nativeOffset = default;
         if (Control.Parent is { } parent)
         {
+#if LIBREWINFORMS_PORTABLE
+            nativeOffset = parent.PointToClient(Control.PointToScreen(Point.Empty));
+#else
             PInvokeCore.MapWindowPoints(Control, parent, ref nativeOffset);
+#endif
         }
 
         Point offset = Control.Location;
@@ -515,8 +521,10 @@ public partial class ControlDesigner : ComponentDesigner
         // drag-drop right away.
         if (e.Control.IsHandleCreated)
         {
+#if !LIBREWINFORMS_PORTABLE
             Application.OleRequired();
             PInvokeCore.RevokeDragDrop(e.Control);
+#endif
 
             // We only hook the control's children if there was no designer. We leave it up to the designer
             // to hook its own children.
@@ -624,7 +632,9 @@ public partial class ControlDesigner : ComponentDesigner
                 rc.AllowDrop = true;
             }
 
+#if !LIBREWINFORMS_PORTABLE
             _revokeDragDrop = false;
+#endif
         }
         else
         {
@@ -639,7 +649,9 @@ public partial class ControlDesigner : ComponentDesigner
                 rc.AllowDrop = false;
             }
 
+#if !LIBREWINFORMS_PORTABLE
             _revokeDragDrop = true;
+#endif
         }
     }
 
@@ -891,9 +903,11 @@ public partial class ControlDesigner : ComponentDesigner
 
             if (child.IsHandleCreated)
             {
+#if !LIBREWINFORMS_PORTABLE
                 Application.OleRequired();
                 PInvokeCore.RevokeDragDrop(child);
                 HookChildHandles((HWND)child.Handle);
+#endif
             }
             else
             {
@@ -1232,10 +1246,12 @@ public partial class ControlDesigner : ComponentDesigner
     protected virtual void OnCreateHandle()
     {
         OnHandleChange();
+#if !LIBREWINFORMS_PORTABLE
         if (_revokeDragDrop)
         {
             PInvokeCore.RevokeDragDrop(Control);
         }
+#endif
     }
 
     /// <summary>
@@ -2402,6 +2418,11 @@ public partial class ControlDesigner : ComponentDesigner
 
     internal void HookChildHandles(HWND firstChild)
     {
+#if LIBREWINFORMS_PORTABLE
+        // Synthetic portable handles never represent an unmanaged child-window
+        // hierarchy. Managed children are covered by HookChildControls.
+        return;
+#else
         HWND hwndChild = firstChild;
         while (!hwndChild.IsNull)
         {
@@ -2439,6 +2460,7 @@ public partial class ControlDesigner : ComponentDesigner
 
             hwndChild = PInvoke.GetWindow(hwndChild, GET_WINDOW_CMD.GW_HWNDNEXT);
         }
+#endif
     }
 
     private static bool IsWindowInCurrentProcess(HWND hwnd)
@@ -2472,7 +2494,12 @@ public partial class ControlDesigner : ComponentDesigner
         //      We must hook the WindowTarget on these controls and prevent them from getting design-time events.
         //  3. Child handles that do have a Control associated with them, and the control has a designer. We ignore
         //      these and let the designer handle their messages.
+#if !LIBREWINFORMS_PORTABLE
+        // Native child windows have no Control instance, so the Windows designer
+        // must subclass them through HWND traversal. Portable backends expose
+        // managed Controls only and must not probe USER32 for synthetic handles.
         HookChildHandles(PInvoke.GetWindow(Control, GET_WINDOW_CMD.GW_CHILD));
+#endif
         HookChildControls(Control);
     }
 

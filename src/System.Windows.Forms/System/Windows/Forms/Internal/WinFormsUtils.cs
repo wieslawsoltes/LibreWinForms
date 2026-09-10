@@ -25,8 +25,12 @@ internal sealed partial class WindowsFormsUtils
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return Control.MousePosition;
+#else
             int lastXY = (int)PInvoke.GetMessagePos();
             return new Point(PARAM.SignedLOWORD(lastXY), PARAM.SignedHIWORD(lastXY));
+#endif
         }
     }
 
@@ -283,8 +287,12 @@ internal sealed partial class WindowsFormsUtils
     /// </remarks>
     public static Point TranslatePoint(Point point, Control fromControl, Control toControl)
     {
+#if LIBREWINFORMS_PORTABLE
+        return toControl.PointToClient(fromControl.PointToScreen(point));
+#else
         PInvokeCore.MapWindowPoints(fromControl, toControl, ref point);
         return point;
+#endif
     }
 
     /// <summary>

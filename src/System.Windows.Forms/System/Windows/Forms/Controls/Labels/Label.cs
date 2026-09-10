@@ -1060,11 +1060,19 @@ public partial class Label : Control, IAutomationLiveRegion
         if (string.IsNullOrEmpty(Text))
         {
             // Empty labels return the font height + borders
+#if LIBREWINFORMS_PORTABLE
+            requiredSize = TextRenderer.MeasureText(
+                "0",
+                Font,
+                TextRenderer.MaxSize,
+                TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
+#else
             using var hfont = GdiCache.GetHFONTScope(Font);
             using var screen = GdiCache.GetScreenHdc();
 
             // This is the character that Windows uses to determine the extent
             requiredSize = screen.HDC.GetTextExtent("0", hfont);
+#endif
             requiredSize.Width = 0;
         }
         else if (UseGDIMeasuring())
@@ -1075,13 +1083,13 @@ public partial class Label : Control, IAutomationLiveRegion
         else
         {
             // GDI+ rendering.
-            using var screen = GdiCache.GetScreenDCGraphics();
+            using var layoutGraphics = new LayoutGraphicsScope();
             using StringFormat stringFormat = CreateStringFormat();
             SizeF bounds = (proposedConstraints.Width == 1) ?
                 new SizeF(0, proposedConstraints.Height) :
                 new SizeF(proposedConstraints.Width, proposedConstraints.Height);
 
-            requiredSize = Size.Ceiling(screen.Graphics.MeasureString(Text, Font, bounds, stringFormat));
+            requiredSize = Size.Ceiling(layoutGraphics.Graphics.MeasureString(Text, Font, bounds, stringFormat));
         }
 
         requiredSize += bordersAndPadding;
@@ -1257,10 +1265,14 @@ public partial class Label : Control, IAutomationLiveRegion
         }
 
         Color color;
+#if LIBREWINFORMS_PORTABLE
+        color = Enabled ? ForeColor : DisabledColor;
+#else
         using (DeviceContextHdcScope hdc = new(e))
         {
             color = hdc.FindNearestColor(Enabled ? ForeColor : DisabledColor);
         }
+#endif
 
         // Do actual drawing
 

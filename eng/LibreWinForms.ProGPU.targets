@@ -1,0 +1,79 @@
+<Project>
+  <Target Name="ValidateLibreWinFormsProGpuProjectReference"
+          BeforeTargets="PrepareForBuild"
+          Condition="'$(LibreWinFormsReferenceMode)' == 'Project'">
+    <Error Condition="'$(LibreWinFormsProGpuSourceRoot)' == ''"
+           Text="LibreWinFormsReferenceMode=Project requires the ProGPU source tree. Initialize external/ProGPU or set LibreWinFormsProGpuSourceRoot to a ProGPU checkout." />
+    <Error Condition="'$(LibreWinFormsProGpuSourceRoot)' != '' And !Exists('$(LibreWinFormsProGpuSourceRoot)src\System.Drawing.Common\System.Drawing.Common.csproj')"
+           Text="LibreWinFormsProGpuSourceRoot '$(LibreWinFormsProGpuSourceRoot)' does not contain src/System.Drawing.Common/System.Drawing.Common.csproj." />
+  </Target>
+
+  <!-- System.Private.Windows.GdiPlus is retained as the explicit Win32 HDC
+       adapter and therefore carries a reference to Microsoft's Windows-only
+       System.Drawing implementation. In the opt-in portable lane, canonical
+       WinForms and Design must compile against the ProGPU implementation instead. Keep
+       the adapter assembly available, but remove only its transitive drawing
+       reference from the compiler inputs. -->
+  <Target Name="PreferProGpuSystemDrawingCompilerReference"
+          AfterTargets="ResolveAssemblyReferences"
+          BeforeTargets="CoreCompile"
+          Condition="'$(LibreWinFormsUseProGpuSystemDrawing)' == 'true' And ('$(MSBuildProjectName)' == 'System.Windows.Forms' Or '$(MSBuildProjectName)' == 'System.Windows.Forms.Primitives' Or '$(MSBuildProjectName)' == 'System.Windows.Forms.Design' Or '$(MSBuildProjectFullPath)' == '$(LibreWinFormsSdkConsumerProject)')">
+    <ItemGroup>
+      <_LibreWinFormsProGpuSystemDrawing Include="$(LibreWinFormsProGpuSourceRoot)src\System.Drawing.Common\bin\$(Configuration)\net10.0\System.Drawing.Common.dll"
+          Condition="Exists('$(LibreWinFormsProGpuSourceRoot)src\System.Drawing.Common\bin\$(Configuration)\net10.0\System.Drawing.Common.dll')" />
+      <_LibreWinFormsExistingProGpuSystemDrawingCopy Include="@(ReferenceCopyLocalPaths)"
+          Condition="'%(ReferenceCopyLocalPaths.Filename)' == 'System.Drawing.Common' And $([System.String]::Copy('%(ReferenceCopyLocalPaths.FusionName)').Contains('PublicKeyToken=c29c9752855ee183'))" />
+      <_LibreWinFormsExistingProGpuSystemDrawingReference Include="@(ReferencePath)"
+          Condition="'%(ReferencePath.Filename)' == 'System.Drawing.Common' And $([System.String]::Copy('%(ReferencePath.FusionName)').Contains('PublicKeyToken=c29c9752855ee183'))" />
+      <ReferencePath Remove="@(ReferencePath)"
+                     Condition="'%(ReferencePath.Filename)' == 'System.Drawing.Common' And $([System.String]::Copy('%(ReferencePath.FusionName)').Contains('PublicKeyToken=cc7b13ffcd2ddd51'))" />
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)"
+          Condition="'%(ReferenceCopyLocalPaths.Filename)' == 'System.Drawing.Common' And $([System.String]::Copy('%(ReferenceCopyLocalPaths.FusionName)').Contains('PublicKeyToken=cc7b13ffcd2ddd51'))" />
+      <ReferenceCopyLocalPaths Include="@(_LibreWinFormsProGpuSystemDrawing)"
+          Condition="'@(_LibreWinFormsExistingProGpuSystemDrawingCopy)' == ''" />
+      <ReferencePath Include="@(_LibreWinFormsProGpuSystemDrawing)"
+          Condition="'@(_LibreWinFormsExistingProGpuSystemDrawingReference)' == ''">
+        <CopyLocal>true</CopyLocal>
+        <ReferenceSourceTarget>ResolveAssemblyReference</ReferenceSourceTarget>
+        <ResolvedFrom>{HintPathFromItem}</ResolvedFrom>
+      </ReferencePath>
+    </ItemGroup>
+    <Error Condition="'@(_LibreWinFormsProGpuSystemDrawing)' == ''"
+           Text="The source-built ProGPU System.Drawing.Common runtime assembly was not found for configuration $(Configuration)." />
+  </Target>
+
+  <Target Name="ValidateProGpuSystemDrawingRuntimePayload"
+          AfterTargets="CopyFilesToOutputDirectory"
+          Condition="'$(LibreWinFormsUseProGpuSystemDrawing)' == 'true' And '$(IsCrossTargetingBuild)' != 'true' And ('$(MSBuildProjectName)' == 'System.Windows.Forms' Or '$(MSBuildProjectName)' == 'System.Windows.Forms.Primitives' Or '$(MSBuildProjectName)' == 'System.Windows.Forms.Design' Or '$(MSBuildProjectFullPath)' == '$(LibreWinFormsSdkConsumerProject)')">
+    <!-- ReferenceCopyLocalPaths is incremental and can retain an older build of
+         the same strong-named assembly. In source/project mode the submodule
+         output is the selected runtime payload, so copy that exact file before
+         validating the output. Package mode keeps the normal NuGet copy-local
+         behavior. -->
+    <Copy SourceFiles="$(LibreWinFormsProGpuSourceRoot)src\System.Drawing.Common\bin\$(Configuration)\net10.0\System.Drawing.Common.dll"
+          DestinationFiles="$(TargetDir)System.Drawing.Common.dll"
+          SkipUnchangedFiles="false"
+          Condition="'$(LibreWinFormsReferenceMode)' == 'Project'" />
+    <Error Condition="!Exists('$(TargetDir)System.Drawing.Common.dll')"
+           Text="The ProGPU System.Drawing.Common runtime payload was not copied to $(TargetDir)." />
+    <GetAssemblyIdentity AssemblyFiles="$(TargetDir)System.Drawing.Common.dll">
+      <Output TaskParameter="Assemblies" ItemName="_LibreWinFormsOutputSystemDrawingIdentity" />
+    </GetAssemblyIdentity>
+    <Error Condition="'%(_LibreWinFormsOutputSystemDrawingIdentity.PublicKeyToken)' != 'c29c9752855ee183'"
+           Text="The source-first output contains System.Drawing.Common public key token '%(_LibreWinFormsOutputSystemDrawingIdentity.PublicKeyToken)' instead of the ProGPU token c29c9752855ee183." />
+    <GetFileHash Files="$(LibreWinFormsProGpuSourceRoot)src\System.Drawing.Common\bin\$(Configuration)\net10.0\System.Drawing.Common.dll"
+                 Condition="'$(LibreWinFormsReferenceMode)' == 'Project'">
+      <Output TaskParameter="Items" ItemName="_LibreWinFormsSourceSystemDrawingHash" />
+    </GetFileHash>
+    <GetFileHash Files="$(TargetDir)System.Drawing.Common.dll"
+                 Condition="'$(LibreWinFormsReferenceMode)' == 'Project'">
+      <Output TaskParameter="Items" ItemName="_LibreWinFormsOutputSystemDrawingHash" />
+    </GetFileHash>
+    <PropertyGroup Condition="'$(LibreWinFormsReferenceMode)' == 'Project'">
+      <_LibreWinFormsSourceSystemDrawingFileHash>@(_LibreWinFormsSourceSystemDrawingHash->'%(FileHash)')</_LibreWinFormsSourceSystemDrawingFileHash>
+      <_LibreWinFormsOutputSystemDrawingFileHash>@(_LibreWinFormsOutputSystemDrawingHash->'%(FileHash)')</_LibreWinFormsOutputSystemDrawingFileHash>
+    </PropertyGroup>
+    <Error Condition="'$(LibreWinFormsReferenceMode)' == 'Project' And '$(_LibreWinFormsSourceSystemDrawingFileHash)' != '$(_LibreWinFormsOutputSystemDrawingFileHash)'"
+           Text="The source-first output contains a stale System.Drawing.Common payload instead of the current ProGPU project output." />
+  </Target>
+</Project>

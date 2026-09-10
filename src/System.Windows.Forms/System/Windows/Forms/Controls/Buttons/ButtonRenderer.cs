@@ -96,9 +96,14 @@ public static class ButtonRenderer
         {
             InitializeRenderer((int)state);
 
+#if LIBREWINFORMS_PORTABLE
+            t_visualStyleRenderer.DrawBackground(deviceContext, bounds);
+            contentBounds = t_visualStyleRenderer.GetBackgroundContentRectangle(deviceContext, bounds);
+#else
             using DeviceContextHdcScope hdc = deviceContext.ToHdcScope();
             t_visualStyleRenderer.DrawBackground(hdc, bounds, hwnd);
             contentBounds = t_visualStyleRenderer.GetBackgroundContentRectangle(hdc, bounds);
+#endif
         }
         else
         {

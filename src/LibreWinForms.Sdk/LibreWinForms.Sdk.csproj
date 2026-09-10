@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <PackageId>LibreWinForms.Sdk</PackageId>
+    <Title>LibreWinForms SDK</Title>
+    <Description>SDK package for cross-platform WinForms applications running on canonical WinForms source, Silk.NET, and ProGPU.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>librewinforms;winforms;sdk;progpu;silk.net;cross-platform;source-built</PackageTags>
+    <PackageType>MSBuildSdk</PackageType>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <IsPackable>true</IsPackable>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <LibreWinFormsCanonicalPackageVersion Condition="'$(LibreWinFormsCanonicalPackageVersion)' == ''">$(PackageVersion)</LibreWinFormsCanonicalPackageVersion>
+    <LibreWinFormsProGpuBackendPackageVersion Condition="'$(LibreWinFormsProGpuBackendPackageVersion)' == ''">$(PackageVersion)</LibreWinFormsProGpuBackendPackageVersion>
+    <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == ''">0.1.0-preview.62</LibreWinFormsProGpuPackageVersion>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);CollectLibreWinFormsSdkVersionFile</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="Sdk\**\*" Pack="true" PackagePath="Sdk\" />
+    <None Include="targets\**\*" Pack="true" PackagePath="targets\" />
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <Target Name="CollectLibreWinFormsSdkVersionFile">
+    <PropertyGroup>
+      <_LibreWinFormsSdkVersionFile>$(IntermediateOutputPath)LibreWinForms.Sdk.Versions.props</_LibreWinFormsSdkVersionFile>
+    </PropertyGroup>
+    <ItemGroup>
+      <_LibreWinFormsSdkVersionLine Include="&lt;Project&gt;" />
+      <_LibreWinFormsSdkVersionLine Include="  &lt;PropertyGroup&gt;" />
+      <_LibreWinFormsSdkVersionLine Include="    &lt;LibreWinFormsPackagedRuntimeVersion&gt;$(LibreWinFormsCanonicalPackageVersion)&lt;/LibreWinFormsPackagedRuntimeVersion&gt;" />
+      <_LibreWinFormsSdkVersionLine Include="    &lt;LibreWinFormsPackagedProGpuBackendVersion&gt;$(LibreWinFormsProGpuBackendPackageVersion)&lt;/LibreWinFormsPackagedProGpuBackendVersion&gt;" />
+      <_LibreWinFormsSdkVersionLine Include="    &lt;LibreWinFormsPackagedProGpuVersion&gt;$(LibreWinFormsProGpuPackageVersion)&lt;/LibreWinFormsPackagedProGpuVersion&gt;" />
+      <_LibreWinFormsSdkVersionLine Include="  &lt;/PropertyGroup&gt;" />
+      <_LibreWinFormsSdkVersionLine Include="&lt;/Project&gt;" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(_LibreWinFormsSdkVersionFile)"
+                      Lines="@(_LibreWinFormsSdkVersionLine)"
+                      Overwrite="true" />
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="$(_LibreWinFormsSdkVersionFile)"
+                              PackagePath="Sdk/LibreWinForms.Sdk.Versions.props" />
+    </ItemGroup>
+  </Target>
+</Project>

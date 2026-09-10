@@ -265,7 +265,7 @@ public partial class Button : ButtonBase, IButtonControl
 
             if (isMouseDown)
             {
-                if (PInvoke.WindowFromPoint(PointToScreen(mevent.Location)) == HWND && !ValidationCancelled)
+                if (IsMousePointerDirectlyOver(mevent.Location) && !ValidationCancelled)
                 {
                     if (GetStyle(ControlStyles.UserPaint))
                     {

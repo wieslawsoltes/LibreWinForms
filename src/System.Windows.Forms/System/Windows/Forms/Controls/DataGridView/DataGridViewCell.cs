@@ -1458,8 +1458,8 @@ public abstract partial class DataGridViewCell : DataGridViewElement, ICloneable
 
         DataGridViewCellStyle dataGridViewCellStyle = GetInheritedStyle(inheritedCellStyle: null, rowIndex, includeColors: false);
 
-        using var screen = GdiCache.GetScreenDCGraphics();
-        return GetContentBounds(screen, dataGridViewCellStyle, rowIndex);
+        using var layoutGraphics = new LayoutGraphicsScope();
+        return GetContentBounds(layoutGraphics.Graphics, dataGridViewCellStyle, rowIndex);
     }
 
     protected virtual Rectangle GetContentBounds(Graphics graphics, DataGridViewCellStyle cellStyle, int rowIndex) => Rectangle.Empty;
@@ -1519,8 +1519,8 @@ public abstract partial class DataGridViewCell : DataGridViewElement, ICloneable
     internal Rectangle GetErrorIconBounds(int rowIndex)
     {
         DataGridViewCellStyle dataGridViewCellStyle = GetInheritedStyle(inheritedCellStyle: null, rowIndex, includeColors: false);
-        using var screen = GdiCache.GetScreenDCGraphics();
-        return GetErrorIconBounds(screen, dataGridViewCellStyle, rowIndex);
+        using var layoutGraphics = new LayoutGraphicsScope();
+        return GetErrorIconBounds(layoutGraphics.Graphics, dataGridViewCellStyle, rowIndex);
     }
 
     protected virtual Rectangle GetErrorIconBounds(Graphics graphics, DataGridViewCellStyle cellStyle, int rowIndex) => Rectangle.Empty;
@@ -2275,8 +2275,8 @@ public abstract partial class DataGridViewCell : DataGridViewElement, ICloneable
         }
 
         DataGridViewCellStyle dataGridViewCellStyle = GetInheritedStyle(inheritedCellStyle: null, rowIndex, includeColors: false);
-        using var screen = GdiCache.GetScreenDCGraphics();
-        return GetPreferredSize(screen, dataGridViewCellStyle, rowIndex, new Size(width, 0)).Height;
+        using var layoutGraphics = new LayoutGraphicsScope();
+        return GetPreferredSize(layoutGraphics.Graphics, dataGridViewCellStyle, rowIndex, new Size(width, 0)).Height;
     }
 
     internal Size GetPreferredSize(int rowIndex)
@@ -2287,8 +2287,8 @@ public abstract partial class DataGridViewCell : DataGridViewElement, ICloneable
         }
 
         DataGridViewCellStyle dataGridViewCellStyle = GetInheritedStyle(inheritedCellStyle: null, rowIndex, includeColors: false);
-        using var screen = GdiCache.GetScreenDCGraphics();
-        return GetPreferredSize(screen, dataGridViewCellStyle, rowIndex, Size.Empty);
+        using var layoutGraphics = new LayoutGraphicsScope();
+        return GetPreferredSize(layoutGraphics.Graphics, dataGridViewCellStyle, rowIndex, Size.Empty);
     }
 
     protected virtual Size GetPreferredSize(
@@ -2330,8 +2330,8 @@ public abstract partial class DataGridViewCell : DataGridViewElement, ICloneable
         }
 
         DataGridViewCellStyle dataGridViewCellStyle = GetInheritedStyle(inheritedCellStyle: null, rowIndex, includeColors: false);
-        using var screen = GdiCache.GetScreenDCGraphics();
-        return GetPreferredSize(screen, dataGridViewCellStyle, rowIndex, new Size(0, height)).Width;
+        using var layoutGraphics = new LayoutGraphicsScope();
+        return GetPreferredSize(layoutGraphics.Graphics, dataGridViewCellStyle, rowIndex, new Size(0, height)).Width;
     }
 
     protected virtual Size GetSize(int rowIndex)
@@ -2740,15 +2740,15 @@ public abstract partial class DataGridViewCell : DataGridViewElement, ICloneable
                     {
                         DataGridViewCellStyle dataGridViewCellStyle = GetInheritedStyle(inheritedCellStyle: null, rowIndex, includeColors: false);
 
-                        using var screen = GdiCache.GetScreenDCGraphics();
-                        Rectangle contentBounds = GetContentBounds(screen, dataGridViewCellStyle, rowIndex);
+                        using var layoutGraphics = new LayoutGraphicsScope();
+                        Rectangle contentBounds = GetContentBounds(layoutGraphics.Graphics, dataGridViewCellStyle, rowIndex);
 
                         bool widthTruncated = false;
                         int preferredHeight = 0;
                         if (contentBounds.Width > 0)
                         {
                             preferredHeight = GetPreferredTextHeight(
-                                screen,
+                                layoutGraphics.Graphics,
                                 DataGridView.RightToLeftInternal,
                                 stringValue,
                                 dataGridViewCellStyle,

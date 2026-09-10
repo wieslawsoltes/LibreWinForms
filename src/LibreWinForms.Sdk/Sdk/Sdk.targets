@@ -1,0 +1,14 @@
+<Project>
+  <PropertyGroup>
+    <LibreWinFormsUseSystemWindowsForms Condition="'$(LibreWinFormsUseSystemWindowsForms)' == '' And ('$(UseWindowsForms)' == 'true' Or '$(LibreWinFormsRequestedUseWindowsForms)' == 'true')">true</LibreWinFormsUseSystemWindowsForms>
+    <LibreWinFormsUseSystemWindowsForms Condition="'$(LibreWinFormsUseSystemWindowsForms)' == ''">false</LibreWinFormsUseSystemWindowsForms>
+    <LibreWinFormsGenerateApplicationBootstrap Condition="'$(LibreWinFormsGenerateApplicationBootstrap)' == '' And '$(LibreWinFormsUseSystemWindowsForms)' == 'true'">true</LibreWinFormsGenerateApplicationBootstrap>
+    <LibreWinFormsGenerateApplicationBootstrap Condition="'$(LibreWinFormsGenerateApplicationBootstrap)' == ''">false</LibreWinFormsGenerateApplicationBootstrap>
+    <LibreWinFormsUseProGpuSystemDrawing>true</LibreWinFormsUseProGpuSystemDrawing>
+    <MicrosoftNETCoreAppRefPackageVersion></MicrosoftNETCoreAppRefPackageVersion>
+    <UseWindowsForms Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true'">false</UseWindowsForms>
+  </PropertyGroup>
+
+  <Import Sdk="Microsoft.NET.Sdk" Project="Sdk.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)..\targets\LibreWinForms.Sdk.targets" />
+</Project>

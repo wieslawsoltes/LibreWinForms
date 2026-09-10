@@ -6,6 +6,9 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Runtime.CompilerServices;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -15,8 +18,10 @@ namespace System.Windows.Forms;
 /// </summary>
 public static unsafe partial class ControlPaint
 {
+#if !LIBREWINFORMS_PORTABLE
     [ThreadStatic]
     private static Bitmap? t_checkImage;         // image used to render checkmarks
+#endif
 
     [ThreadStatic]
     private static Pen? t_focusPen;              // pen used to draw a focus rectangle
@@ -351,6 +356,7 @@ public static unsafe partial class ControlPaint
         return (IntPtr)colorMask;
     }
 
+#if !LIBREWINFORMS_PORTABLE
     internal static unsafe HBRUSH CreateHalftoneHBRUSH()
     {
         short* grayPattern = stackalloc short[8];
@@ -370,6 +376,7 @@ public static unsafe partial class ControlPaint
 
         return PInvoke.CreateBrushIndirect(&logicalBrush);
     }
+#endif
 
     /// <summary>
     ///  Draws a border of the specified style and color to the given graphics.
@@ -463,12 +470,14 @@ public static unsafe partial class ControlPaint
 
             g.FillRectangle(textureBrush, clipRect);
 
+#if !LIBREWINFORMS_PORTABLE
             // If the Graphics backing HDC has an offset origin (SetViewportOrgEx), drawing with a texture brush will
             // reset it. Getting the HDC and releasing it will restore the offset.
             //
             // See https://github.com/dotnet/winforms/issues/13784 for a repro.
             g.GetHdc();
             g.ReleaseHdc();
+#endif
         }
         else
         {
@@ -745,6 +754,7 @@ public static unsafe partial class ControlPaint
             case ButtonBorderStyle.Dashed:
             case ButtonBorderStyle.Solid:
                 {
+#if !LIBREWINFORMS_PORTABLE
                     if (!topColor.HasTransparency() && topStyle == ButtonBorderStyle.Solid)
                     {
                         using DeviceContextHdcScope hdc = deviceContext.ToHdcScope();
@@ -755,7 +765,9 @@ public static unsafe partial class ControlPaint
                             hdc.DrawLine(hpen, topLineLefts[i], bounds.Y + i, topLineRights[i] + 1, bounds.Y + i);
                         }
                     }
-                    else if (deviceContext.TryGetGraphics(create: true) is Graphics graphics)
+                    else
+#endif
+                    if (deviceContext.TryGetGraphics(create: true) is Graphics graphics)
                     {
                         using var pen = topColor.CreateStaticPen(
                         topStyle switch
@@ -779,6 +791,19 @@ public static unsafe partial class ControlPaint
                 {
                     HLSColor hlsColor = new(topColor);
                     float inc = InfinityToOne(1.0f / (topWidth - 1));
+#if LIBREWINFORMS_PORTABLE
+                    if (deviceContext.TryGetGraphics(create: true) is Graphics graphics)
+                    {
+                        for (int i = 0; i < topWidth; i++)
+                        {
+                            Color color = topStyle == ButtonBorderStyle.Inset
+                                ? hlsColor.Darker(1.0f - i * inc)
+                                : hlsColor.Lighter(1.0f - i * inc);
+                            using var pen = color.GetCachedPenScope();
+                            graphics.DrawLine(pen, topLineLefts[i], bounds.Y + i, topLineRights[i], bounds.Y + i);
+                        }
+                    }
+#else
                     using DeviceContextHdcScope hdc = deviceContext.ToHdcScope();
                     for (int i = 0; i < topWidth; i++)
                     {
@@ -790,6 +815,7 @@ public static unsafe partial class ControlPaint
                         // Need to add one to the destination point for GDI to render the same as GDI+
                         hdc.DrawLine(hpen, topLineLefts[i], bounds.Y + i, topLineRights[i] + 1, bounds.Y + i);
                     }
+#endif
 
                     break;
                 }
@@ -804,6 +830,7 @@ public static unsafe partial class ControlPaint
             case ButtonBorderStyle.Dashed:
             case ButtonBorderStyle.Solid:
                 {
+#if !LIBREWINFORMS_PORTABLE
                     if (!leftColor.HasTransparency() && leftStyle == ButtonBorderStyle.Solid)
                     {
                         using DeviceContextHdcScope hdc = deviceContext.ToHdcScope();
@@ -814,7 +841,9 @@ public static unsafe partial class ControlPaint
                             hdc.DrawLine(hpen, bounds.X + i, leftLineTops[i], bounds.X + i, leftLineBottoms[i] + 1);
                         }
                     }
-                    else if (deviceContext.TryGetGraphics(create: true) is Graphics graphics)
+                    else
+#endif
+                    if (deviceContext.TryGetGraphics(create: true) is Graphics graphics)
                     {
                         using var pen = leftColor.CreateStaticPen(
                             leftStyle switch
@@ -838,6 +867,19 @@ public static unsafe partial class ControlPaint
                 {
                     HLSColor hlsColor = new(leftColor);
                     float inc = InfinityToOne(1.0f / (leftWidth - 1));
+#if LIBREWINFORMS_PORTABLE
+                    if (deviceContext.TryGetGraphics(create: true) is Graphics graphics)
+                    {
+                        for (int i = 0; i < leftWidth; i++)
+                        {
+                            Color color = leftStyle == ButtonBorderStyle.Inset
+                                ? hlsColor.Darker(1.0f - i * inc)
+                                : hlsColor.Lighter(1.0f - i * inc);
+                            using var pen = color.GetCachedPenScope();
+                            graphics.DrawLine(pen, bounds.X + i, leftLineTops[i], bounds.X + i, leftLineBottoms[i]);
+                        }
+                    }
+#else
                     using DeviceContextHdcScope hdc = deviceContext.ToHdcScope();
                     for (int i = 0; i < leftWidth; i++)
                     {
@@ -849,6 +891,7 @@ public static unsafe partial class ControlPaint
                         // Need to add one to the destination point for GDI to render the same as GDI+
                         hdc.DrawLine(hpen, bounds.X + i, leftLineTops[i], bounds.X + i, leftLineBottoms[i] + 1);
                     }
+#endif
 
                     break;
                 }
@@ -863,6 +906,7 @@ public static unsafe partial class ControlPaint
             case ButtonBorderStyle.Dashed:
             case ButtonBorderStyle.Solid:
                 {
+#if !LIBREWINFORMS_PORTABLE
                     if (!bottomColor.HasTransparency() && bottomStyle == ButtonBorderStyle.Solid)
                     {
                         using DeviceContextHdcScope hdc = deviceContext.ToHdcScope();
@@ -878,7 +922,9 @@ public static unsafe partial class ControlPaint
                                 bounds.Y + bounds.Height - 1 - i);
                         }
                     }
-                    else if (deviceContext.TryGetGraphics(create: true) is Graphics graphics)
+                    else
+#endif
+                    if (deviceContext.TryGetGraphics(create: true) is Graphics graphics)
                     {
                         using var pen = bottomColor.CreateStaticPen(
                             bottomStyle switch
@@ -907,6 +953,24 @@ public static unsafe partial class ControlPaint
                 {
                     HLSColor hlsColor = new(bottomColor);
                     float inc = InfinityToOne(1.0f / (bottomWidth - 1));
+#if LIBREWINFORMS_PORTABLE
+                    if (deviceContext.TryGetGraphics(create: true) is Graphics graphics)
+                    {
+                        for (int i = 0; i < bottomWidth; i++)
+                        {
+                            Color color = bottomStyle != ButtonBorderStyle.Inset
+                                ? hlsColor.Darker(1.0f - i * inc)
+                                : hlsColor.Lighter(1.0f - i * inc);
+                            using var pen = color.GetCachedPenScope();
+                            graphics.DrawLine(
+                                pen,
+                                bottomLineLefts[i],
+                                bounds.Y + bounds.Height - 1 - i,
+                                bottomLineRights[i],
+                                bounds.Y + bounds.Height - 1 - i);
+                        }
+                    }
+#else
                     using DeviceContextHdcScope hdc = deviceContext.ToHdcScope();
                     for (int i = 0; i < bottomWidth; i++)
                     {
@@ -923,6 +987,7 @@ public static unsafe partial class ControlPaint
                             bottomLineRights[i] + 1,
                             bounds.Y + bounds.Height - 1 - i);
                     }
+#endif
 
                     break;
                 }
@@ -937,6 +1002,7 @@ public static unsafe partial class ControlPaint
             case ButtonBorderStyle.Dashed:
             case ButtonBorderStyle.Solid:
                 {
+#if !LIBREWINFORMS_PORTABLE
                     if (!rightColor.HasTransparency() && rightStyle == ButtonBorderStyle.Solid)
                     {
                         using DeviceContextHdcScope hdc = deviceContext.ToHdcScope();
@@ -952,7 +1018,9 @@ public static unsafe partial class ControlPaint
                                 rightLineBottoms[i] + 1);
                         }
                     }
-                    else if (deviceContext.TryGetGraphics(create: true) is Graphics graphics)
+                    else
+#endif
+                    if (deviceContext.TryGetGraphics(create: true) is Graphics graphics)
                     {
                         using var pen = rightColor.CreateStaticPen(
                             rightStyle switch
@@ -981,6 +1049,24 @@ public static unsafe partial class ControlPaint
                 {
                     HLSColor hlsColor = new(rightColor);
                     float inc = InfinityToOne(1.0f / (rightWidth - 1));
+#if LIBREWINFORMS_PORTABLE
+                    if (deviceContext.TryGetGraphics(create: true) is Graphics graphics)
+                    {
+                        for (int i = 0; i < rightWidth; i++)
+                        {
+                            Color color = rightStyle != ButtonBorderStyle.Inset
+                                ? hlsColor.Darker(1.0f - i * inc)
+                                : hlsColor.Lighter(1.0f - i * inc);
+                            using var pen = color.GetCachedPenScope();
+                            graphics.DrawLine(
+                                pen,
+                                bounds.X + bounds.Width - 1 - i,
+                                rightLineTops[i],
+                                bounds.X + bounds.Width - 1 - i,
+                                rightLineBottoms[i]);
+                        }
+                    }
+#else
                     using DeviceContextHdcScope hdc = deviceContext.ToHdcScope();
                     for (int i = 0; i < rightWidth; i++)
                     {
@@ -996,6 +1082,7 @@ public static unsafe partial class ControlPaint
                             bounds.X + bounds.Width - 1 - i,
                             rightLineBottoms[i] + 1);
                     }
+#endif
 
                     break;
                 }
@@ -1056,6 +1143,9 @@ public static unsafe partial class ControlPaint
     {
         ArgumentNullException.ThrowIfNull(graphics);
 
+#if LIBREWINFORMS_PORTABLE
+        DrawPortableBorder3D(graphics, new Rectangle(x, y, width, height), style, sides);
+#else
         DRAWEDGE_FLAGS edge = (DRAWEDGE_FLAGS)((uint)style & 0x0F);
         DRAW_EDGE_FLAGS flags = (DRAW_EDGE_FLAGS)sides | (DRAW_EDGE_FLAGS)((uint)style & ~0x0F);
 
@@ -1075,9 +1165,118 @@ public static unsafe partial class ControlPaint
         }
 
         // Get Win32 dc with Graphics properties applied to it.
-        using DeviceContextHdcScope hdc = new(graphics);
+        using DeviceContextHdcScope hdc = graphics.ToHdcScope();
         PInvoke.DrawEdge(hdc, ref rc, edge, flags);
+#endif
     }
+
+#if LIBREWINFORMS_PORTABLE
+    private static void DrawPortableBorder3D(
+        Graphics graphics,
+        Rectangle bounds,
+        Border3DStyle style,
+        Border3DSide sides)
+    {
+        if (((uint)style & (uint)Border3DStyle.Adjust) != 0)
+        {
+            Size border = SystemInformation.Border3DSize;
+            bounds.Inflate(border.Width, border.Height);
+        }
+
+        int edge = (int)style & 0x0F;
+        bool flat = ((uint)style & (uint)DRAW_EDGE_FLAGS.BF_FLAT) != 0;
+        if (flat)
+        {
+            DrawPortableBorder3DLayer(graphics, ref bounds, sides, SystemPens.ControlDark, SystemPens.ControlDark);
+        }
+        else
+        {
+            if ((edge & (int)DRAWEDGE_FLAGS.BDR_RAISEDOUTER) != 0)
+            {
+                DrawPortableBorder3DLayer(
+                    graphics,
+                    ref bounds,
+                    sides,
+                    SystemPens.ControlLightLight,
+                    SystemPens.ControlDarkDark);
+            }
+            else if ((edge & (int)DRAWEDGE_FLAGS.BDR_SUNKENOUTER) != 0)
+            {
+                DrawPortableBorder3DLayer(
+                    graphics,
+                    ref bounds,
+                    sides,
+                    SystemPens.ControlDarkDark,
+                    SystemPens.ControlLightLight);
+            }
+
+            if ((edge & (int)DRAWEDGE_FLAGS.BDR_RAISEDINNER) != 0)
+            {
+                DrawPortableBorder3DLayer(
+                    graphics,
+                    ref bounds,
+                    sides,
+                    SystemPens.ControlLight,
+                    SystemPens.ControlDark);
+            }
+            else if ((edge & (int)DRAWEDGE_FLAGS.BDR_SUNKENINNER) != 0)
+            {
+                DrawPortableBorder3DLayer(
+                    graphics,
+                    ref bounds,
+                    sides,
+                    SystemPens.ControlDark,
+                    SystemPens.ControlLight);
+            }
+        }
+
+        if ((sides & Border3DSide.Middle) != 0 && bounds.Width > 0 && bounds.Height > 0)
+        {
+            graphics.FillRectangle(SystemBrushes.Control, bounds);
+        }
+    }
+
+    private static void DrawPortableBorder3DLayer(
+        Graphics graphics,
+        ref Rectangle bounds,
+        Border3DSide sides,
+        Pen topLeft,
+        Pen bottomRight)
+    {
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            return;
+        }
+
+        int right = bounds.Right - 1;
+        int bottom = bounds.Bottom - 1;
+        if ((sides & Border3DSide.Top) != 0)
+        {
+            graphics.DrawLine(topLeft, bounds.Left, bounds.Top, right, bounds.Top);
+            bounds.Y++;
+            bounds.Height--;
+        }
+
+        if ((sides & Border3DSide.Left) != 0)
+        {
+            graphics.DrawLine(topLeft, bounds.Left, bounds.Top, bounds.Left, bottom);
+            bounds.X++;
+            bounds.Width--;
+        }
+
+        if ((sides & Border3DSide.Right) != 0)
+        {
+            graphics.DrawLine(bottomRight, right, bounds.Top, right, bottom);
+            bounds.Width--;
+        }
+
+        if ((sides & Border3DSide.Bottom) != 0)
+        {
+            graphics.DrawLine(bottomRight, bounds.Left, bottom, right, bottom);
+            bounds.Height--;
+        }
+    }
+#endif
 
     /// <summary>
     ///  Helper function that draws a more complex border. This is used by DrawBorder for less common
@@ -1177,6 +1376,27 @@ public static unsafe partial class ControlPaint
     {
         ArgumentNullException.ThrowIfNull(context);
 
+#if LIBREWINFORMS_PORTABLE
+        // GDI+ right and bottom DrawRectangle borders are one pixel greater than GDI.
+        bounds = new Rectangle(bounds.X, bounds.Y, bounds.Width - 1, bounds.Height - 1);
+        if (context.TryGetGraphics(create: true) is Graphics graphics)
+        {
+            if (style == ButtonBorderStyle.Solid)
+            {
+                using var pen = color.GetCachedPenScope();
+                graphics.DrawRectangle(pen, bounds);
+            }
+            else
+            {
+                using var pen = color.CreateStaticPen(BorderStyleToDashStyle(style));
+                graphics.DrawRectangle(pen, bounds);
+            }
+
+            return;
+        }
+
+        throw new PlatformNotSupportedException("Portable border rendering requires a managed Graphics context.");
+#else
         if (color.HasTransparency() || style != ButtonBorderStyle.Solid)
         {
             // GDI+ right and bottom DrawRectangle border are 1 greater than GDI
@@ -1203,6 +1423,7 @@ public static unsafe partial class ControlPaint
         using DeviceContextHdcScope hdc = context.ToHdcScope();
         using CreatePenScope hpen = new(color);
         hdc.DrawRectangle(bounds, hpen);
+#endif
     }
 
     /// <summary>
@@ -1389,6 +1610,10 @@ public static unsafe partial class ControlPaint
 
         if ((state & ButtonState.Checked) == ButtonState.Checked)
         {
+#if LIBREWINFORMS_PORTABLE
+            rectangle.X += 1;
+            DrawPortableMenuGlyph(graphics, rectangle, foreground, controlKind: 0x01);
+#else
             if (t_checkImage is null || t_checkImage.Width != rectangle.Width || t_checkImage.Height != rectangle.Height)
             {
                 t_checkImage?.Dispose();
@@ -1400,7 +1625,7 @@ public static unsafe partial class ControlPaint
                 using (Graphics g2 = Graphics.FromImage(bitmap))
                 {
                     g2.Clear(Color.Transparent);
-                    using DeviceContextHdcScope dc = new(g2, applyGraphicsState: false);
+                    using DeviceContextHdcScope dc = g2.ToHdcScope(ApplyGraphicsProperties.None);
                     PInvoke.DrawFrameControl(dc, ref rcCheck, (uint)DFC_TYPE.DFC_MENU, (uint)DFCS_STATE.DFCS_MENUCHECK);
                 }
 
@@ -1410,6 +1635,7 @@ public static unsafe partial class ControlPaint
 
             rectangle.X += 1;
             DrawImageColorized(graphics, t_checkImage, rectangle, foreground);
+#endif
         }
 
         // Surrounding border. We inset this by one pixel so we match how the 3D checkbox is drawn.
@@ -1465,12 +1691,26 @@ public static unsafe partial class ControlPaint
         ArgumentOutOfRangeException.ThrowIfNegative(width);
         ArgumentOutOfRangeException.ThrowIfNegative(height);
 
+#if LIBREWINFORMS_PORTABLE
+        if (width == 0 || height == 0)
+        {
+            throw new ArgumentException(SR.ControlMetaFileDCWrapperSizeInvalid);
+        }
+
+        DrawPortableFrameControl(
+            graphics,
+            new Rectangle(x, y, width, height),
+            kind,
+            state,
+            foreColor,
+            backColor);
+#else
         RECT rcFrame = new(0, 0, width, height);
         using Bitmap bitmap = new(width, height);
         using Graphics g2 = Graphics.FromImage(bitmap);
         g2.Clear(Color.Transparent);
 
-        using (DeviceContextHdcScope hdc = new(g2, applyGraphicsState: false))
+        using (DeviceContextHdcScope hdc = g2.ToHdcScope(ApplyGraphicsProperties.None))
         {
             // Get Win32 dc with Graphics properties applied to it.
             PInvoke.DrawFrameControl(hdc, ref rcFrame, (uint)kind, (uint)state);
@@ -1501,7 +1741,306 @@ public static unsafe partial class ControlPaint
                 null,
                 IntPtr.Zero);
         }
+#endif
     }
+
+#if LIBREWINFORMS_PORTABLE
+    private static void DrawPortableFrameControl(
+        Graphics graphics,
+        Rectangle bounds,
+        DFC_TYPE kind,
+        DFCS_STATE state,
+        Color foreColor,
+        Color backColor)
+    {
+        bool inactive = state.HasFlag(DFCS_STATE.DFCS_INACTIVE);
+        bool pushed = state.HasFlag(DFCS_STATE.DFCS_PUSHED);
+        bool flat = state.HasFlag(DFCS_STATE.DFCS_FLAT);
+        bool isChecked = state.HasFlag(DFCS_STATE.DFCS_CHECKED);
+        Color foreground = foreColor.IsEmpty
+            ? inactive ? SystemColors.GrayText : SystemColors.ControlText
+            : foreColor;
+        Color background = backColor.IsEmpty ? SystemColors.Control : backColor;
+        int controlKind = (int)state & 0xFF;
+
+        switch (kind)
+        {
+            case DFC_TYPE.DFC_BUTTON:
+                switch (controlKind)
+                {
+                    case 0x04: // DFCS_BUTTONRADIO
+                        DrawPortableRadioGlyph(graphics, bounds, foreground, isChecked, pushed);
+                        break;
+                    case 0x08: // DFCS_BUTTON3STATE
+                        DrawPortableCheckGlyph(
+                            graphics,
+                            bounds,
+                            foreground,
+                            mixed: isChecked,
+                            pushed: pushed,
+                            flat: flat,
+                            isChecked: isChecked);
+                        break;
+                    case 0x10: // DFCS_BUTTONPUSH
+                        DrawPortableButtonSurface(graphics, bounds, background, pushed, flat);
+                        break;
+                    default: // DFCS_BUTTONCHECK and the radio image/mask compatibility variants
+                        DrawPortableCheckGlyph(
+                            graphics,
+                            bounds,
+                            foreground,
+                            mixed: false,
+                            pushed: pushed,
+                            flat: flat,
+                            isChecked: isChecked);
+                        break;
+                }
+
+                break;
+            case DFC_TYPE.DFC_CAPTION:
+                DrawPortableButtonSurface(graphics, bounds, background, pushed, flat);
+                DrawPortableCaptionGlyph(graphics, bounds, foreground, controlKind);
+                break;
+            case DFC_TYPE.DFC_MENU:
+                DrawPortableMenuGlyph(graphics, bounds, foreground, controlKind);
+                break;
+            case DFC_TYPE.DFC_SCROLL:
+                DrawPortableButtonSurface(graphics, bounds, background, pushed, flat);
+                DrawPortableScrollGlyph(graphics, bounds, foreground, controlKind);
+                break;
+        }
+    }
+
+    private static void DrawPortableButtonSurface(
+        Graphics graphics,
+        Rectangle bounds,
+        Color background,
+        bool pushed,
+        bool flat)
+    {
+        using SolidBrush brush = new(background);
+        graphics.FillRectangle(brush, bounds);
+        DrawPortableFrameBorder(graphics, bounds, pushed, flat);
+    }
+
+    private static void DrawPortableFrameBorder(Graphics graphics, Rectangle bounds, bool pushed, bool flat)
+    {
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            return;
+        }
+
+        int right = bounds.Right - 1;
+        int bottom = bounds.Bottom - 1;
+        if (flat)
+        {
+            graphics.DrawRectangle(SystemPens.ControlDark, bounds.X, bounds.Y, bounds.Width - 1, bounds.Height - 1);
+            return;
+        }
+
+        Pen topLeft = pushed ? SystemPens.ControlDarkDark : SystemPens.ControlLightLight;
+        Pen bottomRight = pushed ? SystemPens.ControlLightLight : SystemPens.ControlDarkDark;
+        graphics.DrawLine(topLeft, bounds.Left, bounds.Top, right, bounds.Top);
+        graphics.DrawLine(topLeft, bounds.Left, bounds.Top, bounds.Left, bottom);
+        graphics.DrawLine(bottomRight, bounds.Left, bottom, right, bottom);
+        graphics.DrawLine(bottomRight, right, bounds.Top, right, bottom);
+
+        if (bounds.Width > 3 && bounds.Height > 3)
+        {
+            Pen innerTopLeft = pushed ? SystemPens.ControlDark : SystemPens.ControlLight;
+            Pen innerBottomRight = pushed ? SystemPens.ControlLight : SystemPens.ControlDark;
+            graphics.DrawLine(innerTopLeft, bounds.Left + 1, bounds.Top + 1, right - 1, bounds.Top + 1);
+            graphics.DrawLine(innerTopLeft, bounds.Left + 1, bounds.Top + 1, bounds.Left + 1, bottom - 1);
+            graphics.DrawLine(innerBottomRight, bounds.Left + 1, bottom - 1, right - 1, bottom - 1);
+            graphics.DrawLine(innerBottomRight, right - 1, bounds.Top + 1, right - 1, bottom - 1);
+        }
+    }
+
+    private static void DrawPortableCheckGlyph(
+        Graphics graphics,
+        Rectangle bounds,
+        Color foreground,
+        bool mixed,
+        bool pushed,
+        bool flat,
+        bool isChecked = true)
+    {
+        using SolidBrush background = new(pushed ? SystemColors.Control : SystemColors.Window);
+        graphics.FillRectangle(background, bounds);
+        DrawPortableFrameBorder(graphics, bounds, pushed: true, flat);
+
+        int inset = Math.Max(1, Math.Min(bounds.Width, bounds.Height) / 5);
+        Rectangle markBounds = Rectangle.Inflate(bounds, -inset, -inset);
+        if (markBounds.Width <= 0 || markBounds.Height <= 0 || (!mixed && !isChecked))
+        {
+            return;
+        }
+
+        if (mixed)
+        {
+            using SolidBrush markBrush = new(foreground);
+            int barHeight = Math.Max(1, markBounds.Height / 3);
+            graphics.FillRectangle(
+                markBrush,
+                markBounds.Left,
+                markBounds.Top + ((markBounds.Height - barHeight) / 2),
+                markBounds.Width,
+                barHeight);
+            return;
+        }
+
+        float penWidth = Math.Max(1.0f, Math.Min(bounds.Width, bounds.Height) / 7.0f);
+        using Pen checkPen = new(foreground, penWidth);
+        Point first = new(markBounds.Left, markBounds.Top + (markBounds.Height / 2));
+        Point second = new(markBounds.Left + (markBounds.Width * 2 / 5), markBounds.Bottom - 1);
+        Point third = new(markBounds.Right - 1, markBounds.Top);
+        graphics.DrawLine(checkPen, first, second);
+        graphics.DrawLine(checkPen, second, third);
+    }
+
+    private static void DrawPortableRadioGlyph(
+        Graphics graphics,
+        Rectangle bounds,
+        Color foreground,
+        bool isChecked,
+        bool pushed)
+    {
+        Rectangle ellipse = new(bounds.X, bounds.Y, bounds.Width - 1, bounds.Height - 1);
+        using SolidBrush background = new(pushed ? SystemColors.Control : SystemColors.Window);
+        graphics.FillEllipse(background, ellipse);
+        graphics.DrawEllipse(SystemPens.ControlDarkDark, ellipse);
+        if (!isChecked)
+        {
+            return;
+        }
+
+        int inset = Math.Max(2, Math.Min(bounds.Width, bounds.Height) / 3);
+        Rectangle dot = Rectangle.Inflate(ellipse, -inset, -inset);
+        if (dot.Width > 0 && dot.Height > 0)
+        {
+            using SolidBrush dotBrush = new(foreground);
+            graphics.FillEllipse(dotBrush, dot);
+        }
+    }
+
+    private static void DrawPortableMenuGlyph(Graphics graphics, Rectangle bounds, Color foreground, int controlKind)
+    {
+        Rectangle glyph = Rectangle.Inflate(bounds, -Math.Max(1, bounds.Width / 4), -Math.Max(1, bounds.Height / 4));
+        if (glyph.Width <= 0 || glyph.Height <= 0)
+        {
+            return;
+        }
+
+        switch (controlKind)
+        {
+            case 0x01: // DFCS_MENUCHECK
+                using (Pen pen = new(foreground, Math.Max(1.0f, Math.Min(bounds.Width, bounds.Height) / 7.0f)))
+                {
+                    Point first = new(glyph.Left, glyph.Top + (glyph.Height / 2));
+                    Point second = new(glyph.Left + (glyph.Width * 2 / 5), glyph.Bottom - 1);
+                    Point third = new(glyph.Right - 1, glyph.Top);
+                    graphics.DrawLine(pen, first, second);
+                    graphics.DrawLine(pen, second, third);
+                }
+
+                break;
+            case 0x02: // DFCS_MENUBULLET
+                using (SolidBrush brush = new(foreground))
+                {
+                    graphics.FillEllipse(brush, glyph);
+                }
+
+                break;
+            default: // DFCS_MENUARROW
+                using (SolidBrush brush = new(foreground))
+                {
+                    graphics.FillPolygon(
+                        brush,
+                        [
+                            new(glyph.Left, glyph.Top),
+                            new(glyph.Right - 1, glyph.Top + (glyph.Height / 2)),
+                            new(glyph.Left, glyph.Bottom - 1),
+                        ]);
+                }
+
+                break;
+        }
+    }
+
+    private static void DrawPortableScrollGlyph(Graphics graphics, Rectangle bounds, Color foreground, int controlKind)
+    {
+        using SolidBrush brush = new(foreground);
+        Rectangle glyph = Rectangle.Inflate(bounds, -Math.Max(2, bounds.Width / 3), -Math.Max(2, bounds.Height / 3));
+        if (glyph.Width <= 0 || glyph.Height <= 0)
+        {
+            return;
+        }
+
+        Point[] points = controlKind switch
+        {
+            0x00 =>
+            [
+                new(glyph.Left + (glyph.Width / 2), glyph.Top),
+                new(glyph.Right - 1, glyph.Bottom - 1),
+                new(glyph.Left, glyph.Bottom - 1),
+            ],
+            0x02 =>
+            [
+                new(glyph.Left, glyph.Top + (glyph.Height / 2)),
+                new(glyph.Right - 1, glyph.Top),
+                new(glyph.Right - 1, glyph.Bottom - 1),
+            ],
+            0x03 =>
+            [
+                new(glyph.Right - 1, glyph.Top + (glyph.Height / 2)),
+                new(glyph.Left, glyph.Top),
+                new(glyph.Left, glyph.Bottom - 1),
+            ],
+            _ =>
+            [
+                new(glyph.Left, glyph.Top),
+                new(glyph.Right - 1, glyph.Top),
+                new(glyph.Left + (glyph.Width / 2), glyph.Bottom - 1),
+            ],
+        };
+        graphics.FillPolygon(brush, points);
+    }
+
+    private static void DrawPortableCaptionGlyph(Graphics graphics, Rectangle bounds, Color foreground, int controlKind)
+    {
+        int inset = Math.Max(2, Math.Min(bounds.Width, bounds.Height) / 4);
+        Rectangle glyph = Rectangle.Inflate(bounds, -inset, -inset);
+        if (glyph.Width <= 0 || glyph.Height <= 0)
+        {
+            return;
+        }
+
+        using Pen pen = new(foreground, Math.Max(1.0f, Math.Min(bounds.Width, bounds.Height) / 10.0f));
+        switch (controlKind)
+        {
+            case 0x01: // DFCS_CAPTIONMIN
+                graphics.DrawLine(pen, glyph.Left, glyph.Bottom - 1, glyph.Right - 1, glyph.Bottom - 1);
+                break;
+            case 0x02: // DFCS_CAPTIONMAX
+                graphics.DrawRectangle(pen, glyph.Left, glyph.Top, glyph.Width - 1, glyph.Height - 1);
+                break;
+            case 0x03: // DFCS_CAPTIONRESTORE
+                graphics.DrawRectangle(pen, glyph.Left + 1, glyph.Top, glyph.Width - 2, glyph.Height - 2);
+                graphics.DrawRectangle(pen, glyph.Left, glyph.Top + 2, glyph.Width - 2, glyph.Height - 2);
+                break;
+            case 0x04: // DFCS_CAPTIONHELP
+                graphics.DrawLine(pen, glyph.Left + (glyph.Width / 3), glyph.Top, glyph.Right - 1, glyph.Top);
+                graphics.DrawLine(pen, glyph.Right - 1, glyph.Top, glyph.Right - 1, glyph.Top + (glyph.Height / 2));
+                graphics.DrawLine(pen, glyph.Right - 1, glyph.Top + (glyph.Height / 2), glyph.Left + (glyph.Width / 2), glyph.Bottom - 2);
+                graphics.DrawLine(pen, glyph.Left + (glyph.Width / 2), glyph.Bottom - 1, glyph.Left + (glyph.Width / 2), glyph.Bottom - 1);
+                break;
+            default: // DFCS_CAPTIONCLOSE
+                graphics.DrawLine(pen, glyph.Left, glyph.Top, glyph.Right - 1, glyph.Bottom - 1);
+                graphics.DrawLine(pen, glyph.Right - 1, glyph.Top, glyph.Left, glyph.Bottom - 1);
+                break;
+        }
+    }
+#endif
 
     /// <summary>
     ///  Draws a standard selection grab handle with the given dimensions. Grab
@@ -1809,6 +2348,12 @@ public static unsafe partial class ControlPaint
     /// </summary>
     public static void DrawReversibleFrame(Rectangle rectangle, Color backColor, FrameStyle style)
     {
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.ReversibleDrawing.DrawFrame(
+            new LibreRectangle(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height),
+            new LibreArgbColor(backColor.ToArgb()),
+            style == FrameStyle.Dashed ? LibreReversibleFrameStyle.Dashed : LibreReversibleFrameStyle.Thick);
+#else
         R2_MODE rop2;
         Color graphicsColor;
 
@@ -1841,6 +2386,7 @@ public static unsafe partial class ControlPaint
 
         PInvokeCore.SetBkColor(desktopDC, (COLORREF)(uint)ColorTranslator.ToWin32(graphicsColor));
         PInvokeCore.Rectangle(desktopDC, rectangle.X, rectangle.Y, rectangle.Right, rectangle.Bottom);
+#endif
     }
 
     /// <summary>
@@ -1848,6 +2394,12 @@ public static unsafe partial class ControlPaint
     /// </summary>
     public static unsafe void DrawReversibleLine(Point start, Point end, Color backColor)
     {
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.ReversibleDrawing.DrawLine(
+            new LibrePoint(start.X, start.Y),
+            new LibrePoint(end.X, end.Y),
+            new LibreArgbColor(backColor.ToArgb()));
+#else
         R2_MODE rop2 = (R2_MODE)GetColorRop(backColor, (int)R2_MODE.R2_NOTXORPEN, (int)R2_MODE.R2_XORPEN);
 
         using GetDcScope desktopDC = new(
@@ -1862,6 +2414,7 @@ public static unsafe partial class ControlPaint
 
         PInvoke.MoveToEx(desktopDC, start.X, start.Y, lppt: null);
         PInvoke.LineTo(desktopDC, end.X, end.Y);
+#endif
     }
 
     /// <summary>
@@ -2043,11 +2596,26 @@ public static unsafe partial class ControlPaint
     {
         ArgumentNullException.ThrowIfNull(dc);
 
+#if LIBREWINFORMS_PORTABLE
+        if (SystemInformation.HighContrast)
+        {
+            TextRenderer.DrawText(dc, s, font, layoutRectangle, SystemColors.GrayText, format);
+        }
+        else
+        {
+            layoutRectangle.Offset(1, 1);
+            TextRenderer.DrawText(dc, s, font, layoutRectangle, LightLight(color), format);
+
+            layoutRectangle.Offset(-1, -1);
+            TextRenderer.DrawText(dc, s, font, layoutRectangle, Dark(color), format);
+        }
+#else
         // This must come before creating the scope.
         FONT_QUALITY quality = TextRenderer.FontQualityFromTextRenderingHint(dc);
 
         using DeviceContextHdcScope hdc = dc.ToHdcScope(TextRenderer.GetApplyStateFlags(dc, format));
         DrawStringDisabled(hdc, s, font, color, layoutRectangle, format, quality);
+#endif
     }
 
     internal static void DrawStringDisabled(
@@ -2094,6 +2662,11 @@ public static unsafe partial class ControlPaint
     /// </summary>
     public static void FillReversibleRectangle(Rectangle rectangle, Color backColor)
     {
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.ReversibleDrawing.FillRectangle(
+            new LibreRectangle(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height),
+            new LibreArgbColor(backColor.ToArgb()));
+#else
         ROP_CODE rop3 = (ROP_CODE)GetColorRop(
             backColor,
             0xa50065,   // RasterOp.BRUSH.Invert().XorWith(RasterOp.TARGET),
@@ -2111,6 +2684,7 @@ public static unsafe partial class ControlPaint
 
         // PatBlt must be the only Win32 function that wants height in width rather than x2,y2.
         PInvoke.PatBlt(desktopDC, rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height, rop3);
+#endif
     }
 
     /// <summary>

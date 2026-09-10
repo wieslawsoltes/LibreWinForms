@@ -6,7 +6,9 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Design;
 using System.Globalization;
+#if !LIBREWINFORMS_PORTABLE
 using System.Runtime.InteropServices;
+#endif
 using System.Runtime.Serialization;
 using System.Text;
 
@@ -98,14 +100,18 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
 
     internal TreeView? _treeView;
     private bool _expandOnRealization;
+#if !LIBREWINFORMS_PORTABLE
     private bool _collapseOnRealization;
+#endif
     private TreeNodeCollection? _nodes;
     private object? _userData;
 
+#if !LIBREWINFORMS_PORTABLE
     private const TVITEM_MASK InsertMask =
         TVITEM_MASK.TVIF_TEXT
         | TVITEM_MASK.TVIF_IMAGE
         | TVITEM_MASK.TVIF_SELECTEDIMAGE;
+#endif
 
     /// <summary>
     ///  Creates a TreeNode object.
@@ -234,6 +240,9 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
                 return Rectangle.Empty;
             }
 
+#if LIBREWINFORMS_PORTABLE
+            return tv.GetPortableNodeBounds(this, textOnly: true);
+#else
             RECT rc = default;
             unsafe
             { *((IntPtr*)&rc.left) = Handle; }
@@ -245,6 +254,7 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
             }
 
             return rc;
+#endif
         }
     }
 
@@ -257,16 +267,19 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
         get
         {
             TreeView? tv = TreeView;
-            RECT rc = default;
-            unsafe
-            { *((IntPtr*)&rc.left) = Handle; }
-
-            // wparam: 1=include only text, 0=include entire line
             if (tv is null || tv.IsDisposed)
             {
                 return Rectangle.Empty;
             }
 
+#if LIBREWINFORMS_PORTABLE
+            return tv.GetPortableNodeBounds(this, textOnly: false);
+#else
+            RECT rc = default;
+            unsafe
+            { *((IntPtr*)&rc.left) = Handle; }
+
+            // wparam: 1=include only text, 0=include entire line
             if (PInvokeCore.SendMessage(tv, PInvoke.TVM_GETITEMRECT, 0, ref rc) == 0)
             {
                 // This means the node is not visible
@@ -274,6 +287,7 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
             }
 
             return rc;
+#endif
         }
     }
 
@@ -599,8 +613,12 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
     ///  Specifies whether this node is in the selected state.
     /// </summary>
     [Browsable(false)]
-    public bool IsSelected => HTREEITEMInternal != 0
-        && (State & TREE_VIEW_ITEM_STATE_FLAGS.TVIS_SELECTED) != 0;
+    public bool IsSelected
+#if LIBREWINFORMS_PORTABLE
+        => ReferenceEquals(TreeView?.SelectedNode, this);
+#else
+        => HTREEITEMInternal != 0 && (State & TREE_VIEW_ITEM_STATE_FLAGS.TVIS_SELECTED) != 0;
+#endif
 
     /// <summary>
     ///  Specifies whether this node is visible.
@@ -610,6 +628,12 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            TreeView? portableTreeView = TreeView;
+            return portableTreeView is not null
+                && !portableTreeView.IsDisposed
+                && portableTreeView.IsPortableNodeVisible(this);
+#else
             if (HTREEITEMInternal == IntPtr.Zero)
             {
                 return false;
@@ -633,6 +657,7 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
             }
 
             return visible;
+#endif
         }
     }
 
@@ -1398,6 +1423,36 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
     private void CollapseInternal(bool ignoreChildren)
     {
         TreeView? tv = TreeView;
+#if LIBREWINFORMS_PORTABLE
+        if (tv is not null)
+        {
+            if (!IsExpanded || !tv.PortableBeforeCollapse(this))
+            {
+                return;
+            }
+
+            if (!ignoreChildren)
+            {
+                for (int i = 0; i < _childCount; i++)
+                {
+                    _children[i].Collapse();
+                }
+            }
+
+            _expandOnRealization = false;
+            if (tv.SelectedNode is TreeNode selected && IsAncestorOf(selected))
+            {
+                tv.SelectedNode = this;
+            }
+
+            tv.PortableNodeChanged();
+            tv.PortableAfterCollapse(this);
+            return;
+        }
+
+        _expandOnRealization = false;
+        return;
+#else
         bool setSelection = false;
         _collapseOnRealization = false;
         _expandOnRealization = false;
@@ -1441,6 +1496,7 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
 
         tv.Invalidate();
         _collapseOnRealization = false;
+#endif
     }
 
     /// <summary>
@@ -1459,6 +1515,7 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
         CollapseInternal(false);
     }
 
+#if !LIBREWINFORMS_PORTABLE
     /// <summary>
     ///  Windows TreeView doesn't send the proper notifications on collapse, so we do it manually.
     /// </summary>
@@ -1475,6 +1532,7 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
             }
         }
     }
+#endif
 
     protected virtual void Deserialize(SerializationInfo serializationInfo, StreamingContext context)
     {
@@ -1622,6 +1680,7 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
         }
     }
 
+#if !LIBREWINFORMS_PORTABLE
     /// <summary>
     ///  Ensures the node's StateImageIndex value is properly set.
     /// </summary>
@@ -1645,6 +1704,7 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
             }
         }
     }
+#endif
 
     /// <summary>
     ///  Ensure that the node is visible, expanding nodes and scrolling the
@@ -1658,7 +1718,11 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
             return;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        tv.EnsurePortableNodeVisible(this);
+#else
         PInvokeCore.SendMessage(tv, PInvoke.TVM_ENSUREVISIBLE, 0, Handle);
+#endif
     }
 
     /// <summary>
@@ -1667,6 +1731,20 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
     public void Expand()
     {
         TreeView? tv = TreeView;
+#if LIBREWINFORMS_PORTABLE
+        if (tv is not null)
+        {
+            if (IsExpanded || !tv.PortableBeforeExpand(this))
+            {
+                return;
+            }
+
+            _expandOnRealization = true;
+            tv.PortableNodeChanged();
+            tv.PortableAfterExpand(this);
+            return;
+        }
+#endif
         if (tv is null || !tv.IsHandleCreated)
         {
             _expandOnRealization = true;
@@ -1806,10 +1884,14 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
     /// </summary>
     private void InvalidateHostTree()
     {
+#if LIBREWINFORMS_PORTABLE
+        _treeView?.Invalidate();
+#else
         if (_treeView is not null && _treeView.IsHandleCreated)
         {
             _treeView.Invalidate();
         }
+#endif
     }
 
     internal unsafe void Realize(bool insertFirst)
@@ -1820,6 +1902,10 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
             return;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        tv.PortableNodeChanged();
+        return;
+#else
         if (_parent is not null)
         {
             // Never realize the virtual root
@@ -1927,6 +2013,7 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
         {
             Collapse();
         }
+#endif
     }
 
     /// <summary>
@@ -2122,6 +2209,11 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
     /// </summary>
     private unsafe void UpdateNode(TVITEM_MASK mask)
     {
+#if LIBREWINFORMS_PORTABLE
+        GC.KeepAlive(mask);
+        TreeView?.PortableNodeChanged();
+        return;
+#else
         if (HTREEITEMInternal == IntPtr.Zero)
         {
             return;
@@ -2191,10 +2283,14 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
 
         static bool IsSpecialImageIndex(int actualIndex)
             => actualIndex is ImageList.Indexer.NoneIndex or ImageList.Indexer.DefaultIndex;
+#endif
     }
 
     internal unsafe void UpdateImage()
     {
+#if LIBREWINFORMS_PORTABLE
+        TreeView?.PortableNodeChanged();
+#else
         TreeView tv = TreeView!;
         if (tv.IsDisposed)
         {
@@ -2213,7 +2309,23 @@ public partial class TreeNode : MarshalByRefObject, ICloneable, ISerializable
         };
 
         PInvokeCore.SendMessage(tv, PInvoke.TVM_SETITEMW, 0, ref item);
+#endif
     }
+
+#if LIBREWINFORMS_PORTABLE
+    private bool IsAncestorOf(TreeNode candidate)
+    {
+        for (TreeNode? node = candidate.Parent; node is not null; node = node.Parent)
+        {
+            if (ReferenceEquals(node, this))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+#endif
 
     /// <summary>
     ///  ISerializable private implementation

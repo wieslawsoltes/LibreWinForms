@@ -26,6 +26,13 @@ public sealed partial class Application
 
             if (MainForm is not null && MainForm.IsHandleCreated)
             {
+#if LIBREWINFORMS_PORTABLE
+                // The registered portable backend owns one UI dispatcher. Same-dispatcher owners are
+                // already covered by ThreadWindows; retain the managed owner here so a future
+                // multi-dispatcher backend can marshal the matching callback without inspecting HWNDs.
+                parentControl = MainForm.OwnerInternal;
+                _parentWindowContext = null;
+#else
                 // Get ahold of the parenting control
                 HWND parentHandle = (HWND)PInvokeCore.GetWindowLong(MainForm, WINDOW_LONG_PTR_INDEX.GWL_HWNDPARENT);
 
@@ -34,6 +41,7 @@ public sealed partial class Application
                 _parentWindowContext = parentControl is not null && parentControl.InvokeRequired
                     ? GetContextForHandle(parentControl)
                     : null;
+#endif
             }
 
             // If we got a thread context, that means our parent is in a different thread, make the call on that thread.

@@ -4,7 +4,8 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 package_output="${LIBREWINFORMS_PACKAGE_OUTPUT:-${repo_root}/artifacts/packages/Release/NonShipping}"
 dev_package_version="${LIBREWINFORMS_DEV_PACKAGE_VERSION:-0.1.0-preview.45}"
-sdk_sample_target_framework="${LIBREWINFORMS_SDK_SAMPLE_TARGET_FRAMEWORK:-net10.0}"
+progpu_package_version="${LIBREWINFORMS_PROGPU_PACKAGE_VERSION:-0.1.0-preview.62}"
+sdk_sample_target_framework="${LIBREWINFORMS_SDK_SAMPLE_TARGET_FRAMEWORK:-net11.0}"
 manifest_path="${LIBREWINFORMS_PREVIEW_PACKAGE_MANIFEST:-${package_output}/librewinforms-preview-packages-${dev_package_version}.json}"
 bundle_output="${LIBREWINFORMS_PREVIEW_RELEASE_BUNDLE:-${package_output}/librewinforms-preview-${dev_package_version}.tar.gz}"
 sidecar_output="${LIBREWINFORMS_PREVIEW_RELEASE_BUNDLE_SHA256:-${bundle_output}.sha256}"
@@ -35,8 +36,10 @@ This preview bundle contains the package set for running WinForms-shaped applica
 
 - \`librewinforms-preview-packages-${dev_package_version}.json\` records the exact package list, source commit, package sizes, and SHA-256 hashes.
 - \`LibreWinForms.Sdk.${dev_package_version}.nupkg\` is the custom MSBuild SDK package.
-- \`LibreWinForms.System.Windows.Forms.${dev_package_version}.nupkg\` provides the portable System.Windows.Forms API surface.
-- \`LibreWinForms.WindowsFormsIntegration.${dev_package_version}.nupkg\` provides the portable WindowsFormsIntegration bridge used by LibreWPF-hosted WinForms content.
+- \`LibreWinForms.System.Windows.Forms.${dev_package_version}.nupkg\` provides source-built canonical System.Windows.Forms.
+- \`LibreWinForms.ProGPU.${dev_package_version}.nupkg\` provides the typed cross-platform backend.
+- \`LibreWinForms.WindowsFormsIntegration.${dev_package_version}.nupkg\` contains the real LibreWPF WindowsFormsIntegration reference and runtime assemblies qualified against the exact canonical Forms source and managed contract.
+- The ProGPU drawing-runtime closure and WFI's typed interop dependencies are built from the pinned submodule at version \`${progpu_package_version}\`.
 
 Verify the archive with the adjacent checksum file:
 
@@ -76,6 +79,26 @@ archive_entries=(
 
 for package_id in "${librewinforms_preview_package_ids[@]}"; do
   package_name="${package_id}.${dev_package_version}.nupkg"
+  package_file="${package_output}/${package_name}"
+  if [[ ! -f "${package_file}" ]]; then
+    echo "Missing package ${package_file}." >&2
+    exit 1
+  fi
+  archive_entries+=("${package_name}")
+done
+
+for package_id in "${librewinforms_preview_progpu_package_ids[@]}"; do
+  package_name="${package_id}.${progpu_package_version}.nupkg"
+  package_file="${package_output}/${package_name}"
+  if [[ ! -f "${package_file}" ]]; then
+    echo "Missing package ${package_file}." >&2
+    exit 1
+  fi
+  archive_entries+=("${package_name}")
+done
+
+for package_id in "${librewinforms_preview_wfi_dependency_package_ids[@]}"; do
+  package_name="${package_id}.${progpu_package_version}.nupkg"
   package_file="${package_output}/${package_name}"
   if [[ ! -f "${package_file}" ]]; then
     echo "Missing package ${package_file}." >&2

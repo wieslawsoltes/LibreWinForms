@@ -72,7 +72,9 @@ public partial class TextBox : TextBoxBase
     ///  This stores the custom StringCollection required for the autoCompleteSource when its set to CustomSource.
     /// </summary>
     private AutoCompleteStringCollection? _autoCompleteCustomSource;
+#if !LIBREWINFORMS_PORTABLE
     private bool _fromHandleCreate;
+#endif
     private StringSource? _stringSource;
     private string _placeholderText = string.Empty;
 
@@ -330,12 +332,16 @@ public partial class TextBox : TextBoxBase
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            return _passwordChar;
+#else
             if (!IsHandleCreated)
             {
                 CreateHandle();
             }
 
             return (char)PInvokeCore.SendMessage(this, PInvokeCore.EM_GETPASSWORDCHAR);
+#endif
         }
         set
         {
@@ -606,6 +612,7 @@ public partial class TextBox : TextBoxBase
 
         VerifyImeRestrictedModeChanged();
 
+#if !LIBREWINFORMS_PORTABLE
         if (AutoCompleteMode != AutoCompleteMode.None)
         {
             try
@@ -618,6 +625,7 @@ public partial class TextBox : TextBoxBase
                 _fromHandleCreate = false;
             }
         }
+#endif
     }
 
     protected override void OnHandleDestroyed(EventArgs e)
@@ -707,6 +715,11 @@ public partial class TextBox : TextBoxBase
     /// </summary>
     private unsafe void SetAutoComplete(bool reset)
     {
+#if LIBREWINFORMS_PORTABLE
+        // The logical TextBox has no native edit child or shell auto-complete provider.
+        GC.KeepAlive(this);
+        return;
+#else
         // Autocomplete Not Enabled for Password enabled and MultiLine Textboxes.
         if (Multiline || _passwordChar != 0 || _useSystemPasswordChar || AutoCompleteSource == AutoCompleteSource.None)
         {
@@ -779,6 +792,7 @@ public partial class TextBox : TextBoxBase
         {
             ResetAutoComplete(true);
         }
+#endif
     }
 
     /// <summary>
@@ -786,10 +800,14 @@ public partial class TextBox : TextBoxBase
     /// </summary>
     private void ResetAutoComplete(bool force)
     {
+#if LIBREWINFORMS_PORTABLE
+        GC.KeepAlive(this);
+#else
         if ((AutoCompleteMode != AutoCompleteMode.None || force) && IsHandleCreated)
         {
             PInvoke.SHAutoComplete(this, (SHELL_AUTOCOMPLETE_FLAGS)AutoCompleteSource.AllSystemSources | SHELL_AUTOCOMPLETE_FLAGS.SHACF_AUTOSUGGEST_FORCE_OFF | SHELL_AUTOCOMPLETE_FLAGS.SHACF_AUTOAPPEND_FORCE_OFF);
         }
+#endif
     }
 
     private void ResetAutoCompleteCustomSource()

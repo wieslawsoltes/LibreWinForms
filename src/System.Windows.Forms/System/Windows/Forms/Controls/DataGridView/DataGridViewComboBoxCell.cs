@@ -538,9 +538,9 @@ public partial class DataGridViewComboBoxCell : DataGridViewCell
                                      size.Height - borderAndPaddingWidths.Y - borderAndPaddingWidths.Height);
 
         int dropHeight;
-        using (var screen = GdiCache.GetScreenDCGraphics())
+        using (var layoutGraphics = new LayoutGraphicsScope())
         {
-            dropHeight = Math.Min(GetDropDownButtonHeight(screen, cellStyle), adjustedSize.Height - 2);
+            dropHeight = Math.Min(GetDropDownButtonHeight(layoutGraphics.Graphics, cellStyle), adjustedSize.Height - 2);
         }
 
         int dropWidth = Math.Min(SystemInformation.HorizontalScrollBarThumbWidth, adjustedSize.Width - 2 * Margin - 1);
@@ -1769,10 +1769,10 @@ public partial class DataGridViewComboBoxCell : DataGridViewCell
             cellState |= State;
 
             Rectangle dropDownButtonRect;
-            using (var screen = GdiCache.GetScreenDCGraphics())
+            using (var layoutGraphics = new LayoutGraphicsScope())
             {
                 PaintPrivate(
-                    screen,
+                    layoutGraphics.Graphics,
                     cellBounds,
                     cellBounds,
                     rowIndex,

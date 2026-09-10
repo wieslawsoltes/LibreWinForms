@@ -5,7 +5,11 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Globalization;
 using System.Windows.Forms.Layout;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#else
 using Microsoft.Win32;
+#endif
 using SourceGenerated;
 using Windows.Win32.System.Variant;
 using Windows.Win32.UI.Accessibility;
@@ -957,11 +961,7 @@ public partial class DateTimePicker : Control
         if (!RecreatingHandle)
         {
             using ThemingScope scope = new(Application.UseVisualStyles);
-            PInvoke.InitCommonControlsEx(new INITCOMMONCONTROLSEX
-            {
-                dwSize = (uint)sizeof(INITCOMMONCONTROLSEX),
-                dwICC = INITCOMMONCONTROLSEX_ICC.ICC_DATE_CLASSES
-            });
+            CommonControlInitializer.Initialize(INITCOMMONCONTROLSEX_ICC.ICC_DATE_CLASSES);
         }
 
         _creationTime = DateTime.Now;
@@ -1101,7 +1101,11 @@ public partial class DateTimePicker : Control
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.SystemSettings.SettingsChanged += SystemSettingsChanged;
+#else
         SystemEvents.UserPreferenceChanged += MarshaledUserPreferenceChanged;
+#endif
     }
 
     /// <summary>
@@ -1109,7 +1113,11 @@ public partial class DateTimePicker : Control
     /// </summary>
     protected override void OnHandleDestroyed(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.SystemSettings.SettingsChanged -= SystemSettingsChanged;
+#else
         SystemEvents.UserPreferenceChanged -= MarshaledUserPreferenceChanged;
+#endif
         base.OnHandleDestroyed(e);
     }
 
@@ -1447,6 +1455,24 @@ public partial class DateTimePicker : Control
         }
     }
 
+#if LIBREWINFORMS_PORTABLE
+    private void SystemSettingsChanged(object? sender, LibreSystemSettingsChangedEventArgs e)
+    {
+        if (!e.Includes(LibreSystemSettingsChangeKind.Locale))
+        {
+            return;
+        }
+
+        try
+        {
+            BeginInvoke((Action)RecreateHandle);
+        }
+        catch (InvalidOperationException)
+        {
+            // The destination thread no longer exists.
+        }
+    }
+#else
     private void MarshaledUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs pref)
     {
         try
@@ -1466,6 +1492,7 @@ public partial class DateTimePicker : Control
             RecreateHandle();
         }
     }
+#endif
 
     /// <summary>
     ///  Handles the DTN_DATETIMECHANGE notification.
