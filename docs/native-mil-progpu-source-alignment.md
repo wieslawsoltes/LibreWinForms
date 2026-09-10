@@ -2,7 +2,7 @@
 
 The LibreWPF native MIL integration requires canonical LibreWinForms and LibreWPF
 to consume the same ProGPU source commit. This change pins
-`cbbb2aedc807453a8c903d7495dec898cf679e09`, the integration of ProGPU main #140
+`fc5670fc95b1c68c593131d3c786a7fbf7655950`, the integration of ProGPU main #140
 with native MIL and its post-merge fixes. It does not add a WinForms-local graphics
 implementation or waive the exact source-graph gate.
 
@@ -37,4 +37,12 @@ The prior bound provably triggers AddressSanitizer stack-buffer-overflow in the
 first cached Viewport3D case; the fixed ten-case matrix passes ASan/UBSan and the
 full local native suite passes 19/19. Windows ARM64 production compilation at
 this pin completed with both providers; runtime and hosted qualification remain
-pending. No general Direct2D/Win2D API completion is implied.
+pending at that checkpoint. No general Direct2D/Win2D API completion is implied.
+
+The selected follow-up retains the same native repair, supplies a bounded
+Windows cold-D3D12 test allowance, and removes exactly 21 visually reviewed W3C
+threshold differences without changing tolerances. The full Windows ARM64 native
+suite at `03acd40c` passes 20/20 in the Parallels VM; its graphics test takes
+314 seconds. Local native tests pass 19/19. The final `fc5670fc` change is only
+SVG baseline documentation/inventory, not production code. Fresh exact-head CI,
+payload provenance and package/application qualification remain required.
