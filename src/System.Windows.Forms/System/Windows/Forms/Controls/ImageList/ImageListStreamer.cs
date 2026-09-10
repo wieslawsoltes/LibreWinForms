@@ -12,6 +12,8 @@ using Graphics = System.Drawing.Graphics;
 using GraphicsUnit = System.Drawing.GraphicsUnit;
 using Rectangle = System.Drawing.Rectangle;
 using Size = System.Drawing.Size;
+#else
+using Windows.Win32.System.Com;
 #endif
 
 namespace System.Windows.Forms;
