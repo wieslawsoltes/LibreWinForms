@@ -2,7 +2,7 @@
 
 The LibreWPF native MIL integration requires canonical LibreWinForms and LibreWPF
 to consume the same ProGPU source commit. This change pins
-`3fbbd1fbf23035b9059e89acc0e035c20c2bd097`, the integration of ProGPU main #140
+`586e52c7721f0957916159530a52e6d7e4ec1a3d`, the integration of ProGPU main #140
 with native MIL and its post-merge fixes. It does not add a WinForms-local graphics
 implementation or waive the exact source-graph gate.
 
@@ -11,7 +11,15 @@ The dependency remains under review in
 [LibreWPF #115](https://github.com/wieslawsoltes/LibreWPF/pull/115).
 Merge this alignment only after the ProGPU dependency and required CI are ready.
 
-The latest pin includes native excluded-paragraph and fragment interaction
+The latest pin adds retained excluded-paragraph snapshots, shared C/managed
+fragment caret navigation and the explicit neutral exclusion formatting
+capability needed by the WPF adapter. Local native tests and consumer checks
+pass; source Figure/Floater child placement remains unconnected. Fresh CI and
+final package/application qualification remain required. Browser CI at the
+preceding navigation head reports an evidence-readback timeout under its
+unchanged 120-second deadline; that investigation is not resolved by this pin.
+
+The preceding pin includes native excluded-paragraph and fragment interaction
 transport, sorted native export manifests and native browser diagnostics. It
 also includes the SVG checksum correction supported by an isolated old-shader
 failure, paired managed/native curve tests and full ten-frame review. The
