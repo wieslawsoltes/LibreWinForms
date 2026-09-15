@@ -1,5 +1,20 @@
 # Native MIL ProGPU source alignment
 
+## Native Window frame-inset dependency
+
+The decorated portable Window sizing fix in
+[LibreWPF #141](https://github.com/wieslawsoltes/LibreWPF/pull/141) requires the
+typed ProGPU frame-inset contract at commit
+`11503bde8ae27a0a2dda4d2a30be047c066dacaa` from
+[ProGPU #166](https://github.com/wieslawsoltes/ProGPU/pull/166). This
+LibreWinForms pin matches LibreWPF's exact ProGPU commit; the canonical
+WinFormsIntegration source gate rejects divergent pins before compilation.
+The contract does not add a WinForms-local frame implementation or qualify
+Windows application layout. Merge ProGPU #166 first, then this alignment after
+its own CI passes, and qualify LibreWPF #141 on that merged source graph.
+
+## Historical alignment checkpoints
+
 The LibreWPF native MIL integration requires canonical LibreWinForms and LibreWPF
 to consume the same ProGPU source commit. This branch pins ProGPU `main` merge
 commit `eed951cdd7af463d840d0e0b85088bcdb8c4cf24` from
