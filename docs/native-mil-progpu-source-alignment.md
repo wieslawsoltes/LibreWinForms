@@ -1,19 +1,39 @@
 # Native MIL ProGPU source alignment
 
+## Native semantic-scene CPU stage dependency
+
+The canonical LibreWPF/LibreWinForms source graph must pin one exact ProGPU
+commit. [ProGPU #167](https://github.com/wieslawsoltes/ProGPU/pull/167)
+merged after all corrected-head PR checks passed, including Windows ARM64
+native and package consumers. This alignment advances the LibreWinForms
+ProGPU gitlink to its `main` merge commit
+`7e6dd6a724240c6ec4f95ff1e3e7885cbe66035c`, matching the native host
+stage-trace consumer in
+[LibreWPF #143](https://github.com/wieslawsoltes/LibreWPF/pull/143).
+The canonical WinFormsIntegration gate rejects a LibreWPF graph that pins
+this commit while LibreWinForms still pins the preceding ProGPU commit.
+
+This pin adds no WinForms-local renderer, changes no public API, and does not
+qualify the complete Windows Toolkit application. The exact LibreWinForms
+PR CI must pass before merge; LibreWPF must then repin the merged LibreWinForms
+commit and rerun its own canonical integration and package gates. The
+recurring Windows ARM64 native semantic-scene encoding cost is a separate
+ProGPU performance blocker, not a reason to bypass source-graph alignment.
+
 ## Native Window frame-inset dependency
 
 The decorated portable Window sizing fix in
 [LibreWPF #141](https://github.com/wieslawsoltes/LibreWPF/pull/141) requires the
 typed ProGPU frame-inset contract from
-[merged ProGPU #166](https://github.com/wieslawsoltes/ProGPU/pull/166). This
-branch now pins the ProGPU `main` merge commit
+[merged ProGPU #166](https://github.com/wieslawsoltes/ProGPU/pull/166). The
+prior alignment pinned the ProGPU `main` merge commit
 `3755428f3ad9c269a5e4a9bc91e0a4175f68f695`; its PR head
 `11503bde8ae27a0a2dda4d2a30be047c066dacaa` passed 45/45 checks before
-merge. LibreWPF will repin to the same main commit after this alignment merges;
+merge. LibreWPF #141 later consumed the same main commit;
 the canonical WinFormsIntegration source gate rejects divergent pins before
 compilation. The contract does not add a WinForms-local frame implementation
-or qualify Windows application layout. Merge this alignment only after its
-new exact-head CI passes, then qualify LibreWPF #141 on that merged source graph.
+or qualify Windows application layout. Its historical application and package
+gates remain distinct from the new source alignment.
 
 ## Historical alignment checkpoints
 
