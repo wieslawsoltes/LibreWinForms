@@ -139,11 +139,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     env:
-      LIBREWINFORMS_DEV_PACKAGE_VERSION: 0.1.0-preview.64
-      LIBREWINFORMS_BRIDGE_PACKAGE_VERSION: 0.1.0-preview.64
-      LIBREWINFORMS_PROGPU_PACKAGE_VERSION: 0.1.0-preview.64
-      LIBREWINFORMS_BRIDGE_REF: librewpf-v0.1.0-preview.64
-      LIBREWINFORMS_CANONICAL_WFI_REF: librewpf-v0.1.0-preview.64
+      LIBREWINFORMS_DEV_PACKAGE_VERSION: 0.1.0-preview.65
+      LIBREWINFORMS_BRIDGE_PACKAGE_VERSION: 0.1.0-preview.65
+      LIBREWINFORMS_PROGPU_PACKAGE_VERSION: 0.1.0-preview.65
+      LIBREWINFORMS_BRIDGE_REF: librewpf-v0.1.0-preview.65
+      LIBREWINFORMS_CANONICAL_WFI_REF: librewpf-v0.1.0-preview.65
 
     steps:
       - name: Checkout
