@@ -45,7 +45,7 @@ Before:
 After:
 
 ```xml
-<Project Sdk="LibreWinForms.Sdk/0.1.0-preview.45">
+<Project Sdk="LibreWinForms.Sdk/0.1.0-preview.63">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net11.0</TargetFramework>
@@ -59,7 +59,7 @@ Older projects that still use `Microsoft.NET.Sdk.WindowsDesktop` should make the
 4. Keep existing app dependencies in place. For example, a mixed WPF/WinForms app only changes the SDK line in the WinForms project:
 
 ```xml
-<Project Sdk="LibreWinForms.Sdk/0.1.0-preview.45">
+<Project Sdk="LibreWinForms.Sdk/0.1.0-preview.63">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net11.0</TargetFramework>
@@ -107,7 +107,7 @@ The canonical runtime and its ten-package ProGPU drawing closure are built from 
 ## Build And Release
 
 ```bash
-LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.45 ./eng/librewinforms-pack.sh
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.63 ./eng/librewinforms-pack.sh
 ```
 
 The package lane builds canonical `LibreWinForms.System.Windows.Forms`, `LibreWinForms.ProGPU`, `LibreWinForms.Sdk`, and the exact ten-package ProGPU drawing closure. It consumes only a separately qualified canonical WFI source package plus its `LibreWPF.Interop` and `ProGPU.DirectX` source-built dependencies, verifies exact source/dependency provenance and the generated Forms contract, verifies docs, writes the preview manifest, creates a release bundle with hashes and a local-feed `NuGet.config`, and fails if a stale or unexpected current-version package would be published.
@@ -117,14 +117,14 @@ The pack script restores through an isolated cache under `artifacts/nuget/librew
 Build canonical WFI from a LibreWPF checkout first, then pass the qualified source output and exact LibreWPF commit to the package lane. A matching LibreWPF SDK feed is used only by the mixed-desktop package smoke:
 
 ```bash
-LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.45 \
-LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.62 \
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.63 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.63 \
 LIBREWINFORMS_CANONICAL_WFI_SOURCE_ROOT=/path/to/LibreWPF \
 LIBREWINFORMS_CANONICAL_WFI_EXPECTED_COMMIT=<librewpf-commit> \
 ./eng/librewinforms-build-canonical-wfi.sh
 
-LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.45 \
-LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.62 \
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.63 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.63 \
 LIBREWINFORMS_CANONICAL_WFI_PACKAGE_SOURCE=/path/to/LibreWPF/artifacts/packages/CanonicalWinForms \
 LIBREWINFORMS_CANONICAL_WFI_COMMIT=<librewpf-commit> \
 ./eng/librewinforms-pack.sh
