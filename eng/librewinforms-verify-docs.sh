@@ -57,6 +57,7 @@ require_text src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj "<Description>SDK pa
 require_text src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj "<PackageTags>librewinforms;winforms;sdk;progpu;silk.net;cross-platform;source-built</PackageTags>"
 require_text src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj "<PackageReadmeFile>README.md</PackageReadmeFile>"
 require_text src/LibreWinForms.Sdk/Sdk/Sdk.props '<LibreWinFormsUseCanonicalRuntime Condition="'\''$(LibreWinFormsUseCanonicalRuntime)'\'' == '\'''\''">true</LibreWinFormsUseCanonicalRuntime>'
+require_text src/LibreWinForms.Sdk/Sdk/Sdk.props '>0.1.0-preview.63</LibreWinFormsProGpuPackageVersion>'
 require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'LibreWinForms.Sdk is canonical-only'
 reject_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'LibreWinForms.Compatibility.System.Windows.Forms'
 reject_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'WindowsFormsHost.EnableWindowsFormsInterop'
