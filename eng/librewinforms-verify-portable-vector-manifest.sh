@@ -65,7 +65,8 @@ line_number=1
 covered=0
 migrate=0
 retire=0
-declare -A seen_sources=()
+seen_sources=()
+seen_count=0
 while IFS=$'\t' read -r source disposition owner rationale extra; do
   line_number=$((line_number + 1))
   if [[ -z "${source}" || -z "${disposition}" || -z "${owner}" || -z "${rationale}" || -n "${extra:-}" ]]; then
@@ -76,11 +77,14 @@ while IFS=$'\t' read -r source disposition owner rationale extra; do
     echo "Portable vector manifest row ${line_number} has unexpected vector name ${source}." >&2
     exit 1
   fi
-  if [[ -n "${seen_sources[${source}]:-}" ]]; then
-    echo "Portable vector manifest duplicates ${source}." >&2
-    exit 1
-  fi
-  seen_sources["${source}"]=1
+  for ((index=0; index<seen_count; ++index)); do
+    if [[ "${seen_sources[index]}" == "${source}" ]]; then
+      echo "Portable vector manifest duplicates ${source}." >&2
+      exit 1
+    fi
+  done
+  seen_sources[seen_count]="${source}"
+  seen_count=$((seen_count + 1))
   if [[ ! -e "${repo_root}/${owner}" ]]; then
     echo "Portable vector manifest row ${line_number} names missing canonical owner ${owner}." >&2
     exit 1
