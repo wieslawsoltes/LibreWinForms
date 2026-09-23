@@ -15,7 +15,7 @@
     <!-- MSBuild Pack cannot emit nuspec <references>; net11 consumers use the
          validated ref/ asset group and packages.config is not supported. -->
     <NoWarn>$(NoWarn);NU5131</NoWarn>
-    <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == ''">0.1.0-preview.64</LibreWinFormsProGpuPackageVersion>
+    <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == ''">0.1.0-preview.65</LibreWinFormsProGpuPackageVersion>
     <LibreWinFormsPortableSupportPackageVersion Condition="'$(LibreWinFormsPortableSupportPackageVersion)' == ''">10.0.10</LibreWinFormsPortableSupportPackageVersion>
     <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);CollectCanonicalWinFormsPackageFiles</TargetsForTfmSpecificContentInPackage>
     <CanonicalWinFormsProject>$(RepoRoot)src/System.Windows.Forms.Design/src/System.Windows.Forms.Design.csproj</CanonicalWinFormsProject>
