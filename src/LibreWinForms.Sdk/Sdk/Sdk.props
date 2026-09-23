@@ -13,10 +13,10 @@
     <UseWindowsForms Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true'">false</UseWindowsForms>
     <EnableWindowsTargeting Condition="'$(EnableWindowsTargeting)' == ''">true</EnableWindowsTargeting>
     <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == '' And '$(LibreWinFormsPackagedRuntimeVersion)' != ''">$(LibreWinFormsPackagedRuntimeVersion)</LibreWinFormsVersion>
-    <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == ''">0.1.0-preview.45</LibreWinFormsVersion>
+    <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == ''">0.1.0-preview.63</LibreWinFormsVersion>
     <LibreWinFormsPackageVersion Condition="'$(LibreWinFormsPackageVersion)' == ''">$(LibreWinFormsVersion)</LibreWinFormsPackageVersion>
     <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == '' And '$(LibreWinFormsPackagedProGpuVersion)' != ''">$(LibreWinFormsPackagedProGpuVersion)</LibreWinFormsProGpuPackageVersion>
-    <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == ''">0.1.0-preview.55</LibreWinFormsProGpuPackageVersion>
+    <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == ''">0.1.0-preview.63</LibreWinFormsProGpuPackageVersion>
     <LibreWinFormsCanonicalPackageVersion Condition="'$(LibreWinFormsCanonicalPackageVersion)' == ''">$(LibreWinFormsVersion)</LibreWinFormsCanonicalPackageVersion>
     <LibreWinFormsProGpuBackendPackageVersion Condition="'$(LibreWinFormsProGpuBackendPackageVersion)' == '' And '$(LibreWinFormsPackagedProGpuBackendVersion)' != ''">$(LibreWinFormsPackagedProGpuBackendVersion)</LibreWinFormsProGpuBackendPackageVersion>
     <LibreWinFormsProGpuBackendPackageVersion Condition="'$(LibreWinFormsProGpuBackendPackageVersion)' == ''">$(LibreWinFormsVersion)</LibreWinFormsProGpuBackendPackageVersion>
