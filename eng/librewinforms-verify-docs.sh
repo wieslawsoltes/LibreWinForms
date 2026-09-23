@@ -117,10 +117,9 @@ require_text .github/workflows/librewinforms-ci.yml "LibreWinForms Build"
 require_text .github/workflows/librewinforms-ci.yml "Stage immutable LibreWPF bridge packages"
 require_text .github/workflows/librewinforms-ci.yml "Build canonical WindowsFormsIntegration from LibreWPF source"
 require_text .github/workflows/librewinforms-ci.yml "./eng/librewinforms-build-canonical-wfi.sh"
-# CI retains the last published bridge until the coordinated LibreWPF tag exists;
-# the release workflow derives the matching bridge tag from its own version.
-require_text .github/workflows/librewinforms-ci.yml "librewpf-v0.1.0-preview.63"
-require_text .github/workflows/librewinforms-ci.yml "LIBREWINFORMS_CANONICAL_WFI_REF: librewpf-v0.1.0-preview.63"
+# CI and release use the same published LibreWPF bridge version.
+require_text .github/workflows/librewinforms-ci.yml "librewpf-v0.1.0-preview.64"
+require_text .github/workflows/librewinforms-ci.yml "LIBREWINFORMS_CANONICAL_WFI_REF: librewpf-v0.1.0-preview.64"
 require_text .github/workflows/librewinforms-release.yml 'progpu_version="${version}"'
 require_text .github/workflows/librewinforms-release.yml 'canonical_wfi_ref="librewpf-v${bridge_version}"'
 require_text .github/workflows/librewinforms-ci.yml "LIBREWINFORMS_PROGPU_PACKAGE_VERSION"
