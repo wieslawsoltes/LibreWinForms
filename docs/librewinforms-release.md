@@ -85,7 +85,11 @@ SharpDevelop remains the real downstream integration driver.
 handoff, stages the immutable LibreWPF SDK feed, packs, smoke-tests, and uploads
 the bundle. `LibreWinForms Release` accepts a `canonical_wfi_ref` plus the
 LibreWPF SDK `bridge_ref`; release rehearsals should use exact commits, while
-coordinated tags use `librewpf-v<version>`.
+coordinated tags use `librewpf-v<version>`. An aligned tag also derives the
+ProGPU drawing package version from its own version unless an explicit
+`progpu_version` override is supplied. The canonical WFI and bridge refs both
+default to the matching immutable LibreWPF tag; a source-branch default must
+not silently enter a public tag release.
 
 After NuGet indexing, dispatch `LibreWinForms Public Package Smoke`. It restores
 only from NuGet.org and builds the unchanged `LibreWinForms.Sdk`, `net11.0`,
