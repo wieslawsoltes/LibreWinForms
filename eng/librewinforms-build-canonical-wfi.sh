@@ -5,8 +5,8 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 librewpf_root="${LIBREWINFORMS_CANONICAL_WFI_SOURCE_ROOT:-}"
 expected_librewpf_commit="${LIBREWINFORMS_CANONICAL_WFI_EXPECTED_COMMIT:-}"
 package_output="${LIBREWINFORMS_CANONICAL_WFI_PACKAGE_OUTPUT:-${repo_root}/artifacts/packages/CanonicalWfiSource}"
-package_version="${LIBREWINFORMS_DEV_PACKAGE_VERSION:-0.1.0-preview.63}"
-progpu_package_version="${LIBREWINFORMS_PROGPU_PACKAGE_VERSION:-0.1.0-preview.63}"
+package_version="${LIBREWINFORMS_DEV_PACKAGE_VERSION:-0.1.0-preview.64}"
+progpu_package_version="${LIBREWINFORMS_PROGPU_PACKAGE_VERSION:-0.1.0-preview.64}"
 configuration="${CONFIGURATION:-Release}"
 
 if [[ -z "${librewpf_root}" || ! -f "${librewpf_root}/eng/progpu-wpf-canonical-winforms-integration.sh" ]]; then

@@ -17,8 +17,8 @@ from the pinned submodule. It never publishes
 and runtime source before packing LibreWinForms:
 
 ```bash
-LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.63 \
-LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.63 \
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.64 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.64 \
 LIBREWINFORMS_CANONICAL_WFI_SOURCE_ROOT=/path/to/LibreWPF \
 LIBREWINFORMS_CANONICAL_WFI_EXPECTED_COMMIT=<librewpf-commit> \
 ./eng/librewinforms-build-canonical-wfi.sh
@@ -33,8 +33,8 @@ NuGet-based; this source handoff is a release qualification path.
 Pack the release from a separate canonical-WFI output directory:
 
 ```bash
-LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.63 \
-LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.63 \
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.64 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.64 \
 LIBREWINFORMS_CANONICAL_WFI_PACKAGE_SOURCE=/path/to/LibreWPF/artifacts/packages/CanonicalWinForms \
 LIBREWINFORMS_CANONICAL_WFI_COMMIT=<librewpf-commit> \
 ./eng/librewinforms-pack.sh
