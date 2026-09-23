@@ -22,7 +22,7 @@ on:
       canonical_wfi_ref:
         description: Immutable LibreWPF commit or tag containing the canonical WindowsFormsIntegration source gate.
         required: true
-        default: feature/canonical-wfi-source-build
+        default: librewpf-v0.1.0-preview.63
       publish:
         description: Push packages to NuGet.org after validation.
         required: true
