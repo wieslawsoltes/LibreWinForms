@@ -1,3 +1,185 @@
+# LibreWinForms ProGPU Port
+
+[![Telegram Community](https://img.shields.io/badge/Telegram-Community-26A5E4?logo=telegram&logoColor=white)](https://t.me/+HblJUymBc544ODY0)
+
+This branch ports WinForms-shaped APIs onto the ProGPU/Silk.NET platform while reusing as much managed WinForms code as possible. The public package brand is LibreWinForms, with the custom SDK package `LibreWinForms.Sdk`, so existing WinForms projects can start by switching the project SDK and keeping normal WinForms source unchanged.
+
+Current focus areas:
+
+- Reuse managed WinForms code for application model, controls, layout, events, data binding, drawing integration, and WPF interop where practical.
+- Replace Windows-only User32/GDI+/native hosting dependencies with typed LibreWinForms seams backed by ProGPU, Silk.NET, and the shared LibreWPF interop layer.
+- Package the portable runtime as a preview SDK and NuGet set that can be consumed from a local feed or NuGet.org.
+- Keep SharpDevelop, LibreWPF `WindowsFormsHost`, and mixed WPF/WinForms smoke apps as compatibility gates while the port fills out.
+
+The active development and default GitHub branch is `librewinforms-progpu-port`. Preview releases are produced from this branch by the LibreWinForms CI/release workflows and are tagged as `librewinforms-v<version>` after the matching ProGPU and LibreWPF bridge packages are available.
+
+## Getting Started: Switch From WinForms To LibreWinForms
+
+LibreWinForms is packaged as an MSBuild SDK so normal WinForms apps can move to the ProGPU/Silk.NET platform through the project file first. Keep application code, resources, existing package references, and normal `System.Windows.Forms` type usage unchanged unless the app uses Windows-only interop, raw HWND assumptions, native controls, designer-only APIs, or unsupported graphics APIs.
+
+1. Start from an existing SDK-style WinForms project and keep a clean commit of the working WinForms version.
+
+2. Make sure the project targets the supported preview TFM:
+
+```xml
+<TargetFramework>net11.0</TargetFramework>
+<UseWindowsForms>true</UseWindowsForms>
+```
+
+`LibreWinForms.Sdk` supplies canonical source-built WinForms plus the typed ProGPU/Silk.NET backend. Package mode is the default; source checkouts can select project mode explicitly.
+
+3. Change only the project SDK.
+
+Before:
+
+```xml
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+</Project>
+```
+
+After:
+
+```xml
+<Project Sdk="LibreWinForms.Sdk/0.1.0-preview.63">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+</Project>
+```
+
+Older projects that still use `Microsoft.NET.Sdk.WindowsDesktop` should make the same SDK change and keep the existing WinForms properties.
+
+4. Keep existing app dependencies in place. For example, a mixed WPF/WinForms app only changes the SDK line in the WinForms project:
+
+```xml
+<Project Sdk="LibreWinForms.Sdk/0.1.0-preview.63">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Some.WinForms.Library" Version="1.2.3" />
+  </ItemGroup>
+</Project>
+```
+
+5. Restore and run the app normally:
+
+```bash
+dotnet restore
+dotnet run
+```
+
+6. Treat Windows-only interop, custom HWND hosting, native common controls, P/Invoke-heavy owner-draw paths, GDI handles, and designer-only APIs as the first compatibility review points. Normal WinForms managed code should remain source-compatible as the portable runtime fills out.
+
+## NuGet Packages
+
+The preview package set is defined in `eng/librewinforms-package-list.sh` and validated by the release workflow.
+
+### LibreWinForms Packages
+
+| Package | NuGet | Purpose |
+| --- | --- | --- |
+| `LibreWinForms.Sdk` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.Sdk.svg)](https://www.nuget.org/packages/LibreWinForms.Sdk) | Custom MSBuild SDK that selects canonical WinForms and the ProGPU backend by default. |
+| `LibreWinForms.System.Windows.Forms` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.System.Windows.Forms.svg)](https://www.nuget.org/packages/LibreWinForms.System.Windows.Forms) | Canonical source-built `System.Windows.Forms` implementation and reference assets. |
+| `LibreWinForms.ProGPU` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.ProGPU.svg)](https://www.nuget.org/packages/LibreWinForms.ProGPU) | Typed ProGPU/Silk.NET platform backend for canonical WinForms. |
+| `LibreWinForms.WindowsFormsIntegration` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.WindowsFormsIntegration.svg)](https://www.nuget.org/packages/LibreWinForms.WindowsFormsIntegration) | Real LibreWPF `WindowsFormsIntegration` source built and qualified against canonical LibreWinForms. |
+
+### Bridge Packages
+
+The canonical runtime and its ten-package ProGPU drawing closure are built from this repository and its pinned ProGPU submodule. `WindowsFormsIntegration` is built from the real LibreWPF source at a recorded commit; the release handoff requires exact LibreWinForms and ProGPU provenance, compares the generated managed-contract documents, and rejects the retired compatibility package identity.
+
+| Package | NuGet | Purpose |
+| --- | --- | --- |
+| `LibreWPF.Transport` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWPF.Transport.svg)](https://www.nuget.org/packages/LibreWPF.Transport) | Managed WPF assembly identities and reference/runtime assets consumed by `WindowsFormsIntegration`. |
+| `LibreWPF.Interop` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWPF.Interop.svg)](https://www.nuget.org/packages/LibreWPF.Interop) | Portable service DTOs and typed interop contracts shared with LibreWPF and ProGPU. |
+| `ProGPU.System.Drawing.Common` | [![NuGet](https://img.shields.io/nuget/vpre/ProGPU.System.Drawing.Common.svg)](https://www.nuget.org/packages/ProGPU.System.Drawing.Common) | ProGPU-backed portable `System.Drawing.Common` compatibility surface used by WinForms controls and resources. |
+
+## Build And Release
+
+```bash
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.63 ./eng/librewinforms-pack.sh
+```
+
+The package lane builds canonical `LibreWinForms.System.Windows.Forms`, `LibreWinForms.ProGPU`, `LibreWinForms.Sdk`, and the exact ten-package ProGPU drawing closure. It consumes only a separately qualified canonical WFI source package plus its `LibreWPF.Interop` and `ProGPU.DirectX` source-built dependencies, verifies exact source/dependency provenance and the generated Forms contract, verifies docs, writes the preview manifest, creates a release bundle with hashes and a local-feed `NuGet.config`, and fails if a stale or unexpected current-version package would be published.
+
+The pack script restores through an isolated cache under `artifacts/nuget/librewinforms-pack` by default and clears current-version LibreWPF/ProGPU bridge packages from that cache before restore. This keeps package-mode validation tied to the bridge feed built for the same run instead of a stale same-version package from a user/global NuGet cache.
+
+Build canonical WFI from a LibreWPF checkout first, then pass the qualified source output and exact LibreWPF commit to the package lane. A matching LibreWPF SDK feed is used only by the mixed-desktop package smoke:
+
+```bash
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.63 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.63 \
+LIBREWINFORMS_CANONICAL_WFI_SOURCE_ROOT=/path/to/LibreWPF \
+LIBREWINFORMS_CANONICAL_WFI_EXPECTED_COMMIT=<librewpf-commit> \
+./eng/librewinforms-build-canonical-wfi.sh
+
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.63 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.63 \
+LIBREWINFORMS_CANONICAL_WFI_PACKAGE_SOURCE=/path/to/LibreWPF/artifacts/packages/CanonicalWinForms \
+LIBREWINFORMS_CANONICAL_WFI_COMMIT=<librewpf-commit> \
+./eng/librewinforms-pack.sh
+```
+
+`LIBREWINFORMS_PROGPU_PACKAGE_VERSION` labels the current drawing closure built from the submodule. Canonical Forms and backend packages target `net10.0`, so WFI and `net10.0` through later .NET consumers resolve one qualified assembly set.
+
+GitHub workflows:
+
+- `LibreWinForms Build` compiles canonical WFI from LibreWPF source, stages a LibreWPF SDK feed for the mixed-desktop smoke, runs the preview package lane, and uploads package artifacts.
+- `LibreWinForms Docs` verifies README and release docs against the preview package list.
+- `LibreWinForms Public Package Smoke` restores only from NuGet.org and builds the unchanged `net11.0` WinForms template on Ubuntu and macOS after publication.
+- `LibreWinForms Release` resolves canonical WFI source and LibreWPF SDK refs, records exact LibreWinForms/LibreWPF/ProGPU provenance, runs canonical WFI and SDK package smokes, builds preview packages/bundle artifacts, can publish to NuGet.org with `NUGET_API_KEY`, and creates a GitHub release for `librewinforms-v*` tags.
+
+Release order is source-qualified: canonical WFI must be built from the selected LibreWPF commit against this exact LibreWinForms checkout before the bundle can be created. SharpDevelop remains the downstream mixed-desktop consumer gate.
+
+See [docs/librewinforms-release.md](docs/librewinforms-release.md) and the ongoing port plan in [docs/librewinforms/progpu-port-plan.md](docs/librewinforms/progpu-port-plan.md).
+
+## Performance Gates
+
+The historical mixed-desktop comparison smoke included deterministic Release workloads for hosted
+WinForms rendering, layout, paint-surface retirement, and render-resource
+ownership. The render workload records 100 labels for 2,000 frames after warming
+brush, text, clip, and retained-drawing caches. It reopens one persistent WPF
+`DrawingVisual` for 2,000 frames, matching the real visual lifecycle instead of
+manufacturing a new visual and inheritance context for every frame. On an Apple
+arm64 development host with .NET 10, retaining unchanged host drawing content
+reduced allocation from more than 35,000 to 368 bytes per recorded frame. The
+2,000-frame workload completes in roughly 2.2 ms. The gate allows at most 2,000
+bytes/frame, requires exactly one unchanged retained-drawing build, requires an
+actual rebuild after text/color invalidation, and requires all retained drawing
+and render-resource caches to release when the hosted tree is detached.
+
+The same gate churns 2,200 unique text/color combinations and now reports
+managed retention before and after detaching the hosted tree. On the same host,
+the deliberately saturated 256-brush/512-text/512-drawing caches retain about
+2.60 MB at their high-water mark and leave about 0.26 MB after detach; the
+2,200 invalidating renders take roughly 115 ms. Compared with the former
+2,048-entry text caches, this cuts high-water managed retention by about 81%
+while keeping steady retained replay and mutation rebuild behavior unchanged.
+The count limits preserve text reuse for scrolling while the detach assertion
+prevents the bounded cache from becoming a lifetime leak.
+
+Those figures measure managed allocation traffic, managed heap retention, and
+CPU recording time, not process RSS, GPU residency, or device execution. Paint
+surface pixel ownership, retained resource counts, and zero-allocation layout
+passes are checked independently so an allocation improvement cannot hide an
+unbounded cache or graphics-resource leak. Current release gating places
+drawing correctness and allocation assertions in ProGPU's
+`System.Drawing.Common.Tests`; the canonical WFI package smoke owns assembly
+identity and host-child construction rather than retaining a second WinForms
+runtime solely to host benchmarks.
+
+## Original Upstream README
+
 # Windows Forms
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://github.com/dotnet/winforms/blob/main/LICENSE.TXT)
@@ -95,4 +277,3 @@ See the [.NET home repository](https://github.com/Microsoft/dotnet) to find oth
 [getting-started]: docs/getting-started.md
 [net-contributing]: https://github.com/dotnet/runtime/blob/master/CONTRIBUTING.md
 [porting-guidelines]: docs/porting-guidelines.md
-

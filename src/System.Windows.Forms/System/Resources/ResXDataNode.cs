@@ -297,6 +297,13 @@ public sealed class ResXDataNode : ISerializable
 
             using (MemoryStream stream = new())
             {
+#if LIBREWINFORMS_PORTABLE
+                if (!WinFormsNrbfSerializer.TryWriteObject(stream, value))
+                {
+                    throw new NotSupportedException(
+                        $"Portable .resx serialization does not support '{value.GetType().FullName}'.");
+                }
+#else
                 bool success = false;
                 try
                 {
@@ -313,6 +320,7 @@ public sealed class ResXDataNode : ISerializable
                     stream.SetLength(0);
                     binaryFormatter.Serialize(stream, value);
                 }
+#endif
 
                 nodeInfo.ValueData = ToBase64WrappedString(stream.ToArray());
             }

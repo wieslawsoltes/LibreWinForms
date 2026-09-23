@@ -4,7 +4,11 @@
 using System.ComponentModel;
 using System.Drawing;
 using System.Windows.Forms.Layout;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#else
 using Microsoft.Win32;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -37,7 +41,12 @@ public partial class ProgressBar : Control
     /// </summary>
     public ProgressBar() : base()
     {
+#if LIBREWINFORMS_PORTABLE
+        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+        SetStyle(ControlStyles.UseTextForAccessibility | ControlStyles.Selectable, false);
+#else
         SetStyle(ControlStyles.UserPaint | ControlStyles.UseTextForAccessibility | ControlStyles.Selectable, false);
+#endif
         ForeColor = s_defaultForeColor;
     }
 
@@ -92,7 +101,9 @@ public partial class ProgressBar : Control
             }
 
             // Disables Visual Styles for the ProgressBar.
+#if !LIBREWINFORMS_PORTABLE
             PInvoke.SetWindowTheme(HWND, " ", " ");
+#endif
         }
     }
 
@@ -255,6 +266,9 @@ public partial class ProgressBar : Control
     /// </summary>
     private void StartMarquee()
     {
+#if LIBREWINFORMS_PORTABLE
+        Invalidate();
+#else
         if (IsHandleCreated && _style == ProgressBarStyle.Marquee)
         {
             if (_marqueeAnimationSpeed == 0)
@@ -266,6 +280,7 @@ public partial class ProgressBar : Control
                 PInvokeCore.SendMessage(this, PInvoke.PBM_SETMARQUEE, (WPARAM)(BOOL)true, (LPARAM)_marqueeAnimationSpeed);
             }
         }
+#endif
     }
 
     /// <summary>
@@ -299,8 +314,12 @@ public partial class ProgressBar : Control
 
                 if (IsHandleCreated)
                 {
+#if LIBREWINFORMS_PORTABLE
+                    Invalidate();
+#else
                     PInvokeCore.SendMessage(this, PInvoke.PBM_SETRANGE32, (WPARAM)_minimum, (LPARAM)_maximum);
                     UpdatePos();
+#endif
                 }
             }
         }
@@ -337,8 +356,12 @@ public partial class ProgressBar : Control
 
                 if (IsHandleCreated)
                 {
+#if LIBREWINFORMS_PORTABLE
+                    Invalidate();
+#else
                     PInvokeCore.SendMessage(this, PInvoke.PBM_SETRANGE32, (WPARAM)_minimum, (LPARAM)_maximum);
                     UpdatePos();
+#endif
                 }
             }
         }
@@ -349,7 +372,11 @@ public partial class ProgressBar : Control
         base.OnBackColorChanged(e);
         if (IsHandleCreated)
         {
+#if LIBREWINFORMS_PORTABLE
+            Invalidate();
+#else
             PInvokeCore.SendMessage(this, PInvoke.PBM_SETBKCOLOR, 0, BackColor.ToWin32());
+#endif
         }
     }
 
@@ -358,7 +385,11 @@ public partial class ProgressBar : Control
         base.OnForeColorChanged(e);
         if (IsHandleCreated)
         {
+#if LIBREWINFORMS_PORTABLE
+            Invalidate();
+#else
             PInvokeCore.SendMessage(this, PInvoke.PBM_SETBARCOLOR, 0, ForeColor.ToWin32());
+#endif
         }
     }
 
@@ -427,7 +458,11 @@ public partial class ProgressBar : Control
             _step = value;
             if (IsHandleCreated)
             {
+#if LIBREWINFORMS_PORTABLE
+                Invalidate();
+#else
                 PInvokeCore.SendMessage(this, PInvoke.PBM_SETSTEP, (WPARAM)_step);
+#endif
             }
         }
     }
@@ -560,11 +595,7 @@ public partial class ProgressBar : Control
         if (!RecreatingHandle)
         {
             using ThemingScope scope = new(Application.UseVisualStyles);
-            PInvoke.InitCommonControlsEx(new INITCOMMONCONTROLSEX()
-            {
-                dwSize = (uint)sizeof(INITCOMMONCONTROLSEX),
-                dwICC = INITCOMMONCONTROLSEX_ICC.ICC_PROGRESS_CLASS
-            });
+            CommonControlInitializer.Initialize(INITCOMMONCONTROLSEX_ICC.ICC_PROGRESS_CLASS);
         }
 
         base.CreateHandle();
@@ -603,6 +634,7 @@ public partial class ProgressBar : Control
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
+#if !LIBREWINFORMS_PORTABLE
         if (IsHandleCreated)
         {
             PInvokeCore.SendMessage(this, PInvoke.PBM_SETRANGE32, (WPARAM)_minimum, (LPARAM)_maximum);
@@ -611,9 +643,14 @@ public partial class ProgressBar : Control
             PInvokeCore.SendMessage(this, PInvoke.PBM_SETBKCOLOR, (WPARAM)0, (LPARAM)BackColor);
             PInvokeCore.SendMessage(this, PInvoke.PBM_SETBARCOLOR, (WPARAM)0, (LPARAM)ForeColor);
         }
+#endif
 
         StartMarquee();
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.SystemSettings.SettingsChanged += SystemSettingsChanged;
+#else
         SystemEvents.UserPreferenceChanged += UserPreferenceChangedHandler;
+#endif
     }
 
     /// <summary>
@@ -621,7 +658,11 @@ public partial class ProgressBar : Control
     /// </summary>
     protected override void OnHandleDestroyed(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.SystemSettings.SettingsChanged -= SystemSettingsChanged;
+#else
         SystemEvents.UserPreferenceChanged -= UserPreferenceChangedHandler;
+#endif
         base.OnHandleDestroyed(e);
     }
 
@@ -687,11 +728,49 @@ public partial class ProgressBar : Control
     /// </summary>
     private void UpdatePos()
     {
+#if LIBREWINFORMS_PORTABLE
+        Invalidate();
+#else
         if (IsHandleCreated)
         {
             PInvokeCore.SendMessage(this, PInvoke.PBM_SETPOS, (WPARAM)_value);
         }
+#endif
     }
+
+#if LIBREWINFORMS_PORTABLE
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        Rectangle bounds = ClientRectangle;
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            base.OnPaint(e);
+            return;
+        }
+
+        using var background = new SolidBrush(BackColor);
+        using var foreground = new SolidBrush(ForeColor);
+        e.Graphics.FillRectangle(background, bounds);
+
+        int range = _maximum - _minimum;
+        int fillWidth;
+        if (_style == ProgressBarStyle.Marquee)
+        {
+            fillWidth = Math.Max(1, bounds.Width / 3);
+        }
+        else
+        {
+            double fraction = range <= 0 ? 0 : (double)(_value - _minimum) / range;
+            fillWidth = (int)Math.Round(bounds.Width * Math.Clamp(fraction, 0, 1));
+        }
+
+        Rectangle fill = RightToLeft == RightToLeft.Yes && RightToLeftLayout
+            ? new Rectangle(bounds.Right - fillWidth, bounds.Top, fillWidth, bounds.Height)
+            : new Rectangle(bounds.Left, bounds.Top, fillWidth, bounds.Height);
+        e.Graphics.FillRectangle(foreground, fill);
+        base.OnPaint(e);
+    }
+#endif
 
     /// <remarks>
     ///  <para>
@@ -699,6 +778,18 @@ public partial class ProgressBar : Control
     ///   You need to send messages to update the colors.
     ///  </para>
     /// </remarks>
+#if LIBREWINFORMS_PORTABLE
+    private void SystemSettingsChanged(object? sender, LibreSystemSettingsChangedEventArgs e)
+    {
+        if (e.Includes(
+            LibreSystemSettingsChangeKind.Accessibility
+            | LibreSystemSettingsChangeKind.Color
+            | LibreSystemSettingsChangeKind.VisualStyle))
+        {
+            Invalidate();
+        }
+    }
+#else
     private void UserPreferenceChangedHandler(object o, UserPreferenceChangedEventArgs e)
     {
         if (IsHandleCreated)
@@ -707,6 +798,7 @@ public partial class ProgressBar : Control
             PInvokeCore.SendMessage(this, PInvoke.PBM_SETBKCOLOR, 0, BackColor.ToWin32());
         }
     }
+#endif
 
     /// <summary>
     ///  Creates a new AccessibleObject for this <see cref="ProgressBar"/> instance.

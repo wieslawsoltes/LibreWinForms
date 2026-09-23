@@ -28,7 +28,11 @@ public unsafe partial class DataObject :
     Com.IManagedWrapper<Com.IDataObject>,
     IComVisibleDataObject
 {
+#if LIBREWINFORMS_PORTABLE
+    private readonly IDataObjectInternal _innerData;
+#else
     private readonly Composition _innerData;
+#endif
 
     static DataObject IDataObjectInternal<DataObject, IDataObject>.Create() => new();
     static DataObject IDataObjectInternal<DataObject, IDataObject>.Create(Com.IDataObject* dataObject) => new(dataObject);
@@ -47,13 +51,26 @@ public unsafe partial class DataObject :
     ///  </para>
     /// </remarks>
     /// <inheritdoc cref="DataObject(object)"/>
-    internal DataObject(Com.IDataObject* data) => _innerData = Composition.Create(data);
+    internal DataObject(Com.IDataObject* data)
+    {
+#if LIBREWINFORMS_PORTABLE
+        throw new PlatformNotSupportedException("Native OLE data objects are not available on this platform.");
+#else
+        _innerData = Composition.Create(data);
+#endif
+    }
 
     /// <summary>
     ///  Initializes a new instance of the <see cref="DataObject"/> class, which can store arbitrary data.
     /// </summary>
     /// <inheritdoc cref="DataObject(object)"/>
-    public DataObject() => _innerData = Composition.Create();
+    public DataObject() =>
+        _innerData =
+#if LIBREWINFORMS_PORTABLE
+            new DataStore<WinFormsOleServices>();
+#else
+            Composition.Create();
+#endif
 
     /// <summary>
     ///  Initializes a new instance of the <see cref="DataObject"/> class, containing the specified data.
@@ -67,7 +84,37 @@ public unsafe partial class DataObject :
     ///   if <see cref="ITypedDataObject"/> is not implemented.
     ///  </para>
     /// </remarks>
-    public DataObject(object data) => _innerData = Composition.Create<DataObject, IDataObject>(data);
+    public DataObject(object data) =>
+        _innerData =
+#if LIBREWINFORMS_PORTABLE
+            CreatePortableDataObject(data.OrThrowIfNull());
+#else
+            Composition.Create<DataObject, IDataObject>(data);
+#endif
+
+#if LIBREWINFORMS_PORTABLE
+    private static IDataObjectInternal CreatePortableDataObject(object data)
+    {
+        if (data is IDataObjectInternal internalDataObject)
+        {
+            return internalDataObject;
+        }
+
+        if (data is IDataObject dataObject)
+        {
+            return new DataObjectAdapter(dataObject);
+        }
+
+        if (data is ComTypes.IDataObject)
+        {
+            throw new PlatformNotSupportedException("Native OLE data objects are not available on this platform.");
+        }
+
+        DataStore<WinFormsOleServices> store = new();
+        store.SetData(data);
+        return store;
+    }
+#endif
 
     /// <summary>
     ///  Initializes a new instance of the <see cref="DataObject"/> class, containing the specified data and its
@@ -83,7 +130,13 @@ public unsafe partial class DataObject :
 
     internal virtual bool TryUnwrapUserDataObject([NotNullWhen(true)] out IDataObject? dataObject)
     {
-        dataObject = _innerData.ManagedDataObject switch
+        dataObject =
+#if LIBREWINFORMS_PORTABLE
+            _innerData
+#else
+            _innerData.ManagedDataObject
+#endif
+            switch
         {
             DataObject data => data,
             DataObjectAdapter adapter => adapter.DataObject,
@@ -94,15 +147,23 @@ public unsafe partial class DataObject :
         return dataObject is not null;
     }
 
-    /// <inheritdoc cref="Composition.SetDataAsJson{T, TDataObject}(T, string)"/>
+    /// <summary>Stores the data in the specified format using JSON serialization.</summary>
     [RequiresUnreferencedCode("Uses default System.Text.Json behavior which is not trim-compatible.")]
     public void SetDataAsJson<T>(string format, T data) =>
+#if LIBREWINFORMS_PORTABLE
+        _innerData.SetData(format, autoConvert: false, DataObjectCore<DataObject>.TryJsonSerialize(format, data));
+#else
         _innerData.SetDataAsJson<T, DataObject>(data, format);
+#endif
 
     /// <inheritdoc cref="SetDataAsJson{T}(T)"/>
     [RequiresUnreferencedCode("Uses default System.Text.Json behavior which is not trim-compatible.")]
     public void SetDataAsJson<T>(T data) =>
+#if LIBREWINFORMS_PORTABLE
+        SetDataAsJson(typeof(T).FullName.OrThrowIfNull(), data);
+#else
         _innerData.SetDataAsJson<T, DataObject>(data);
+#endif
 
     #region IDataObject
     [Obsolete(
@@ -288,6 +349,34 @@ public unsafe partial class DataObject :
     };
 
     #region ComTypes.IDataObject
+#if LIBREWINFORMS_PORTABLE
+    int ComTypes.IDataObject.DAdvise(ref FORMATETC pFormatetc, ADVF advf, IAdviseSink pAdvSink, out int pdwConnection) =>
+        throw new PlatformNotSupportedException("Native OLE data objects are not available on this platform.");
+
+    void ComTypes.IDataObject.DUnadvise(int dwConnection) =>
+        throw new PlatformNotSupportedException("Native OLE data objects are not available on this platform.");
+
+    int ComTypes.IDataObject.EnumDAdvise(out IEnumSTATDATA? enumAdvise) =>
+        throw new PlatformNotSupportedException("Native OLE data objects are not available on this platform.");
+
+    IEnumFORMATETC ComTypes.IDataObject.EnumFormatEtc(DATADIR dwDirection) =>
+        throw new PlatformNotSupportedException("Native OLE data objects are not available on this platform.");
+
+    int ComTypes.IDataObject.GetCanonicalFormatEtc(ref FORMATETC pformatetcIn, out FORMATETC pformatetcOut) =>
+        throw new PlatformNotSupportedException("Native OLE data objects are not available on this platform.");
+
+    void ComTypes.IDataObject.GetData(ref FORMATETC formatetc, out STGMEDIUM medium) =>
+        throw new PlatformNotSupportedException("Native OLE data objects are not available on this platform.");
+
+    void ComTypes.IDataObject.GetDataHere(ref FORMATETC formatetc, ref STGMEDIUM medium) =>
+        throw new PlatformNotSupportedException("Native OLE data objects are not available on this platform.");
+
+    int ComTypes.IDataObject.QueryGetData(ref FORMATETC formatetc) =>
+        throw new PlatformNotSupportedException("Native OLE data objects are not available on this platform.");
+
+    void ComTypes.IDataObject.SetData(ref FORMATETC pFormatetcIn, ref STGMEDIUM pmedium, bool fRelease) =>
+        throw new PlatformNotSupportedException("Native OLE data objects are not available on this platform.");
+#else
     int ComTypes.IDataObject.DAdvise(ref FORMATETC pFormatetc, ADVF advf, IAdviseSink pAdvSink, out int pdwConnection) =>
         _innerData.DAdvise(ref pFormatetc, advf, pAdvSink, out pdwConnection);
 
@@ -313,10 +402,36 @@ public unsafe partial class DataObject :
 
     void ComTypes.IDataObject.SetData(ref FORMATETC pFormatetcIn, ref STGMEDIUM pmedium, bool fRelease) =>
         _innerData.SetData(ref pFormatetcIn, ref pmedium, fRelease);
+#endif
 
     #endregion
 
     #region Com.IDataObject.Interface
+#if LIBREWINFORMS_PORTABLE
+    HRESULT Com.IDataObject.Interface.DAdvise(Com.FORMATETC* pformatetc, uint advf, Com.IAdviseSink* pAdvSink, uint* pdwConnection) =>
+        HRESULT.E_NOTIMPL;
+
+    HRESULT Com.IDataObject.Interface.DUnadvise(uint dwConnection) => HRESULT.E_NOTIMPL;
+
+    HRESULT Com.IDataObject.Interface.EnumDAdvise(Com.IEnumSTATDATA** ppenumAdvise) => HRESULT.E_NOTIMPL;
+
+    HRESULT Com.IDataObject.Interface.EnumFormatEtc(uint dwDirection, Com.IEnumFORMATETC** ppenumFormatEtc) =>
+        HRESULT.E_NOTIMPL;
+
+    HRESULT Com.IDataObject.Interface.GetData(Com.FORMATETC* pformatetcIn, Com.STGMEDIUM* pmedium) =>
+        HRESULT.E_NOTIMPL;
+
+    HRESULT Com.IDataObject.Interface.GetDataHere(Com.FORMATETC* pformatetc, Com.STGMEDIUM* pmedium) =>
+        HRESULT.E_NOTIMPL;
+
+    HRESULT Com.IDataObject.Interface.QueryGetData(Com.FORMATETC* pformatetc) => HRESULT.E_NOTIMPL;
+
+    HRESULT Com.IDataObject.Interface.GetCanonicalFormatEtc(Com.FORMATETC* pformatectIn, Com.FORMATETC* pformatetcOut) =>
+        HRESULT.E_NOTIMPL;
+
+    HRESULT Com.IDataObject.Interface.SetData(Com.FORMATETC* pformatetc, Com.STGMEDIUM* pmedium, BOOL fRelease) =>
+        HRESULT.E_NOTIMPL;
+#else
 
     HRESULT Com.IDataObject.Interface.DAdvise(Com.FORMATETC* pformatetc, uint advf, Com.IAdviseSink* pAdvSink, uint* pdwConnection) =>
         _innerData.DAdvise(pformatetc, advf, pAdvSink, pdwConnection);
@@ -344,6 +459,7 @@ public unsafe partial class DataObject :
 
     HRESULT Com.IDataObject.Interface.SetData(Com.FORMATETC* pformatetc, Com.STGMEDIUM* pmedium, BOOL fRelease) =>
         _innerData.SetData(pformatetc, pmedium, fRelease);
+#endif
 
     #endregion
 }

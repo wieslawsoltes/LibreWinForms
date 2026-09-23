@@ -237,6 +237,7 @@ public class ComponentTray : ScrollableControl, IExtenderProvider, ISelectionUIH
         _fSelectionChanged = true;
 
         // Accessibility information
+#if !LIBREWINFORMS_PORTABLE
         foreach (object selObj in _selectedObjects)
         {
             if (selObj is IComponent component)
@@ -252,6 +253,7 @@ public class ComponentTray : ScrollableControl, IExtenderProvider, ISelectionUIH
                 }
             }
         }
+#endif
 
         if (primary is IComponent comp)
         {
@@ -259,11 +261,13 @@ public class ComponentTray : ScrollableControl, IExtenderProvider, ISelectionUIH
             if (c is not null && IsHandleCreated)
             {
                 ScrollControlIntoView(c);
+#if !LIBREWINFORMS_PORTABLE
                 PInvoke.NotifyWinEvent(
                     (uint)AccessibleEvents.Focus,
                     c,
                     (int)OBJECT_IDENTIFIER.OBJID_CLIENT,
                     (int)PInvoke.CHILDID_SELF);
+#endif
             }
 
             if (_glyphManager is not null)

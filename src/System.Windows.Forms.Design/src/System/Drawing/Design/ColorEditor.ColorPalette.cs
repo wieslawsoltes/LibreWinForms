@@ -218,11 +218,13 @@ public partial class ColorEditor
             Rectangle r = default;
             FillRectWithCellBounds(_focus.X, _focus.Y, ref r);
             Invalidate(Rectangle.Inflate(r, 5, 5));
+#if !LIBREWINFORMS_PORTABLE
             PInvoke.NotifyWinEvent(
                 (uint)AccessibleEvents.Focus,
                 this,
                 (int)OBJECT_IDENTIFIER.OBJID_CLIENT,
                 1 + Get1DFrom2D(_focus.X, _focus.Y));
+#endif
         }
 
         protected override bool IsInputKey(Keys keyData) => keyData switch

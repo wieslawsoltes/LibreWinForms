@@ -15,7 +15,11 @@ internal readonly partial struct DPI_AWARENESS_CONTEXT
     ///  or the underlying OS does not support comparing context.
     /// </returns>
     public bool IsEquivalent(DPI_AWARENESS_CONTEXT dpiContext) =>
+#if LIBREWINFORMS_PORTABLE
+        this == dpiContext;
+#else
         (this == UNSPECIFIED_DPI_AWARENESS_CONTEXT && dpiContext == UNSPECIFIED_DPI_AWARENESS_CONTEXT)
             || (OsVersion.IsWindows10_1607OrGreater()
                 && (bool)PInvoke.AreDpiAwarenessContextsEqual(this, dpiContext));
+#endif
 }

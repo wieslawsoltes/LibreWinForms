@@ -495,8 +495,6 @@ public partial class GroupBox : Control
         }
         else
         {
-            using DeviceContextHdcScope hdc = new(e);
-
             DRAW_TEXT_FORMAT flags = DRAW_TEXT_FORMAT.DT_WORDBREAK | DRAW_TEXT_FORMAT.DT_EDITCONTROL;
 
             if (!ShowKeyboardCues)
@@ -510,6 +508,31 @@ public partial class GroupBox : Control
                 flags |= DRAW_TEXT_FORMAT.DT_RIGHT;
             }
 
+#if LIBREWINFORMS_PORTABLE
+            Graphics graphics = e.GraphicsInternal;
+            textSize = TextRenderer.MeasureText(
+                graphics,
+                Text,
+                Font,
+                new Size(textRectangle.Width, int.MaxValue),
+                (TextFormatFlags)flags);
+
+            if (Enabled)
+            {
+                TextRenderer.DrawText(graphics, Text, Font, textRectangle, ForeColor, (TextFormatFlags)flags);
+            }
+            else
+            {
+                ControlPaint.DrawStringDisabled(
+                    graphics,
+                    Text,
+                    Font,
+                    backColor,
+                    textRectangle,
+                    (TextFormatFlags)flags);
+            }
+#else
+            using DeviceContextHdcScope hdc = new(e);
             using var hfont = GdiCache.GetHFONTScope(Font);
             textSize = hdc.HDC.MeasureText(Text, hfont, new Size(textRectangle.Width, int.MaxValue), (TextFormatFlags)flags);
 
@@ -527,6 +550,7 @@ public partial class GroupBox : Control
                     textRectangle,
                     (TextFormatFlags)flags);
             }
+#endif
         }
 
         int textLeft = TextOffset;    // Left side of binding box (independent on RTL).
@@ -562,9 +586,15 @@ public partial class GroupBox : Control
             }
             else
             {
+#if LIBREWINFORMS_PORTABLE
+                Graphics graphics = e.GraphicsInternal;
+                using var boxPen = boxColor.GetCachedPenScope();
+                graphics.DrawLines(boxPen, lines);
+#else
                 using DeviceContextHdcScope hdc = new(e);
                 using CreatePenScope hpen = new(boxColor);
                 hdc.DrawLines(hpen, lines);
+#endif
             }
         }
         else
@@ -587,11 +617,19 @@ public partial class GroupBox : Control
                 Width - 2, boxTop - 1, Width - 2, Height - 2    // Right
             ];
 
+#if LIBREWINFORMS_PORTABLE
+            Graphics graphics = e.GraphicsInternal;
+            using var lightPen = ControlPaint.Light(backColor, 1.0f).GetCachedPenScope();
+            graphics.DrawLines(lightPen, lightLines);
+            using var darkPen = ControlPaint.Dark(backColor, 0f).GetCachedPenScope();
+            graphics.DrawLines(darkPen, darkLines);
+#else
             using DeviceContextHdcScope hdc = new(e);
             using CreatePenScope hpenLight = new(ControlPaint.Light(backColor, 1.0f));
             hdc.DrawLines(hpenLight, lightLines);
             using CreatePenScope hpenDark = new(ControlPaint.Dark(backColor, 0f));
             hdc.DrawLines(hpenDark, darkLines);
+#endif
         }
     }
 
@@ -664,7 +702,7 @@ public partial class GroupBox : Control
 
         if (backColor.HasTransparency())
         {
-            using Graphics graphics = Graphics.FromHdcInternal((HDC)m.WParamInternal);
+            using Graphics graphics = Graphics.FromHdc((HDC)m.WParamInternal);
             using var brush = backColor.GetCachedSolidBrushScope();
             graphics.FillRectangle(brush, rect);
         }

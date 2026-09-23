@@ -203,10 +203,12 @@ public partial class CheckBox : ButtonBase
 
             _checkState = value;
 
+#if !LIBREWINFORMS_PORTABLE
             if (IsHandleCreated)
             {
                 PInvokeCore.SendMessage(this, PInvoke.BM_SETCHECK, (WPARAM)(int)_checkState);
             }
+#endif
 
             bool checkedChanged = oldChecked != Checked;
 
@@ -493,10 +495,12 @@ public partial class CheckBox : ButtonBase
     {
         base.OnHandleCreated(e);
 
+#if !LIBREWINFORMS_PORTABLE
         if (IsHandleCreated)
         {
             PInvokeCore.SendMessage(this, PInvoke.BM_SETCHECK, (WPARAM)(int)_checkState);
         }
+#endif
     }
 
     /// <summary>
@@ -508,7 +512,7 @@ public partial class CheckBox : ButtonBase
         if (mevent.Button == MouseButtons.Left
             && MouseIsPressed
             && MouseIsDown
-            && PInvoke.WindowFromPoint(PointToScreen(mevent.Location)) == HWND)
+            && IsMousePointerDirectlyOver(mevent.Location))
         {
             // Paint in raised state.
             ResetFlagsandPaint();

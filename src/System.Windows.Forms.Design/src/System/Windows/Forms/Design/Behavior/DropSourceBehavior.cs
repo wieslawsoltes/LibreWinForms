@@ -51,7 +51,7 @@ internal sealed partial class DropSourceBehavior : Behavior, IComparer
 
     private Point _initialMouseLoc; // original mouse location in screen coordinates
 
-    private Image _dragImage; // A single image of the controls we are actually dragging around
+    private Bitmap _dragImage; // A single image of the controls we are actually dragging around
     private Rectangle _dragImageRect; // Rectangle of the dragImage -- in SOURCE AdornerWindow coordinates
     private Rectangle _clearDragImageRect; // Rectangle used to remember the last dragimage rect we cleared
     private Point _originalDragImageLocation; // original location of the drag image
@@ -1016,7 +1016,7 @@ internal sealed partial class DropSourceBehavior : Behavior, IComparer
             g.Clear(Color.Chartreuse);
         }
 
-        ((Bitmap)_dragImage).MakeTransparent(Color.Chartreuse);
+        _dragImage.MakeTransparent(Color.Chartreuse);
         // Gotta use 2 using's here... Too bad.
         // Draw each control into the dragimage
         using (Graphics g = Graphics.FromImage(_dragImage))

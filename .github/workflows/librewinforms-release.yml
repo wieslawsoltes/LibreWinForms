@@ -1,0 +1,190 @@
+name: LibreWinForms Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: NuGet package version to build.
+        required: true
+        default: 0.1.0-preview.63
+      bridge_version:
+        description: LibreWPF bridge package version to build against. Defaults to version.
+        required: false
+        default: ''
+      progpu_version:
+        description: Version assigned to the ProGPU drawing closure built from the pinned submodule.
+        required: false
+        default: 0.1.0-preview.63
+      bridge_ref:
+        description: Immutable LibreWPF tag or commit supplying the LibreWPF SDK package smoke. Defaults to librewpf-v<bridge_version>.
+        required: false
+        default: ''
+      canonical_wfi_ref:
+        description: Immutable LibreWPF commit or tag containing the canonical WindowsFormsIntegration source gate.
+        required: true
+        default: librewpf-v0.1.0-preview.63
+      publish:
+        description: Push packages to NuGet.org after validation.
+        required: true
+        type: boolean
+        default: false
+  push:
+    tags:
+      - librewinforms-v*
+
+permissions:
+  contents: write
+
+jobs:
+  preview:
+    name: Build preview packages
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Resolve release version
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            version="${GITHUB_REF_NAME#librewinforms-v}"
+          else
+            version="${{ inputs.version }}"
+          fi
+          bridge_version="${{ inputs.bridge_version }}"
+          if [[ -z "${bridge_version}" ]]; then
+            bridge_version="${version}"
+          fi
+          progpu_version="${{ inputs.progpu_version }}"
+          if [[ -z "${progpu_version}" ]]; then
+            progpu_version="0.1.0-preview.63"
+          fi
+          bridge_ref="${{ inputs.bridge_ref }}"
+          if [[ -z "${bridge_ref}" ]]; then
+            bridge_ref="librewpf-v${bridge_version}"
+          fi
+          canonical_wfi_ref="${{ inputs.canonical_wfi_ref }}"
+          if [[ -z "${canonical_wfi_ref}" ]]; then
+            canonical_wfi_ref="librewpf-v${bridge_version}"
+          fi
+          echo "LIBREWINFORMS_DEV_PACKAGE_VERSION=${version}" >> "${GITHUB_ENV}"
+          echo "LIBREWINFORMS_BRIDGE_PACKAGE_VERSION=${bridge_version}" >> "${GITHUB_ENV}"
+          echo "LIBREWINFORMS_PROGPU_PACKAGE_VERSION=${progpu_version}" >> "${GITHUB_ENV}"
+          echo "LIBREWINFORMS_BRIDGE_REF=${bridge_ref}" >> "${GITHUB_ENV}"
+          echo "LIBREWINFORMS_CANONICAL_WFI_REF=${canonical_wfi_ref}" >> "${GITHUB_ENV}"
+          echo "bridge_ref=${bridge_ref}" >> "${GITHUB_OUTPUT}"
+          echo "canonical_wfi_ref=${canonical_wfi_ref}" >> "${GITHUB_OUTPUT}"
+          echo "Resolved LibreWinForms package version: ${version}"
+          echo "Resolved LibreWPF bridge package version: ${bridge_version}"
+          echo "Resolved immutable ProGPU package version: ${progpu_version}"
+          echo "Resolved immutable LibreWPF bridge ref: ${bridge_ref}"
+          echo "Resolved canonical LibreWPF WFI ref: ${canonical_wfi_ref}"
+
+      - name: Checkout LibreWPF bridge packages
+        uses: actions/checkout@v4
+        with:
+          repository: wieslawsoltes/wpf
+          ref: ${{ steps.release.outputs.bridge_ref }}
+          path: artifacts/checkouts/wpf-bridge
+          submodules: recursive
+
+      - name: Checkout canonical LibreWPF WFI source
+        uses: actions/checkout@v4
+        with:
+          repository: wieslawsoltes/LibreWPF
+          ref: ${{ steps.release.outputs.canonical_wfi_ref }}
+          path: artifacts/checkouts/wpf-canonical
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Align canonical LibreWPF ProGPU checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          qualified_progpu_commit="$(git -C external/ProGPU rev-parse HEAD)"
+          git -C artifacts/checkouts/wpf-canonical submodule update --init external/ProGPU
+          git -C artifacts/checkouts/wpf-canonical/external/ProGPU fetch --depth=1 origin "${qualified_progpu_commit}"
+          git -C artifacts/checkouts/wpf-canonical/external/ProGPU checkout --detach "${qualified_progpu_commit}"
+          test "$(git -C artifacts/checkouts/wpf-canonical/external/ProGPU rev-parse HEAD)" = "$(git -C external/ProGPU rev-parse HEAD)"
+
+      - name: Verify docs
+        run: ./eng/librewinforms-verify-docs.sh
+
+      - name: Build canonical WindowsFormsIntegration from LibreWPF source
+        shell: bash
+        run: |
+          set -euo pipefail
+          canonical_wfi_commit="$(git -C artifacts/checkouts/wpf-canonical rev-parse HEAD)"
+          LIBREWINFORMS_CANONICAL_WFI_SOURCE_ROOT="${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-canonical" \
+          LIBREWINFORMS_CANONICAL_WFI_EXPECTED_COMMIT="${canonical_wfi_commit}" \
+          LIBREWINFORMS_CANONICAL_WFI_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-canonical/artifacts/packages/CanonicalWinForms" \
+          ./eng/librewinforms-build-canonical-wfi.sh
+          echo "LIBREWINFORMS_CANONICAL_WFI_COMMIT=${canonical_wfi_commit}" >> "${GITHUB_ENV}"
+          echo "LIBREWINFORMS_CANONICAL_WFI_PACKAGE_SOURCE=${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-canonical/artifacts/packages/CanonicalWinForms" >> "${GITHUB_ENV}"
+
+      - name: Stage immutable LibreWPF bridge packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          LIBREWINFORMS_BRIDGE_CHECKOUT="${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-bridge" \
+          LIBREWINFORMS_BRIDGE_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-bridge/artifacts/packages/Release/NonShipping" \
+          ./eng/librewinforms-fetch-librewpf-packages.sh
+
+      - name: Build and pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          export LIBREWINFORMS_PROGPU_COMMIT="$(git -C external/ProGPU rev-parse HEAD)"
+          export LIBREWINFORMS_REQUIRE_CLEAN=1
+          ./eng/librewinforms-pack.sh
+
+      - name: Run package-mode SDK smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          export LIBREWINFORMS_BRIDGE_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-bridge/artifacts/packages/Release/NonShipping"
+          ./eng/librewinforms-package-smoke.sh
+
+      - name: Upload preview packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: librewinforms-packages-${{ env.LIBREWINFORMS_DEV_PACKAGE_VERSION }}
+          path: |
+            artifacts/packages/Release/NonShipping/*.nupkg
+            artifacts/packages/Release/NonShipping/*.json
+            artifacts/packages/Release/NonShipping/*.tar.gz
+            artifacts/packages/Release/NonShipping/*.sha256
+            artifacts/packages/Release/NonShipping/README.md
+            artifacts/packages/Release/NonShipping/NuGet.config
+          if-no-files-found: error
+
+      - name: Publish to NuGet.org
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.publish) || startsWith(github.ref, 'refs/tags/librewinforms-v') }}
+        run: dotnet nuget push artifacts/packages/Release/NonShipping/*.nupkg --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      - name: Create GitHub Release
+        if: ${{ startsWith(github.ref, 'refs/tags/librewinforms-v') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            artifacts/packages/Release/NonShipping/*.nupkg \
+            artifacts/packages/Release/NonShipping/*.json \
+            artifacts/packages/Release/NonShipping/*.tar.gz \
+            artifacts/packages/Release/NonShipping/*.sha256 \
+            artifacts/packages/Release/NonShipping/README.md \
+            artifacts/packages/Release/NonShipping/NuGet.config \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "LibreWinForms ${{ env.LIBREWINFORMS_DEV_PACKAGE_VERSION }}" \
+            --generate-notes \
+            --verify-tag \
+            --prerelease

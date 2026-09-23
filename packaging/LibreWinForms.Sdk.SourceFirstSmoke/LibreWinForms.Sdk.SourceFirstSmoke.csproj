@@ -1,0 +1,13 @@
+<Project Sdk="LibreWinForms.Sdk/0.1.0-source-first-sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <LibreWinFormsUseCanonicalRuntime>true</LibreWinFormsUseCanonicalRuntime>
+    <LibreWinFormsReferenceMode>Project</LibreWinFormsReferenceMode>
+    <LibreWinFormsSourceRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..\..'))</LibreWinFormsSourceRoot>
+  </PropertyGroup>
+</Project>

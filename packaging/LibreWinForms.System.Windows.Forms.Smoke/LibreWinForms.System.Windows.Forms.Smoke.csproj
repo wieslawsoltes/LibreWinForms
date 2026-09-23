@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net11.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsPackable>false</IsPackable>
+    <SourceFirstPackageVersion Condition="'$(SourceFirstPackageVersion)' == ''">0.1.0-source-first</SourceFirstPackageVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LibreWinForms.System.Windows.Forms" Version="$(SourceFirstPackageVersion)" />
+  </ItemGroup>
+</Project>

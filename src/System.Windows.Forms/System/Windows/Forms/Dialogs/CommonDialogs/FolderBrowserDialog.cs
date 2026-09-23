@@ -5,6 +5,9 @@ using System.ComponentModel;
 using System.Drawing.Design;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#endif
 using Windows.Win32.System.Com;
 using static Windows.Win32.UI.Shell.FILEOPENDIALOGOPTIONS;
 
@@ -272,13 +275,59 @@ public sealed class FolderBrowserDialog : CommonDialog
     /// <returns>
     ///  <see langword="true" /> if the folder browser dialog was successfully run; otherwise, <see langword="false" />.
     /// </returns>
-    protected override bool RunDialog(IntPtr hwndOwner) =>
+    protected override bool RunDialog(IntPtr hwndOwner)
+    {
+#if LIBREWINFORMS_PORTABLE
+        LibreFileDialogOptions options = LibreFileDialogOptions.None;
+        if (AddToRecent) options |= LibreFileDialogOptions.AddToRecent;
+        if (Multiselect) options |= LibreFileDialogOptions.MultiSelect;
+        if (OkRequiresInteraction) options |= LibreFileDialogOptions.OkRequiresInteraction;
+        if (ShowHiddenFiles) options |= LibreFileDialogOptions.ShowHiddenFiles;
+        if (ShowPinnedPlaces) options |= LibreFileDialogOptions.ShowPinnedPlaces;
+        if (ShowNewFolderButton) options |= LibreFileDialogOptions.ShowNewFolderButton;
+        if (UseDescriptionForTitle) options |= LibreFileDialogOptions.UseDescriptionForTitle;
+        if (AutoUpgradeEnabled) options |= LibreFileDialogOptions.AutoUpgradeEnabled;
+        string rootPath = Environment.GetFolderPath(_rootFolder);
+        LibreFileDialogPlace[] places = rootPath.Length == 0
+            ? []
+            : [new(rootPath, null)];
+        LibreFileDialogResult result = LibrePlatform.Current.FileDialogs.Show(new LibreFileDialogRequest(
+            LibreFileDialogKind.SelectFolder,
+            UseDescriptionForTitle ? _descriptionText : string.Empty,
+            _descriptionText,
+            _initialDirectory,
+            _selectedPaths.ToArray(),
+            string.Empty,
+            [],
+            0,
+            options,
+            ClientGuid,
+            places,
+            null,
+            hwndOwner == 0 ? default : new LibreHandle(hwndOwner, LibreHandleKind.Window)));
+        if (!result.Accepted)
+        {
+            return false;
+        }
 
+        ArgumentNullException.ThrowIfNull(result.SelectedPaths);
+        if (result.SelectedPaths.Count == 0
+            || (!Multiselect && result.SelectedPaths.Count != 1)
+            || result.SelectedPaths.Any(string.IsNullOrWhiteSpace))
+        {
+            throw new InvalidOperationException("The folder-dialog service returned an invalid path selection.");
+        }
+
+        _selectedPaths = [.. result.SelectedPaths];
+        return true;
+#else
         // If running the Vista dialog fails (e.g. on Server Core), we fall back to the
         // legacy dialog.
-        UseVistaDialogInternal && TryRunDialogVista((HWND)hwndOwner, out bool returnValue)
+        return UseVistaDialogInternal && TryRunDialogVista((HWND)hwndOwner, out bool returnValue)
             ? returnValue
             : RunDialogOld((HWND)hwndOwner);
+#endif
+    }
 
     private unsafe bool TryRunDialogVista(HWND owner, out bool returnValue)
     {

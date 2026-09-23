@@ -11,14 +11,20 @@ internal abstract partial class ButtonBaseAdapter
     {
         private readonly Color _backColor;
         private readonly Color _foreColor;
+#if !LIBREWINFORMS_PORTABLE
         private readonly IDeviceContext _deviceContext;
+#endif
 
         public bool Enabled { get; set; }
         public bool HighContrast { get; }
 
         internal ColorOptions(IDeviceContext deviceContext, Color foreColor, Color backColor)
         {
+#if LIBREWINFORMS_PORTABLE
+            _ = deviceContext;
+#else
             _deviceContext = deviceContext;
+#endif
             _backColor = backColor;
             _foreColor = foreColor;
             HighContrast = SystemInformation.HighContrast;
@@ -108,6 +114,7 @@ internal abstract partial class ButtonBaseAdapter
                 colors.WindowText = colors.WindowFrame;
             }
 
+#if !LIBREWINFORMS_PORTABLE
             using DeviceContextHdcScope hdc = _deviceContext.ToHdcScope(ApplyGraphicsProperties.None);
 
             colors.ButtonFace = hdc.FindNearestColor(colors.ButtonFace);
@@ -120,6 +127,7 @@ internal abstract partial class ButtonBaseAdapter
             colors.LowButtonFace = hdc.FindNearestColor(colors.LowButtonFace);
             colors.WindowFrame = hdc.FindNearestColor(colors.WindowFrame);
             colors.WindowDisabled = hdc.FindNearestColor(colors.WindowDisabled);
+#endif
 
             return colors;
         }

@@ -107,7 +107,7 @@ internal partial class DrawingEventArgs
 
             _oldPalette = paletteScope.HPALETTE;
 
-            _graphics = Graphics.FromHdcInternal((IntPtr)_hdc);
+            _graphics = Graphics.FromHdc((IntPtr)_hdc);
             _graphics.PageUnit = GraphicsUnit.Pixel;
             creationAction?.Invoke(_graphics);
 

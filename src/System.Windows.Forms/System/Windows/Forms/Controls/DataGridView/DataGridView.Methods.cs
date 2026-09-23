@@ -10,7 +10,11 @@ using System.Text;
 using System.Windows.Forms.Automation;
 using System.Windows.Forms.Layout;
 using System.Windows.Forms.VisualStyles;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#else
 using Microsoft.Win32;
+#endif
 using Windows.Win32.UI.Accessibility;
 
 namespace System.Windows.Forms;
@@ -5426,6 +5430,9 @@ public partial class DataGridView
             return _cachedScrollableRegion;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        _cachedScrollableRegion = [(RECT)scroll];
+#else
         using (Region region = new(scroll))
         {
             HRGN hrgn = default;
@@ -5440,6 +5447,7 @@ public partial class DataGridView
                 region.ReleaseHrgn((IntPtr)hrgn);
             }
         }
+#endif
 
         return _cachedScrollableRegion;
     }
@@ -5700,6 +5708,33 @@ public partial class DataGridView
     {
         const byte DATAGRIDVIEW_shadowEdgeThickness = 3;
 
+#if LIBREWINFORMS_PORTABLE
+        Rectangle screen = RectangleToScreen(r);
+        ControlPaint.FillReversibleRectangle(
+            new Rectangle(screen.X, screen.Y, screen.Width, DATAGRIDVIEW_shadowEdgeThickness),
+            BackColor);
+        ControlPaint.FillReversibleRectangle(
+            new Rectangle(
+                screen.X,
+                screen.Bottom - DATAGRIDVIEW_shadowEdgeThickness,
+                screen.Width,
+                DATAGRIDVIEW_shadowEdgeThickness),
+            BackColor);
+        ControlPaint.FillReversibleRectangle(
+            new Rectangle(
+                screen.X,
+                screen.Y + DATAGRIDVIEW_shadowEdgeThickness,
+                DATAGRIDVIEW_shadowEdgeThickness,
+                screen.Height - 2 * DATAGRIDVIEW_shadowEdgeThickness),
+            BackColor);
+        ControlPaint.FillReversibleRectangle(
+            new Rectangle(
+                screen.Right - DATAGRIDVIEW_shadowEdgeThickness,
+                screen.Y + DATAGRIDVIEW_shadowEdgeThickness,
+                DATAGRIDVIEW_shadowEdgeThickness,
+                screen.Height - 2 * DATAGRIDVIEW_shadowEdgeThickness),
+            BackColor);
+#else
         using GetDcScope dc = new(HWND, HRGN.Null, GET_DCX_FLAGS.DCX_CACHE | GET_DCX_FLAGS.DCX_LOCKWINDOWUPDATE);
         HBRUSH halftone = ControlPaint.CreateHalftoneHBRUSH();
         HGDIOBJ saveBrush = PInvokeCore.SelectObject(dc, halftone);
@@ -5711,6 +5746,7 @@ public partial class DataGridView
 
         PInvokeCore.SelectObject(dc, saveBrush);
         PInvokeCore.DeleteObject(halftone);
+#endif
     }
 
     /// <summary>
@@ -5719,12 +5755,16 @@ public partial class DataGridView
     /// </summary>
     private void DrawSplitBar(Rectangle r)
     {
+#if LIBREWINFORMS_PORTABLE
+        ControlPaint.FillReversibleRectangle(RectangleToScreen(r), BackColor);
+#else
         using GetDcScope dc = new(HWND, HRGN.Null, GET_DCX_FLAGS.DCX_CACHE | GET_DCX_FLAGS.DCX_LOCKWINDOWUPDATE);
         HBRUSH halftone = ControlPaint.CreateHalftoneHBRUSH();
         HGDIOBJ saveBrush = PInvokeCore.SelectObject(dc, halftone);
         PInvoke.PatBlt(dc, r.X, r.Y, r.Width, r.Height, ROP_CODE.PATINVERT);
         PInvokeCore.SelectObject(dc, saveBrush);
         PInvokeCore.DeleteObject(halftone);
+#endif
         GC.KeepAlive(this);
     }
 
@@ -15242,12 +15282,20 @@ public partial class DataGridView
             OnGlobalAutoSize();
         }
 
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.SystemSettings.SettingsChanged += OnSystemSettingsChanged;
+#else
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
+#endif
     }
 
     protected override void OnHandleDestroyed(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.SystemSettings.SettingsChanged -= OnSystemSettingsChanged;
+#else
         SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+#endif
         base.OnHandleDestroyed(e);
     }
 
@@ -19006,6 +19054,20 @@ public partial class DataGridView
     protected virtual void OnUserDeletingRow(DataGridViewRowCancelEventArgs e) =>
         GetEvent<DataGridViewRowCancelEventHandler>(s_userDeletingRowEvent)?.Invoke(this, e);
 
+#if LIBREWINFORMS_PORTABLE
+    private void OnSystemSettingsChanged(object? sender, LibreSystemSettingsChangedEventArgs e)
+    {
+        if (e.Includes(
+            LibreSystemSettingsChangeKind.Color
+            | LibreSystemSettingsChangeKind.Locale
+            | LibreSystemSettingsChangeKind.General
+            | LibreSystemSettingsChangeKind.Window
+            | LibreSystemSettingsChangeKind.VisualStyle))
+        {
+            OnSystemSettingsChangedCore(e.Includes(LibreSystemSettingsChangeKind.Window));
+        }
+    }
+#else
     private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
     {
         if (e.Category is UserPreferenceCategory.Color
@@ -19014,25 +19076,33 @@ public partial class DataGridView
             or UserPreferenceCategory.Window
             or UserPreferenceCategory.VisualStyle)
         {
-            OnGlobalAutoSize();
-            if (e.Category == UserPreferenceCategory.Window)
-            {
-                _cachedEditingControl = null;
-                if (EditingControl is not null)
-                {
-                    // The editing control may not adapt well to the new system rendering,
-                    // so instead of caching it into the this.cachedEditingControl variable
-                    // next time editing mode is exited, simply discard the control.
-                    _dataGridViewState2[State2_DiscardEditingControl] = true;
-                }
-
-                PerformLayoutPrivate(
-                    useRowShortcut: false,
-                    computeVisibleRows: false,
-                    invalidInAdjustFillingColumns: false,
-                    repositionEditingControl: true);
-            }
+            OnSystemSettingsChangedCore(e.Category == UserPreferenceCategory.Window);
         }
+    }
+#endif
+
+    private void OnSystemSettingsChangedCore(bool windowChanged)
+    {
+        OnGlobalAutoSize();
+        if (!windowChanged)
+        {
+            return;
+        }
+
+        _cachedEditingControl = null;
+        if (EditingControl is not null)
+        {
+            // The editing control may not adapt well to the new system rendering,
+            // so instead of caching it into the this.cachedEditingControl variable
+            // next time editing mode is exited, simply discard the control.
+            _dataGridViewState2[State2_DiscardEditingControl] = true;
+        }
+
+        PerformLayoutPrivate(
+            useRowShortcut: false,
+            computeVisibleRows: false,
+            invalidInAdjustFillingColumns: false,
+            repositionEditingControl: true);
     }
 
     protected override void OnValidating(CancelEventArgs e)
@@ -19733,7 +19803,12 @@ public partial class DataGridView
                     }
                 }
 
-                if (repositionEditingControl && EditingControl is not null)
+                if (repositionEditingControl
+                    && EditingControl is not null
+#if LIBREWINFORMS_PORTABLE
+                    && !_dataGridViewOper[OperationInDispose]
+#endif
+                    )
                 {
                     PositionEditingControl(setLocation: true, setSize: false, setFocus: false);
                 }
@@ -26247,12 +26322,16 @@ public partial class DataGridView
             for (int r = 0; r < rects.Length; r++)
             {
                 scroll = rects[r];
+#if LIBREWINFORMS_PORTABLE
+                Invalidate((Rectangle)scroll);
+#else
                 PInvoke.ScrollWindow(
                     this,
                     change,
                     0,
                     &scroll,
                     &scroll);
+#endif
             }
         }
     }

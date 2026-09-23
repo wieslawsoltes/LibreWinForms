@@ -415,7 +415,7 @@ public partial class ListView
             this[index].Focused = false;
             this[index].UnHost(true);
 
-            if (_owner.IsHandleCreated)
+            if (_owner.IsHandleCreated && !_owner.ListViewHandleDestroyed)
             {
                 Debug.Assert(_owner._listViewItems is null, "listItemsArray not null, even though handle created");
                 if (PInvokeCore.SendMessage(_owner, PInvoke.LVM_DELETEITEM, (WPARAM)index) == 0)

@@ -694,11 +694,15 @@ public partial class Splitter : Control
         }
 
         Rectangle r = CalcSplitLine(_splitTarget, splitSize, 3);
+#if LIBREWINFORMS_PORTABLE
+        ControlPaint.FillReversibleRectangle(ParentInternal.RectangleToScreen(r), ParentInternal.BackColor);
+#else
         using GetDcScope dc = new(ParentInternal.HWND, HRGN.Null, GET_DCX_FLAGS.DCX_CACHE | GET_DCX_FLAGS.DCX_LOCKWINDOWUPDATE);
         HBRUSH halftone = ControlPaint.CreateHalftoneHBRUSH();
         using ObjectScope halftoneScope = new(halftone);
         using SelectObjectScope selection = new(dc, halftone);
         PInvoke.PatBlt(dc, r.X, r.Y, r.Width, r.Height, ROP_CODE.PATINVERT);
+#endif
 
         GC.KeepAlive(ParentInternal);
     }

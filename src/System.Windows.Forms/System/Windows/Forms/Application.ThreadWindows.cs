@@ -12,19 +12,41 @@ public sealed partial class Application
     /// </summary>
     private sealed class ThreadWindows
     {
+#if LIBREWINFORMS_PORTABLE
+        private readonly List<Form> _windows;
+        private Form? _activeForm;
+#else
         private readonly List<HWND> _windows;
         private HWND _activeHwnd;
         private HWND _focusedHwnd;
+#endif
         internal ThreadWindows? _previousThreadWindows;
         private readonly bool _onlyWinForms = true;
 
         internal ThreadWindows(bool onlyWinForms)
         {
+#if LIBREWINFORMS_PORTABLE
+            _windows = new List<Form>(Application.OpenForms.Count);
+            _onlyWinForms = onlyWinForms;
+            foreach (Form form in Application.OpenForms)
+            {
+                if (form.IsHandleCreated
+                    && form.Visible
+                    && form.Enabled
+                    && form.PortableWindowEnabled
+                    && !form.InvokeRequired)
+                {
+                    _windows.Add(form);
+                }
+            }
+#else
             _windows = new List<HWND>(16);
             _onlyWinForms = onlyWinForms;
             PInvokeCore.EnumCurrentThreadWindows(Callback);
+#endif
         }
 
+#if !LIBREWINFORMS_PORTABLE
         private BOOL Callback(HWND hwnd)
         {
             // We only do visible and enabled windows. Also, we only do top level windows.
@@ -40,10 +62,20 @@ public sealed partial class Application
 
             return true;
         }
+#endif
 
         // Disposes all top-level Controls on this thread
         internal void Dispose()
         {
+#if LIBREWINFORMS_PORTABLE
+            foreach (Form form in _windows)
+            {
+                if (!form.IsDisposed)
+                {
+                    form.Dispose();
+                }
+            }
+#else
             foreach (HWND hwnd in _windows)
             {
                 if (PInvoke.IsWindow(hwnd))
@@ -51,11 +83,31 @@ public sealed partial class Application
                     Control.FromHandle(hwnd)?.Dispose();
                 }
             }
+#endif
         }
 
         // Enables/disables all top-level Controls on this thread
         internal void Enable(bool enable)
         {
+#if LIBREWINFORMS_PORTABLE
+            if (!_onlyWinForms && !enable)
+            {
+                _activeForm = Form.ActiveForm;
+            }
+
+            foreach (Form form in _windows)
+            {
+                if (!form.IsDisposed && form.IsHandleCreated)
+                {
+                    form.SetPortableWindowEnabled(enable);
+                }
+            }
+
+            if (!_onlyWinForms && enable && _activeForm is { IsDisposed: false, Visible: true } activeForm)
+            {
+                activeForm.Activate();
+            }
+#else
             if (!_onlyWinForms && !enable)
             {
                 _activeHwnd = PInvoke.GetActiveWindow();
@@ -91,6 +143,7 @@ public sealed partial class Application
                     PInvoke.SetFocus(_focusedHwnd);
                 }
             }
+#endif
         }
     }
 }

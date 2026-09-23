@@ -340,16 +340,16 @@ public partial class ProfessionalColorTable
         // FromARGB here. So we have a simple function which calculates the blending for us.
         if (!DisplayInformation.LowResolution)
         {
-            using var screen = GdiCache.GetScreenDCGraphics();
+            using var screen = new LayoutGraphicsScope();
             rgbTable[KnownColors.ButtonPressedHighlight] = GetAlphaBlendedColor(
-                screen,
+                screen.Graphics,
                 SystemColors.Window,
-                GetAlphaBlendedColor(screen, SystemColors.Highlight, SystemColors.Window, 160),
+                GetAlphaBlendedColor(screen.Graphics, SystemColors.Highlight, SystemColors.Window, 160),
                 50);
             rgbTable[KnownColors.ButtonCheckedHighlight] = GetAlphaBlendedColor(
-                screen,
+                screen.Graphics,
                 SystemColors.Window,
-                GetAlphaBlendedColor(screen, SystemColors.Highlight, SystemColors.Window, 80),
+                GetAlphaBlendedColor(screen.Graphics, SystemColors.Highlight, SystemColors.Window, 80),
                 20);
             rgbTable[KnownColors.ButtonSelectedHighlight] = rgbTable[KnownColors.ButtonCheckedHighlight];
         }

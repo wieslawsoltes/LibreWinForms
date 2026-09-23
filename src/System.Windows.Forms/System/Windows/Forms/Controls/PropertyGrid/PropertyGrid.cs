@@ -593,7 +593,9 @@ public partial class PropertyGrid : ContainerControl, IComPropertyBrowser, IProp
             {
                 if (_paintFrozen++ == 0)
                 {
+#if !LIBREWINFORMS_PORTABLE
                     PInvokeCore.SendMessage(this, PInvokeCore.WM_SETREDRAW, (WPARAM)(BOOL)false);
+#endif
                 }
             }
 
@@ -606,7 +608,9 @@ public partial class PropertyGrid : ContainerControl, IComPropertyBrowser, IProp
 
                 if (--_paintFrozen == 0)
                 {
+#if !LIBREWINFORMS_PORTABLE
                     PInvokeCore.SendMessage(this, PInvokeCore.WM_SETREDRAW, (WPARAM)(BOOL)true);
+#endif
                     Invalidate(true);
                 }
             }

@@ -70,12 +70,20 @@ public static class RadioButtonRenderer
         Rectangle glyphBounds;
         if (RenderWithVisualStyles)
         {
-            using DeviceContextHdcScope hdc = new(graphics);
+#if LIBREWINFORMS_PORTABLE
+            InitializeRenderer((int)state);
+            glyphBounds = new Rectangle(
+                glyphLocation,
+                t_visualStyleRenderer.GetPartSize(graphics, ThemeSizeType.Draw));
+            t_visualStyleRenderer.DrawBackground(graphics, glyphBounds);
+#else
+            using DeviceContextHdcScope hdc = graphics.ToHdcScope();
             DrawRadioButtonWithVisualStyles(hdc, glyphLocation, state, hwnd);
+#endif
         }
         else
         {
-            using (DeviceContextHdcScope hdc = new(graphics))
+            using (DeviceContextHdcScope hdc = graphics.ToHdcScope())
             {
                 glyphBounds = new Rectangle(glyphLocation, GetGlyphSize(hdc, state, hwnd));
             }
@@ -125,7 +133,7 @@ public static class RadioButtonRenderer
         HWND hwnd)
     {
         Rectangle glyphBounds;
-        using (DeviceContextHdcScope hdc = new(g))
+        using (DeviceContextHdcScope hdc = g.ToHdcScope())
         {
             glyphBounds = new Rectangle(glyphLocation, GetGlyphSize(hdc, state, hwnd));
         }
@@ -214,7 +222,7 @@ public static class RadioButtonRenderer
         HWND hwnd)
     {
         Rectangle glyphBounds;
-        using (DeviceContextHdcScope hdc = new(g))
+        using (DeviceContextHdcScope hdc = g.ToHdcScope())
         {
             glyphBounds = new Rectangle(glyphLocation, GetGlyphSize(hdc, state, hwnd));
         }
@@ -250,8 +258,18 @@ public static class RadioButtonRenderer
     /// </summary>
     public static Size GetGlyphSize(Graphics g, RadioButtonState state)
     {
-        using DeviceContextHdcScope hdc = new(g);
+#if LIBREWINFORMS_PORTABLE
+        if (RenderWithVisualStyles)
+        {
+            InitializeRenderer((int)state);
+            return t_visualStyleRenderer.GetPartSize(g, ThemeSizeType.Draw);
+        }
+
+        return new Size(13, 13);
+#else
+        using DeviceContextHdcScope hdc = g.ToHdcScope();
         return GetGlyphSize(hdc, state, HWND.Null);
+#endif
     }
 
     internal static Size GetGlyphSize(HDC hdc, RadioButtonState state, HWND hwnd)

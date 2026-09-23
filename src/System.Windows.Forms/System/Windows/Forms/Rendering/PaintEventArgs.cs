@@ -135,7 +135,11 @@ public partial class PaintEventArgs : EventArgs, IDisposable, IDeviceContext, IG
     HDC IHdcContext.GetHdc() => (HDC)((IDeviceContext)this).GetHdc();
     void IDeviceContext.ReleaseHdc() => Graphics?.ReleaseHdc();
     void IHdcContext.ReleaseHdc() => ((IDeviceContext)this).ReleaseHdc();
+#if LIBREWINFORMS_PROGPU_DRAWING
+    IGraphics? IGraphicsHdcProvider.GetGraphics(bool createIfNeeded) => null;
+#else
     IGraphics? IGraphicsHdcProvider.GetGraphics(bool createIfNeeded) => _event.GetGraphics(createIfNeeded);
+#endif
     HDC IGraphicsHdcProvider.GetHdc() => _event.GetHDC();
     bool IGraphicsHdcProvider.IsGraphicsStateClean => _event.IsStateClean;
 }

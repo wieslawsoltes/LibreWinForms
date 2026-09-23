@@ -131,6 +131,7 @@ public class ContextMenuStrip : ToolStripDropDownMenu
         //       The "GetDpiForWindow()" API on ContextMenuStrip thus returns the DPI of the primary monitor.
         // Because of this inconsistency, we intentionally recreate the handle that triggers scaling according
         // to the new DPI, after setting the "visible" property.
+#if !LIBREWINFORMS_PORTABLE
         if (visible
             && IsHandleCreated
             && ScaleHelper.IsThreadPerMonitorV2Aware
@@ -138,6 +139,7 @@ public class ContextMenuStrip : ToolStripDropDownMenu
         {
             RecreateHandle();
         }
+#endif
     }
 
     protected override void OnOpened(EventArgs e)

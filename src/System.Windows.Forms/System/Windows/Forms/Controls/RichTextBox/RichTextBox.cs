@@ -7,7 +7,11 @@ using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms.Layout;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#else
 using Microsoft.Win32;
+#endif
 using Windows.Win32.UI.Controls.Dialogs;
 using Windows.Win32.UI.Controls.RichEdit;
 using static Interop.Richedit;
@@ -2500,7 +2504,11 @@ public partial class RichTextBox : TextBoxBase
 
         SendZoomFactor(_zoomMultiplier);
 
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.SystemSettings.SettingsChanged += SystemSettingsChanged;
+#else
         SystemEvents.UserPreferenceChanged += UserPreferenceChangedHandler;
+#endif
     }
 
     protected override void OnHandleDestroyed(EventArgs e)
@@ -2517,7 +2525,11 @@ public partial class RichTextBox : TextBoxBase
         }
 
         _oleCallback = null;
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.SystemSettings.SettingsChanged -= SystemSettingsChanged;
+#else
         SystemEvents.UserPreferenceChanged -= UserPreferenceChangedHandler;
+#endif
     }
 
     /// <summary>
@@ -3097,6 +3109,18 @@ public partial class RichTextBox : TextBoxBase
 
     // Note: RichTextBox doesn't work like other controls as far as setting ForeColor/
     // BackColor -- you need to send messages to update the colors
+#if LIBREWINFORMS_PORTABLE
+    private void SystemSettingsChanged(object? sender, LibreSystemSettingsChangedEventArgs e)
+    {
+        if (e.Includes(
+            LibreSystemSettingsChangeKind.Accessibility
+            | LibreSystemSettingsChangeKind.Color
+            | LibreSystemSettingsChangeKind.VisualStyle))
+        {
+            Invalidate();
+        }
+    }
+#else
     private void UserPreferenceChangedHandler(object o, UserPreferenceChangedEventArgs e)
     {
         if (IsHandleCreated)
@@ -3112,6 +3136,7 @@ public partial class RichTextBox : TextBoxBase
             }
         }
     }
+#endif
 
     protected override AccessibleObject CreateAccessibilityInstance() => new ControlAccessibleObject(this);
 
@@ -3440,7 +3465,7 @@ public partial class RichTextBox : TextBoxBase
                     // paint anything else. We will paint the background and the unformatted
                     // text ourselves, so we don't want the RTF control to paint the background
                     // and the text in the foreground color.
-                    using Graphics g = Graphics.FromHwndInternal(Handle);
+                    using Graphics g = Graphics.FromHwnd(Handle);
 
                     // Paint the background
                     g.FillRectangle(SystemBrushes.ControlDark, ClientRectangle);

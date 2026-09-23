@@ -3,7 +3,11 @@
 
 using System.ComponentModel;
 using System.Drawing;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#else
 using Microsoft.Win32;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -165,7 +169,11 @@ public partial class ToolStripTextBox
                 {
                     try
                     {
+#if LIBREWINFORMS_PORTABLE
+                        LibrePlatform.Current.SystemSettings.SettingsChanged += OnSystemSettingsChanged;
+#else
                         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
+#endif
                     }
                     finally
                     {
@@ -177,7 +185,11 @@ public partial class ToolStripTextBox
             {
                 try
                 {
+#if LIBREWINFORMS_PORTABLE
+                    LibrePlatform.Current.SystemSettings.SettingsChanged -= OnSystemSettingsChanged;
+#else
                     SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+#endif
                 }
                 finally
                 {
@@ -186,6 +198,15 @@ public partial class ToolStripTextBox
             }
         }
 
+#if LIBREWINFORMS_PORTABLE
+        private void OnSystemSettingsChanged(object? sender, LibreSystemSettingsChangedEventArgs e)
+        {
+            if (e.Includes(LibreSystemSettingsChangeKind.Window) && !_isFontSet)
+            {
+                Font = ToolStripManager.DefaultFont;
+            }
+        }
+#else
         private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
         {
             if (e.Category == UserPreferenceCategory.Window)
@@ -196,6 +217,7 @@ public partial class ToolStripTextBox
                 }
             }
         }
+#endif
 
         protected override void OnVisibleChanged(EventArgs e)
         {

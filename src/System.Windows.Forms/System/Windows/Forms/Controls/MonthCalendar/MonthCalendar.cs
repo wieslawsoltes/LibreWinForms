@@ -5,7 +5,11 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Globalization;
 using System.Windows.Forms.Layout;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#else
 using Microsoft.Win32;
+#endif
 using Windows.Win32.UI.Accessibility;
 
 namespace System.Windows.Forms;
@@ -1116,11 +1120,7 @@ public partial class MonthCalendar : Control
         if (!RecreatingHandle)
         {
             using ThemingScope scope = new(Application.UseVisualStyles);
-            PInvoke.InitCommonControlsEx(new INITCOMMONCONTROLSEX()
-            {
-                dwSize = (uint)sizeof(INITCOMMONCONTROLSEX),
-                dwICC = INITCOMMONCONTROLSEX_ICC.ICC_DATE_CLASSES
-            });
+            CommonControlInitializer.Initialize(INITCOMMONCONTROLSEX_ICC.ICC_DATE_CLASSES);
         }
 
         base.CreateHandle();
@@ -1184,12 +1184,21 @@ public partial class MonthCalendar : Control
         // Calculate calendar height
         Size textExtent;
 
+#if LIBREWINFORMS_PORTABLE
+        // This is the string that Windows uses to determine the extent of the today string.
+        textExtent = TextRenderer.MeasureText(
+            DateTime.Now.ToShortDateString(),
+            Font,
+            TextRenderer.MaxSize,
+            TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
+#else
         using (var hfont = GdiCache.GetHFONTScope(Font))
         using (var screen = GdiCache.GetScreenHdc())
         {
             // this is the string that Windows uses to determine the extent of the today string
             textExtent = screen.HDC.GetTextExtent(DateTime.Now.ToShortDateString(), hfont);
         }
+#endif
 
         int todayHeight = textExtent.Height + 4;  // The constant 4 is from the comctl32 MonthCalendar source code
         int calendarHeight = minSize.Height;
@@ -1389,12 +1398,20 @@ public partial class MonthCalendar : Control
             PInvokeCore.SendMessage(this, PInvoke.MCM_SETMONTHDELTA, (WPARAM)_scrollChange);
         }
 
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.SystemSettings.SettingsChanged += SystemSettingsChanged;
+#else
         SystemEvents.UserPreferenceChanged += MarshaledUserPreferenceChanged;
+#endif
     }
 
     protected override void OnHandleDestroyed(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.SystemSettings.SettingsChanged -= SystemSettingsChanged;
+#else
         SystemEvents.UserPreferenceChanged -= MarshaledUserPreferenceChanged;
+#endif
         base.OnHandleDestroyed(e);
     }
 
@@ -2009,6 +2026,24 @@ public partial class MonthCalendar : Control
         }
     }
 
+#if LIBREWINFORMS_PORTABLE
+    private void SystemSettingsChanged(object? sender, LibreSystemSettingsChangedEventArgs e)
+    {
+        if (!e.Includes(LibreSystemSettingsChangeKind.Locale))
+        {
+            return;
+        }
+
+        try
+        {
+            BeginInvoke((Action)RecreateHandle);
+        }
+        catch (InvalidOperationException)
+        {
+            // The destination thread no longer exists.
+        }
+    }
+#else
     private void MarshaledUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs pref)
     {
         try
@@ -2031,6 +2066,7 @@ public partial class MonthCalendar : Control
             RecreateHandle();
         }
     }
+#endif
 
     /// <summary>
     ///  Handles the MCN_SELCHANGE notification

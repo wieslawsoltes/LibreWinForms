@@ -223,8 +223,8 @@ public partial class DataGridViewTextBoxCell : DataGridViewCell
 
                 TextFormatFlags flags = DataGridViewUtilities.ComputeTextFormatFlagsForCellStyleAlignment(DataGridView.RightToLeftInternal, cellStyle.Alignment, cellStyle.WrapMode);
 
-                using var screen = GdiCache.GetScreenDCGraphics();
-                preferredHeight = MeasureTextHeight(screen, editedFormattedValue, cellStyle.Font!, originalWidth, flags);
+                using var layoutGraphics = new LayoutGraphicsScope();
+                preferredHeight = MeasureTextHeight(layoutGraphics.Graphics, editedFormattedValue, cellStyle.Font!, originalWidth, flags);
             }
 
             if (preferredHeight < editingControlBounds.Height)

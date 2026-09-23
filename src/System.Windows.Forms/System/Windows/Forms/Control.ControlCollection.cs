@@ -53,10 +53,17 @@ public partial class Control
 
             // Verify that the control being added is on the same thread as
             // us...or our parent chain.
+#if LIBREWINFORMS_PORTABLE
+            if ((Owner.IsHandleCreated || value.IsHandleCreated) && Owner.CreateThreadId != value.CreateThreadId)
+            {
+                throw new ArgumentException(SR.AddDifferentThreads);
+            }
+#else
             if (Owner.CreateThreadId != value.CreateThreadId)
             {
                 throw new ArgumentException(SR.AddDifferentThreads);
             }
+#endif
 
             CheckParentingCycle(Owner, value);
 

@@ -11,6 +11,13 @@ namespace System.Windows.Forms;
 /// </summary>
 public sealed class DpiChangedEventArgs : CancelEventArgs
 {
+    internal DpiChangedEventArgs(int oldDpi, int newDpi, Rectangle suggestedRectangle)
+    {
+        DeviceDpiOld = oldDpi;
+        DeviceDpiNew = newDpi;
+        SuggestedRectangle = suggestedRectangle;
+    }
+
     /// <summary>
     ///  Parameter units are pixels(dots) per inch.
     /// </summary>

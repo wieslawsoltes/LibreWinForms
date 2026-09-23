@@ -5,7 +5,11 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms.VisualStyles;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#else
 using Microsoft.Win32;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -494,7 +498,11 @@ public abstract partial class UpDownBase : ContainerControl
     {
         base.OnHandleCreated(e);
         PositionControls();
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.SystemSettings.SettingsChanged += SystemSettingsChanged;
+#else
         SystemEvents.UserPreferenceChanged += UserPreferenceChanged;
+#endif
     }
 
     /// <summary>
@@ -502,7 +510,11 @@ public abstract partial class UpDownBase : ContainerControl
     /// </summary>
     protected override void OnHandleDestroyed(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        LibrePlatform.Current.SystemSettings.SettingsChanged -= SystemSettingsChanged;
+#else
         SystemEvents.UserPreferenceChanged -= UserPreferenceChanged;
+#endif
         base.OnHandleDestroyed(e);
     }
 
@@ -535,6 +547,21 @@ public abstract partial class UpDownBase : ContainerControl
                 clipRight.Intersect(clipBounds);
                 clipBottom.Intersect(clipBounds);
 
+#if LIBREWINFORMS_PORTABLE
+                vsr.DrawBackground(e.GraphicsInternal, bounds, clipLeft);
+                vsr.DrawBackground(e.GraphicsInternal, bounds, clipTop);
+                vsr.DrawBackground(e.GraphicsInternal, bounds, clipRight);
+                vsr.DrawBackground(e.GraphicsInternal, bounds, clipBottom);
+
+                // Draw a rectangle around edit control with the background color.
+                Rectangle backRect = editBounds;
+                backRect.X--;
+                backRect.Y--;
+                backRect.Width += 2;
+                backRect.Height += 2;
+                using var pen = new Pen(backColor);
+                e.GraphicsInternal.DrawRectangle(pen, backRect);
+#else
                 using DeviceContextHdcScope hdc = new(e);
                 vsr.DrawBackground(hdc, bounds, clipLeft, HWNDInternal);
                 vsr.DrawBackground(hdc, bounds, clipTop, HWNDInternal);
@@ -549,6 +576,7 @@ public abstract partial class UpDownBase : ContainerControl
                 backRect.Height += 2;
                 using CreatePenScope hpen = new(backColor);
                 hdc.DrawRectangle(backRect, hpen);
+#endif
             }
         }
         else
@@ -691,7 +719,7 @@ public abstract partial class UpDownBase : ContainerControl
     {
         if (mevent.Button == MouseButtons.Left)
         {
-            if (PInvoke.WindowFromPoint(PointToScreen(mevent.Location)) == HWND && !ValidationCancelled)
+            if (IsMousePointerDirectlyOver(mevent.Location) && !ValidationCancelled)
             {
                 if (!_doubleClickFired)
                 {
@@ -919,6 +947,15 @@ public abstract partial class UpDownBase : ContainerControl
     /// </summary>
     protected abstract void UpdateEditText();
 
+#if LIBREWINFORMS_PORTABLE
+    private void SystemSettingsChanged(object? sender, LibreSystemSettingsChangedEventArgs e)
+    {
+        if (e.Includes(LibreSystemSettingsChangeKind.Locale))
+        {
+            UpdateEditText();
+        }
+    }
+#else
     private void UserPreferenceChanged(object sender, UserPreferenceChangedEventArgs pref)
     {
         if (pref.Category == UserPreferenceCategory.Locale)
@@ -926,6 +963,7 @@ public abstract partial class UpDownBase : ContainerControl
             UpdateEditText();
         }
     }
+#endif
 
     /// <summary>
     ///  When overridden in a derived class, validates the text displayed in the up-down control.

@@ -420,7 +420,11 @@ public partial class TrackBar : Control, ISupportInitialize
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            int cyhscroll = SystemInformation.HorizontalScrollBarHeight;
+#else
             int cyhscroll = PInvokeCore.GetSystemMetrics(SYSTEM_METRICS_INDEX.SM_CYHSCROLL);
+#endif
             return ((cyhscroll * 8) / 3);
         }
     }
@@ -754,11 +758,7 @@ public partial class TrackBar : Control, ISupportInitialize
         if (!RecreatingHandle)
         {
             using ThemingScope scope = new(Application.UseVisualStyles);
-            PInvoke.InitCommonControlsEx(new INITCOMMONCONTROLSEX
-            {
-                dwSize = (uint)sizeof(INITCOMMONCONTROLSEX),
-                dwICC = INITCOMMONCONTROLSEX_ICC.ICC_BAR_CLASSES
-            });
+            CommonControlInitializer.Initialize(INITCOMMONCONTROLSEX_ICC.ICC_BAR_CLASSES);
         }
 
         base.CreateHandle();

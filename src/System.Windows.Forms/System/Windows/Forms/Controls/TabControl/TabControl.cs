@@ -52,7 +52,9 @@ public partial class TabControl : Control
     // Perf: take all the bools and put them into a state variable: see TabControlState constants above
     private BitVector32 _tabControlState;
 
+#if !LIBREWINFORMS_PORTABLE
     private const string TabBaseReLayoutMessageName = "_TabBaseReLayout";
+#endif
 
     /// <summary>
     ///  This message is posted by the control to itself after a TabPage is
@@ -61,7 +63,13 @@ public partial class TabControl : Control
     ///  display rectangle. When the message is received, the control calls
     ///  updateTabSelection() to layout the TabPages correctly.
     /// </summary>
-    private readonly MessageId _tabBaseReLayoutMessage = PInvoke.RegisterWindowMessage($"{Application.WindowMessagesVersion}{TabBaseReLayoutMessageName}");
+    private readonly MessageId _tabBaseReLayoutMessage =
+#if LIBREWINFORMS_PORTABLE
+        // Portable handles use the managed dispatcher and do not have a USER32 message registry.
+        0xC003;
+#else
+        PInvoke.RegisterWindowMessage($"{Application.WindowMessagesVersion}{TabBaseReLayoutMessageName}");
+#endif
 
     // State
     private readonly List<TabPage> _tabPages = [];
@@ -962,11 +970,7 @@ public partial class TabControl : Control
         if (!RecreatingHandle)
         {
             using ThemingScope scope = new(Application.UseVisualStyles);
-            PInvoke.InitCommonControlsEx(new INITCOMMONCONTROLSEX()
-            {
-                dwSize = (uint)sizeof(INITCOMMONCONTROLSEX),
-                dwICC = INITCOMMONCONTROLSEX_ICC.ICC_TAB_CLASSES
-            });
+            CommonControlInitializer.Initialize(INITCOMMONCONTROLSEX_ICC.ICC_TAB_CLASSES);
         }
 
         base.CreateHandle();

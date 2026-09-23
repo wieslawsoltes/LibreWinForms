@@ -8,7 +8,11 @@ using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Windows.Forms.Layout;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#else
 using Microsoft.Win32;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -1076,6 +1080,9 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
     ///  because you need to allocate GDI+ Graphics objects for every single item. This method allows us to only
     ///  allocate 1 Graphics object and share it between all the items in OnPaint.
     /// </summary>
+#if LIBREWINFORMS_PORTABLE
+#pragma warning disable IDE0051 // The cached HDC is used only by the native paint branch.
+#endif
     private CachedItemHdcInfo ItemHdcInfo
     {
         get
@@ -1085,6 +1092,9 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
             return _cachedItemHdcInfo;
         }
     }
+#if LIBREWINFORMS_PORTABLE
+#pragma warning restore IDE0051
+#endif
 
     [SRCategory(nameof(SR.CatAppearance))]
     [SRDescription(nameof(SR.ToolStripItemRemovedDescr))]
@@ -2480,7 +2490,11 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
                 try
                 {
                     ToolStripManager.RendererChanged += OnDefaultRendererChanged;
+#if LIBREWINFORMS_PORTABLE
+                    LibrePlatform.Current.SystemSettings.SettingsChanged += OnSystemSettingsChanged;
+#else
                     SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
+#endif
                 }
                 finally
                 {
@@ -2493,7 +2507,11 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
             try
             {
                 ToolStripManager.RendererChanged -= OnDefaultRendererChanged;
+#if LIBREWINFORMS_PORTABLE
+                LibrePlatform.Current.SystemSettings.SettingsChanged -= OnSystemSettingsChanged;
+#else
                 SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+#endif
             }
             finally
             {
@@ -2644,7 +2662,7 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
     {
         using Bitmap image = new(bounds.Width, bounds.Height);
         using Graphics g = Graphics.FromImage(image);
-        using DeviceContextHdcScope imageHdc = new(g, applyGraphicsState: false);
+        using DeviceContextHdcScope imageHdc = g.ToHdcScope(ApplyGraphicsProperties.None);
 
         // Send the actual wm_print message
         PInvokeCore.SendMessage(
@@ -3446,6 +3464,55 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
         Rectangle viewableArea = DisplayRectangle;
         using Region? transparentRegion = Renderer.GetTransparentRegion(this);
 
+#if LIBREWINFORMS_PORTABLE
+        if (transparentRegion is not null)
+        {
+            transparentRegion.Intersect(toolstripGraphics.Clip);
+            toolstripGraphics.ExcludeClip(transparentRegion);
+            excludedTransparentRegion = true;
+        }
+
+        for (int i = 0; i < DisplayedItems.Count; i++)
+        {
+            ToolStripItem item = DisplayedItems[i];
+            Rectangle clippingRect = e.ClipRectangle;
+            Rectangle bounds = item.Bounds;
+
+            if (!IsDropDown && item.Owner == this)
+            {
+                clippingRect.Intersect(viewableArea);
+            }
+
+            clippingRect.Intersect(bounds);
+            if (LayoutUtils.IsZeroWidthOrHeight(clippingRect))
+            {
+                continue;
+            }
+
+            GraphicsState state = toolstripGraphics.Save();
+            try
+            {
+                toolstripGraphics.SetClip(clippingRect);
+                toolstripGraphics.TranslateTransform(bounds.X, bounds.Y);
+                clippingRect.Offset(-bounds.X, -bounds.Y);
+                using PaintEventArgs itemPaintEventArgs = new(toolstripGraphics, clippingRect);
+                item.FireEvent(itemPaintEventArgs, ToolStripItemEventType.Paint);
+            }
+            finally
+            {
+                toolstripGraphics.Restore(state);
+            }
+        }
+
+        Renderer.DrawToolStripBorder(new ToolStripRenderEventArgs(toolstripGraphics, this));
+        if (excludedTransparentRegion)
+        {
+            toolstripGraphics.SetClip(transparentRegion!, CombineMode.Union);
+        }
+
+        PaintInsertionMark(toolstripGraphics);
+#else
+
         // Paint the items
         //
         // The idea here is to let items pretend they are controls. They should get paint events at 0,0 and have
@@ -3480,7 +3547,7 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
             // using WindowsGraphics here because we want to preserve the clipping information.
 
             // calling GetHdc by itself does not set up the clipping info.
-            using DeviceContextHdcScope toolStripHDC = new(toolstripGraphics, ApplyGraphicsProperties.Clipping);
+            using DeviceContextHdcScope toolStripHDC = toolstripGraphics.ToHdcScope(ApplyGraphicsProperties.Clipping);
 
             // Get the cached item HDC.
             HDC itemHDC = ItemHdcInfo.GetCachedItemDC(toolStripHDC, bitmapSize);
@@ -3596,6 +3663,7 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
         // This should ignore the transparent region and paint
         // over the entire area.
         PaintInsertionMark(toolstripGraphics);
+#endif
     }
 
     [EditorBrowsable(EditorBrowsableState.Advanced)]
@@ -3693,6 +3761,20 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
         base.OnScroll(se);
     }
 
+#if LIBREWINFORMS_PORTABLE
+    private void OnSystemSettingsChanged(object? sender, LibreSystemSettingsChangedEventArgs e)
+    {
+        if (e.Includes(LibreSystemSettingsChangeKind.Window))
+        {
+            OnDefaultFontChanged();
+        }
+
+        if (e.Includes(LibreSystemSettingsChangeKind.General))
+        {
+            InvalidateTextItems();
+        }
+    }
+#else
     private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
     {
         switch (e.Category)
@@ -3705,6 +3787,7 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
                 break;
         }
     }
+#endif
 
     protected override void OnTabStopChanged(EventArgs e)
     {

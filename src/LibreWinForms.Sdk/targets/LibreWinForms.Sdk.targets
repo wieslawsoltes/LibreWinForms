@@ -1,0 +1,120 @@
+<Project>
+  <Target Name="_LibreWinFormsValidateCanonicalSdkConfiguration"
+          BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(LibreWinFormsUseCanonicalRuntime)' != 'true'"
+           Text="LibreWinForms.Sdk is canonical-only; remove LibreWinFormsUseCanonicalRuntime=false and reference transitional compatibility packages explicitly if they are still required for comparison." />
+    <Error Condition="'$(LibreWinFormsReferenceMode)' != 'Project' And '$(LibreWinFormsReferenceMode)' != 'Package'"
+           Text="LibreWinForms.Sdk supports only canonical Project or Package reference modes." />
+    <Error Condition="'$(TargetFramework)' != 'net11.0'"
+           Text="The source-built LibreWinForms runtime currently targets net11.0; set TargetFramework to net11.0." />
+    <Error Condition="'$(LibreWinFormsReferenceMode)' == 'Project' And '$(LibreWinFormsSourceRoot)' == ''"
+           Text="LibreWinFormsReferenceMode=Project requires LibreWinFormsSourceRoot to identify a source checkout." />
+  </Target>
+
+  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Project' And '$(LibreWinFormsSourceRoot)' != ''">
+    <ProjectReference Include="$(LibreWinFormsSourceRoot)src/System.Windows.Forms/System.Windows.Forms.csproj"
+                      AdditionalProperties="LibreWinFormsReferenceMode=Project;LibreWinFormsUseProGpuSystemDrawing=true;MicrosoftNETCoreAppRefPackageVersion=" />
+    <ProjectReference Include="$(LibreWinFormsSourceRoot)src/System.Windows.Forms.Design/src/System.Windows.Forms.Design.csproj"
+                      AdditionalProperties="LibreWinFormsReferenceMode=Project;LibreWinFormsUseProGpuSystemDrawing=true;MicrosoftNETCoreAppRefPackageVersion=" />
+    <ProjectReference Include="$(LibreWinFormsSourceRoot)src/LibreWinForms.ProGPU/LibreWinForms.ProGPU.csproj"
+                      AdditionalProperties="LibreWinFormsReferenceMode=Project;LibreWinFormsUseProGpuSystemDrawing=true;MicrosoftNETCoreAppRefPackageVersion=" />
+  </ItemGroup>
+
+  <!--
+    NuGet's IncludeTransitiveProjectReferences target writes projects outside the
+    consumer tree as relative paths. MSBuild 11 preview builds on macOS can later
+    resolve those paths against a referenced project rather than the consumer,
+    even though restore resolved the same graph successfully. Re-materialize the
+    complete list from FullPath before AssignProjectConfiguration consumes it.
+  -->
+  <Target Name="_LibreWinFormsNormalizeCanonicalProjectReferences"
+          AfterTargets="IncludeTransitiveProjectReferences"
+          BeforeTargets="AssignProjectConfiguration"
+          Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Project' And '@(ProjectReference)' != ''">
+    <ItemGroup>
+      <_LibreWinFormsCanonicalProjectReference Include="@(ProjectReference)" />
+      <ProjectReference Remove="@(ProjectReference)" />
+      <ProjectReference Include="@(_LibreWinFormsCanonicalProjectReference->'%(FullPath)')" />
+      <_LibreWinFormsCanonicalProjectReference Remove="@(_LibreWinFormsCanonicalProjectReference)" />
+    </ItemGroup>
+  </Target>
+
+  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Package' And '$(ManagePackageVersionsCentrally)' != 'true'">
+    <PackageReference Include="LibreWinForms.System.Windows.Forms" Version="$(LibreWinFormsCanonicalPackageVersion)" />
+    <PackageReference Include="LibreWinForms.ProGPU" Version="$(LibreWinFormsProGpuBackendPackageVersion)" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Package' And '$(ManagePackageVersionsCentrally)' == 'true'">
+    <PackageReference Include="LibreWinForms.System.Windows.Forms" VersionOverride="$(LibreWinFormsCanonicalPackageVersion)" />
+    <PackageReference Include="LibreWinForms.ProGPU" VersionOverride="$(LibreWinFormsProGpuBackendPackageVersion)" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseSystemWindowsForms)' == 'true'">
+    <Using Include="System.Drawing" />
+    <Using Include="System.Windows.Forms" />
+  </ItemGroup>
+
+  <Target Name="_LibreWinFormsSdkReportConfiguration"
+          BeforeTargets="PrepareForBuild"
+          Condition="'$(LibreWinFormsEnableSdkDiagnostics)' == 'true'">
+    <Message Importance="High" Text="LibreWinForms.Sdk platform=$(LibreWinFormsPlatform) backend=$(LibreWinFormsRenderingBackend) canonical=$(LibreWinFormsUseCanonicalRuntime) referenceMode=$(LibreWinFormsReferenceMode)" />
+  </Target>
+
+  <Target Name="_LibreWinFormsGenerateApplicationBootstrap"
+          BeforeTargets="CoreCompile"
+          Condition="'$(LibreWinFormsGenerateApplicationBootstrap)' == 'true'">
+    <PropertyGroup>
+      <_LibreWinFormsApplicationBootstrapFile>$(IntermediateOutputPath)LibreWinForms.ApplicationBootstrap.g.cs</_LibreWinFormsApplicationBootstrapFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <_LibreWinFormsApplicationBootstrapLine Include="namespace LibreWinForms.Generated" />
+      <_LibreWinFormsApplicationBootstrapLine Include="{" />
+      <_LibreWinFormsApplicationBootstrapLine Include="    internal static class LibreWinFormsApplicationBootstrap" />
+      <_LibreWinFormsApplicationBootstrapLine Include="    {" />
+      <_LibreWinFormsApplicationBootstrapLine Include="        [global::System.Runtime.CompilerServices.ModuleInitializer]" />
+      <_LibreWinFormsApplicationBootstrapLine Include="        internal static void Initialize()" />
+      <_LibreWinFormsApplicationBootstrapLine Include="        {" />
+      <_LibreWinFormsApplicationBootstrapLine Include="            global::LibreWinForms.ProGPU.ProGpuPlatform.Register()%3B" />
+      <_LibreWinFormsApplicationBootstrapLine Include="        }" />
+      <_LibreWinFormsApplicationBootstrapLine Include="    }" />
+      <_LibreWinFormsApplicationBootstrapLine Include="}" />
+    </ItemGroup>
+
+    <WriteLinesToFile
+      File="$(_LibreWinFormsApplicationBootstrapFile)"
+      Lines="@(_LibreWinFormsApplicationBootstrapLine)"
+      Overwrite="true" />
+
+    <ItemGroup>
+      <Compile Include="$(_LibreWinFormsApplicationBootstrapFile)" AutoGen="true" DesignTime="true" Visible="false" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="_LibreWinFormsGenerateApplicationConfiguration"
+          BeforeTargets="CoreCompile"
+          Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseSystemWindowsForms)' == 'true' And '$(LibreWinFormsGenerateApplicationConfiguration)' != 'false'">
+    <PropertyGroup>
+      <_LibreWinFormsApplicationConfigurationFile>$(IntermediateOutputPath)LibreWinForms.ApplicationConfiguration.g.cs</_LibreWinFormsApplicationConfigurationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <_LibreWinFormsApplicationConfigurationLine Include="internal static partial class ApplicationConfiguration" />
+      <_LibreWinFormsApplicationConfigurationLine Include="{" />
+      <_LibreWinFormsApplicationConfigurationLine Include="    internal static void Initialize()" />
+      <_LibreWinFormsApplicationConfigurationLine Include="    {" />
+      <_LibreWinFormsApplicationConfigurationLine Include="        global::System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false)%3B" />
+      <_LibreWinFormsApplicationConfigurationLine Include="    }" />
+      <_LibreWinFormsApplicationConfigurationLine Include="}" />
+    </ItemGroup>
+
+    <WriteLinesToFile
+      File="$(_LibreWinFormsApplicationConfigurationFile)"
+      Lines="@(_LibreWinFormsApplicationConfigurationLine)"
+      Overwrite="true" />
+
+    <ItemGroup>
+      <Compile Include="$(_LibreWinFormsApplicationConfigurationFile)" AutoGen="true" DesignTime="true" Visible="false" />
+    </ItemGroup>
+  </Target>
+</Project>

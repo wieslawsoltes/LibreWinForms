@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<node>
+  <interface name="org.freedesktop.portal.FileChooser">
+    <method name="OpenFile">
+      <arg name="parent_window" type="s" direction="in" />
+      <arg name="title" type="s" direction="in" />
+      <arg name="options" type="a{sv}" direction="in" />
+      <arg name="handle" type="o" direction="out" />
+    </method>
+    <method name="SaveFile">
+      <arg name="parent_window" type="s" direction="in" />
+      <arg name="title" type="s" direction="in" />
+      <arg name="options" type="a{sv}" direction="in" />
+      <arg name="handle" type="o" direction="out" />
+    </method>
+    <method name="SaveFiles">
+      <arg name="parent_window" type="s" direction="in" />
+      <arg name="title" type="s" direction="in" />
+      <arg name="options" type="a{sv}" direction="in" />
+      <arg name="handle" type="o" direction="out" />
+    </method>
+    <property name="version" type="u" access="read" />
+  </interface>
+  <interface name="org.freedesktop.portal.Request">
+    <method name="Close" />
+    <signal name="Response">
+      <arg name="response" type="u" />
+      <arg name="results" type="a{sv}" />
+    </signal>
+  </interface>
+</node>

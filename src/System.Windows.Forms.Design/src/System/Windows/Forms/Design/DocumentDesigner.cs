@@ -1048,8 +1048,12 @@ public partial class DocumentDesigner : ScrollableControlDesigner, IRootDesigner
         Control control = Control;
         if (control is not null && control.IsHandleCreated)
         {
+#if LIBREWINFORMS_PORTABLE
+            control.Invalidate(true);
+#else
             PInvokeCore.SendMessage(control, PInvokeCore.WM_NCACTIVATE, (WPARAM)(BOOL)false);
             PInvoke.RedrawWindow(control, lprcUpdate: null, HRGN.Null, REDRAW_WINDOW_FLAGS.RDW_FRAME);
+#endif
         }
     }
 
@@ -1080,6 +1084,9 @@ public partial class DocumentDesigner : ScrollableControlDesigner, IRootDesigner
         Control ctrl = e.Component as Control;
         if (ctrl is not null && ctrl.IsHandleCreated)
         {
+#if LIBREWINFORMS_PORTABLE
+            ctrl.Invalidate();
+#else
             PInvoke.NotifyWinEvent(
                 (uint)AccessibleEvents.LocationChange,
                 ctrl,
@@ -1094,6 +1101,7 @@ public partial class DocumentDesigner : ScrollableControlDesigner, IRootDesigner
                     (int)OBJECT_IDENTIFIER.OBJID_CLIENT,
                     (int)PInvoke.CHILDID_SELF);
             }
+#endif
         }
     }
 
@@ -1110,7 +1118,8 @@ public partial class DocumentDesigner : ScrollableControlDesigner, IRootDesigner
 
         ICollection selComponents = svc.GetSelectedComponents();
 
-        // Setup the correct active accessibility selection / focus data
+        // Setup the correct active accessibility selection / focus data.
+#if !LIBREWINFORMS_PORTABLE
         foreach (object selObj in selComponents)
         {
             if (selObj is Control c)
@@ -1131,6 +1140,7 @@ public partial class DocumentDesigner : ScrollableControlDesigner, IRootDesigner
                 (int)OBJECT_IDENTIFIER.OBJID_CLIENT,
                 (int)PInvoke.CHILDID_SELF);
         }
+#endif
 
         // See if there are visual controls selected. If so, we add a context attribute.
         // Otherwise, we remove the attribute. We do not count the form.

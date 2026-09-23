@@ -30,7 +30,9 @@ internal class RichTextBoxDesigner : TextBoxBaseDesigner
 
         if (control is not null && control.Handle != IntPtr.Zero)
         {
+#if !LIBREWINFORMS_PORTABLE
             PInvokeCore.RevokeDragDrop((HWND)control.Handle);
+#endif
             // DragAcceptFiles(control.Handle, false);
         }
     }

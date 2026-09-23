@@ -928,7 +928,9 @@ internal class ToolStripDesigner : ControlDesigner
     /// </summary>
     private void ComponentChangeSvc_ComponentAdding(object sender, ComponentEventArgs e)
     {
-        if (KeyboardHandlingService is not null && KeyboardHandlingService.CopyInProgress)
+        // ComponentAdding may run before this designer's Component has acquired a
+        // Site. Do not force lazy service construction with a null provider here.
+        if (_keyboardHandlingService is not null && _keyboardHandlingService.CopyInProgress)
         {
             return;
         }

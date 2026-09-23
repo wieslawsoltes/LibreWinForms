@@ -27,6 +27,9 @@ public partial class ListView
         {
             get
             {
+#if LIBREWINFORMS_PORTABLE
+                return [.. _owner.Items.Cast<ListViewItem>().Where(static item => item.StateSelected)];
+#else
                 if (_owner.IsHandleCreated)
                 {
                     int cnt = (int)PInvokeCore.SendMessage(_owner, PInvoke.LVM_GETSELECTEDCOUNT);
@@ -73,6 +76,7 @@ public partial class ListView
                         return [];
                     }
                 }
+#endif
             }
         }
 
@@ -89,6 +93,9 @@ public partial class ListView
                     throw new InvalidOperationException(SR.ListViewCantAccessSelectedItemsCollectionWhenInVirtualMode);
                 }
 
+#if LIBREWINFORMS_PORTABLE
+                return _owner.Items.Cast<ListViewItem>().Count(static item => item.StateSelected);
+#else
                 if (_owner.IsHandleCreated)
                 {
                     return (int)PInvokeCore.SendMessage(_owner, PInvoke.LVM_GETSELECTEDCOUNT);
@@ -102,6 +109,7 @@ public partial class ListView
 
                     return 0;
                 }
+#endif
             }
         }
 
@@ -120,6 +128,9 @@ public partial class ListView
                 ArgumentOutOfRangeException.ThrowIfNegative(index);
                 ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, Count);
 
+#if LIBREWINFORMS_PORTABLE
+                return SelectedItemArray[index];
+#else
                 if (_owner.IsHandleCreated)
                 {
                     // Count through the selected items in the ListView, until we reach the 'index'th selected item.
@@ -142,6 +153,7 @@ public partial class ListView
                     Debug.Assert(_owner._savedSelectedItems is not null, "Null selected items collection");
                     return _owner._savedSelectedItems[index];
                 }
+#endif
             }
         }
 

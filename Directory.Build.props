@@ -1,6 +1,30 @@
 <Project>
 
+  <Import Project="$(MSBuildThisFileDirectory)eng\LibreWinForms.ProGPU.props" />
+
   <Import Project="Sdk.props" Sdk="Microsoft.DotNet.Arcade.Sdk" />
+
+  <!--
+    The upstream dependency train follows $(NetCurrent). Canonical cross-platform
+    validation can intentionally retarget that source to net10.0 so it can share
+    one runtime closure with LibreWPF and the stable ProGPU drawing assemblies.
+    Keep every runtime support package on the same contract in that opt-in lane.
+  -->
+  <PropertyGroup Condition="'$(LibreWinFormsUseProGpuSystemDrawing)' == 'true' And '$(NetCurrent)' == 'net10.0'">
+    <LibreWinFormsPortableNetCoreAppRefVersion Condition="'$(LibreWinFormsPortableNetCoreAppRefVersion)' == ''">10.0.5</LibreWinFormsPortableNetCoreAppRefVersion>
+    <LibreWinFormsPortableSupportPackageVersion Condition="'$(LibreWinFormsPortableSupportPackageVersion)' == ''">10.0.10</LibreWinFormsPortableSupportPackageVersion>
+    <MicrosoftNETCoreAppRefPackageVersion>$(LibreWinFormsPortableNetCoreAppRefVersion)</MicrosoftNETCoreAppRefPackageVersion>
+    <MicrosoftWin32SystemEventsPackageVersion>$(LibreWinFormsPortableSupportPackageVersion)</MicrosoftWin32SystemEventsPackageVersion>
+    <SystemConfigurationConfigurationManagerPackageVersion>$(LibreWinFormsPortableSupportPackageVersion)</SystemConfigurationConfigurationManagerPackageVersion>
+    <SystemDiagnosticsDiagnosticSourcePackageVersion>$(LibreWinFormsPortableSupportPackageVersion)</SystemDiagnosticsDiagnosticSourcePackageVersion>
+    <SystemFormatsNrbfPackageVersion>$(LibreWinFormsPortableSupportPackageVersion)</SystemFormatsNrbfPackageVersion>
+    <SystemIOHashingPackageVersion>$(LibreWinFormsPortableSupportPackageVersion)</SystemIOHashingPackageVersion>
+    <SystemReflectionMetadataLoadContextPackageVersion>$(LibreWinFormsPortableSupportPackageVersion)</SystemReflectionMetadataLoadContextPackageVersion>
+    <SystemResourcesExtensionsPackageVersion>$(LibreWinFormsPortableSupportPackageVersion)</SystemResourcesExtensionsPackageVersion>
+    <SystemRuntimeSerializationFormattersPackageVersion>$(LibreWinFormsPortableSupportPackageVersion)</SystemRuntimeSerializationFormattersPackageVersion>
+    <SystemWindowsExtensionsPackageVersion>$(LibreWinFormsPortableSupportPackageVersion)</SystemWindowsExtensionsPackageVersion>
+  </PropertyGroup>
+
   <Import Project="$(RepositoryEngineeringDir)Analyzer.props" />
   <Import Project="$(RepositoryEngineeringDir)FacadeAssemblies.props" />
   <Import Project="$(RepositoryEngineeringDir)ApiCompatibility\PublicApiAnalyzer.props" />

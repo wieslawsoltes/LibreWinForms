@@ -2,7 +2,11 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.ComponentModel;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#else
 using System.Runtime.InteropServices;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -22,10 +26,14 @@ public class Timer : Component
 
     private protected EventHandler? _onTimer;
 
+#if LIBREWINFORMS_PORTABLE
+    private IDisposable? _portableTimer;
+#else
     private GCHandle _timerRoot;
 
     // Holder for the HWND that handles our Timer messages.
     private TimerNativeWindow? _timerWindow;
+#endif
 
     private readonly Lock _lock = new();
 
@@ -72,11 +80,17 @@ public class Timer : Component
     {
         if (disposing)
         {
+#if LIBREWINFORMS_PORTABLE
+            StopPortableTimer();
+#else
             _timerWindow?.StopTimer();
+#endif
             Enabled = false;
         }
 
+#if !LIBREWINFORMS_PORTABLE
         _timerWindow = null;
+#endif
         base.Dispose(disposing);
     }
 
@@ -88,7 +102,11 @@ public class Timer : Component
     [SRDescription(nameof(SR.TimerEnabledDescr))]
     public virtual bool Enabled
     {
+#if LIBREWINFORMS_PORTABLE
+        get => _enabled;
+#else
         get => _timerWindow is null ? _enabled : _timerWindow.IsTimerRunning;
+#endif
         set
         {
             lock (_lock)
@@ -108,19 +126,35 @@ public class Timer : Component
 
                 if (value)
                 {
+#if LIBREWINFORMS_PORTABLE
+                    try
+                    {
+                        StartPortableTimer(_interval);
+                    }
+                    catch
+                    {
+                        _enabled = false;
+                        throw;
+                    }
+#else
                     // Create the timer window if needed.
                     _timerWindow ??= new TimerNativeWindow(this);
 
                     _timerRoot = GCHandle.Alloc(this);
                     _timerWindow.StartTimer(_interval);
+#endif
                 }
                 else
                 {
+#if LIBREWINFORMS_PORTABLE
+                    StopPortableTimer();
+#else
                     _timerWindow?.StopTimer();
                     if (_timerRoot.IsAllocated)
                     {
                         _timerRoot.Free();
                     }
+#endif
                 }
             }
         }
@@ -153,8 +187,12 @@ public class Timer : Component
 
                 if (Enabled && !DesignMode)
                 {
+#if LIBREWINFORMS_PORTABLE
+                    StartPortableTimer(value);
+#else
                     // Change the timer value, don't tear down the timer itself.
                     _timerWindow?.RestartTimer(value);
+#endif
                 }
             }
         }
@@ -177,6 +215,36 @@ public class Timer : Component
 
     public override string ToString() => $"{base.ToString()}, Interval: {Interval}";
 
+#if LIBREWINFORMS_PORTABLE
+    private void StartPortableTimer(int interval)
+    {
+        if (!LibrePlatform.IsRegistered)
+        {
+            _enabled = false;
+            throw new InvalidOperationException("No LibreWinForms platform backend is registered.");
+        }
+
+        IDisposable replacement = LibrePlatform.Current.Timers.Start(
+            TimeSpan.FromMilliseconds(interval),
+            repeating: true,
+            () =>
+            {
+                if (_enabled)
+                {
+                    OnTick(EventArgs.Empty);
+                }
+            });
+        IDisposable? previous = _portableTimer;
+        _portableTimer = replacement;
+        previous?.Dispose();
+    }
+
+    private void StopPortableTimer()
+    {
+        _portableTimer?.Dispose();
+        _portableTimer = null;
+    }
+#else
     private class TimerNativeWindow : NativeWindow
     {
         // The timer that owns the window
@@ -363,4 +431,5 @@ public class Timer : Component
             base.WndProc(ref m);
         }
     }
+#endif
 }

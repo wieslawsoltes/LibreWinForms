@@ -54,6 +54,23 @@ internal static class WinFormsBinaryFormatWriter
     /// </summary>
     public static bool TryWriteObject(Stream stream, object value)
     {
+#if LIBREWINFORMS_PORTABLE
+        // Portable builds cannot fall back to BinaryFormatter. Keep supported
+        // WinForms types on their explicit writers and preserve any actionable
+        // encoder error instead of converting it into a generic unsupported type.
+        if (value is ImageListStreamer portableStreamer)
+        {
+            WriteImageListStreamer(stream, portableStreamer);
+            return true;
+        }
+
+        if (value is Bitmap portableBitmap)
+        {
+            WriteBitmap(stream, portableBitmap);
+            return true;
+        }
+#endif
+
         // Framework types are more likely to be written, so check them first.
         return BinaryFormatWriter.TryWrite(Write, stream, value);
 

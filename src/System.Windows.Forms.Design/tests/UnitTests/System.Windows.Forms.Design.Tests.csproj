@@ -9,6 +9,10 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(LibreWinFormsUseProGpuSystemDrawing)' == 'true'">
+    <DefineConstants>$(DefineConstants);LIBREWINFORMS_PORTABLE</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <None Remove="Resources\telescope_01.wmf" />
   </ItemGroup>
@@ -24,6 +28,10 @@
     <ProjectReference Include="..\..\src\System.Windows.Forms.Design.csproj" />
     <ProjectReference Include="..\..\..\System.Design\src\System.Design.Facade.csproj" />
     <ProjectReference Include="..\..\..\System.Drawing.Design\src\System.Drawing.Design.Facade.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(LibreWinFormsUseProGpuSystemDrawing)' == 'true'">
+    <ProjectReference Include="..\..\..\LibreWinForms.ProGPU\LibreWinForms.ProGPU.csproj" />
   </ItemGroup>
 
   <ItemGroup>

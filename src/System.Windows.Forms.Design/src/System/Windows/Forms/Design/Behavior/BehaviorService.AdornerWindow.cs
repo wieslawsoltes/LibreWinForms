@@ -50,12 +50,18 @@ public sealed partial class BehaviorService
         /// <summary>
         ///  We'll use CreateHandle as our notification for creating our mouse attacher.
         /// </summary>
+#if !LIBREWINFORMS_PORTABLE
         [MemberNotNull(nameof(s_mouseHook))]
+#endif
         protected override void OnHandleCreated(EventArgs e)
         {
             base.OnHandleCreated(e);
             s_adornerWindowList.Add(this);
+#if !LIBREWINFORMS_PORTABLE
+            // WH_MOUSE is a Win32 thread hook. Portable backends deliver input
+            // through the managed control/windowing pipeline instead.
             s_mouseHook ??= new MouseHook();
+#endif
         }
 
         /// <summary>

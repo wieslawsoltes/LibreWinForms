@@ -177,6 +177,7 @@ internal class ToolStripKeyboardHandlingService
                                 focusIndex = owner.Items.IndexOf(curDesignerNode);
                             }
 
+#if !LIBREWINFORMS_PORTABLE
                             PInvoke.NotifyWinEvent(
                                 (uint)AccessibleEvents.SelectionAdd,
                                 owner,
@@ -187,6 +188,7 @@ internal class ToolStripKeyboardHandlingService
                                 owner,
                                 (int)OBJECT_IDENTIFIER.OBJID_CLIENT,
                                 focusIndex + 1);
+#endif
                         }
                     }
                 }

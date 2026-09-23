@@ -2,7 +2,11 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Windows.Forms.VisualStyles;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#else
 using Microsoft.Win32;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -21,7 +25,14 @@ public static class ProfessionalColors
 
     static ProfessionalColors()
     {
+#if LIBREWINFORMS_PORTABLE
+        ILibreSystemSettingsService systemSettings = LibrePlatform.IsRegistered
+            ? LibrePlatform.Current.SystemSettings
+            : DefaultLibreSystemSettingsService.Instance;
+        systemSettings.SettingsChanged += OnSystemSettingsChanged;
+#else
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
+#endif
         SetScheme();
     }
 
@@ -202,6 +213,16 @@ public static class ProfessionalColors
     [SRDescription(nameof(SR.ProfessionalColorsOverflowButtonGradientEndDescr))]
     public static Color OverflowButtonGradientEnd => ColorTable.OverflowButtonGradientEnd;
 
+#if LIBREWINFORMS_PORTABLE
+    private static void OnSystemSettingsChanged(object? sender, LibreSystemSettingsChangedEventArgs e)
+    {
+        SetScheme();
+        if (e.Includes(LibreSystemSettingsChangeKind.Color))
+        {
+            t_colorFreshnessKey = new object();
+        }
+    }
+#else
     private static void OnUserPreferenceChanged(object? sender, UserPreferenceChangedEventArgs e)
     {
         SetScheme();
@@ -210,6 +231,7 @@ public static class ProfessionalColors
             t_colorFreshnessKey = new object();
         }
     }
+#endif
 
     private static void SetScheme()
     {
