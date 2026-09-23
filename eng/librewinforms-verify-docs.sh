@@ -119,7 +119,8 @@ require_text .github/workflows/librewinforms-ci.yml "Build canonical WindowsForm
 require_text .github/workflows/librewinforms-ci.yml "./eng/librewinforms-build-canonical-wfi.sh"
 require_text .github/workflows/librewinforms-ci.yml "librewpf-v0.1.0-preview.63"
 require_text .github/workflows/librewinforms-ci.yml "LIBREWINFORMS_CANONICAL_WFI_REF: librewpf-v0.1.0-preview.63"
-require_text .github/workflows/librewinforms-release.yml "default: librewpf-v0.1.0-preview.63"
+require_text .github/workflows/librewinforms-release.yml 'progpu_version="${version}"'
+require_text .github/workflows/librewinforms-release.yml 'canonical_wfi_ref="librewpf-v${bridge_version}"'
 require_text .github/workflows/librewinforms-ci.yml "LIBREWINFORMS_PROGPU_PACKAGE_VERSION"
 require_text .github/workflows/librewinforms-ci.yml 'LIBREWINFORMS_CANONICAL_WFI_PACKAGE_SOURCE='
 reject_text .github/workflows/librewinforms-ci.yml 'LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION'
