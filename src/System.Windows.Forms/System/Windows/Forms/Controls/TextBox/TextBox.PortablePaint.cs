@@ -83,5 +83,11 @@ public partial class TextBox
         base.OnEnabledChanged(e);
         Invalidate();
     }
+
+    protected override void OnLostFocus(EventArgs e)
+    {
+        base.OnLostFocus(e);
+        Invalidate();
+    }
 }
 #endif

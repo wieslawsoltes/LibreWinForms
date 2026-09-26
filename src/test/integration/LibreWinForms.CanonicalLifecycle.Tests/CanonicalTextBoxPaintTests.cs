@@ -241,6 +241,72 @@ public partial class CanonicalLifecycleTests
         platform.TextBoxDraws.Should().Contain(call => call.Text == "after" && call.ForeColor == SystemColors.GrayText);
     }
 
+    [Fact]
+    public void PortableTextBoxPlaceholderTracksControlAndNativeWindowFocus()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { ClientSize = new Size(240, 120), ShowIcon = false };
+        using TextBox editor = new() { PlaceholderText = "hint", Size = new Size(160, 30) };
+        using Button other = new() { Bounds = new Rectangle(0, 50, 100, 30) };
+        form.Controls.Add(editor);
+        form.Controls.Add(other);
+        form.Show();
+        platform.SendInput(LibreInputEventKind.FocusGained);
+        other.Focus().Should().BeTrue();
+        form.Update();
+        platform.TextBoxDraws.Should().Contain(call => call.Text == "hint");
+        platform.TextBoxDraws.Clear();
+
+        editor.Focus().Should().BeTrue();
+        form.Update();
+        editor.Focused.Should().BeTrue();
+        platform.LastRetainedLayerRepaintCount.Should().BeGreaterThan(0);
+        platform.TextBoxDraws.Should().NotContain(call => call.Text == "hint");
+        platform.TextBoxDraws.Clear();
+
+        platform.SendInput(LibreInputEventKind.FocusLost);
+        form.Update();
+        editor.Focused.Should().BeFalse();
+        platform.TextBoxDraws.Should().Contain(call => call.Text == "hint");
+        platform.TextBoxDraws.Clear();
+
+        platform.SendInput(LibreInputEventKind.FocusGained);
+        form.Update();
+        editor.Focused.Should().BeTrue();
+        platform.LastRetainedLayerRepaintCount.Should().BeGreaterThan(0);
+        platform.TextBoxDraws.Should().NotContain(call => call.Text == "hint");
+
+        other.Focus().Should().BeTrue();
+        form.Update();
+        platform.TextBoxDraws.Should().Contain(call => call.Text == "hint");
+        editor.Text.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void PortablePasswordChangesPreserveSourceImeRestrictionNotifications()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { ShowIcon = false };
+        using TextBox editor = new() { Text = "secret", ImeMode = ImeMode.On };
+        form.Controls.Add(editor);
+        form.Show();
+        editor.IsHandleCreated.Should().BeTrue();
+        editor.Focused.Should().BeFalse();
+        List<ImeMode> changes = [];
+        editor.ImeModeChanged += (_, _) => changes.Add(editor.ImeMode);
+
+        editor.PasswordChar = '*';
+        form.Update();
+        changes.Should().Equal(ImeMode.Disable);
+        platform.TextBoxDraws.Should().Contain(call => call.Text == "******");
+        editor.PasswordChar = '*';
+        changes.Should().Equal(ImeMode.Disable);
+        editor.PasswordChar = '\0';
+        changes.Should().Equal(ImeMode.Disable, ImeMode.On);
+        editor.Text.Should().Be("secret");
+        editor.AutoCompleteMode.Should().Be(AutoCompleteMode.None);
+    }
+
     private readonly record struct TextBoxPaintCall(
         string Text, Font Font, Rectangle Bounds, Color ForeColor, LibreTextFormat Format, RectangleF Clip);
 

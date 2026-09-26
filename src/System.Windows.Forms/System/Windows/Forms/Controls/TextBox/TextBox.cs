@@ -349,6 +349,12 @@ public partial class TextBox : TextBoxBase
             if (_passwordChar != value)
             {
                 _passwordChar = value;
+                if (!_useSystemPasswordChar && IsHandleCreated)
+                {
+                    VerifyImeRestrictedModeChanged();
+                    ResetAutoComplete(false);
+                }
+
                 Invalidate();
             }
 #else
@@ -580,6 +586,9 @@ public partial class TextBox : TextBoxBase
     protected override void OnGotFocus(EventArgs e)
     {
         base.OnGotFocus(e);
+#if LIBREWINFORMS_PORTABLE
+        Invalidate();
+#endif
         if (!_selectionSet)
         {
             // We get one shot at selecting when we first get focus. If we don't

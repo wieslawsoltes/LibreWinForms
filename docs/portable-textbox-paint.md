@@ -12,8 +12,10 @@ single-line/word-wrap flags to the existing typed `TextRenderer` service. The
 ProGPU service retains responsibility for text shaping and drawing. There is no
 grid-specific text painter, prefix-width estimate, or character-count layout.
 Caller and source clips are intersected and graphics state is restored before
-the normal paint event. Source text, enabled state, and password display changes
-invalidate retained content.
+the normal paint event. Source text, enabled state, password display, and focus
+changes invalidate retained content. Live password changes retain the source
+IME restriction notification and autocomplete-reset calls; this is not new
+portable IME or autocomplete implementation.
 
 Passwords are replaced before the renderer sees the string: a custom password
 character is repeated per original UTF-16 code unit; the portable system-password
@@ -26,17 +28,27 @@ Windows-native compilation path is unchanged.
 
 ## Validation and remaining work
 
-Twenty canonical source cases cover whole UTF-16 text and selection retention,
+Twenty-two canonical source cases cover whole UTF-16 text and selection retention,
 alignment/RTL flags, line/wrap flags, password masking without creating a password
 handle, read-only/disabled/placeholder content, caller clip/state restoration,
 zero width, the actual DataGridView editor's `DrawToBitmap` control-tree route,
-and retained text/enabled invalidation. The typed test platform records the new
+retained text/enabled/focus invalidation, and existing password IME restriction
+notifications. The typed test platform records the new
 TextBox transport while preserving its existing independent text assertions.
 A separate backend test uses real ProGPU `Graphics` and `Bitmap` to require
 visible text ink and no pixels outside the source clip.
 
-These tests are authored but not yet executed. They do not qualify the original
-sample's native GUI or complete editing visuals. Selection highlighting, shaped
+The first exact-source macOS ARM64 build passed the original 166 cases plus the
+initial twenty paint cases (186/186, no skips). The reviewed focus/password
+correction then passed the complete 188-case source suite, no skips, using .NET
+11.0.0-preview.5.26302.115 to run the net10.0 assembly. The build had zero errors;
+its 619 warnings include four new portable protected-override API inventory
+warnings, not suppressed by this change. Backend pixel execution and full
+exact-head CI are still pending. Local logs are retained under
+`artifacts/textbox-paint/log`.
+
+These source results do not qualify the original sample's native GUI or complete
+editing visuals. Selection highlighting, shaped
 caret placement/blinking, pointer-to-text hit testing, horizontal/vertical edit
 scrolling, IME composition, border/chrome pixel parity, and native password-handle
 qualification remain separate work. Those behaviors must use the actual retained
