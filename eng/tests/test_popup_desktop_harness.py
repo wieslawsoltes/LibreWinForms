@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 import xml.etree.ElementTree as ET
 import zipfile
 
@@ -153,6 +154,64 @@ class PopupDesktopContracts(unittest.TestCase):
             session.wait(lambda _: True)
         with self.assertRaisesRegex(RuntimeError, "deadline"):
             session.key(0x79)
+
+    def test_geometry_rejection_retains_actual_candidate_without_input_or_capture(self):
+        source_client = dict(x=1516, y=835, width=560, height=250)
+        native_client = dict(x=3032, y=1670, width=1120, height=500)
+        for popup_failure in (False, True):
+            with self.subTest(popup=popup_failure):
+                process = mock.Mock(pid=24, returncode=None)
+                process.poll.return_value = None
+                desktop = mock.Mock()
+                windows = [dict(hwnd=99, title="PopupInteractionApp [run]",
+                                client=source_client if popup_failure else native_client)]
+                desktop.windows.return_value = windows
+                state = dict(pid=24, title="PopupInteractionApp [run]", sequence=1, counts={},
+                             form=dict(client=source_client), popups={})
+                if popup_failure:
+                    state["popups"]["context"] = dict(visible=True, client=dict(x=10, y=20, width=80, height=60))
+                later = dict(state, sequence=2)
+                session = DRIVER.Session(desktop, process, Path("unused"), "run")
+                expected = "Visible source popup lacks" if popup_failure else "Source/native main client geometry differs"
+                with mock.patch.object(DRIVER, "read_snapshot", side_effect=[state, later]), mock.patch.object(DRIVER.time, "sleep"):
+                    with self.assertRaisesRegex(RuntimeError, expected):
+                        session.wait(lambda _: True)
+                self.assertIsNone(session.state)
+                self.assertEqual(session.failure_state["pid"], 24)
+                self.assertEqual(session.failure_state["snapshot"], later)
+                self.assertEqual(session.failure_state["nativeWindows"], windows)
+                self.assertFalse(session.failure_state["qualified"])
+                self.assertEqual(desktop.mock_calls, [mock.call.windows(24)])
+
+    def test_geometry_failure_receipt_remains_incomplete_and_contains_rejected_candidate(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            executable = root / "PopupInteractionApp.exe"
+            executable.write_bytes(b"inert fixture; never executed")
+            executable.with_suffix(".dll").write_bytes(b"inert fixture")
+            process = mock.Mock(pid=24, returncode=1)
+            process.poll.return_value = 1
+            state = dict(pid=24, form=dict(client=dict(x=10, y=20, width=30, height=40)))
+            windows = [dict(hwnd=99, client=dict(x=20, y=40, width=60, height=80))]
+            desktop = mock.Mock()
+            with mock.patch.object(DRIVER.subprocess, "Popen", return_value=process), \
+                    mock.patch.object(DRIVER, "scenario", side_effect=lambda session: session.reject_geometry("geometry mismatch", state, windows)):
+                self.assertFalse(DRIVER.run_case(desktop, executable, root, "portable", "run"))
+            receipt = json.loads((root / "portable/receipt.json").read_text())
+            self.assertEqual(receipt["status"], "incomplete")
+            self.assertEqual(receipt["error"], "RuntimeError: geometry mismatch")
+            self.assertEqual(receipt["failureState"]["snapshot"], state)
+            self.assertEqual(receipt["failureState"]["nativeWindows"], windows)
+            self.assertFalse(receipt["qualified"])
+            self.assertEqual(desktop.mock_calls, [])
+
+    def test_oversized_geometry_evidence_fails_without_unbounded_receipt(self):
+        session = DRIVER.Session(None, mock.Mock(pid=24), Path("unused"), "run")
+        with self.assertRaisesRegex(RuntimeError, "original mismatch"):
+            session.reject_geometry("original mismatch", dict(text="x" * (256 * 1024)), [])
+        self.assertIn("256 KiB", session.failure_state["evidenceError"])
+        self.assertLess(len(json.dumps(session.failure_state).encode("utf-8")), 1024)
+        self.assertIsNone(session.state)
 
     def test_observer_does_not_drive_controls_or_change_validation_policy(self):
         source = (PREPARE.SOURCE / "Program.cs").read_text()

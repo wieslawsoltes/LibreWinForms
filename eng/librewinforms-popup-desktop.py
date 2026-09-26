@@ -224,6 +224,7 @@ class Session:
         self.desktop, self.process, self.directory, self.run = desktop, process, directory, run
         self.deadline = time.monotonic() + 60
         self.state = None
+        self.failure_state = None
         self.phase = "startup"
         self.image_bytes = 0
 
@@ -240,15 +241,31 @@ class Session:
             if predicate(state) and previous is not None and state["sequence"] > previous["sequence"] and stable_state(state) == stable_state(previous):
                 windows = self.desktop.windows(self.process.pid)
                 mains = [w for w in windows if w["title"] == state["title"]]
-                require(len(mains) == 1 and mains[0]["client"] == state["form"]["client"], "Source/native main client geometry differs")
+                if len(mains) != 1 or mains[0]["client"] != state["form"]["client"]:
+                    self.reject_geometry("Source/native main client geometry differs", state, windows)
                 for popup in state["popups"].values():
                     if popup["visible"]:
-                        require(any(w["client"] == popup["client"] for w in windows), "Visible source popup lacks matching native client geometry")
+                        if not any(w["client"] == popup["client"] for w in windows):
+                            self.reject_geometry("Visible source popup lacks matching native client geometry", state, windows)
                 self.state = state
                 return windows
             previous = state if predicate(state) else None
             time.sleep(0.05)
         raise TimeoutError(f"Original 60-second application deadline expired during {self.phase}")
+
+    def reject_geometry(self, message, state, windows):
+        # Retain the already-read failed candidate without more native queries,
+        # input or screenshots. Never promote a rejected candidate to self.state.
+        evidence = dict(schema="popup-rejected-geometry-v1", pid=self.process.pid,
+                        phase=self.phase, error=message, qualified=False,
+                        snapshot=state, nativeWindows=windows)
+        if len(json.dumps(dict(failureState=evidence), indent=2).encode("utf-8")) <= 256 * 1024:
+            self.failure_state = evidence
+        else:
+            self.failure_state = dict(schema="popup-rejected-geometry-v1", pid=self.process.pid,
+                                      phase=self.phase, error=message, qualified=False,
+                                      evidenceError="Rejected geometry exceeds the 256 KiB receipt budget")
+        raise RuntimeError(message)
 
     def capture(self, phase, predicate):
         self.phase = phase
@@ -348,6 +365,8 @@ def run_case(desktop, executable, root, label, run):
             receipt["status"] = "phases-captured-not-pixel-qualified"
         except Exception as error:
             receipt.update(error=f"{type(error).__name__}: {error}", failedPhase=session.phase)
+            if session.failure_state is not None:
+                receipt["failureState"] = session.failure_state
         finally:
             # No input/close commands sent to any other window. Stop only the
             # process we started; application watchdog is independent.

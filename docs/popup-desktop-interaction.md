@@ -87,6 +87,13 @@ foreground, covered target, failed native call, changed geometry, missing popup,
 wrong event or expired deadline fails and retains earlier evidence. No retry with
 invented coordinates, OS input to unrelated windows or alternate renderer exists.
 
+A stable source/native geometry mismatch also retains the already-read source
+snapshot and native window rectangles, exact process identity and failed phase
+in the incomplete receipt's `failureState` (256 KiB maximum). This performs no
+additional native query, input or screenshot, does not admit the rejected state,
+and never retries or extends the original deadline. Oversized diagnostics retain
+an explicit evidence-budget error while the original geometry failure remains.
+
 Fourteen equivalent raw phases cover baseline, context root/cascade/command,
 outside-pointer dismissal, menu root/cascade/command, F10 selection/Down opening,
 Alt selection, ComboBox opening/committed selection, and tooltip appearance.
@@ -119,7 +126,7 @@ passed; the apphost is an actual Windows ARM64 PE. The shared Program.cs SHA-256
 
 The driver/preparer/tests also passed Python bytecode compilation; this does not
 initialize or validate Win32 interop. `eng/tests/test_popup_desktop_harness.py`
-passes nine offline preparation/safety cases and runs before the unchanged
+passes twelve offline preparation/safety cases and runs before the unchanged
 canonical source lane in CI. The first offline run exposed a missing `returncode`
 field in the inert process fixture; that fixture was corrected without changing
 the PID-rejection assertion. A later actual Windows build of the PR72 installed
@@ -131,6 +138,15 @@ offline negative control rejecting the old .NET 10 output paths. Program.cs is
 unchanged. The earlier reference compile does not qualify these corrected
 projects; their actual compilation and all Windows input/screenshots remain
 separate pending gates. No native application was started for the offline checks.
+
+The first subsequent Windows paired run used the corrected .NET 11 harness with
+the successful PR72 package baseline. Microsoft captured all fourteen raw phases;
+Portable stopped before input at the startup client-geometry assertion. Microsoft
+reported 192 DPI and a 1120×500 client, while the portable observer reported 96 DPI
+and 560×250; the original runner omitted the rejected native rectangle, so those
+records alone cannot establish its exact scale or offset. The bounded rejection
+receipt above closes that evidence gap without weakening geometry admission.
+This incomplete run does not qualify portable popup behavior or paired pixels.
 
 The Win32 driver follows Microsoft's original contracts for
 [SendInput](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput),
