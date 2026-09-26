@@ -67,5 +67,17 @@ replacement, rejected live replacement, publication ordering, reentrancy,
 nonactivation routing, cleanup/Closed notification and preserved exceptions.
 Its ordering cases distinguish the existing Win32 and Cocoa/X11 operations.
 The adapter calls the real pinned ProGPU admission APIs; the recorded operations
-are tests, not a runtime fallback. These new cases have not yet been built or
-executed, and no native desktop result is claimed.
+are tests, not a runtime fallback. The source-first gate retains its unfiltered
+backend suite, increases its minimum from 45 to 69, then runs all 24 admission
+cases separately with skipped tests rejected and the existing ten-minute test
+bound. No test selection is removed.
+
+Host validation on macOS ARM64 used the repository .NET 11 preview SDK, the
+`net10.0` target and the exact pinned ProGPU source closure. The backend and
+tests compiled with zero warnings/errors. All 24 admission cases passed with
+zero skips. The unfiltered assembly passed 75 cases with eight existing skips:
+seven Linux-only XDG/Wayland cases and one explicitly enabled real-Wayland
+session fixture. An initial extra `--fail-skips on` full-suite probe correctly
+rejected those platform skips; the retained full-suite CI policy is unchanged.
+These results do not qualify actual popup desktop display, input or nonactivation
+on any platform, and the integrated source/package CI gates remain required.
