@@ -15,6 +15,10 @@ re-resolves the live owner and uses `NativePopupWindow.TryShowOwned` on every
 show, including Cocoa reattachment after hiding. Native rejection destroys the
 surface, releases its handle and notifies `Closed`; cleanup exceptions cannot
 replace the original admission/callback exception.
+Normal popup disposal uses the same exhaustive cleanup path, so an earlier
+resource-disposal exception cannot prevent native window/handle release and
+`Closed`. The first cleanup exception is rethrown after every release is
+attempted. Ordinary Form disposal remains unchanged.
 
 The display callback temporarily disables GLFW focus-on-show and restores its
 actual prior setting. There is no activating fallback. Explicit `Activate` is
@@ -81,3 +85,5 @@ session fixture. An initial extra `--fail-skips on` full-suite probe correctly
 rejected those platform skips; the retained full-suite CI policy is unchanged.
 These results do not qualify actual popup desktop display, input or nonactivation
 on any platform, and the integrated source/package CI gates remain required.
+The subsequent normal-popup `Dispose` routing change has not yet been rebuilt;
+the recorded coordinator tests do not inject real GPU-resource disposal failures.

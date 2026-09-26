@@ -747,6 +747,12 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
 
     public void Dispose()
     {
+        if (_popupAdmission is not null)
+        {
+            DiscardPopup();
+            return;
+        }
+
         if (_disposed)
         {
             return;
