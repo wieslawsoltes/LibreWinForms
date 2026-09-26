@@ -1,57 +1,53 @@
-name: Windows Forms runtime issue
-description: Report an issue that affects running applications (.NET Core 3.1 or .NET 5+).
-labels: ["untriaged"]
-assignees: []
+name: LibreWinForms bug report
+description: Report a LibreWinForms build, runtime, rendering, or compatibility problem.
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to fill out this bug report!
-
-        :warning: Have checked existing issues to see whether someone else has already reported your issue?
-        :book: Please also read https://github.com/dotnet/winforms/blob/main/docs/issue-guide.md.
+        Please search [existing LibreWinForms issues](https://github.com/wieslawsoltes/LibreWinForms/issues) before reporting a problem.
+        Reports from Windows, macOS, and Linux are welcome. Include a small reproduction and remove secrets or personal information from logs.
   - type: textarea
-    id: netversion
+    id: versions
     attributes:
-      label: .NET version
-      description: What is the version of .NET your project is targeting? E.g., 7.0 Preview1, or daily build number, use `dotnet --info`.
-    validations:
-      required: true
-  - type: dropdown
-    id: regressionfx
-    attributes:
-      label: Did it work in .NET Framework?
-      multiple: false
-      options:
-        - 'Yes'
-        - 'No'
-        - 'Not tested/verified'
+      label: LibreWinForms and .NET versions
+      description: Include the LibreWinForms.Sdk and package versions (or source commit), target framework, and `dotnet --info` output. For mixed WPF/WinForms apps, include LibreWPF and ProGPU versions too.
     validations:
       required: true
   - type: textarea
-    id: regression
+    id: environment
     attributes:
-      label: Did it work in any of the earlier releases of .NET Core or .NET 5+?
-      description: If so, which version?
+      label: Platform and environment
+      description: Include OS and version, CPU architecture or RID, and whether this is a physical machine, VM, or CI runner. For rendering issues, include GPU/driver and display scale; on Linux, include the display server/session. Include IDE/version for tooling issues and language/culture for localization issues.
     validations:
-      required: false
+      required: true
   - type: textarea
     id: description
     attributes:
-      label: Issue description
-      description: |
-        Be as specific and detailed as possible to help us triaging your issue. Screenshots and/or animations can be very useful in helping to understand the issue you're facing.
-
-        Tip: You can attach images or log files by clicking this area to highlight it and then dragging files in.
-        Tip: You can use https://www.screentogif.com/ to record animations and videos.
+      label: Expected and actual behavior
+      description: Describe the problem and affected controls or APIs. Attach screenshots or recordings if they help show the difference.
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
-      label: Steps to reproduce
+      label: Steps and minimal reproduction
       description: |
-        Provide step by step guide to repro this issue. In case repro steps are complex, it would be helpful if you attach a GIF with repro actions.
-        Attaching a sample app to repro the issue will help us investigate.
+        Include a small sample or repository link, relevant project/global.json settings, and exact build/run commands.
+        For test failures, include the fully qualified test name, configuration, and CI run link when available.
     validations:
       required: true
+  - type: textarea
+    id: regression
+    attributes:
+      label: Regression or comparison
+      description: Did this work in an earlier LibreWinForms version or on another platform? If available, include behavior with Microsoft WinForms on Windows. This comparison is optional; Windows access is not required to report a problem.
+    validations:
+      required: false
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Logs and diagnostics
+      description: Paste relevant build output, the complete exception and stack trace, or test output. Attach larger logs after removing secrets or personal information.
+      render: text
+    validations:
+      required: false
