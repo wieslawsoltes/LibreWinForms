@@ -4,8 +4,16 @@
          switch is false: that switch leaves Initialize to the caller. -->
     <LibreWinFormsSdkOwnsApplicationConfiguration>true</LibreWinFormsSdkOwnsApplicationConfiguration>
   </PropertyGroup>
+  <PropertyGroup>
+    <!-- Share the exact existing Initialize-emission predicate. In particular,
+         a library explicitly enabling Forms is not an executable-only policy. -->
+    <LibreWinFormsSdkGeneratesApplicationConfiguration>false</LibreWinFormsSdkGeneratesApplicationConfiguration>
+    <LibreWinFormsSdkGeneratesApplicationConfiguration Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseSystemWindowsForms)' == 'true' And '$(LibreWinFormsGenerateApplicationConfiguration)' != 'false'">true</LibreWinFormsSdkGeneratesApplicationConfiguration>
+  </PropertyGroup>
   <ItemGroup>
     <CompilerVisibleProperty Include="LibreWinFormsSdkOwnsApplicationConfiguration" />
+    <CompilerVisibleProperty Include="LibreWinFormsSdkGeneratesApplicationConfiguration" />
+    <CompilerVisibleProperty Include="ApplicationDefaultFont" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Project' And '$(LibreWinFormsSourceRoot)' != ''">
