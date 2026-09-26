@@ -6,6 +6,14 @@ namespace System.Windows.Forms;
 
 public partial class TextBox
 {
+    internal override string GetPortableClipboardText(string text)
+        => CharacterCasing switch
+        {
+            CharacterCasing.Upper => text.ToUpper(),
+            CharacterCasing.Lower => text.ToLower(),
+            _ => text,
+        };
+
     internal override string GetPortableInputText(char character)
         => CharacterCasing switch
         {

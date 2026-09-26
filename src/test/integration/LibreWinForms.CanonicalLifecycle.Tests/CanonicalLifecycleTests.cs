@@ -5925,6 +5925,7 @@ public partial class CanonicalLifecycleTests
             DragDropHandler = null;
             DragDropTargets.Clear();
             ClipboardData = null;
+            RejectClipboardWrites = false;
             ClipboardPersist = false;
             ClipboardRetryTimes = 0;
             ClipboardRetryDelay = 0;
@@ -6024,6 +6025,8 @@ public partial class CanonicalLifecycleTests
         internal HashSet<LibreHandle> DragDropTargets { get; } = [];
 
         internal ILibreDataTransfer? ClipboardData { get; private set; }
+
+        internal bool RejectClipboardWrites { get; set; }
 
         internal bool ClipboardPersist { get; private set; }
 
@@ -6629,6 +6632,14 @@ public partial class CanonicalLifecycleTests
 
         public void SetData(ILibreDataTransfer data, bool persist, int retryTimes, int retryDelay)
         {
+            if (RejectClipboardWrites)
+            {
+                // Match the canonical Clipboard.SetDataObject native-write failure.
+#pragma warning disable CA2201 // The clipboard failure contract deliberately uses ExternalException.
+                throw new System.Runtime.InteropServices.ExternalException("Test clipboard is unavailable.");
+#pragma warning restore CA2201
+            }
+
             ClipboardData = data;
             ClipboardPersist = persist;
             ClipboardRetryTimes = retryTimes;

@@ -222,6 +222,13 @@ public abstract partial class TextBoxBase : Control
             return true;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        if (!returnedValue && ProcessPortableClipboardShortcut(keyData))
+        {
+            return true;
+        }
+#endif
+
         return returnedValue;
     }
 
@@ -882,6 +889,14 @@ public abstract partial class TextBoxBase : Control
             // to keep the old cached values in case the Text is changed again making the cached values
             // valid again.
             AdjustSelectionStartAndEnd(_selectionStart, _selectionLength, out start, out end, -1);
+#if LIBREWINFORMS_PORTABLE
+            // EM_GETSEL exposes an ordered range even when Select supplied a
+            // negative length. Keep the cached anchor/direction unchanged.
+            if (end < start)
+            {
+                Swap(ref start, ref end);
+            }
+#endif
             length = end - start;
         }
         else
@@ -1312,7 +1327,14 @@ public abstract partial class TextBoxBase : Control
     /// <summary>
     ///  Copies the current selection in the text box to the Clipboard.
     /// </summary>
-    public void Copy() => PInvokeCore.SendMessage(this, PInvokeCore.WM_COPY);
+    public void Copy()
+    {
+#if LIBREWINFORMS_PORTABLE
+        SendPortableClipboardMessage(PInvokeCore.WM_COPY);
+#else
+        PInvokeCore.SendMessage(this, PInvokeCore.WM_COPY);
+#endif
+    }
 
     protected override AccessibleObject CreateAccessibilityInstance() => new TextBoxBaseAccessibleObject(this);
 
@@ -1337,7 +1359,14 @@ public abstract partial class TextBoxBase : Control
     /// <summary>
     ///  Moves the current selection in the text box to the Clipboard.
     /// </summary>
-    public void Cut() => PInvokeCore.SendMessage(this, PInvokeCore.WM_CUT);
+    public void Cut()
+    {
+#if LIBREWINFORMS_PORTABLE
+        SendPortableClipboardMessage(PInvokeCore.WM_CUT);
+#else
+        PInvokeCore.SendMessage(this, PInvokeCore.WM_CUT);
+#endif
+    }
 
     /// <summary>
     ///  Returns the text end position (one past the last input character). This property is virtual to allow MaskedTextBox
@@ -1434,7 +1463,14 @@ public abstract partial class TextBoxBase : Control
     /// <summary>
     ///  Replaces the current selection in the text box with the contents of the Clipboard.
     /// </summary>
-    public void Paste() => PInvokeCore.SendMessage(this, PInvokeCore.WM_PASTE);
+    public void Paste()
+    {
+#if LIBREWINFORMS_PORTABLE
+        SendPortableClipboardMessage(PInvokeCore.WM_PASTE);
+#else
+        PInvokeCore.SendMessage(this, PInvokeCore.WM_PASTE);
+#endif
+    }
 
     protected override bool ProcessDialogKey(Keys keyData)
     {
@@ -2129,6 +2165,21 @@ public abstract partial class TextBoxBase : Control
     {
         switch (m.MsgInternal)
         {
+#if LIBREWINFORMS_PORTABLE
+            case PInvokeCore.WM_COPY when SupportsPortableTextClipboard:
+                CopyPortableSelection();
+                break;
+            case PInvokeCore.WM_CUT when SupportsPortableTextClipboard:
+                if (!ReadOnly && CopyPortableSelection())
+                {
+                    ReplacePortableSelection(string.Empty, userInput: true, modified: true);
+                }
+
+                break;
+            case PInvokeCore.WM_PASTE when SupportsPortableTextClipboard:
+                PastePortableSelection();
+                break;
+#endif
             case PInvokeCore.WM_LBUTTONDBLCLK:
                 _doubleClickFired = true;
                 base.WndProc(ref m);
