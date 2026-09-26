@@ -14,4 +14,10 @@ Portable dropdown owner deactivation reuses the native bounded active-leaf close
 
 SharpDevelop is the initial integration driver. Prefer porting the real WinForms API/designer/resource code from this repository over expanding LibreWPF-local compatibility shims.
 
+Portable plain-text clipboard editing uses canonical Clipboard conversion and
+source UTF-16 selection mutation. Preserve virtual MaskedTextBox handlers,
+password/read-only protection, failed-write source retention and original
+parent/ShortcutsEnabled command ordering. Never flatten rich-text/protected
+documents into this path or infer undo, IME or native clipboard qualification.
+
 The portable SDK must retain the original shared and language-specific analyzer payload and resource satellites in Project and Package modes. Keep `LibreWinFormsSdkOwnsApplicationConfiguration` confined to suppressing the upstream full configuration generator when the SDK/caller already owns that policy; absent/false preserves upstream defaults. The explicit default-font supplement additionally requires the exact SDK Initialize-emission predicate, reuses the original invariant font parser/descriptor, and leaves absent-font and caller-owned initialization unchanged. Do not suppress WFO1000 globally, alter bootstrap behavior, or omit analyzers to avoid duplicate Initialize. Preserve the payload-hash, actual compiler negative/positive, missing-file, and fresh-process font gates in `docs/sdk-analyzer-parity.md` and `docs/sdk-application-default-font.md`.

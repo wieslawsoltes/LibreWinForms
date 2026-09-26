@@ -27,6 +27,10 @@ namespace System.Windows.Forms;
 [SRDescription(nameof(SR.DescriptionRichTextBox))]
 public partial class RichTextBox : TextBoxBase
 {
+#if LIBREWINFORMS_PORTABLE
+    private protected override bool SupportsPortableTextClipboard => false;
+#endif
+
     /// <summary>
     ///  Paste special flags.
     /// </summary>

@@ -37,11 +37,18 @@ the change: six missing owner-deactivation behaviors and one `USER32` call from
 cancellation, exceptions, persistent children, reopening, disposal, and initial
 and live logical-handle safety. An intermediate native-topmost assertion exposed
 the still-missing native popup window and is not claimed as fixed by this source
-change. The source-first minimum is 210: the prerequisite's 180 cases plus all
-30 popup cases, with no removed pre-existing cases or relaxed assertions.
+change. The initial source-first minimum was 210: the prerequisite's 180 cases
+plus all 30 popup cases, with no removed pre-existing cases or relaxed assertions.
 The complete source lifecycle run passed 210/210 with zero skips on macOS ARM64
-after a successful source-graph build (616 existing warnings, zero errors), using
+after a successful source-graph build (616 warnings, zero errors), using
 the repository SDK's preview-runtime roll-forward policy and net10.0 target.
+
+The PR is stacked on the activation/clipboard/paint integration at
+`60aaabb90ca1cd19424eb1dccaffbf8d5a121b89`. Its combined minimum is 261:
+166 original cases + 29 clipboard + 22 paint + 14 activation + 30 popup cases.
+The source fixtures from all three prerequisites remain byte-for-byte unchanged.
+The earlier 210-case result is component evidence, not qualification of this
+combined head; the combined full Build and separate checks remain required.
 
 This is source lifecycle implementation, not actual Windows/Linux/macOS popup
 placement, nonactivation, outside-click, keyboard, native modal-input, or pixel
