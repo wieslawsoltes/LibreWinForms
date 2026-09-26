@@ -264,20 +264,21 @@ rm -rf "${smoke_root}/canonical-packages" \
        "${smoke_root}/backend-packages" \
        "${smoke_root}/packages"
 
-# Verify the packed analyzers against their producer outputs before any Project
-# consumer rebuilds those same paths with its own version/build properties. The
-# analyzer contract captures exact producer bytes before its own Project cases.
-echo "Verifying original SDK analyzer payload and CSharp/VisualBasic source/package diagnostics."
+# Capture the packed analyzers against their original source producer outputs
+# before Project consumers rebuild those paths with different build properties.
+# Retain this digest outside the snapshot; later verification cannot self-trust a
+# rewritten manifest. The existing SDK Project smoke still owns the cold build.
+python3 "${repo_root}/eng/test-librewinforms-analyzer-snapshot.py"
+echo "Capturing original SDK analyzer producer generation."
 mkdir -p "${repo_root}/artifacts/log"
 analyzer_evidence_root="$(mktemp -d "${repo_root}/artifacts/log/analyzer-contract.XXXXXXXX")"
-python3 "${repo_root}/eng/librewinforms-analyzer-contract.py" \
+analyzer_manifest_sha256="$(python3 "${repo_root}/eng/librewinforms-analyzer-contract.py" \
   --package-source "${package_output}" \
   --sdk-version "${sdk_package_version}" \
-  --runtime-version "${package_version}" \
   --configuration "${configuration}" \
-  --dotnet "${dotnet}" \
-  --scratch-parent "${smoke_root}" \
-  --evidence-directory "${analyzer_evidence_root}/results"
+  --capture-producer \
+  --evidence-directory "${analyzer_evidence_root}/producer")"
+printf '%s\n' "${analyzer_manifest_sha256}" >"${analyzer_evidence_root}/capture-manifest.sha256"
 
 sdk_smoke_source="${repo_root}/packaging/LibreWinForms.Sdk.SourceFirstSmoke"
 sdk_smoke_root="${smoke_root}/sdk-project"
@@ -485,6 +486,21 @@ python3 "${repo_root}/eng/test-drawing-runtime-identity.py" \
   --canonical-version "${package_version}" \
   --backend-version "${backend_package_version}" \
   --sdk-version "${sdk_package_version}"
+
+# Original mandatory Project/Package smokes run first, with their original cold
+# build ownership. The unchanged per-case 300-second diagnostic gate compares
+# the archive with the captured producer bytes both before and after consumers.
+echo "Verifying original SDK analyzer payload and CSharp/VisualBasic source/package diagnostics."
+python3 "${repo_root}/eng/librewinforms-analyzer-contract.py" \
+  --package-source "${package_output}" \
+  --sdk-version "${sdk_package_version}" \
+  --runtime-version "${package_version}" \
+  --configuration "${configuration}" \
+  --dotnet "${dotnet}" \
+  --scratch-parent "${smoke_root}" \
+  --producer-snapshot "${analyzer_evidence_root}/producer" \
+  --producer-manifest-sha256 "${analyzer_manifest_sha256}" \
+  --evidence-directory "${analyzer_evidence_root}/results"
 
 echo "Canonical source-first package validated: ${package_file}"
 echo "Source-first ProGPU backend package validated: ${backend_package_file}"

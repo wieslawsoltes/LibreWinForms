@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import signal
 import subprocess
@@ -21,7 +22,7 @@ def sha256(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def verify_payload(repo, package, configuration):
+def producer_files(repo, configuration):
     expected = {}
     for suffix, language in (("", ""), (".CSharp", "cs/"), (".VisualBasic", "vb/")):
         name = "System.Windows.Forms.Analyzers" + suffix
@@ -34,6 +35,11 @@ def verify_payload(repo, package, configuration):
             culture = translated.name[len("SR."):-len(".xlf")]
             resource = output / culture / (name + ".resources.dll")
             expected[prefix + culture + "/" + resource.name] = resource
+    return expected
+
+
+def verify_archive(package, expected):
+    """Compare entry bytes, including for mutants whose package digest differs."""
     with zipfile.ZipFile(package) as archive:
         actual = [entry for entry in archive.namelist() if entry.startswith("analyzers/")]
         if len(actual) != len(set(actual)) or set(actual) != set(expected):
@@ -51,7 +57,95 @@ def verify_payload(repo, package, configuration):
     return {"package": str(package), "packageSha256": sha256(package.read_bytes()), "files": hashes}
 
 
-def verify_rejected_payloads(args, package, evidence):
+def verify_payload(repo, package, configuration):
+    # Standalone callers still require the actual current source outputs.
+    return verify_archive(package, producer_files(repo, configuration))
+
+
+def source_identity(repo, progpu_source_root=None):
+    def identity(root):
+        def git(*arguments):
+            return subprocess.check_output(["git", *arguments], cwd=root, text=True).strip()
+        if Path(git("rev-parse", "--show-toplevel")).resolve() != root.resolve():
+            raise AssertionError(f"Source is not its own checkout: {root}")
+        changes = git("status", "--porcelain", "--untracked-files=normal").splitlines()
+        if changes:
+            raise AssertionError(f"Producer snapshots require unchanged clean source: {root}: {changes}")
+        return {"root": str(root.resolve()), "head": git("rev-parse", "HEAD"),
+                "changes": changes, "submodules": [line.strip().split(" (", 1)[0]
+                    for line in git("submodule", "status", "--recursive").splitlines()]}
+    result = {"forms": identity(repo)}
+    engine = progpu_source_root or repo / "external/ProGPU"
+    if progpu_source_root is not None or (engine / ".git").exists():
+        result["progpu"] = identity(engine)
+    return result
+
+
+def capture_producer(repo, package, configuration, snapshot, progpu_source_root=None):
+    """Capture source DLLs, never package-extracted substitutes, before rebuilds."""
+    identity = source_identity(repo, progpu_source_root)
+    expected = producer_files(repo, configuration)
+    payload = verify_archive(package, expected)
+    for entry, source in expected.items():
+        destination = snapshot / entry
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        with destination.open("xb") as output:
+            output.write(source.read_bytes())
+        destination.chmod(0o444)
+    captured = {entry: snapshot / entry for entry in expected}
+    if verify_archive(package, captured) != payload or verify_archive(package, expected) != payload:
+        raise AssertionError("Producer output or package changed during capture")
+    if source_identity(repo, progpu_source_root) != identity:
+        raise AssertionError("Source identity changed during capture")
+    manifest = {"schemaVersion": 1, "configuration": configuration, "sourceIdentity": identity,
+                "originalFiles": {entry: str(path.relative_to(repo)) for entry, path in expected.items()}, **payload}
+    encoded = (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    with (snapshot / "manifest.json").open("xb") as output:
+        output.write(encoded)
+    (snapshot / "manifest.json").chmod(0o444)
+    digest = sha256(encoded)
+    verify_snapshot(repo, package, configuration, snapshot, digest, progpu_source_root)
+    return digest
+
+
+def verify_snapshot(repo, package, configuration, snapshot, expected_digest, progpu_source_root=None):
+    """The caller retains the capture digest independently across consumer builds."""
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_digest):
+        raise AssertionError("A capture-phase manifest SHA256 is required")
+    if snapshot.is_symlink() or not snapshot.is_dir():
+        raise AssertionError("The producer snapshot must be an owned directory")
+    expected = producer_files(repo, configuration)
+    files = {entry: snapshot / entry for entry in expected}
+    inventory = {"manifest.json", *expected}
+    directories = {str(parent) for entry in inventory for parent in Path(entry).parents if str(parent) != "."}
+    actual = set()
+    for path in snapshot.rglob("*"):
+        relative = str(path.relative_to(snapshot))
+        if path.is_symlink():
+            raise AssertionError(f"Snapshot contains a symlink: {relative}")
+        if path.is_dir():
+            if relative not in directories:
+                raise AssertionError(f"Unexpected snapshot directory: {relative}")
+        elif path.is_file() and not path.stat().st_mode & 0o222:
+            actual.add(relative)
+        else:
+            raise AssertionError(f"Snapshot is not a read-only regular file: {relative}")
+    if actual != inventory:
+        raise AssertionError(f"Snapshot inventory differs from original source: {actual ^ inventory}")
+    encoded = (snapshot / "manifest.json").read_bytes()
+    if sha256(encoded) != expected_digest:
+        raise AssertionError("Producer manifest differs from the capture-phase SHA256")
+    manifest = json.loads(encoded)
+    payload = verify_archive(package, files)
+    wanted = {"schemaVersion": 1, "configuration": configuration,
+              "sourceIdentity": source_identity(repo, progpu_source_root),
+              "originalFiles": {entry: str(path.relative_to(repo)) for entry, path in expected.items()}, **payload}
+    if manifest != wanted:
+        raise AssertionError("Producer snapshot source, package or captured bytes changed")
+    return payload, files
+
+
+def verify_rejected_payloads(args, package, evidence, expected=None):
     """Damage only scratch copies, never a producer archive or NuGet cache."""
     target = "analyzers/dotnet/cs/System.Windows.Forms.Analyzers.CSharp.dll"
     results = []
@@ -72,7 +166,10 @@ def verify_rejected_payloads(args, package, evidence):
                     warnings.simplefilter("ignore", UserWarning)
                     output.writestr(target, original.read(target))
         try:
-            verify_payload(args.repo_root, mutant, args.configuration)
+            if expected is None:
+                verify_payload(args.repo_root, mutant, args.configuration)
+            else:
+                verify_archive(mutant, expected)
         except AssertionError as error:
             results.append({"fault": fault, "rejection": str(error), "packageSha256": sha256(mutant.read_bytes())})
         else:
@@ -455,17 +552,37 @@ def main():
     parser.add_argument("--scratch-parent", type=Path,
                         help="Parent owned by the calling gate's cleanup; omitted scratch is retained for local diagnosis")
     parser.add_argument("--evidence-directory", type=Path, required=True)
+    parser.add_argument("--capture-producer", action="store_true",
+                        help="Only capture exact source producer bytes; print the retained manifest SHA256")
+    parser.add_argument("--producer-snapshot", type=Path,
+                        help="Use a previously captured immutable producer generation, never later mutable bin outputs")
+    parser.add_argument("--producer-manifest-sha256",
+                        help="Required digest retained independently by the capture-phase caller")
     args = parser.parse_args()
+    if bool(args.producer_snapshot) != bool(args.producer_manifest_sha256):
+        parser.error("--producer-snapshot and --producer-manifest-sha256 are required together")
+    if args.capture_producer and args.producer_snapshot:
+        parser.error("Capture and consumer verification are separate phases")
     args.repo_root = args.repo_root.resolve()
     args.package_source = args.package_source.resolve()
     evidence = args.evidence_directory.resolve()
     evidence.mkdir(parents=True, exist_ok=False)
     package = args.package_source / f"LibreWinForms.Sdk.{args.sdk_version}.nupkg"
-    payload = verify_payload(args.repo_root, package, args.configuration)
+    if args.capture_producer:
+        print(capture_producer(args.repo_root, package, args.configuration, evidence, args.progpu_source_root))
+        return
+    expected = None
+    if args.producer_snapshot:
+        payload, expected = verify_snapshot(args.repo_root, package, args.configuration,
+                                            args.producer_snapshot, args.producer_manifest_sha256,
+                                            args.progpu_source_root)
+        payload["producerManifestSha256"] = args.producer_manifest_sha256
+    else:
+        payload = verify_payload(args.repo_root, package, args.configuration)
     payload["sourceHead"] = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=args.repo_root, text=True).strip()
     payload["sourceChanges"] = subprocess.check_output(["git", "status", "--porcelain"], cwd=args.repo_root, text=True).splitlines()
     (evidence / "analyzer-payload.json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    rejected_payloads = verify_rejected_payloads(args, package, evidence)
+    rejected_payloads = verify_rejected_payloads(args, package, evidence, expected)
     scratch = Path(tempfile.mkdtemp(prefix="librewinforms-analyzer-contract.", dir=args.scratch_parent))
     (evidence / "scratch-root.txt").write_text(str(scratch) + "\n", encoding="utf-8")
     # Outside the source tree: its Arcade build settings must not leak into consumers.
@@ -501,6 +618,11 @@ def main():
                                   VB_NEGATIVE if language == "vb" else CS_NEGATIVE, vb=language == "vb",
                                   sdk_directory=sdk_directory, missing_analyzer=Path(entry).name))
     (evidence / "results.json").write_text(json.dumps(results, indent=2) + "\n", encoding="utf-8")
+    if args.producer_snapshot:
+        # Consumer builds may rewrite their source output paths, but may not
+        # change the source identity, original producer archive or snapshot.
+        verify_snapshot(args.repo_root, package, args.configuration,
+                        args.producer_snapshot, args.producer_manifest_sha256, args.progpu_source_root)
     print(f"Verified {len(payload['files'])} exact analyzer files, {len(rejected_payloads)} rejected archive controls "
           f"and {len(results)} compile contracts; evidence: {evidence}")
 
