@@ -96,6 +96,15 @@ NUGET_PACKAGES="${smoke_root}/backend-packages" "${dotnet}" pack \
   -p:LibreWinFormsProGpuPackageVersion="${progpu_package_version}" \
   -p:ContinuousIntegrationBuild=true
 
+mkdir -p "${repo_root}/artifacts/log"
+sdk_pack_contract_evidence="$(mktemp -d "${repo_root}/artifacts/log/analyzer-contract.ci-pack.XXXXXXXX")"
+# The verifier requires ownership of a new directory; mktemp reserved its name.
+rmdir "${sdk_pack_contract_evidence}"
+python3 "${repo_root}/eng/librewinforms-sdk-analyzer-pack-contract.py" \
+  --dotnet "${dotnet}" \
+  --configuration "${configuration}" \
+  --evidence-directory "${sdk_pack_contract_evidence}"
+
 "${dotnet}" pack \
   "${repo_root}/src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj" \
   --configuration "${configuration}" \
@@ -263,6 +272,23 @@ rm -rf "${smoke_root}/canonical-packages" \
        "${smoke_root}/backend-packages" \
        "${smoke_root}/packages"
 
+# Capture the packed analyzers against their original source producer outputs
+# before Project consumers rebuild those paths with different build properties.
+# Retain this digest outside the snapshot; later verification cannot self-trust a
+# rewritten manifest. The existing SDK Project smoke still owns the cold build.
+python3 "${repo_root}/eng/test-librewinforms-analyzer-snapshot.py"
+python3 "${repo_root}/eng/test-librewinforms-analyzer-cache.py"
+echo "Capturing original SDK analyzer producer generation."
+mkdir -p "${repo_root}/artifacts/log"
+analyzer_evidence_root="$(mktemp -d "${repo_root}/artifacts/log/analyzer-contract.XXXXXXXX")"
+analyzer_manifest_sha256="$(python3 "${repo_root}/eng/librewinforms-analyzer-contract.py" \
+  --package-source "${package_output}" \
+  --sdk-version "${sdk_package_version}" \
+  --configuration "${configuration}" \
+  --capture-producer \
+  --evidence-directory "${analyzer_evidence_root}/producer")"
+printf '%s\n' "${analyzer_manifest_sha256}" >"${analyzer_evidence_root}/capture-manifest.sha256"
+
 sdk_smoke_source="${repo_root}/packaging/LibreWinForms.Sdk.SourceFirstSmoke"
 sdk_smoke_root="${smoke_root}/sdk-project"
 sdk_smoke_project="${sdk_smoke_root}/LibreWinForms.Sdk.SourceFirstSmoke.csproj"
@@ -373,7 +399,11 @@ if ! grep -Fq 'supports only canonical Project or Package reference modes' "${sd
   exit 1
 fi
 
-rm -rf "${smoke_root}/sdk-packages" "${sdk_smoke_root}"
+# The later Project diagnostic consumers reference these same source projects.
+# Keep their already-owned package paths stable: deleting this cache and restoring
+# identical DLLs elsewhere changes CoreCompileInputs and recompiles the runtime.
+# Package-mode consumers below still restore into their own independent cache.
+rm -rf "${sdk_smoke_root}"
 
 sdk_package_smoke_root="${smoke_root}/sdk-package-project"
 sdk_package_smoke_project="${sdk_package_smoke_root}/LibreWinForms.Sdk.SourceFirstSmoke.csproj"
@@ -476,6 +506,22 @@ python3 "${repo_root}/eng/test-application-isolation.py" \
   --package-version "${package_version}" \
   --sdk-version "${sdk_package_version}" \
   --progpu-version "${progpu_package_version}"
+
+# Original mandatory Project/Package smokes run first, with their original cold
+# build ownership. The unchanged per-case 300-second diagnostic gate compares
+# the archive with the captured producer bytes both before and after consumers.
+echo "Verifying original SDK analyzer payload and CSharp/VisualBasic source/package diagnostics."
+python3 "${repo_root}/eng/librewinforms-analyzer-contract.py" \
+  --package-source "${package_output}" \
+  --sdk-version "${sdk_package_version}" \
+  --runtime-version "${package_version}" \
+  --configuration "${configuration}" \
+  --dotnet "${dotnet}" \
+  --scratch-parent "${smoke_root}" \
+  --project-packages "${smoke_root}/sdk-packages" \
+  --producer-snapshot "${analyzer_evidence_root}/producer" \
+  --producer-manifest-sha256 "${analyzer_manifest_sha256}" \
+  --evidence-directory "${analyzer_evidence_root}/results"
 
 echo "Canonical source-first package validated: ${package_file}"
 echo "Source-first ProGPU backend package validated: ${backend_package_file}"
