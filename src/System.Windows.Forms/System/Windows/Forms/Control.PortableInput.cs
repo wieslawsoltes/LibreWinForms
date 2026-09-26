@@ -216,14 +216,47 @@ public unsafe partial class Control
 
         Control target = _portableFocusedControl ?? this;
         Message message = Message.Create(target.Handle, (int)messageId, (nint)(int)keyCode, 0);
+        DispatchPortableKeyboardMessage(target, ref message);
+    }
+
+    private void DispatchPortableKeyboardMessage(Control target, ref Message message)
+    {
         if (Application.FilterMessage(ref message))
         {
             return;
         }
 
-        if (PreProcessControlMessageInternal(target, ref message) != PreProcessControlState.MessageProcessed)
+        // The native menu filter redirects keyboard messages without moving
+        // focus. Resolve after caller filters, which can close or replace a menu.
+        ToolStrip? menu = ToolStripDropDown.GetPortableKeyboardTarget(this);
+        if (menu is not null)
+        {
+            target = menu;
+            message.HWnd = menu.Handle;
+            if (message.MsgInternal == PInvokeCore.WM_KEYDOWN || message.MsgInternal == PInvokeCore.WM_KEYUP)
+                target._portableSuppressKeyPress = false;
+        }
+
+        if (target.IsDisposed || target.Disposing)
+            return;
+        nint handle = target.Handle;
+        bool processed = PreProcessControlMessageInternal(target, ref message)
+            == PreProcessControlState.MessageProcessed;
+        if (!processed && !target.IsDisposed && !target.Disposing
+            && (menu is null || (ReferenceEquals(ToolStripDropDown.GetPortableKeyboardTarget(this), menu)
+                && menu.IsHandleCreated && menu.Handle == handle)))
         {
             target.ProcessPortableKeyMessage(ref message);
+        }
+
+        if (menu is not null && (target._portableSuppressKeyPress
+            || (processed && message.MsgInternal == PInvokeCore.WM_KEYDOWN)
+            || !ReferenceEquals(ToolStripDropDown.GetPortableKeyboardTarget(this), menu)))
+        {
+            // Typed backends may deliver a translated character after a
+            // consumed key or a mnemonic that closed the menu. It must not
+            // leak into the still-focused owner editor in the same key cycle.
+            _portableSuppressKeyPress = true;
         }
     }
 
@@ -249,11 +282,7 @@ public unsafe partial class Control
     internal void ProcessPortableCharacter(char character)
     {
         Message message = Message.Create(Handle, (int)PInvokeCore.WM_CHAR, character, 0);
-        if (!Application.FilterMessage(ref message)
-            && PreProcessControlMessageInternal(this, ref message) != PreProcessControlState.MessageProcessed)
-        {
-            ProcessPortableKeyMessage(ref message);
-        }
+        GetPortableTopLevelControl().DispatchPortableKeyboardMessage(this, ref message);
     }
 
     // The managed event/preprocessing path precedes the platform edit-control

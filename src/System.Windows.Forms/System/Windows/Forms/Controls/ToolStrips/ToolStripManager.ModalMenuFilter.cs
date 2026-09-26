@@ -164,7 +164,13 @@ public static partial class ToolStripManager
             }
         }
 
-        internal static void ExitMenuMode() => Instance.ExitMenuModeCore();
+        internal static void ExitMenuMode()
+        {
+#if LIBREWINFORMS_PORTABLE
+            ToolStripDropDown.ClearPortableKeyboardContinuation();
+#endif
+            Instance.ExitMenuModeCore();
+        }
 
         private void ExitMenuModeCore()
         {

@@ -14,6 +14,8 @@ Portable dropdown owner deactivation reuses the native bounded active-leaf close
 
 Canonical top-level dropdowns stage a real hidden Popup window and bind a live typed Form owner before display. Preserve arranged coordinate bounds, nonactivating backend admission, precreated handle reuse, and independent popup topmost state. Native owner hide/minimize/destruction must release persistent as well as ordinary popup surfaces and reject reentrant admission during teardown; callback exceptions cannot leave stale handles or roll back a completed visibility transition. Keep reusable source dropdown objects and ordinary cancelable closes distinct from forced native resource loss. Native window creation alone does not qualify keyboard/menu-mode routing or platform UI. See docs/canonical-native-dropdowns.md.
 
+Portable dropdown keyboard input retains the Form's real focus and reuses canonical menu preprocessing after caller filters. Retire typed MenuStrip continuation leases before public deactivation callbacks; hide, handle loss and disposal must not resurrect them. Share native close-reason expansion policy and keep ordinary owner editing unchanged without an active menu. Source keyboard contracts are not native desktop or hosted-editor/initial menu-bar activation qualification. See docs/canonical-dropdown-keyboard.md.
+
 SharpDevelop is the initial integration driver. Prefer porting the real WinForms API/designer/resource code from this repository over expanding LibreWPF-local compatibility shims.
 
 Portable plain-text clipboard editing uses canonical Clipboard conversion and

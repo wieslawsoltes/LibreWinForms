@@ -223,7 +223,7 @@ public partial class ToolStripDropDown
             }
 
             DismissActiveDropDowns();
-            CancelAutoExpand();
+            CancelAutoExpand(reason);
 
             try
             {
