@@ -62,7 +62,7 @@ internal static partial class ProjectFileReader
         return true;
     }
 
-    private static bool TryReadFont(AnalyzerConfigOptionsProvider configOptions, out FontDescriptor? font, out Diagnostic? diagnostic)
+    internal static bool TryReadFont(AnalyzerConfigOptionsProvider configOptions, out FontDescriptor? font, out Diagnostic? diagnostic)
     {
         font = null;
         diagnostic = null;
