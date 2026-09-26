@@ -115,12 +115,19 @@ public partial class CanonicalLifecycleTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void PortableClipboardPasswordCannotCopyOrCut(bool systemPassword)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void PortableClipboardPasswordCannotCopyOrCut(bool systemPassword, bool createHandleFirst)
     {
         UseHeadlessPlatform(autoCloseWindows: false);
         using TextBox editor = new() { Text = "secret" };
+        if (createHandleFirst)
+        {
+            _ = editor.Handle;
+        }
+
         if (systemPassword)
         {
             editor.UseSystemPasswordChar = true;
@@ -134,6 +141,7 @@ public partial class CanonicalLifecycleTests
         Clipboard.SetText("public");
         editor.Copy();
         editor.Cut();
+        editor.IsHandleCreated.Should().BeTrue();
         Clipboard.GetText().Should().Be("public");
         editor.Text.Should().Be("secret");
         editor.Modified.Should().BeFalse();

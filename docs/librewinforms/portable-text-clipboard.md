@@ -48,3 +48,11 @@ events, absent/empty/converted text, password/read-only protection, failed
 writes, length/casing/line boundaries, command ownership, original masked
 handlers, and a real DataGridView editor entered by F2 and committed by Enter.
 These are source behavior tests, not native OS clipboard or visual evidence.
+
+The first compiled 193-case canonical run passed 192 cases and exposed a
+remaining native `EM_SETPASSWORDCHAR` call during portable handle creation.
+That native edit-window initialization now remains only in the Windows build;
+portable password protection continues to read the original source fields.
+The password clipboard cases cover both preexisting and newly created handles,
+with either explicit or system password masking (195 total canonical cases).
+This does not qualify password rendering or IME behavior.
