@@ -97,6 +97,16 @@ hashes under `artifacts/log/analyzer-contract.*`. Its controls cover:
   analyzer entries, and actual build rejection after each selected DLL is
   removed from a private extracted SDK copy (never a package cache).
 
+Producer-byte checks run before any Project-mode consumer. Those consumers
+legitimately rebuild the original analyzer paths with their own version/build
+properties, so comparing the archive to those later outputs is not a comparison
+to its producer generation. Both packaging lanes exposed this sequencing error
+after the restore-root correction. The complete analyzer contract now runs after
+all producer byte guards and the package-only smoke, before the first Project
+consumer; exact source equality, damaged-archive controls and installed-package
+byte checks are unchanged. Qualification includes the whole source-first packing
+script, not only a standalone pack followed by the analyzer harness.
+
 Before producing its final SDK archive, the source-first packaging gate also
 runs `eng/librewinforms-sdk-analyzer-pack-contract.py`. It packs the actual SDK
 with `ContinuousIntegrationBuild=true` first using the default NuGet root and
