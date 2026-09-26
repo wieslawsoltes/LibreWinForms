@@ -44,3 +44,13 @@ with no skips, on macOS ARM64 / .NET 10.0.5. The source drawing dependency was t
 unchanged `08f4343ef15328ba742cdcf11f8eb2daeefb5f7b` checkout. Initial compiler and
 runtime-selection failures are retained alongside these results in the owned
 `artifacts/dropdown-keyboard/log` directory.
+
+After composing the keyboard and outside-pointer changes, the full product build
+again completed with zero errors and 622 existing warnings. The first combined
+run passed 337 of 338 cases: one pointer fixture incorrectly assumed a parent's
+trailing padding could not overlap its child popup. The corrected fixture uses
+top padding and independently asserts parent inclusion, owner-item exclusion and
+child exclusion before dispatch. The test-only rebuild had zero warnings/errors;
+the complete combined source suite then passed 338 of 338, with zero skips, on
+the same runtime and drawing source. Both attempts remain in the evidence
+directory; this result does not substitute for package CI or native desktop input.
