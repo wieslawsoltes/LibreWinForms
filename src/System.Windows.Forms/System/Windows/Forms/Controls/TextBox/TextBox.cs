@@ -252,7 +252,11 @@ public partial class TextBox : TextBoxBase
     ///  Determines if the control is in password protect mode.
     /// </summary>
     private protected override bool PasswordProtect
+#if LIBREWINFORMS_PORTABLE
+        => _useSystemPasswordChar || _passwordChar != '\0';
+#else
         => PasswordChar != '\0';
+#endif
 
     /// <summary>
     ///  Returns the parameters needed to create the handle. Inheriting classes
@@ -345,6 +349,19 @@ public partial class TextBox : TextBoxBase
         }
         set
         {
+#if LIBREWINFORMS_PORTABLE
+            if (_passwordChar != value)
+            {
+                _passwordChar = value;
+                if (!_useSystemPasswordChar && IsHandleCreated)
+                {
+                    VerifyImeRestrictedModeChanged();
+                    ResetAutoComplete(false);
+                }
+
+                Invalidate();
+            }
+#else
             _passwordChar = value;
             if (!_useSystemPasswordChar)
             {
@@ -363,6 +380,7 @@ public partial class TextBox : TextBoxBase
                     }
                 }
             }
+#endif
         }
     }
 
@@ -480,6 +498,9 @@ public partial class TextBox : TextBoxBase
             if (value != _useSystemPasswordChar)
             {
                 _useSystemPasswordChar = value;
+#if LIBREWINFORMS_PORTABLE
+                Invalidate();
+#endif
 
                 // RecreateHandle will update IME restricted mode.
                 RecreateHandle();
@@ -569,6 +590,9 @@ public partial class TextBox : TextBoxBase
     protected override void OnGotFocus(EventArgs e)
     {
         base.OnGotFocus(e);
+#if LIBREWINFORMS_PORTABLE
+        Invalidate();
+#endif
         if (!_selectionSet)
         {
             // We get one shot at selecting when we first get focus. If we don't
@@ -602,6 +626,7 @@ public partial class TextBox : TextBoxBase
 
         SetSelectionOnHandle();
 
+#if !LIBREWINFORMS_PORTABLE
         if (_passwordChar != 0)
         {
             if (!_useSystemPasswordChar)
@@ -609,6 +634,7 @@ public partial class TextBox : TextBoxBase
                 PInvokeCore.SendMessage(this, PInvokeCore.EM_SETPASSWORDCHAR, (WPARAM)_passwordChar);
             }
         }
+#endif
 
         VerifyImeRestrictedModeChanged();
 

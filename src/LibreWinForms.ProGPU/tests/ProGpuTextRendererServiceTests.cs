@@ -12,6 +12,51 @@ namespace LibreWinForms.ProGPU.Tests;
 public sealed class ProGpuTextRendererServiceTests
 {
     [Fact]
+    public void TextBoxContentFlagsProduceRealInkWithinTheCallerClip()
+    {
+        var service = new ProGpuTextRendererService();
+        using var target = new Bitmap(160, 60, PixelFormat.Format32bppArgb);
+        using Font font = new(FontFamily.GenericSansSerif, 18);
+        Rectangle clip = new(10, 8, 50, 35);
+        using (Graphics graphics = Graphics.FromImage(target))
+        {
+            graphics.Clear(Color.Transparent);
+            graphics.SetClip(clip);
+            service.DrawText(
+                graphics,
+                "Alice and more source text",
+                font,
+                new Rectangle(10, 8, 140, 45),
+                Color.Navy,
+                Color.Empty,
+                LibreTextFormat.TextBoxControl | LibreTextFormat.NoPrefix
+                    | LibreTextFormat.NoPadding | LibreTextFormat.SingleLine);
+        }
+
+        int ink = 0;
+        for (int y = 0; y < target.Height; y++)
+        {
+            for (int x = 0; x < target.Width; x++)
+            {
+                byte alpha = target.GetPixel(x, y).A;
+                if (clip.Contains(x, y))
+                {
+                    if (alpha != 0)
+                    {
+                        ink++;
+                    }
+                }
+                else
+                {
+                    alpha.Should().Be(0, "text may not escape the retained source clip");
+                }
+            }
+        }
+
+        ink.Should().BeGreaterThan(0, "the real ProGPU text renderer must draw the editor content");
+    }
+
+    [Fact]
     public void DrawTextUsesManagedGraphicsAndColorsBackground()
     {
         var service = new ProGpuTextRendererService();

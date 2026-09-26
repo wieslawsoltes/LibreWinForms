@@ -27,6 +27,15 @@ and raises its minimum from 166 to 180. Two existing fixtures now supply actual
 typed activation confirmation for inferred modal ownership and expect the
 canonical initial child focus before subsequent mouse input.
 
+The integrated branch retains the exact PR #66 text-paint head
+`51a04725a540c3e39d79ef08744787944912886e`, including merged clipboard editing.
+The combined source-first minimum is 231: the original 166 cases, 29 clipboard
+cases, 22 text-paint cases and 14 activation cases. The separate 180-case host
+and Linux CI results above are historical component evidence, not a run of this
+combined graph; its complete exact-head CI is required. PR #66 must merge before
+the dependent activation change, even though both PRs target `main` so the
+existing CI branch filters run without modification.
+
 This is a source lifecycle prerequisite for popup ownership, not qualification
 of native popup placement, capture, dismissal, or modal input on any platform.
 It adds no MDI support, synthetic HWND activation messages, native component
