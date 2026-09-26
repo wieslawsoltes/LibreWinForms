@@ -75,7 +75,7 @@ generator_tests="${repo_root}/src/System.Windows.Forms.Analyzers.CSharp/tests/Un
 echo "Testing unchanged canonical Application.Run(Form) against a typed headless backend."
 run_test_project \
   "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
-  153 \
+  166 \
   -p:LibreWinFormsUseProGpuSystemDrawing=true \
   -p:LibreWinFormsReferenceMode=Project
 

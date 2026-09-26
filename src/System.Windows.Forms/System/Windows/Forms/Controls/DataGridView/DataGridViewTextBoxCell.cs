@@ -124,10 +124,14 @@ public partial class DataGridViewTextBoxCell : DataGridViewCell
             throw new InvalidOperationException();
         }
 
+#if !LIBREWINFORMS_PORTABLE
+        // Only native EDIT owns an EM_EMPTYUNDOBUFFER history. The portable
+        // committed-text seam does not create a native edit control or undo buffer.
         if (dataGridView.EditingControl is TextBox textBox)
         {
             textBox.ClearUndo();
         }
+#endif
 
         EditingTextBox = null;
 

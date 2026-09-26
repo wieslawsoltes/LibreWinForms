@@ -9437,9 +9437,13 @@ public unsafe partial class Control :
         {
             if (ke!.SuppressKeyPress)
             {
+#if LIBREWINFORMS_PORTABLE
+                SuppressPortableKeyPress();
+#else
                 RemovePendingMessages(PInvokeCore.WM_CHAR, PInvokeCore.WM_CHAR);
                 RemovePendingMessages(PInvokeCore.WM_SYSCHAR, PInvokeCore.WM_SYSCHAR);
                 RemovePendingMessages(PInvokeCore.WM_IME_CHAR, PInvokeCore.WM_IME_CHAR);
+#endif
             }
 
             return ke.Handled;
