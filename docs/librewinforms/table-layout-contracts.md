@@ -8,8 +8,9 @@ contract without changing product code or claiming full layout parity.
 
 The same `CanonicalApiContracts.cs` file compiles against the canonical source
 graph and both isolated SDK consumers in `eng/librewinforms-pack-source-first.sh`.
-Each source case has its own lifecycle test. The source-first minimum is 150
-tests: the previous 147 plus these three, with no previous fixture removed.
+Each source case has its own lifecycle test. This extension raised the
+source-first minimum to 150 tests: the previous 147 plus these three, with no
+previous fixture removed. Subsequent shared contracts may raise it further.
 All children are real `Panel` or `TableLayoutPanel` controls. Sizes and margins
 are explicit; no font measurement, native-window pixels, substitute controls,
 or implementation-derived expected values are involved.
