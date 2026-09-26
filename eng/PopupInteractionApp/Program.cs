@@ -45,11 +45,14 @@ internal sealed class InteractionForm : Form
     {
         _directory = directory;
         _events = new StreamWriter(new FileStream(Path.Combine(directory, "events.jsonl"), FileMode.CreateNew)) { AutoFlush = true };
+        // Keep the form and every design-sized child in one canonical autoscale
+        // pass, just like a designer-generated InitializeComponent method.
+        SuspendLayout();
         Text = $"PopupInteractionApp [{run}]";
-        ClientSize = new(560, 250);
         StartPosition = FormStartPosition.CenterScreen;
-        AutoScaleMode = AutoScaleMode.Dpi;
         AutoScaleDimensions = new(96, 96);
+        AutoScaleMode = AutoScaleMode.Dpi;
+        ClientSize = new(560, 250);
 
         ToolStripMenuItem contextMore = new("More");
         ToolStripMenuItem contextCommand = new("Context command");
@@ -94,6 +97,8 @@ internal sealed class InteractionForm : Form
         Paint += (_, _) => Record("form-paint");
         FormClosed += (_, _) => Record("form-closed");
         _observer.Tick += (_, _) => Snapshot();
+        ResumeLayout(false);
+        PerformLayout();
         _observer.Start();
     }
 

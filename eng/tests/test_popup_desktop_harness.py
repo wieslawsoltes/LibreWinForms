@@ -222,6 +222,21 @@ class PopupDesktopContracts(unittest.TestCase):
         self.assertNotIn(".Text =", snapshot)
         self.assertIn("control.IsHandleCreated && control.Visible", source)
 
+    def test_design_sized_children_are_attached_before_canonical_autoscale_resumes(self):
+        source = (PREPARE.SOURCE / "Program.cs").read_text()
+        constructor = source.split("internal InteractionForm(string directory, string run)", 1)[1].split("private void RegisterPopup", 1)[0]
+        ordered = ("SuspendLayout();", "AutoScaleDimensions = new(96, 96);",
+                   "AutoScaleMode = AutoScaleMode.Dpi;", "ClientSize = new(560, 250);",
+                   "Controls.AddRange([_editor, _contextTarget, _combo, _tipTarget, _menu]);",
+                   "ResumeLayout(false);", "PerformLayout();", "_observer.Start();")
+        positions = [constructor.index(statement) for statement in ordered]
+        self.assertEqual(positions, sorted(positions))
+        for statement in ordered:
+            self.assertEqual(constructor.count(statement), 1)
+        for manual_scaling in ("DeviceDpi", ".Scale(", "PerformAutoScale(", "LogicalToDeviceUnits("):
+            self.assertNotIn(manual_scaling, constructor)
+        self.assertIn('Text = "Right-click for context menu", Location = new(24, 108), Size = new(240, 36)', source)
+
 
 if __name__ == "__main__":
     unittest.main()

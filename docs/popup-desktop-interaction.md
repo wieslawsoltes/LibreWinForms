@@ -126,7 +126,7 @@ passed; the apphost is an actual Windows ARM64 PE. The shared Program.cs SHA-256
 
 The driver/preparer/tests also passed Python bytecode compilation; this does not
 initialize or validate Win32 interop. `eng/tests/test_popup_desktop_harness.py`
-passes twelve offline preparation/safety cases and runs before the unchanged
+passes thirteen offline preparation/safety cases and runs before the unchanged
 canonical source lane in CI. The first offline run exposed a missing `returncode`
 field in the inert process fixture; that fixture was corrected without changing
 the PID-rejection assertion. A later actual Windows build of the PR72 installed
@@ -147,6 +147,21 @@ and 560×250; the original runner omitted the rejected native rectangle, so thos
 records alone cannot establish its exact scale or offset. The bounded rejection
 receipt above closes that evidence gap without weakening geometry admission.
 This incomplete run does not qualify portable popup behavior or paired pixels.
+
+The same Microsoft reference also exposed a shared fixture initialization defect:
+the form had already consumed its 96-to-192 DPI autoscale pass before its
+design-sized children were attached, leaving the context button at 240×36
+physical pixels and clipping its caption. The source now suspends layout before
+setting design dimensions/mode/client size, attaches all children, then calls
+`ResumeLayout(false)` and `PerformLayout()` before starting the observer. This
+follows the repository's original `WinformsControlsTest/ComboBoxes.Designer.cs`
+initialization pattern and `ContainerControl.OnLayoutResuming` autoscale policy;
+it adds no manual DPI multiplication or control-specific sizing correction.
+The read-only observer, controls, labels, event handlers and input phases are
+unchanged. The original `057c0720…` source and evidence remain historical and
+must not be relabelled: this source correction requires new, identical paired
+builds and a new Microsoft baseline before any clipping or pixel claim. The
+offline ordering contract does not substitute for that actual desktop check.
 
 The Win32 driver follows Microsoft's original contracts for
 [SendInput](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput),
