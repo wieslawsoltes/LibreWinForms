@@ -160,6 +160,7 @@ reject_text .github/workflows/librewinforms-ci.yml 'src/test/compatibility/Libre
 require_text .github/workflows/librewinforms-docs.yml "LibreWinForms Docs"
 require_text .github/workflows/librewinforms-docs.yml "docs/**"
 require_text .github/workflows/librewinforms-docs.yml ".github/ISSUE_TEMPLATE/**"
+require_text .github/workflows/librewinforms-docs.yml "include-hidden-files: true"
 require_text .github/workflows/librewinforms-public-package-smoke.yml "LibreWinForms Public Package Smoke"
 require_text .github/workflows/librewinforms-public-package-smoke.yml '<Project Sdk="LibreWinForms.Sdk/${LIBREWINFORMS_VERSION}">'
 require_text .github/workflows/librewinforms-public-package-smoke.yml "<TargetFramework>net11.0</TargetFramework>"
