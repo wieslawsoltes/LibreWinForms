@@ -145,13 +145,19 @@ public partial class CanonicalLifecycleTests
     }
 
     [Theory]
-    [InlineData(DataFormats.UnicodeText)]
-    [InlineData(DataFormats.Text)]
-    [InlineData(DataFormats.StringFormat)]
-    public void PortableClipboardUsesCanonicalTextFormatConversion(string format)
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void PortableClipboardUsesCanonicalTextFormatConversion(int formatIndex)
     {
         UseHeadlessPlatform(autoCloseWindows: false);
         using TextBox editor = new();
+        string format = formatIndex switch
+        {
+            0 => DataFormats.UnicodeText,
+            1 => DataFormats.Text,
+            _ => DataFormats.StringFormat,
+        };
         DataObject data = new();
         data.SetData(format, autoConvert: true, "café🙂");
         Clipboard.SetDataObject(data);
