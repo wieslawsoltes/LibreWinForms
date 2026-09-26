@@ -62,8 +62,9 @@ bootstrap or designer-host contract.
 ## Validation and retained evidence
 
 `eng/librewinforms-source-first.sh` runs the complete 16-case configuration
-generator test class, including the original absent-property controls and the
-explicit SDK-owner controls. The original generator deliberately joins adjacent
+generator test class, requiring at least 16 executed tests and rejecting skips,
+including the original absent-property controls and the explicit SDK-owner
+controls. The original generator deliberately joins adjacent
 application statements with CRLF. Six unmodified golden tests failed on an LF
 checkout before this change. The fixture loader now reconstructs only those
 documented statement joins in the expected text, with its own exact byte test;

@@ -218,8 +218,12 @@ def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
     errors = sorted(item["ruleId"] for item in diagnostics if item.get("level") == "error")
     if errors != sorted(expected_errors) or (exit_code == 0) != (not expected_errors):
         raise AssertionError(f"{case.name}: expected {expected_errors}, got {errors}, exit {exit_code}; see {log}")
-    if any(item["ruleId"].startswith(("CS803", "CS878", "AD000")) for item in diagnostics):
-        raise AssertionError(f"Analyzer/generator failed to load or execute: {case.name}")
+    compiler_warnings = [item["ruleId"] for item in diagnostics if item.get("level") == "warning"]
+    if compiler_warnings:
+        # Includes both C# and VB analyzer-load/exception warnings. The consumer
+        # fixtures have no expected compiler warnings; dependency build warnings
+        # remain separate in the full build log and are not silently suppressed.
+        raise AssertionError(f"Unexpected compiler/analyzer warnings in {case.name}: {compiler_warnings}")
     for diagnostic in diagnostics:
         if diagnostic["ruleId"] == "WFO1000":
             message = diagnostic.get("message", {})
