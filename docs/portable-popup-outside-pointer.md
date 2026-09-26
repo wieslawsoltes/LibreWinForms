@@ -34,8 +34,13 @@ assertion is removed. Three additional MenuStrip continuation cases cover an
 outside editor click, an inside-strip click and a continuation replaced during
 `Closed`. The outside press retires only its original continuation lease, using
 canonical selection clearing and menu-mode exit. With the 16 keyboard cases,
-the combined source minimum is 338. These pointer cases have not yet been built
-or executed.
+the combined source minimum is 338. The full product build completed with zero
+errors and 622 existing warnings. The first combined run passed 337 cases; its
+remaining fixture point overlapped the actual child popup before any input was
+sent. After correcting that point and adding explicit parent/owner-item/child
+containment assertions, the complete 338-case suite passed with zero skips on
+macOS ARM64 / .NET 10.0.5. The test-only rebuild had zero warnings/errors. Failed
+and corrected attempts are retained in `artifacts/dropdown-keyboard/log`.
 
 This is source input integration. It does not qualify an OS-wide outside click,
 other-process dismissal, compositor/window-manager capture, native keyboard
