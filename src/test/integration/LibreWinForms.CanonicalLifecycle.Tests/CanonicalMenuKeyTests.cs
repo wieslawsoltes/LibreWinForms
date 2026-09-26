@@ -36,7 +36,14 @@ public partial class CanonicalLifecycleTests
             second.Selected.Should().BeFalse();
             SendMenuKey(platform, owner, key, down: false);
             activated.Should().Be(1);
-            (rtl ? second : first).Selected.Should().BeTrue();
+            // OnMenuKey and rtlAware navigation preserve the first logical item;
+            // the source layout mirrors its displayed position for RTL.
+            first.Selected.Should().BeTrue();
+            second.Selected.Should().BeFalse();
+            if (rtl)
+                first.Bounds.Left.Should().BeGreaterThan(second.Bounds.Left);
+            else
+                first.Bounds.Left.Should().BeLessThan(second.Bounds.Left);
             bar.Items[0].Selected.Should().BeFalse("disabled items retain canonical selection rules");
             editor.Focused.Should().BeTrue();
             platform.LastActivatedWindow.IsNull.Should().BeTrue();
