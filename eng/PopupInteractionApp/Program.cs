@@ -142,7 +142,9 @@ internal sealed class InteractionForm : Form
         };
         string pending = Path.Combine(_directory, "snapshot.pending");
         File.WriteAllText(pending, JsonSerializer.Serialize(state));
-        File.Move(pending, Path.Combine(_directory, "snapshot.json"), overwrite: true);
+        // Publish immutable snapshots: replacing a file concurrently open by a
+        // Windows reader can fail even though its contents are read-only.
+        File.Move(pending, Path.Combine(_directory, $"snapshot-{_sequence:D8}.json"));
     }
 
     protected override void Dispose(bool disposing)
