@@ -26,7 +26,18 @@ Win32 ancestors for synthetic handles. An F10 shortcut therefore precedes
 default activation.
 
 The new 25 source cases exercise these paths through the typed platform input
-callback inside Application.Run. They join every existing source case; no
+callback inside Application.Run. Six additional source cases retain the original
+release target across KeyUp replacement, invalidation/paint, same-strip lease
+replacement and actual owner-handle recreation. They join every existing source case; no
 filter, timeout or assertion is relaxed. Native Windows/macOS/Linux GUI and
 installed-package acceptance remain separate. This does not qualify Alt+mnemonic
 entry, system/MDI menus, accessibility, IME or hosted dropdown editor focus.
+
+The initial build completed with zero errors and 622 existing source warnings.
+The first 363-case run passed 360 and rejected three incorrect RTL fixture
+expectations: the unchanged source algorithm reverses the requested direction
+again in its RTL-aware scanner, retaining the first logical enabled item while
+mirroring its position. The corrected fixtures assert both the same logical item
+and opposite physical ordering. All 363 cases then passed with zero skips on
+macOS ARM64 / .NET 10.0.5. The initial failed log remains retained; the product
+selection algorithm was not changed to satisfy the fixtures.
