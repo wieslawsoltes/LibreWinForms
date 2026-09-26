@@ -132,7 +132,7 @@ def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
                executable=False, caller_configuration=False, disable_configuration=False,
                expected_errors=(), ordinary_generator=False, sdk_directory=None,
                missing_analyzer=None, default_font=None, expected_font=None,
-               use_forms=None, runtime=False):
+               use_forms=None, runtime=False, late_properties=None, expected_configuration=None):
     case = scratch / (mode.lower() + "-" + name)
     case.mkdir()
     extension = "vb" if vb else "cs"
@@ -179,6 +179,10 @@ def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
       <WriteLinesToFile File="$(MSBuildProjectDirectory)/analyzer-inputs.txt"
                         Lines="@(Analyzer->'%(FullPath)')" Overwrite="true" />
     </Target>"""
+    if late_properties:
+        recorder += '<Target Name="SetLateConfigurationPolicy" BeforeTargets="PrepareForBuild"><PropertyGroup>'
+        recorder += "".join(f"<{key}>{escape(value)}</{key}>" for key, value in late_properties.items())
+        recorder += "</PropertyGroup></Target>"
     project.write_text(start + "<PropertyGroup>" + "".join(properties)
                        + "</PropertyGroup>" + extra + recorder + end, encoding="utf-8")
     sarif = case / "diagnostics.sarif"
@@ -247,7 +251,9 @@ def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
     elif generated:
         raise AssertionError(f"Upstream generator emitted SDK/caller-owned configuration in {case.name}")
     forms_enabled = executable if use_forms is None else use_forms
-    if not ordinary_generator and bool(sdk_generated) != (forms_enabled and not disable_configuration):
+    if expected_configuration is None:
+        expected_configuration = forms_enabled and not disable_configuration
+    if not ordinary_generator and bool(sdk_generated) != expected_configuration:
         raise AssertionError(f"The existing SDK configuration ownership switch changed: {case.name}")
     if len(font_generated) != (0 if expected_font is None else 1):
         raise AssertionError(f"Unexpected explicit-font supplement ownership in {case.name}: {font_generated}")
@@ -300,6 +306,14 @@ def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
         shutil.copy2(source_file, saved / source_file.name)
     for index, generated_file in enumerate(generated + sdk_generated + font_generated):
         shutil.copy2(generated_file, saved / f"{index}-{generated_file.name}")
+    if not ordinary_generator:
+        compiler_configs = list(case.rglob("Consumer.GeneratedMSBuildEditorConfig.editorconfig"))
+        if len(compiler_configs) != 1:
+            raise AssertionError(f"Missing actual compiler property snapshot in {case.name}")
+        expected_flag = "build_property.LibreWinFormsSdkGeneratesApplicationConfiguration = " + str(expected_configuration).lower()
+        if expected_flag not in compiler_configs[0].read_text(encoding="utf-8-sig").splitlines():
+            raise AssertionError(f"Compiler configuration ownership differs from source emission in {case.name}")
+        shutil.copy2(compiler_configs[0], saved / compiler_configs[0].name)
     if runtime:
         runtime_log = evidence / (case.name + "-runtime.log")
         with runtime_log.open("w", encoding="utf-8") as output:
@@ -404,6 +418,20 @@ global::System.Console.WriteLine(global::System.Text.Json.JsonSerializer.Seriali
                               default_font="Arial, 12bogus"))
     results.append(build_case(args, scratch, evidence, mode, "font-explicit-forms-library", "internal static class Library { }",
                               use_forms=True, default_font="Arial, 11pt", expected_font=("Arial", "11", 0, 3)))
+    results.append(build_case(args, scratch, evidence, mode, "font-late-caller-owned", font_runtime_source(family, "17", caller=True),
+                              executable=True, default_font="Arial, 12bogus", caller_configuration=caller,
+                              late_properties={"LibreWinFormsGenerateApplicationConfiguration": "false"},
+                              expected_configuration=False, runtime=True))
+    results.append(build_case(args, scratch, evidence, mode, "font-late-sdk-owned", font_runtime_source(*font),
+                              executable=True, default_font=family + ", 14.25px, style=Bold, Italic",
+                              disable_configuration=True,
+                              late_properties={"LibreWinFormsGenerateApplicationConfiguration": "true"},
+                              expected_configuration=True, expected_font=font, runtime=True))
+    for name, flag in (("forms", "LibreWinFormsUseSystemWindowsForms"),
+                       ("portable-references", "LibreWinFormsUsePortableFrameworkReferences")):
+        results.append(build_case(args, scratch, evidence, mode, "font-late-disable-" + name, "internal static class Library { }",
+                                  use_forms=True, default_font="Arial, 12bogus", late_properties={flag: "false"},
+                                  expected_configuration=False))
     return results
 
 

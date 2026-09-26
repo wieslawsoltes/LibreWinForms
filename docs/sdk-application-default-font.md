@@ -42,6 +42,14 @@ marker are required for the supplement, so it cannot attach to an unrelated
 upstream class. Top-level, block-namespace, and file-scoped consumers all use the
 SDK's same global owner.
 
+The compiler-visible effective flag is refreshed at MSBuild's actual editorconfig
+property-capture phase, after `PrepareForBuild`, rather than frozen during project
+evaluation. The SDK source-emission target retains its original execution-time
+three-clause condition. Properties intended for a source generator must be set
+before that compiler configuration is captured. The gate changes every predicate
+input in a `PrepareForBuild` target and compares the captured flag with actual
+class/supplement emission, including late caller opt-out and SDK enablement.
+
 `LibreWinFormsGenerateApplicationConfiguration=false` leaves the class and font
 policy to the caller. It suppresses both the supplement and its diagnostics,
 even with an invalid `ApplicationDefaultFont`. Without SDK ownership, the
@@ -58,10 +66,11 @@ That source-output check is separate from the current runtime consumers below.
 
 The installed SDK analyzer contract retains its previous 22 compiler controls,
 42-file source/package payload comparison, and four damaged-archive rejections.
-It adds 12 consumers in each of Project and Package modes: three entrypoint
+It adds 16 consumers in each of Project and Package modes: three entrypoint
 forms; punctuation sanitation; absent, empty, and whitespace defaults; invalid
 format; caller-owned initialization; an ordinary library; and an explicitly
-enabled Forms library, plus a fresh-process test-family discovery. That discovery
+enabled Forms library, a fresh-process test-family discovery, and four late
+MSBuild-property controls. That discovery
 uses the actual runtime's public generic-family descriptor, not an assumed OS
 font installation; it does not read the Control default-font cache. All applicable
 generated source is compared to independent

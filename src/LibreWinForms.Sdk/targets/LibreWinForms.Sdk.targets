@@ -114,7 +114,7 @@
 
   <Target Name="_LibreWinFormsGenerateApplicationConfiguration"
           BeforeTargets="CoreCompile"
-          Condition="'$(LibreWinFormsSdkGeneratesApplicationConfiguration)' == 'true'">
+          Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseSystemWindowsForms)' == 'true' And '$(LibreWinFormsGenerateApplicationConfiguration)' != 'false'">
     <PropertyGroup>
       <_LibreWinFormsApplicationConfigurationFile>$(IntermediateOutputPath)LibreWinForms.ApplicationConfiguration.g.cs</_LibreWinFormsApplicationConfigurationFile>
     </PropertyGroup>
