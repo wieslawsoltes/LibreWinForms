@@ -35,6 +35,5 @@ public partial class Control
         => key == Keys.F10 ? _portableMenuKeyModifiers == LibreInputModifiers.None
             : (key is Keys.LMenu or Keys.RMenu or Keys.Menu)
                 && (_portableMenuKeyModifiers & ~LibreInputModifiers.Alt) == LibreInputModifiers.None;
-
 }
 #endif

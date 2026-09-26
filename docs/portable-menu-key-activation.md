@@ -41,3 +41,12 @@ mirroring its position. The corrected fixtures assert both the same logical item
 and opposite physical ordering. All 363 cases then passed with zero skips on
 macOS ARM64 / .NET 10.0.5. The initial failed log remains retained; the product
 selection algorithm was not changed to satisfy the fixtures.
+
+After exact pre-callback release identities and retirement ordering were added,
+the complete 369-case source gate passed with zero skips in 1.437 seconds. Both
+the synchronous paint and invalidation replacement cases executed; the real
+owner-handle recreation case also accepts a subsequent independent key cycle.
+The full product build had zero errors, the same 622 existing warnings, and one
+extra blank-line formatting warning; that blank line was removed afterward.
+Logs are retained as `menu-key-reentrancy-build.log` and
+`menu-key-reentrancy-tests.log` under the owned dropdown-keyboard artifact tree.
