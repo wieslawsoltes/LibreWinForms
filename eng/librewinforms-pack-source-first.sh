@@ -96,6 +96,15 @@ NUGET_PACKAGES="${smoke_root}/backend-packages" "${dotnet}" pack \
   -p:LibreWinFormsProGpuPackageVersion="${progpu_package_version}" \
   -p:ContinuousIntegrationBuild=true
 
+mkdir -p "${repo_root}/artifacts/log"
+sdk_pack_contract_evidence="$(mktemp -d "${repo_root}/artifacts/log/analyzer-contract.ci-pack.XXXXXXXX")"
+# The verifier requires ownership of a new directory; mktemp reserved its name.
+rmdir "${sdk_pack_contract_evidence}"
+python3 "${repo_root}/eng/librewinforms-sdk-analyzer-pack-contract.py" \
+  --dotnet "${dotnet}" \
+  --configuration "${configuration}" \
+  --evidence-directory "${sdk_pack_contract_evidence}"
+
 "${dotnet}" pack \
   "${repo_root}/src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj" \
   --configuration "${configuration}" \

@@ -47,6 +47,16 @@ SDK's own files. A missing selected packaged DLL is a build error before
 compilation. Roslyn compiler packages, code-fix/test dependencies, and PDBs are
 not bundled as runtime dependencies or analyzer payload.
 
+The SDK packaging project is intentionally independent of Arcade. Its original
+analyzer project references and `GetPackageContent` calls explicitly retain the
+SDK's resolved `NuGetPackageRoot`. Otherwise `ContinuousIntegrationBuild=true`
+made Arcade look under the checkout's `.packages` while the SDK's actual restore
+used a different NuGet root. The missing NETStandard.Library build import left
+the compiler without its core reference assemblies. This was reproduced with
+the exact CI pack properties (256 compiler errors), not attributed to Linux or
+to generator behavior. No CI flag, original analyzer source, or cache file is
+rewritten to fix it.
+
 The compiler-visible `LibreWinFormsSdkOwnsApplicationConfiguration=true` marker
 prevents the original C# configuration generator from producing a second full
 `Initialize` implementation.
@@ -94,6 +104,16 @@ hashes under `artifacts/log/analyzer-contract.*`. Its controls cover:
 - Rejection of scratch archives with missing, modified, extra, or duplicate
   analyzer entries, and actual build rejection after each selected DLL is
   removed from a private extracted SDK copy (never a package cache).
+
+Before producing its final SDK archive, the source-first packaging gate also
+runs `eng/librewinforms-sdk-analyzer-pack-contract.py`. It packs the actual SDK
+with `ContinuousIntegrationBuild=true` first using the default NuGet root and
+then a new explicit private cache, with a separate 300-second bound per pack.
+Both diagnostic archives must retain all 42 exact source-built analyzer files.
+Their logs, commands and file hashes stay under the same uploaded evidence
+prefix, outside the producer package feed. The private test cache is owned by
+that verifier and removed on exit; no user/package cache content is copied or
+altered. The final producer restore/pack then runs with its unchanged properties.
 
 The complete Build, existing source/package runtime checks, and visible native
 application gates remain required and unchanged. Analyzer success does not prove
