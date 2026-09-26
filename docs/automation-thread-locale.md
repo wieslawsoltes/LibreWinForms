@@ -26,9 +26,11 @@ test-output copy; no package cache, system DLL, or original build output is edit
 
 The PR adds focused Windows, Linux, and macOS CI jobs while retaining all existing
 source, drawing, package, and visible consumer gates. Those fresh-checkout jobs
-remain required before merge. The local test used the repository SDK 11 runner
-with the portable net10 target; its final incremental build had zero warnings
-and errors (the initial full test-utility build has existing trimming warnings).
+remain required before merge. The local test used the repository SDK 11 to build
+the portable net10 target. A build with an explicitly absent ProGPU source root
+also passes: this focused private-Core graph does not need a renderer checkout.
+Incremental compilation has zero errors; full test-utility compilation retains
+its 32 existing trimming warnings.
 
 This repairs locale acquisition at the existing typed automation boundary. It
 does not implement native COM activation, ActiveX hosting, or general OLE support

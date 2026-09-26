@@ -12,8 +12,7 @@ export DOTNET_ROLL_FORWARD_TO_PRERELEASE="${DOTNET_ROLL_FORWARD_TO_PRERELEASE:-1
   "${repo_root}/src/System.Private.Windows.Core/tests/System.Private.Windows.Core.Tests/System.Private.Windows.Core.Tests.csproj" \
   --configuration Release --nologo --verbosity quiet -m:1 \
   -p:TargetFrameworks=net10.0 -p:NetCurrent=net10.0 \
-  -p:LibreWinFormsUseProGpuSystemDrawing=true \
-  -p:LibreWinFormsReferenceMode=Project -p:MicrosoftNETCoreAppRefPackageVersion=
+  -p:LibreWinFormsUseProGpuSystemDrawing=true -p:MicrosoftNETCoreAppRefPackageVersion=
 
 "${locale_dotnet}" \
   "${repo_root}/artifacts/bin/System.Private.Windows.Core.Tests/Release/net10.0/System.Private.Windows.Core.Tests.dll" \
