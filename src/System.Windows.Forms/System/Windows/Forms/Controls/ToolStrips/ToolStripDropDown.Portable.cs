@@ -66,6 +66,8 @@ public partial class ToolStripDropDown
         _portableActivationRoot = root;
         (root._portableActivationMembers ??= []).Add(this);
         root._portableOpeningDepth++;
+        (s_portableActivationRoots ??= []).Remove(root);
+        s_portableActivationRoots.Add(root);
         if (ReferenceEquals(root, this))
         {
             // Like the native foreground snapshot, retain ownership before
@@ -139,6 +141,7 @@ public partial class ToolStripDropDown
 
             root._portableActivationMenus?.Clear();
             root._portableActivationClosePending = false;
+            s_portableActivationRoots?.Remove(root);
         }
     }
 
@@ -220,7 +223,7 @@ public partial class ToolStripDropDown
             }
 
             DismissActiveDropDowns();
-            CancelAutoExpand();
+            CancelAutoExpand(reason);
 
             try
             {

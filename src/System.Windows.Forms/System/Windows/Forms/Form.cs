@@ -6652,6 +6652,11 @@ public partial class Form : ContainerControl
             return;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        // MenuStrip is painted by the canonical control tree. Portable Form
+        // handles have no Win32 HMENU to remove or native menu bar to redraw.
+        _formStateEx[s_formStateExUpdateMenuHandlesDeferred] = 0;
+#else
         if (_ctlClient is null || !_ctlClient.IsHandleCreated)
         {
             PInvoke.SetMenu(this, HMENU.Null);
@@ -6711,6 +6716,7 @@ public partial class Form : ContainerControl
 
         PInvoke.DrawMenuBar(this);
         _formStateEx[s_formStateExUpdateMenuHandlesDeferred] = 0;
+#endif
     }
 
     // Call this function instead of UpdateStyles() when the form's client-size must
