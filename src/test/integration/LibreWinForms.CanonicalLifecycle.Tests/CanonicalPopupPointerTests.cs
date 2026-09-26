@@ -193,9 +193,14 @@ public partial class CanonicalLifecycleTests
         menu.Items.Add(parent);
         menu.Show(owner, new Point(10, 10));
         parent.ShowDropDown();
-        Point point = new(menu.ClientSize.Width - 1, menu.ClientSize.Height - 1);
+        // The cascade starts at the owner item's right edge, so the parent's
+        // trailing padding can overlap the child. Use the middle of the top
+        // padding (the source menu reserves two pixels above its items).
+        Point point = new(menu.ClientSize.Width / 2, menu.ClientRectangle.Top);
+        menu.ClientRectangle.Contains(point).Should().BeTrue();
         parent.Bounds.Contains(point).Should().BeFalse();
-        parent.DropDown.ClientRectangle.Contains(parent.DropDown.PointToClient(menu.PointToScreen(point))).Should().BeFalse();
+        parent.DropDown.ClientRectangle.Contains(parent.DropDown.PointToClient(menu.PointToScreen(point))).Should().BeFalse(
+            "the parent-only point {0} in {1} must be outside the actual child bounds {2}", point, menu.Bounds, parent.DropDown.Bounds);
         int pressed = 0;
         menu.MouseDown += (_, _) => pressed++;
         SendOutsideMenuPointer(platform, menu, point, release: false);
