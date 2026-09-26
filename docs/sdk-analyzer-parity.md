@@ -101,11 +101,33 @@ Producer-byte checks run before any Project-mode consumer. Those consumers
 legitimately rebuild the original analyzer paths with their own version/build
 properties, so comparing the archive to those later outputs is not a comparison
 to its producer generation. Both packaging lanes exposed this sequencing error
-after the restore-root correction. The complete analyzer contract now runs after
-all producer byte guards and the package-only smoke, before the first Project
-consumer; exact source equality, damaged-archive controls and installed-package
-byte checks are unchanged. Qualification includes the whole source-first packing
-script, not only a standalone pack followed by the analyzer harness.
+after the restore-root correction. Moving the entire compiler suite earlier
+then moved the cold source build into its first 300-second diagnostic case;
+the canonical Linux lane timed out there. The original mandatory SDK Project
+smoke now retains that cold-build ownership, without adding a warmup or changing
+any deadline.
+
+After all producer byte guards and the package-only smoke, the gate compares
+all 42 original source DLLs with the archive and copies those source bytes into
+a read-only producer snapshot. Its manifest binds their hashes and original
+paths, the entire package SHA256/path, configuration, exact clean source commit,
+and actual recursive submodule/engine identity. The outer shell retains the
+manifest digest independently and passes that same value to the later verifier.
+After the original Project/Package smokes and drawing-identity checks, the full
+compiler suite validates the snapshot and original archive both before and after
+its cases. Later mutable `bin` files are never used as the producer reference.
+Standalone invocations without a snapshot still compare the actual current
+source outputs directly.
+
+`eng/test-librewinforms-analyzer-snapshot.py` covers modified/missing/additional
+snapshot files, symlinks, writable files, forged manifests/hashes, source and
+submodule changes, configuration/package identity, and legitimate later consumer
+rebuilds. These are transport fixtures, not replacement DLL/compiler tests. The
+original four damaged-archive controls still reach the exact entry-byte comparer
+against the validated snapshot; they are not short-circuited by a package hash
+mismatch. All real compiler path, installed-package byte and diagnostic checks
+remain unchanged. Qualification includes the whole source-first packing script,
+not only a standalone pack followed by the analyzer harness.
 
 Before producing its final SDK archive, the source-first packaging gate also
 runs `eng/librewinforms-sdk-analyzer-pack-contract.py`. It packs the actual SDK
