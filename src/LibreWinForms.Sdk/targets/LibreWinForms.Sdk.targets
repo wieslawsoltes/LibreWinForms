@@ -1,6 +1,7 @@
 <Project>
   <Import Project="$(MSBuildThisFileDirectory)LibreWinForms.DrawingIdentity.targets"
           Condition="'$(_LibreWinFormsDrawingIdentityTargetsImported)' != 'true'" />
+  <Import Project="$(MSBuildThisFileDirectory)LibreWinForms.Analyzers.targets" />
   <Target Name="_LibreWinFormsValidateCanonicalSdkConfiguration"
           BeforeTargets="PrepareForBuild">
     <Error Condition="'$(LibreWinFormsUseCanonicalRuntime)' != 'true'"

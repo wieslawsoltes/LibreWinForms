@@ -1,0 +1,36 @@
+<Project>
+  <PropertyGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseSystemWindowsForms)' == 'true'">
+    <!-- The SDK owns configuration policy even when its existing generation
+         switch is false: that switch leaves Initialize to the caller. -->
+    <LibreWinFormsSdkOwnsApplicationConfiguration>true</LibreWinFormsSdkOwnsApplicationConfiguration>
+  </PropertyGroup>
+  <ItemGroup>
+    <CompilerVisibleProperty Include="LibreWinFormsSdkOwnsApplicationConfiguration" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Project' And '$(LibreWinFormsSourceRoot)' != ''">
+    <ProjectReference Include="$(LibreWinFormsSourceRoot)src/System.Windows.Forms.Analyzers/src/System.Windows.Forms.Analyzers.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="$(LibreWinFormsSourceRoot)src/System.Windows.Forms.Analyzers.CSharp/src/System.Windows.Forms.Analyzers.CSharp.csproj"
+                      Condition="'$(MSBuildProjectExtension)' == '.csproj'"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <ProjectReference Include="$(LibreWinFormsSourceRoot)src/System.Windows.Forms.Analyzers.VisualBasic/src/System.Windows.Forms.Analyzers.VisualBasic.vbproj"
+                      Condition="'$(MSBuildProjectExtension)' == '.vbproj'"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Package'">
+    <_LibreWinFormsPackagedAnalyzer Include="$(MSBuildThisFileDirectory)../analyzers/dotnet/System.Windows.Forms.Analyzers.dll" />
+    <_LibreWinFormsPackagedAnalyzer Include="$(MSBuildThisFileDirectory)../analyzers/dotnet/cs/System.Windows.Forms.Analyzers.CSharp.dll"
+                                  Condition="'$(MSBuildProjectExtension)' == '.csproj'" />
+    <_LibreWinFormsPackagedAnalyzer Include="$(MSBuildThisFileDirectory)../analyzers/dotnet/vb/System.Windows.Forms.Analyzers.VisualBasic.dll"
+                                  Condition="'$(MSBuildProjectExtension)' == '.vbproj'" />
+    <Analyzer Include="@(_LibreWinFormsPackagedAnalyzer)" />
+  </ItemGroup>
+
+  <Target Name="_LibreWinFormsValidatePackagedAnalyzers" BeforeTargets="CoreCompile"
+          Condition="'@(_LibreWinFormsPackagedAnalyzer)' != ''">
+    <Error Condition="!Exists('%(_LibreWinFormsPackagedAnalyzer.Identity)')"
+           Text="The LibreWinForms SDK is missing an original WinForms analyzer: %(_LibreWinFormsPackagedAnalyzer.Identity)" />
+  </Target>
+</Project>
