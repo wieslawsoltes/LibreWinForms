@@ -47,7 +47,7 @@ public static class PortableApplication
     public const int MaximumValueLength = 4096;
 
     /// <summary>Starts a child with a fresh private result location and its own ordinary dependency resolution.</summary>
-    /// <remarks>No shell, custom load context, assembly hooks, UI embedding or object marshaling is used.</remarks>
+    /// <remarks><para>No shell, custom load context, assembly hooks, UI embedding or object marshaling is used.</para></remarks>
     public static PortableApplicationSession Start(PortableApplicationStartInfo startInfo)
     {
         ArgumentNullException.ThrowIfNull(startInfo);
@@ -102,7 +102,7 @@ public static class PortableApplication
     }
 
     /// <summary>Publishes a single bounded primitive result from a launched child.</summary>
-    /// <remarks>Call after the child UI closes and its owned objects are disposed. Existing result files are never overwritten.</remarks>
+    /// <remarks><para>Call after the child UI closes and its owned objects are disposed. Existing result files are never overwritten.</para></remarks>
     public static void Complete(bool accepted, string? value)
     {
         if (value?.Length > MaximumValueLength)

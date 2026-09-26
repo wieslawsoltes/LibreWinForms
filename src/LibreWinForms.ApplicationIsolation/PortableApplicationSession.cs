@@ -32,7 +32,7 @@ public sealed class PortableApplicationSession : IDisposable
     public bool HasExited => _process.HasExited;
 
     /// <summary>Waits for exit and reads a bounded, versioned primitive result.</summary>
-    /// <remarks>Canceling the wait leaves the child running. The caller may wait again or explicitly call Terminate.</remarks>
+    /// <remarks><para>Canceling the wait leaves the child running. The caller may wait again or explicitly call Terminate.</para></remarks>
     public async Task<PortableApplicationExit> WaitForExitAsync(CancellationToken cancellationToken = default)
     {
         await _process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
@@ -49,7 +49,7 @@ public sealed class PortableApplicationSession : IDisposable
     }
 
     /// <summary>Explicitly requests termination of this process and its descendants.</summary>
-    /// <remarks>This is destructive, not normal GUI closure. Use only for an explicit caller termination or timeout policy, then wait for exit.</remarks>
+    /// <remarks><para>This is destructive, not normal GUI closure. Use only for an explicit caller termination or timeout policy, then wait for exit.</para></remarks>
     public void Terminate()
     {
         if (!_process.HasExited)
