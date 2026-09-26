@@ -66,6 +66,12 @@ was already chosen. This prerequisite is tested using the public setter and
 actual Initialize, not by suppressing the generated call.
 
 These are compiler and managed policy contracts, not native DPI qualification.
+The Linux source-first package step installs GLFW/Xvfb and executes the existing
+packer/consumer gate under a real X11 display. SystemAware initialization may
+query that display's primary monitor; missing display support is not replaced
+with a fabricated 96-DPI result. Existing job/case deadlines and all assertions
+remain unchanged. An Xvfb monitor is not a high-DPI desktop reference.
+
 SystemAware primary-monitor sampling, logical/device coordinate mapping, source
 auto-scale, native popup placement and desktop pixels require their separate
 runtime implementation and real Windows/reference evidence. In particular,

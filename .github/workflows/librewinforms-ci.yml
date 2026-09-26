@@ -55,10 +55,12 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install software WebGPU adapter
+      - name: Install Linux display and software WebGPU adapter
         shell: bash
         run: |
           ./external/ProGPU/eng/progpu-install-linux-packages.sh \
+            xvfb \
+            libglfw3 \
             libvulkan1 \
             mesa-vulkan-drivers
 
@@ -78,7 +80,7 @@ jobs:
 
       - name: Pack and consume canonical source-first package
         shell: bash
-        run: ./eng/librewinforms-pack-source-first.sh
+        run: xvfb-run -a ./eng/librewinforms-pack-source-first.sh
 
       - name: Retain application isolation package evidence
         if: always()
