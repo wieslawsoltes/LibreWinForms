@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 import zipfile
 
 
@@ -82,8 +83,34 @@ class PopupDesktopContracts(unittest.TestCase):
                 self.assertEqual((staged / mode / "Program.cs").read_bytes(), (PREPARE.SOURCE / "Program.cs").read_bytes())
             self.assertIn("LibreWinForms.Sdk/1.2.3", (staged / "Portable/PopupInteractionApp.csproj").read_text())
             self.assertIn('Sdk="Microsoft.NET.Sdk"', (staged / "Microsoft/PopupInteractionApp.csproj").read_text())
+            for mode, tfm in (("Microsoft", "net11.0-windows"), ("Portable", "net11.0")):
+                project = ET.parse(staged / mode / "PopupInteractionApp.csproj")
+                self.assertEqual(project.findtext("PropertyGroup/TargetFramework"), tfm)
             with self.assertRaisesRegex(ValueError, "must be new"):
                 PREPARE.prepare(staged, root, "1.2.3", "1.2.3", "1.2.3", "11.0.100")
+
+    def test_driver_accepts_only_current_consumer_framework_output_paths(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = (PREPARE.SOURCE / "Program.cs").read_bytes()
+            manifest = dict(schema="popup-interaction-preparation-v1", sourceSha256=DRIVER.digest(PREPARE.SOURCE / "Program.cs"))
+            (root / "preparation.json").write_text(json.dumps(manifest))
+            current = []
+            previous = []
+            for mode, suffix in (("Microsoft", "-windows"), ("Portable", "")):
+                project = root / mode
+                project.mkdir()
+                (project / "Program.cs").write_bytes(source)
+                for version, outputs in (("11", current), ("10", previous)):
+                    output = project / f"bin/Release/net{version}.0{suffix}/PopupInteractionApp.exe"
+                    output.parent.mkdir(parents=True)
+                    output.write_bytes(b"inert output-path fixture; never executed")
+                    outputs.append(output.resolve())
+            self.assertEqual(DRIVER.check_preparation(root, *current), manifest)
+            for reference, portable in ((previous[0], current[1]), (current[0], previous[1])):
+                with self.subTest(reference=reference, portable=portable):
+                    with self.assertRaisesRegex(RuntimeError, "explicit prepared consumer output"):
+                        DRIVER.check_preparation(root, reference, portable)
 
     def test_wrong_package_identity_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:

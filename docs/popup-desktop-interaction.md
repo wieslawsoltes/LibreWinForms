@@ -20,8 +20,8 @@ job, archive hash and original package manifest. Do not qualify a failed produce
 because this fixture builds. Stage the complete original private dependency feed;
 the preparation tool records the three direct package hashes but does not replace
 the existing full package/source-identity verifier. Main at `94eb1b90b` contains
-physical popup admission; full keyboard phases additionally require the later
-dropdown keyboard/outside-pointer and initial Alt/F10 changes (PRs 71/72).
+physical popup admission; full keyboard phases additionally require the dropdown
+keyboard/outside-pointer and initial Alt/F10 changes (PRs 71/72, now merged).
 
 On the later, explicitly authorized Windows desktop, create a fresh task-owned
 parent directory and run (substitute actual successful package versions):
@@ -39,6 +39,10 @@ python eng/librewinforms-prepare-popup-desktop.py `
 Preparation creates independent Microsoft/Portable projects outside the repository
 build graph, byte-compares both Program.cs copies with the checked-in source, and
 pins the compiler without roll-forward. It never builds or starts an application.
+Both projects target the installed SDK's consumer framework contract: `net11.0`
+for Portable and `net11.0-windows` for Microsoft. The canonical Forms assembly
+inside the package may target `net10.0`; that does not change the SDK's explicit
+`net11.0` consumer requirement.
 Run the following from the prepared directory, retaining both complete logs and
 the original clean source commit. Use task-owned separate NuGet caches:
 
@@ -66,8 +70,8 @@ Create the evidence parent first, then invoke from the repository:
 ```powershell
 python eng/librewinforms-popup-desktop.py `
   --prepared-root C:\Temp\popup-interaction\prepared `
-  --reference-app C:\Temp\popup-interaction\prepared\Microsoft\bin\Release\net10.0-windows\PopupInteractionApp.exe `
-  --portable-app C:\Temp\popup-interaction\prepared\Portable\bin\Release\net10.0\PopupInteractionApp.exe `
+  --reference-app C:\Temp\popup-interaction\prepared\Microsoft\bin\Release\net11.0-windows\PopupInteractionApp.exe `
+  --portable-app C:\Temp\popup-interaction\prepared\Portable\bin\Release\net11.0\PopupInteractionApp.exe `
   --evidence-parent C:\Temp\popup-interaction\evidence
 ```
 
@@ -105,7 +109,7 @@ fidelity remain separate cases; this Windows driver must not fabricate them.
 
 ## Implementation validation and sources
 
-The unchanged Microsoft project/source at `4ee4336ba` cross-compiled on macOS with
+The historical `net10.0-windows` Microsoft project/source at `4ee4336ba` cross-compiled on macOS with
 .NET SDK `11.0.100-preview.5.26302.115`, Microsoft's `10.0.8` WindowsDesktop reference
 pack and a `win-arm64` framework-dependent apphost: **0 warnings, 0 errors**, 4.80 s.
 The isolated external directory had its own NuGet feed configuration, caches and
@@ -115,12 +119,18 @@ passed; the apphost is an actual Windows ARM64 PE. The shared Program.cs SHA-256
 
 The driver/preparer/tests also passed Python bytecode compilation; this does not
 initialize or validate Win32 interop. `eng/tests/test_popup_desktop_harness.py`
-passes eight offline preparation/safety cases and runs before the unchanged
+passes nine offline preparation/safety cases and runs before the unchanged
 canonical source lane in CI. The first offline run exposed a missing `returncode`
 field in the inert process fixture; that fixture was corrected without changing
-the PID-rejection assertion. The installed portable project and all actual
-Windows input/screenshots remain **uncompiled/unrun and unqualified**, respectively.
-No native application or VM was started for these compile checks.
+the PID-rejection assertion. A later actual Windows build of the PR72 installed
+portable package rejected the old `net10.0` consumer at
+`LibreWinForms.Sdk.targets` line 11: its guard requires `net11.0`. That failed
+build and original preparation are retained; both templates and the driver's
+strict output-path admission now use the required .NET 11 frameworks, with an
+offline negative control rejecting the old .NET 10 output paths. Program.cs is
+unchanged. The earlier reference compile does not qualify these corrected
+projects; their actual compilation and all Windows input/screenshots remain
+separate pending gates. No native application was started for the offline checks.
 
 The Win32 driver follows Microsoft's original contracts for
 [SendInput](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput),

@@ -369,7 +369,7 @@ def check_preparation(prepared, reference, portable):
     require(manifest.get("schema") == "popup-interaction-preparation-v1", "Unknown source preparation receipt")
     require(manifest["sourceSha256"] == digest(Path(__file__).resolve().parent / "PopupInteractionApp/Program.cs"),
             "Prepared source differs from this checked-in scenario")
-    for mode, executable, tfm in (("Microsoft", reference, "net10.0-windows"), ("Portable", portable, "net10.0")):
+    for mode, executable, tfm in (("Microsoft", reference, "net11.0-windows"), ("Portable", portable, "net11.0")):
         require(digest(prepared / mode / "Program.cs") == manifest["sourceSha256"], "Paired source bytes changed")
         require(executable == (prepared / mode / "bin/Release" / tfm / "PopupInteractionApp.exe").resolve(strict=True),
                 "Executable is not the explicit prepared consumer output")
