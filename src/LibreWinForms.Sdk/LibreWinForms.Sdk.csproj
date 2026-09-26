@@ -27,7 +27,12 @@
                                          ../System.Windows.Forms.Analyzers.CSharp/src/System.Windows.Forms.Analyzers.CSharp.csproj;
                                          ../System.Windows.Forms.Analyzers.VisualBasic/src/System.Windows.Forms.Analyzers.VisualBasic.vbproj" />
     <ProjectReference Include="@(_LibreWinFormsAnalyzerProject)"
-                      ReferenceOutputAssembly="false" PrivateAssets="all" />
+                      ReferenceOutputAssembly="false" PrivateAssets="all">
+      <!-- This SDK project is intentionally outside Arcade. Its restore owns
+           the package location; Arcade's CI-only .packages default must not
+           replace that location when loading the original analyzer imports. -->
+      <AdditionalProperties Condition="'$(NuGetPackageRoot)' != ''">NuGetPackageRoot=$(NuGetPackageRoot)</AdditionalProperties>
+    </ProjectReference>
   </ItemGroup>
 
   <Target Name="CollectLibreWinFormsSdkAnalyzers" DependsOnTargets="ResolveProjectReferences">
@@ -35,7 +40,7 @@
          do not bundle Roslyn or test/runtime dependencies into the SDK. -->
     <MSBuild Projects="@(_LibreWinFormsAnalyzerProject)"
              Targets="GetPackageContent"
-             Properties="Configuration=$(Configuration);TargetFramework=netstandard2.0"
+             Properties="Configuration=$(Configuration);TargetFramework=netstandard2.0;NuGetPackageRoot=$(NuGetPackageRoot)"
              BuildInParallel="false">
       <Output TaskParameter="TargetOutputs" ItemName="_LibreWinFormsAnalyzerPackageFile" />
     </MSBuild>
