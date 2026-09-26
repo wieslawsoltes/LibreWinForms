@@ -105,6 +105,7 @@ The preview package set is defined in `eng/librewinforms-package-list.sh` and va
 | `LibreWinForms.System.Windows.Forms` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.System.Windows.Forms.svg)](https://www.nuget.org/packages/LibreWinForms.System.Windows.Forms) | Canonical source-built `System.Windows.Forms` implementation and reference assets. |
 | `LibreWinForms.ProGPU` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.ProGPU.svg)](https://www.nuget.org/packages/LibreWinForms.ProGPU) | Typed ProGPU/Silk.NET platform backend for canonical WinForms. |
 | `LibreWinForms.WindowsFormsIntegration` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.WindowsFormsIntegration.svg)](https://www.nuget.org/packages/LibreWinForms.WindowsFormsIntegration) | Real LibreWPF `WindowsFormsIntegration` source built and qualified against canonical LibreWinForms. |
+| `LibreWinForms.ApplicationIsolation` | Source-first feed; not yet published | Optional BCL-only launcher and primitive result contract for a separate portable application; see [process isolation](docs/librewinforms/application-isolation.md). |
 
 ### Bridge Packages
 

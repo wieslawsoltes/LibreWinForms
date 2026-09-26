@@ -64,6 +64,11 @@ A source-linked BCL-only .NET 10 probe compiled with zero warnings/errors and
 executed four cases: valid Unicode plus bad version and escaped lone-surrogate
 key/value payloads. The three negative cases reproduced escaped exceptions
 before correction and now retain the child's exit code 29 with a protocol error.
-This does not qualify the separate fifteen-case installed-package gate or GUI.
-Those still require exact-head CI. The new package is not published to NuGet by
-this PR; source-first feed consumption is explicit.
+This does not qualify GUI execution. At `f39cb7fe6`, the Ubuntu package job
+`108475083575` passed all fifteen installed-package cases and all 54 existing
+analyzer/default-font contracts. Its later release inventory check correctly
+rejected the new isolation package because the package list omitted it. The
+follow-up adds only that exact package to the shared inventory; missing and
+unexpected package checks remain intact. The complete replacement Build still
+must pass before merge. The new package is not published to NuGet by this PR;
+source-first feed consumption is explicit.
