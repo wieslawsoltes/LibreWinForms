@@ -888,11 +888,15 @@ public partial class ToolStripDropDown : ToolStrip
     {
         if (TopMost)
         {
+#if LIBREWINFORMS_PORTABLE
+            SetPortableWindowTopMost(topMost);
+#else
             PInvoke.SetWindowPos(
                 this,
                 topMost ? HWND.HWND_TOPMOST : HWND.HWND_NOTOPMOST,
                 0, 0, 0, 0,
                 SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+#endif
         }
     }
 
@@ -900,6 +904,9 @@ public partial class ToolStripDropDown : ToolStrip
     {
         if (disposing)
         {
+#if LIBREWINFORMS_PORTABLE
+            ReleasePortableActivation(disposing: true);
+#endif
             SourceControlInternal = null;
         }
 
@@ -937,17 +944,17 @@ public partial class ToolStripDropDown : ToolStrip
     {
         base.CreateHandle();
 
-#if !LIBREWINFORMS_PORTABLE
         if (TopLevel)
         {
+#if !LIBREWINFORMS_PORTABLE
             ReparentToDropDownOwnerWindow();
+#endif
 
             if (!AutoClose || !WorkingAreaConstrained)
             {
                 ApplyTopMost(true);
             }
         }
-#endif
 
         if (DesignMode)
         {
