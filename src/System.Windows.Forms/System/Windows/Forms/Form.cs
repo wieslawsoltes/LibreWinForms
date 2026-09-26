@@ -6647,16 +6647,16 @@ public partial class Form : ContainerControl
 
     private unsafe void UpdateMenuHandles(bool recreateMenu = false)
     {
-#if LIBREWINFORMS_PORTABLE
-        // MenuStrip is painted by the canonical control tree. Portable Form
-        // handles have no Win32 HMENU to remove or native menu bar to redraw.
-        _formStateEx[s_formStateExUpdateMenuHandlesDeferred] = 0;
-#else
         if (!IsHandleCreated)
         {
             return;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        // MenuStrip is painted by the canonical control tree. Portable Form
+        // handles have no Win32 HMENU to remove or native menu bar to redraw.
+        _formStateEx[s_formStateExUpdateMenuHandlesDeferred] = 0;
+#else
         if (_ctlClient is null || !_ctlClient.IsHandleCreated)
         {
             PInvoke.SetMenu(this, HMENU.Null);
