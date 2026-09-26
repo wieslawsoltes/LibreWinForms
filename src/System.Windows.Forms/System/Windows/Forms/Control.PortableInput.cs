@@ -29,12 +29,21 @@ public unsafe partial class Control
     private Control? _portablePressedControl;
     private MouseButtons _portablePressedButton;
     private bool _portableWindowFocused;
+    private bool _portableControlFocusNotified;
+    private uint _portableWindowFocusVersion;
     private bool _portableSuppressKeyPress;
     private LibreCursorShape? _portableAppliedCursorShape;
 
     internal void DispatchPortableInput(in LibreInputEvent inputEvent)
     {
         Control root = GetPortableTopLevelControl();
+        if (inputEvent.Kind == LibreInputEventKind.FocusLost && !root._portableWindowFocused)
+        {
+            // A delayed loss from the previous owner must not clear the new
+            // owner's thread-wide key/modifier state.
+            return;
+        }
+
         s_portablePointerRoot = root;
         s_portableModifierKeys = ToKeys(inputEvent.Modifiers);
 
@@ -44,9 +53,6 @@ public unsafe partial class Control
                 root.SetPortableWindowFocus(focused: true);
                 break;
             case LibreInputEventKind.FocusLost:
-                s_portableModifierKeys = Keys.None;
-                s_portableKeysDown?.Clear();
-                root._portableSuppressKeyPress = false;
                 root.SetPortableWindowFocus(focused: false);
                 break;
             case LibreInputEventKind.KeyDown:
@@ -108,44 +114,94 @@ public unsafe partial class Control
         root.RefreshPortableCursor();
     }
 
-    private void SetPortableWindowFocus(bool focused)
+    internal void SetPortableWindowFocus(bool focused)
     {
+        if (focused && (!Visible || !IsHandleCreated || IsDisposed || Disposing))
+        {
+            return;
+        }
+
         if (_portableWindowFocused == focused)
         {
             return;
         }
 
+        if (!focused)
+        {
+            _portableSuppressKeyPress = false;
+            if (this is not Form owner || owner.IsPortableActivationOwner)
+            {
+                s_portableModifierKeys = Keys.None;
+                s_portableKeysDown?.Clear();
+            }
+        }
+
         _portableWindowFocused = focused;
+        uint version = ++_portableWindowFocusVersion;
+        Control? losingFocus = !focused && _portableControlFocusNotified ? _portableFocusedControl : null;
+        if (!focused)
+        {
+            _portableControlFocusNotified = false;
+        }
+
         if (this is Form form)
         {
-            Form.SetPortableActiveForm(focused ? form : null);
+            form.UpdatePortableActivation(focused);
+        }
+
+        // Canonical activation/focus callbacks can hide, dispose or transfer
+        // ownership. Never complete the superseded focus transition afterward.
+        if (version != _portableWindowFocusVersion)
+        {
+            return;
         }
 
         if (focused)
         {
-            Control target = _portableFocusedControl ?? this;
-            _portableFocusedControl = target;
-            target.InvokeGotFocus(target, EventArgs.Empty);
+            NotifyPortableControlFocus();
         }
-        else if (_portableFocusedControl is { } target)
+        else if (losingFocus is not null)
         {
-            target.InvokeLostFocus(target, EventArgs.Empty);
+            losingFocus.InvokeLostFocus(losingFocus, EventArgs.Empty);
         }
+    }
+
+    private void NotifyPortableControlFocus()
+    {
+        if (!_portableWindowFocused || _portableControlFocusNotified || IsDisposed || Disposing || !Visible)
+        {
+            return;
+        }
+
+        Control target = _portableFocusedControl ?? this;
+        _portableFocusedControl = target;
+        _portableControlFocusNotified = true;
+        target.InvokeGotFocus(target, EventArgs.Empty);
     }
 
     private void SetPortableFocus(Control target)
     {
         if (_portableFocusedControl == target)
         {
+            NotifyPortableControlFocus();
             return;
         }
 
         Control? previous = _portableFocusedControl;
+        bool previousNotified = _portableControlFocusNotified;
         _portableFocusedControl = target;
+        _portableControlFocusNotified = false;
         if (_portableWindowFocused)
         {
-            previous?.InvokeLostFocus(previous, EventArgs.Empty);
-            target.InvokeGotFocus(target, EventArgs.Empty);
+            if (previousNotified)
+            {
+                previous?.InvokeLostFocus(previous, EventArgs.Empty);
+            }
+
+            if (_portableFocusedControl == target)
+            {
+                NotifyPortableControlFocus();
+            }
         }
     }
 

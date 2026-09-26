@@ -4095,9 +4095,9 @@ public partial class CanonicalLifecycleTests
         platform.SawCreateGraphicsTranslatedFill.Should().BeTrue();
         inputException.Should().BeNull();
         inputEvents.Should().ContainInOrder(
+            nameof(child.GotFocus),
             nameof(child.MouseEnter),
             nameof(child.MouseMove),
-            nameof(child.GotFocus),
             nameof(child.MouseDown),
             nameof(child.Click),
             nameof(child.MouseUp),
@@ -4106,6 +4106,7 @@ public partial class CanonicalLifecycleTests
             nameof(child.KeyPress),
             nameof(child.KeyUp),
             nameof(child.LostFocus));
+        inputEvents.Count(value => value == nameof(child.GotFocus)).Should().Be(1);
         mouseLocation.Should().Be(new Point(5, 6));
         mousePosition.Should().Be(new Point(57, 74));
         focusedDuringGotFocus.Should().BeTrue();
@@ -4834,6 +4835,8 @@ public partial class CanonicalLifecycleTests
                 firstDialog.Owner.Should().Be(owner);
 
                 firstDialog.Activate();
+                platform.SendFormInput(firstDialog, LibreInputEventKind.FocusGained);
+                Form.ActiveForm.Should().BeSameAs(firstDialog);
                 nestedResult = nestedDialog.ShowDialog();
                 events.Add("nested-returned");
                 firstRestoredAfterNested = platform.IsWindowEnabled(firstDialog);
@@ -4853,6 +4856,8 @@ public partial class CanonicalLifecycleTests
                 events.Add("owner-shown");
                 platform.TrackForm(owner);
                 owner.Activate();
+                platform.SendFormInput(owner, LibreInputEventKind.FocusGained);
+                Form.ActiveForm.Should().BeSameAs(owner);
                 ownerChild.Enabled = false;
                 ownerPlatformEnabledAfterChildDisable = platform.IsWindowEnabled(owner);
                 ownerChild.Enabled = true;
@@ -6755,6 +6760,13 @@ public partial class CanonicalLifecycleTests
         {
             Handles.TryGet(GetWindowHandle(form), out HeadlessWindow? window).Should().BeTrue();
             return window!.Owner;
+        }
+
+        internal void SendFormInput(Form form, LibreInputEventKind kind)
+        {
+            Handles.TryGet(GetWindowHandle(form), out HeadlessWindow? window).Should().BeTrue();
+            window!.SendInput(new LibreInputEvent(kind, 1, LibreInputModifiers.None,
+                LibreKey.Unknown, null, default, default, LibrePointerButton.None));
         }
 
         internal void SendInput(
