@@ -944,7 +944,9 @@ public abstract partial class TextBoxBase : Control
 
                 if (IsHandleCreated)
                 {
+#if !LIBREWINFORMS_PORTABLE
                     PInvokeCore.SendMessage(this, PInvokeCore.EM_SETREADONLY, (WPARAM)(BOOL)value);
+#endif
                     EnsureReadonlyBackgroundColor(value);
                 }
 
@@ -1001,6 +1003,9 @@ public abstract partial class TextBoxBase : Control
     /// </summary>
     internal virtual void SetSelectedTextInternal(string? text, bool clearUndo)
     {
+#if LIBREWINFORMS_PORTABLE
+        ReplacePortableSelection(text ?? string.Empty, userInput: false, modified: !clearUndo);
+#else
         if (!IsHandleCreated)
         {
             CreateHandle();
@@ -1028,6 +1033,7 @@ public abstract partial class TextBoxBase : Control
 
         // Re-enable user input.
         PInvokeCore.SendMessage(this, PInvokeCore.EM_LIMITTEXT, (WPARAM)_maxLength);
+#endif
     }
 
     /// <summary>
@@ -1092,7 +1098,9 @@ public abstract partial class TextBoxBase : Control
             if (value != base.Text)
             {
                 base.Text = value;
-#if !LIBREWINFORMS_PORTABLE
+#if LIBREWINFORMS_PORTABLE
+                Modified = false;
+#else
                 if (IsHandleCreated)
                 {
                     // clear the modified flag

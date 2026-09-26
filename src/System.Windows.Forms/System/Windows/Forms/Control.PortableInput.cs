@@ -29,6 +29,7 @@ public unsafe partial class Control
     private Control? _portablePressedControl;
     private MouseButtons _portablePressedButton;
     private bool _portableWindowFocused;
+    private bool _portableSuppressKeyPress;
     private LibreCursorShape? _portableAppliedCursorShape;
 
     internal void DispatchPortableInput(in LibreInputEvent inputEvent)
@@ -45,15 +46,25 @@ public unsafe partial class Control
             case LibreInputEventKind.FocusLost:
                 s_portableModifierKeys = Keys.None;
                 s_portableKeysDown?.Clear();
+                root._portableSuppressKeyPress = false;
                 root.SetPortableWindowFocus(focused: false);
                 break;
             case LibreInputEventKind.KeyDown:
+                root._portableSuppressKeyPress = false;
                 SetPortableKeyState(inputEvent.Key, isDown: true);
                 root.DispatchPortableKey(inputEvent.Key, PInvokeCore.WM_KEYDOWN);
                 break;
             case LibreInputEventKind.KeyUp:
                 SetPortableKeyState(inputEvent.Key, isDown: false);
-                root.DispatchPortableKey(inputEvent.Key, PInvokeCore.WM_KEYUP);
+                try
+                {
+                    root.DispatchPortableKey(inputEvent.Key, PInvokeCore.WM_KEYUP);
+                }
+                finally
+                {
+                    root._portableSuppressKeyPress = false;
+                }
+
                 break;
             case LibreInputEventKind.TextInput:
                 root.DispatchPortableText(inputEvent.Text);
@@ -155,13 +166,13 @@ public unsafe partial class Control
 
         if (PreProcessControlMessageInternal(target, ref message) != PreProcessControlState.MessageProcessed)
         {
-            target.ProcessKeyMessage(ref message);
+            target.ProcessPortableKeyMessage(ref message);
         }
     }
 
     private void DispatchPortableText(string? text)
     {
-        if (string.IsNullOrEmpty(text))
+        if (string.IsNullOrEmpty(text) || _portableSuppressKeyPress)
         {
             return;
         }
@@ -169,18 +180,49 @@ public unsafe partial class Control
         Control target = _portableFocusedControl ?? this;
         foreach (char character in text)
         {
-            Message message = Message.Create(target.Handle, (int)PInvokeCore.WM_CHAR, character, 0);
-            if (Application.FilterMessage(ref message))
+            if (target.IsDisposed || target.Disposing || _portableSuppressKeyPress)
             {
-                continue;
+                break;
             }
 
-            if (PreProcessControlMessageInternal(target, ref message) != PreProcessControlState.MessageProcessed)
+            target.ProcessPortableCharacter(character);
+        }
+    }
+
+    internal void ProcessPortableCharacter(char character)
+    {
+        Message message = Message.Create(Handle, (int)PInvokeCore.WM_CHAR, character, 0);
+        if (!Application.FilterMessage(ref message)
+            && PreProcessControlMessageInternal(this, ref message) != PreProcessControlState.MessageProcessed)
+        {
+            ProcessPortableKeyMessage(ref message);
+        }
+    }
+
+    // The managed event/preprocessing path precedes the platform edit-control
+    // default operation, just as WmKeyChar precedes DefWndProc on Windows.
+    internal void ProcessPortableKeyMessage(ref Message message)
+    {
+        bool handled = ProcessKeyMessage(ref message);
+        if (!IsDisposed)
+        {
+            ProcessPortableTranslatedKey(ref message);
+            if (!handled && !IsDisposed)
             {
-                target.ProcessKeyMessage(ref message);
+                ProcessPortableDefaultKeyMessage(ref message);
             }
         }
     }
+
+    internal virtual void ProcessPortableTranslatedKey(ref Message message) { }
+
+    internal virtual void ProcessPortableDefaultKeyMessage(ref Message message) { }
+
+    internal bool IsPortableKeyPressSuppressed
+        => GetPortableTopLevelControl()._portableSuppressKeyPress;
+
+    internal void SuppressPortableKeyPress()
+        => GetPortableTopLevelControl()._portableSuppressKeyPress = true;
 
     private void DispatchPortablePointer(in LibreInputEvent inputEvent)
     {
