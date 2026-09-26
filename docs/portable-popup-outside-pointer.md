@@ -27,10 +27,15 @@ delivered into a disposed or replacement window. Canonical callback exceptions
 remain exceptions, not ignored close failures.
 
 `CanonicalPopupPointerTests.cs` adds 19 typed-platform cases to the original
-300-case source gate (minimum 319). It exercises actual source menus, buttons,
+300-case source gate. It exercises actual source menus, buttons,
 hosted controls, nested cancellation, close ordering, sibling windows, reentrant
 opening, receiver disposal and preserved exceptions. No old test selector or
-assertion is removed. The cases have not yet been built or executed.
+assertion is removed. Three additional MenuStrip continuation cases cover an
+outside editor click, an inside-strip click and a continuation replaced during
+`Closed`. The outside press retires only its original continuation lease, using
+canonical selection clearing and menu-mode exit. With the 16 keyboard cases,
+the combined source minimum is 338. These pointer cases have not yet been built
+or executed.
 
 This is source input integration. It does not qualify an OS-wide outside click,
 other-process dismissal, compositor/window-manager capture, native keyboard
