@@ -19,14 +19,15 @@ public partial class ToolStripDropDown
         return null;
     }
 
-    private static void SetPortableKeyboardContinuation(ToolStrip strip)
+    internal static bool SetPortableKeyboardContinuation(ToolStrip strip, bool requireMainMenu = false)
     {
         if (s_portableKeyboardContinuation is { IsLive: true } current && ReferenceEquals(current.Strip, strip))
-            return;
+            return true;
         ClearPortableKeyboardContinuation();
-        if (strip.IsDisposed || strip.Disposing || !strip.Visible || !strip.IsHandleCreated
+        if (s_portableKeyboardContinuation is not null
+            || strip.IsDisposed || strip.Disposing || !strip.Visible || !strip.IsHandleCreated
             || strip.FindForm() is not { IsDisposed: false, Disposing: false, Visible: true } owner)
-            return;
+            return false;
         PortableKeyboardContinuation continuation = new(strip, owner);
         s_portableKeyboardContinuation = continuation;
         continuation.Attach();
@@ -36,9 +37,13 @@ public partial class ToolStripDropDown
         }
         finally
         {
-            if (ReferenceEquals(s_portableKeyboardContinuation, continuation) && !continuation.IsLive)
+            if (ReferenceEquals(s_portableKeyboardContinuation, continuation)
+                && (!continuation.IsLive || (requireMainMenu && (!strip.Enabled || !owner.IsPortableActivationOwner
+                    || !ReferenceEquals(ToolStripManager.GetMainMenuStrip(owner), strip)))))
                 ClearPortableKeyboardContinuation();
         }
+
+        return ReferenceEquals(s_portableKeyboardContinuation, continuation) && continuation.IsLive;
     }
 
     internal static void ClearPortableKeyboardContinuation()
