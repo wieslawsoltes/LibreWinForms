@@ -6,6 +6,13 @@ namespace System.Windows.Forms;
 
 public partial class Control
 {
+    internal event Action<bool>? PortableHostedFocusLifetimeChanged;
+
+    internal void NotifyPortableHostedFocusLifetime(bool retiring = false)
+        => PortableHostedFocusLifetimeChanged?.Invoke(retiring);
+
+    internal bool PortableHasWindowFocus => _portableWindowFocused;
+
     private Control GetPortableFocusRoot()
     {
         Control root = GetPortableTopLevelControl();

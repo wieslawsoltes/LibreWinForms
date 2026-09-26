@@ -7204,6 +7204,9 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected virtual void OnEnabledChanged(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        NotifyPortableHostedFocusLifetime();
+#endif
         if (GetAnyDisposingInHierarchy())
         {
             return;
@@ -7591,6 +7594,9 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected virtual void OnVisibleChanged(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        NotifyPortableHostedFocusLifetime();
+#endif
         bool visible = Visible;
         if (visible)
         {
@@ -7646,6 +7652,9 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected virtual void OnParentChanged(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        NotifyPortableHostedFocusLifetime(retiring: true);
+#endif
         if (Events[s_parentEvent] is EventHandler eh)
         {
             eh(this, e);
@@ -7887,6 +7896,9 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected virtual void OnHandleDestroyed(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        NotifyPortableHostedFocusLifetime(retiring: true);
+#endif
         ((EventHandler?)Events[s_handleDestroyedEvent])?.Invoke(this, e);
 
 #if LIBREWINFORMS_PORTABLE

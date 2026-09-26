@@ -146,6 +146,100 @@ public partial class CanonicalLifecycleTests
         });
     }
 
+    [Theory]
+    [InlineData("hide")]
+    [InlineData("disable")]
+    [InlineData("unparent")]
+    public void HostedMenuLifetimeRetiresBeforeEarlierPublicCallbacksCanThrow(string transition)
+    {
+        RunDropdownKeyboard((platform, owner, editor) =>
+        {
+            using ContextMenuStrip menu = new();
+            TextBox hosted = AddHostedMenuTextBox(menu);
+            using ToolStripItem host = menu.Items[0];
+            var failure = new InvalidOperationException("hosted lifetime callback");
+            bool fail = false;
+            menu.VisibleChanged += (_, _) => { if (fail && transition == "hide" && !menu.Visible) throw failure; };
+            hosted.EnabledChanged += (_, _) => { if (fail && transition == "disable") throw failure; };
+            hosted.ParentChanged += (_, _) => { if (fail && transition == "unparent") throw failure; };
+            menu.Show(owner, new Point(10, 80));
+            ClickHostedMenuTextBox(platform, menu, hosted);
+            hosted.Focused.Should().BeTrue();
+            fail = true;
+            try
+            {
+                Action change = () =>
+                {
+                    if (transition == "hide") menu.Hide();
+                    else if (transition == "disable") hosted.Enabled = false;
+                    else menu.Items.Remove(host);
+                };
+                change.Should().Throw<InvalidOperationException>().Which.Should().BeSameAs(failure);
+            }
+            finally
+            {
+                fail = false;
+            }
+
+            hosted.Focused.Should().BeFalse();
+            editor.Focused.Should().BeTrue();
+            menu.Close();
+            SendDropdownText(platform, owner, "owner");
+            editor.Text.Should().Be("owner");
+            hosted.Text.Should().BeEmpty();
+        });
+    }
+
+    [Fact]
+    public void HostedMenuLostFocusCanEstablishAReplacementWithoutOldCleanupOverwritingIt()
+    {
+        RunDropdownKeyboard((platform, owner, editor) =>
+        {
+            using ContextMenuStrip menu = new();
+            using ContextMenuStrip replacement = new();
+            TextBox hosted = AddHostedMenuTextBox(menu);
+            TextBox replacementEditor = AddHostedMenuTextBox(replacement);
+            menu.Show(owner, new Point(10, 80));
+            ClickHostedMenuTextBox(platform, menu, hosted);
+            hosted.LostFocus += (_, _) =>
+            {
+                replacement.Show(owner, new Point(10, 100));
+                ClickHostedMenuTextBox(platform, replacement, replacementEditor);
+            };
+            menu.Close();
+            replacementEditor.Focused.Should().BeTrue();
+            editor.Focused.Should().BeFalse();
+            SendDropdownText(platform, owner, "replacement");
+            replacementEditor.Text.Should().Be("replacement");
+            hosted.Text.Should().BeEmpty();
+            replacement.Close();
+            editor.Focused.Should().BeTrue();
+        });
+    }
+
+    [Fact]
+    public void HostedMenuClosedByGotFocusDoesNotReceiveThePendingPointerDown()
+    {
+        RunDropdownKeyboard((platform, owner, editor) =>
+        {
+            using ContextMenuStrip menu = new();
+            TextBox hosted = AddHostedMenuTextBox(menu);
+            int pressed = 0;
+            hosted.MouseDown += (_, _) => pressed++;
+            hosted.GotFocus += (_, _) => menu.Close();
+            menu.Show(owner, new Point(10, 80));
+            ClickHostedMenuTextBox(platform, menu, hosted);
+            menu.Visible.Should().BeFalse();
+            hosted.Focused.Should().BeFalse();
+            editor.Focused.Should().BeTrue();
+            pressed.Should().Be(0);
+            Control.MouseButtons.Should().Be(MouseButtons.None);
+            SendDropdownText(platform, owner, "owner");
+            editor.Text.Should().Be("owner");
+            hosted.Text.Should().BeEmpty();
+        });
+    }
+
     private static TextBox AddHostedMenuTextBox(ContextMenuStrip menu, bool toolStripTextBox = false)
     {
         ToolStripControlHost host = toolStripTextBox

@@ -146,6 +146,7 @@ public unsafe partial class Control
         if (!focused)
         {
             _portableControlFocusNotified = false;
+            NotifyPortableHostedFocusLifetime();
         }
 
         if (this is Form form)
@@ -285,6 +286,7 @@ public unsafe partial class Control
             || (processed && message.MsgInternal == PInvokeCore.WM_KEYDOWN)
             || !ReferenceEquals(ToolStripDropDown.GetPortableKeyboardTarget(this), menu)
             || !menu.IsHandleCreated || menu.Handle != menuHandle
+            || (menu is ToolStripDropDown hostedMenu && !ReferenceEquals(hostedMenu.GetPortableHostedKeyboardTarget(), target))
             || !target.IsHandleCreated || target.Handle != handle))
         {
             // Typed backends may deliver a translated character after a
@@ -384,7 +386,18 @@ public unsafe partial class Control
                 s_portableMouseButtons |= button;
                 if (button == MouseButtons.Left && target.GetStyle(ControlStyles.Selectable))
                 {
+                    LibreHandle receivingHandle = _window.PortableHandle;
+                    nint targetHandle = target.Handle;
                     target.Focus();
+                    // GotFocus can close the popup or replace either source
+                    // handle. Do not finish this press in a retired control.
+                    if (!Visible || IsDisposed || Disposing || !IsHandleCreated || _window.PortableHandle != receivingHandle
+                        || !target.Visible || target.IsDisposed || target.Disposing || !target.IsHandleCreated || target.Handle != targetHandle)
+                    {
+                        if (ReferenceEquals(s_portablePointerRoot, this))
+                            s_portableMouseButtons &= ~button;
+                        return;
+                    }
                 }
 
                 _portableCapturedControl = target;

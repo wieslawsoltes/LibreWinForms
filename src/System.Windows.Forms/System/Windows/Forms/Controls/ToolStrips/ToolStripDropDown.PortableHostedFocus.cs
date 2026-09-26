@@ -64,50 +64,48 @@ public partial class ToolStripDropDown
     {
         private readonly nint _menuHandle = menu.Handle;
         private readonly nint _ownerHandle = owner.Handle;
+        private readonly List<Control> _controls = CaptureFocusPath(menu, target);
         internal Form Owner { get; } = owner;
         internal Control Target { get; } = target;
         internal Control? RestoreTarget { get; } = restoreTarget;
         internal bool IsLive => menu is { IsDisposed: false, Disposing: false, Visible: true, IsHandleCreated: true }
             && menu.Handle == _menuHandle
-            && Owner is { IsDisposed: false, Disposing: false, Visible: true, IsHandleCreated: true, IsPortableActivationOwner: true }
+            && Owner is { IsDisposed: false, Disposing: false, Visible: true, IsHandleCreated: true, IsPortableActivationOwner: true, PortableHasWindowFocus: true }
             && Owner.Handle == _ownerHandle
             && Target is { IsDisposed: false, Disposing: false, Visible: true, Enabled: true, IsHandleCreated: true }
             && menu.ContainsPortableHostedControl(Target);
 
         internal void Attach()
         {
-            menu.VisibleChanged += Changed;
-            menu.HandleDestroyed += Changed;
-            menu.Disposed += Changed;
-            Owner.Deactivate += Changed;
-            Owner.VisibleChanged += Changed;
-            Owner.HandleDestroyed += Changed;
-            Target.VisibleChanged += Changed;
-            Target.EnabledChanged += Changed;
-            Target.ParentChanged += Changed;
-            Target.HandleDestroyed += Changed;
-            Target.Disposed += Changed;
+            foreach (Control control in _controls)
+                control.PortableHostedFocusLifetimeChanged += Changed;
+            Owner.PortableHostedFocusLifetimeChanged += Changed;
         }
 
         internal void Detach()
         {
-            menu.VisibleChanged -= Changed;
-            menu.HandleDestroyed -= Changed;
-            menu.Disposed -= Changed;
-            Owner.Deactivate -= Changed;
-            Owner.VisibleChanged -= Changed;
-            Owner.HandleDestroyed -= Changed;
-            Target.VisibleChanged -= Changed;
-            Target.EnabledChanged -= Changed;
-            Target.ParentChanged -= Changed;
-            Target.HandleDestroyed -= Changed;
-            Target.Disposed -= Changed;
+            foreach (Control control in _controls)
+                control.PortableHostedFocusLifetimeChanged -= Changed;
+            Owner.PortableHostedFocusLifetimeChanged -= Changed;
         }
 
-        private void Changed(object? sender, EventArgs e)
+        private void Changed(bool retiring)
         {
-            if (!IsLive)
+            if (retiring || !IsLive)
                 End();
+        }
+
+        private static List<Control> CaptureFocusPath(ToolStripDropDown menu, Control target)
+        {
+            List<Control> controls = [];
+            for (Control? control = target; control is not null; control = control.ParentInternal)
+            {
+                controls.Add(control);
+                if (ReferenceEquals(control, menu))
+                    break;
+            }
+
+            return controls;
         }
 
         internal void End()
