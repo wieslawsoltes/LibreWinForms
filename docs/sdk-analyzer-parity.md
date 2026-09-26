@@ -61,7 +61,7 @@ The compiler-visible `LibreWinFormsSdkOwnsApplicationConfiguration=true` marker
 prevents the original C# configuration generator from producing a second full
 `Initialize` implementation.
 Its behavior is unchanged when the property is absent or false. The SDK retains
-its existing `Initialize` body and bootstrap. In particular,
+ownership of its `Initialize` body and existing bootstrap. In particular,
 `LibreWinFormsGenerateApplicationConfiguration=false` still means that the
 caller owns the class; it does not silently re-enable upstream generation.
 These controls include top-level, block-namespace, and file-scoped programs.
@@ -69,6 +69,9 @@ An explicit font setting now uses a separate optional partial hook, gated by the
 same actual SDK emission predicate; see
 [ApplicationDefaultFont](sdk-application-default-font.md). It does not re-enable
 the upstream defaults or consume the caller-owned opt-out.
+The [DPI policy supplement](sdk-application-high-dpi-mode.md) separately honors
+`ApplicationHighDpiMode`, including its original `SystemAware` default, before
+the optional font hook. It uses the same ownership predicate.
 
 VB qualification here is the actual diagnostic assembly running on an ordinary
 class-library consumer. It does not introduce or claim a new VB application
@@ -76,8 +79,8 @@ bootstrap or designer-host contract.
 
 ## Validation and retained evidence
 
-`eng/librewinforms-source-first.sh` runs the complete 28-case configuration
-generator test class, requiring at least 28 executed tests and rejecting skips,
+`eng/librewinforms-source-first.sh` runs the complete 42-case configuration
+generator test class, requiring at least 42 executed tests and rejecting skips,
 including the original absent-property controls and the explicit SDK-owner
 controls. The original generator deliberately joins adjacent
 application statements with CRLF. Six unmodified golden tests failed on an LF
@@ -101,6 +104,11 @@ hashes under `artifacts/log/analyzer-contract.*`. Its controls cover:
 - Explicit-font generation, canonical invalid-format diagnostics/name sanitation,
   and fresh-process default-font behavior in Project and Package modes, retaining
   absent/empty/whitespace and caller-owned controls plus both library conditions.
+- DPI property/default generation using the original enum parser, invalid-value
+  diagnostics, fresh-process public policy checks, and late/caller-owned property
+  controls in both reference modes, including a successful explicit process
+  policy before Initialize. These bring the existing 54 compiler cases to 88;
+  the original payload, mutation, and source-ownership checks remain.
 - Rejection of scratch archives with missing, modified, extra, or duplicate
   analyzer entries, and actual build rejection after each selected DLL is
   removed from a private extracted SDK copy (never a package cache).
