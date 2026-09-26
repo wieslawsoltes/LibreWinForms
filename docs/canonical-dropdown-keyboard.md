@@ -17,9 +17,11 @@ the owner editor during the same key cycle.
 When an already-open dropdown returns to its MenuStrip, a typed continuation
 retains that strip and Form without activating either window. Existing source
 selection and expansion handle adjacent menus and reopening. Menu-mode exit,
-owner deactivation and strip disposal release the continuation. Initial Alt/F10
-menu-bar activation and hosted-editor focus inside ToolStripControlHost are still
-separate implementation work; this is not a claim of complete keyboard UX.
+owner deactivation and strip disposal release the continuation. Bare Alt/F10
+menu-bar activation is connected separately in
+`portable-menu-key-activation.md`. Hosted-editor focus inside ToolStripControlHost
+and native platform qualification remain outstanding; this is not a claim of
+complete keyboard UX.
 
 `CanonicalDropdownKeyboardTests.cs` contains 16 source cases using actual Forms,
 ContextMenuStrip, ToolStripMenuItem, MenuStrip and TextBox objects. Input enters
