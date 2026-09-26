@@ -315,6 +315,17 @@ public unsafe partial class Control
         Point rootPosition = new(inputEvent.Position.X, inputEvent.Position.Y);
         s_portableMousePosition = PointToScreen(rootPosition);
 
+        if (inputEvent.Kind == LibreInputEventKind.PointerDown
+            && inputEvent.Button is LibrePointerButton.Primary or LibrePointerButton.Secondary or LibrePointerButton.Middle)
+        {
+            LibreHandle receivingHandle = _window.PortableHandle;
+            ToolStripDropDown.ProcessPortablePointerDown(PortableHitTest(rootPosition), s_portableMousePosition);
+            // Closing callbacks may dispose or recreate the receiving window.
+            // Never deliver an old native event into its replacement generation.
+            if (IsDisposed || Disposing || !IsHandleCreated || _window.PortableHandle != receivingHandle)
+                return;
+        }
+
         Control? hit = PortableHitTest(rootPosition);
         UpdatePortableHover(hit);
         Control? target = _portableCapturedControl ?? hit;
