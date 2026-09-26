@@ -45,8 +45,20 @@ The explicit mnemonic source input change is composed separately: backend
 `SystemTextInput` becomes WM_SYSCHAR while ordinary text remains WM_CHAR,
 including AltGr and Option text. Both use the same admitted source focus owner.
 Its eight additional cases raise the combined minimum to 387. The composed
-387-case run and native backend transport are not qualified by the preceding
-379-case result.
+387-case run exposed one ordinary Option-text failure (386 passed, zero skips):
+the portable base Control has no native WM_GETDLGCODE response, so TextBox
+ordinary WM_CHAR incorrectly reached mnemonic processing. The portable
+TextBoxBase now supplies EDIT's documented DLGC_WANTCHARS policy through its
+existing IsInputChar override. Explicit WM_SYSCHAR, key-down dialog policies,
+filters, public modifiers and KeyPress handlers remain on their original paths.
+See Microsoft's [EDIT message contract](https://learn.microsoft.com/en-us/windows/win32/controls/about-edit-controls#edit-control-default-message-processing).
+Three focused controls cover owner/hosted Option text, handled KeyPress and
+single/multiline, accepts flags, read-only/password and control-character
+preprocessing. The corrected combined run passed 390/390, zero skips, on the
+same .NET 10.0.5 ARM64 runtime and unchanged ProGPU source closure. Its source
+build completed with zero errors and 622 existing warnings; the failed 387-case
+run remains retained separately. Native backend transport is not qualified by
+these source results.
 
 These are source lifecycle and editing contracts, not native GUI qualification.
 No VM was used. Native desktop input, installed-package UI, caret/selection

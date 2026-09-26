@@ -6,6 +6,11 @@ namespace System.Windows.Forms;
 
 public abstract partial class TextBoxBase
 {
+    // EDIT reports DLGC_WANTCHARS for both single- and multiline controls.
+    // Preserve that character admission without changing dialog-key policy:
+    // explicit WM_SYSCHAR still takes the canonical mnemonic path first.
+    protected override bool IsInputChar(char charCode) => true;
+
     internal override void ProcessPortableTranslatedKey(ref Message message)
     {
         if (message.MsgInternal == PInvokeCore.WM_KEYDOWN

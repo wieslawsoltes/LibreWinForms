@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Drawing;
 using System.Windows.Forms;
 using FluentAssertions;
 using LibreWinForms.Platform;
@@ -84,6 +85,103 @@ public partial class CanonicalLifecycleTests
             editor.Text.Should().Be("é");
             item.DropDown.Visible.Should().BeFalse();
             item.Selected.Should().BeFalse();
+        });
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void OrdinaryOptionTextPreservesFiltersKeyPressAndActualModifiers(bool hosted)
+    {
+        RunDropdownKeyboard((platform, owner, editor) =>
+        {
+            using ContextMenuStrip menu = new();
+            TextBox target = editor;
+            if (hosted)
+            {
+                target = AddHostedMenuTextBox(menu);
+                menu.Show(owner, new Point(10, 80));
+                ClickHostedMenuTextBox(platform, menu, target);
+            }
+
+            List<string> order = [];
+            bool handled = false;
+            target.KeyPress += (_, e) =>
+            {
+                Control.ModifierKeys.Should().Be(Keys.Alt);
+                e.KeyChar.Should().Be('é');
+                order.Add("key");
+                e.Handled = handled;
+            };
+            CallbackKeyboardFilter filter = new(message =>
+            {
+                if (message.Msg == 0x102) // WM_CHAR, never WM_SYSCHAR
+                {
+                    message.HWnd.Should().Be(target.Handle);
+                    Control.ModifierKeys.Should().Be(Keys.Alt);
+                    order.Add("filter");
+                }
+
+                return false;
+            });
+            Application.AddMessageFilter(filter);
+            try
+            {
+                SendNativeCharacter(platform, owner, "é", system: false, LibreInputModifiers.Alt);
+                target.Text.Should().Be("é");
+                handled = true;
+                SendNativeCharacter(platform, owner, "é", system: false, LibreInputModifiers.Alt);
+                target.Text.Should().Be("é", "handled KeyPress still suppresses default editing");
+            }
+            finally
+            {
+                Application.RemoveMessageFilter(filter);
+            }
+
+            order.Should().Equal("filter", "key", "filter", "key");
+            if (hosted) editor.Text.Should().BeEmpty();
+        });
+    }
+
+    [Fact]
+    public void EditCharacterAdmissionDoesNotChangeSourceDialogKeyPolicies()
+    {
+        RunDropdownKeyboard((platform, owner, editor) =>
+        {
+            using TextBox target = new();
+            foreach (bool multiline in new[] { false, true })
+            {
+                target.Multiline = multiline;
+                foreach (bool accepts in new[] { false, true })
+                {
+                    target.AcceptsReturn = accepts;
+                    target.AcceptsTab = accepts;
+                    foreach (bool readOnly in new[] { false, true })
+                    {
+                        target.ReadOnly = readOnly;
+                        target.PasswordChar = '*';
+                        foreach (char character in new[] { 'é', '\t', '\r', '\b', '\u001b', '\0' })
+                        {
+                            Message message = Message.Create(target.Handle, 0x102, character, 0);
+                            target.PreProcessControlMessage(ref message).Should().Be(PreProcessControlState.MessageNeeded);
+                        }
+
+                        foreach (Keys key in new[] { Keys.Tab, Keys.Return, Keys.Escape, Keys.Back })
+                        {
+                            bool needed = key switch
+                            {
+                                Keys.Tab or Keys.Return => multiline && accepts,
+                                Keys.Back => !readOnly,
+                                _ => false
+                            };
+                            Message message = Message.Create(target.Handle, 0x100, (int)key, 0);
+                            target.PreProcessControlMessage(ref message).Should().Be(needed
+                                ? PreProcessControlState.MessageNeeded
+                                : PreProcessControlState.MessageNotNeeded);
+                        }
+                    }
+                }
+            }
         });
     }
 
