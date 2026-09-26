@@ -103,12 +103,22 @@ fidelity remain separate cases; this Windows driver must not fabricate them.
 
 ## Implementation validation and sources
 
-At introduction the application and driver are **not compiled or run on a native
-desktop**. `eng/tests/test_popup_desktop_harness.py` is offline preparation/safety
-coverage only, never renderer or Windows input qualification. Its six cases pass
-locally and run before the unchanged canonical source lane in normal CI. The first
-offline run exposed a missing `returncode` field in the inert process fixture;
-that fixture was corrected, without changing the PID-rejection assertion.
+The unchanged Microsoft project/source at `4ee4336ba` cross-compiled on macOS with
+.NET SDK `11.0.100-preview.5.26302.115`, Microsoft's `10.0.8` WindowsDesktop reference
+pack and a `win-arm64` framework-dependent apphost: **0 warnings, 0 errors**, 4.80 s.
+The isolated external directory had its own NuGet feed configuration, caches and
+outputs, with no ProGPU/LibreWinForms source graph. Source/project byte comparisons
+passed; the apphost is an actual Windows ARM64 PE. The shared Program.cs SHA-256 is
+`057c07201dcc8b307d78c8cd161d1ba4ad81340af035aead1f7d966d393a89ae`.
+
+The driver/preparer/tests also passed Python bytecode compilation; this does not
+initialize or validate Win32 interop. `eng/tests/test_popup_desktop_harness.py`
+passes six offline preparation/safety cases and runs before the unchanged
+canonical source lane in CI. The first offline run exposed a missing `returncode`
+field in the inert process fixture; that fixture was corrected without changing
+the PID-rejection assertion. The installed portable project and all actual
+Windows input/screenshots remain **uncompiled/unrun and unqualified**, respectively.
+No native application or VM was started for these compile checks.
 
 The Win32 driver follows Microsoft's original contracts for
 [SendInput](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput),
