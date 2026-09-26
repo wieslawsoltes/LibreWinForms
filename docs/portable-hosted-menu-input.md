@@ -41,6 +41,13 @@ warnings against unchanged ProGPU source
 `08f4343ef15328ba742cdcf11f8eb2daeefb5f7b`. All attempts, including the initial
 fixture compiler failure, are retained under `artifacts/dropdown-keyboard/log`.
 
+The explicit mnemonic source input change is composed separately: backend
+`SystemTextInput` becomes WM_SYSCHAR while ordinary text remains WM_CHAR,
+including AltGr and Option text. Both use the same admitted source focus owner.
+Its eight additional cases raise the combined minimum to 387. The composed
+387-case run and native backend transport are not qualified by the preceding
+379-case result.
+
 These are source lifecycle and editing contracts, not native GUI qualification.
 No VM was used. Native desktop input, installed-package UI, caret/selection
 pixels, measured pointer-to-character placement, scrolling and IME remain

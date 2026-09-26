@@ -19,7 +19,7 @@ public partial class Control
         // Cancellation precedes application filters and callbacks. An ignored
         // chord or mouse click must not turn a later Alt release into activation.
         if (input.Kind is LibreInputEventKind.KeyDown or LibreInputEventKind.KeyUp
-            or LibreInputEventKind.TextInput or LibreInputEventKind.PointerDown
+            or LibreInputEventKind.TextInput or LibreInputEventKind.SystemTextInput or LibreInputEventKind.PointerDown
             or LibreInputEventKind.FocusLost)
         {
             _portableMenuInputVersion++;
