@@ -19,17 +19,18 @@ internal sealed class NativeCharacterSequence
     private static NativeCharacterSequence? s_current;
 
     private Pending? _pending;
+    private readonly Queue<(Pending Character, LibreInputEventKind Kind)> _ready = new();
 
     internal static NativeCharacterSequence Current => s_current ??= new();
 
     internal void Modified(INativeCharacterTarget target, uint scalar, LibreInputModifiers modifiers, long timestamp)
     {
         ValidateScalar(scalar);
-        Pending? previous = _pending;
-        // Publish before delivering the previous event. A nested native event
-        // can then consume or replace this exact pending generation safely.
+        // GLFW calls Modified immediately before Plain, when Plain applies.
+        // Never invoke application code between them: a nested event pump must
+        // not consume the outer character before its plain callback arrives.
+        QueueSystem(_pending);
         _pending = new(target, scalar, modifiers, timestamp);
-        EmitSystem(previous);
     }
 
     internal void Plain(INativeCharacterTarget target, uint scalar)
@@ -39,27 +40,45 @@ internal sealed class NativeCharacterSequence
         if (pending is null || !ReferenceEquals(pending.Target, target) || pending.Scalar != scalar)
             throw new InvalidOperationException("The native plain character has no matching modified-character callback.");
         _pending = null;
-        Emit(pending, LibreInputEventKind.TextInput);
+        _ready.Enqueue((pending, LibreInputEventKind.TextInput));
+        Drain();
     }
 
     internal void Flush()
     {
         Pending? pending = _pending;
         _pending = null;
-        EmitSystem(pending);
+        QueueSystem(pending);
+        Drain();
     }
 
     internal void Cancel(INativeCharacterTarget target)
     {
         if (ReferenceEquals(_pending?.Target, target))
             _pending = null;
+        // Queued characters also belong to this exact native owner lifetime.
+        int remaining = _ready.Count;
+        while (remaining-- > 0)
+        {
+            var ready = _ready.Dequeue();
+            if (!ReferenceEquals(ready.Character.Target, target))
+                _ready.Enqueue(ready);
+        }
     }
 
-    private static void EmitSystem(Pending? pending)
+    private void QueueSystem(Pending? pending)
     {
         if (pending is not null && (pending.Modifiers & LibreInputModifiers.Alt) != 0
             && (pending.Modifiers & (LibreInputModifiers.Control | LibreInputModifiers.Meta)) == 0)
-            Emit(pending, LibreInputEventKind.SystemTextInput);
+            _ready.Enqueue((pending, LibreInputEventKind.SystemTextInput));
+    }
+
+    private void Drain()
+    {
+        // Remove before callbacks. A nested pump may drain subsequent ready
+        // characters before its later input without duplicating this event.
+        while (_ready.TryDequeue(out var ready))
+            Emit(ready.Character, ready.Kind);
     }
 
     private static void Emit(Pending pending, LibreInputEventKind kind)

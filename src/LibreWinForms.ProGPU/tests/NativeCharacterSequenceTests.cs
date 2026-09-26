@@ -72,9 +72,49 @@ public sealed class NativeCharacterSequenceTests
         sequence.Modified(first, 'f', LibreInputModifiers.Alt, 1);
         sequence.Modified(second, 's', LibreInputModifiers.Alt, 2);
         sequence.Flush();
+        // The nested unpaired callback is completed at the next native event
+        // boundary; it must not overwrite or be overwritten by the ready queue.
+        sequence.Flush();
         first.Events.Should().ContainSingle();
         second.Events.Should().ContainSingle();
         nested.Events.Should().ContainSingle().Which.Text.Should().Be("n");
+    }
+
+    [Fact]
+    public void ReentrantPlainPairCannotConsumeTheOuterPlainCharacter()
+    {
+        NativeCharacterSequence sequence = new();
+        List<string> order = [];
+        Target nested = new(input => order.Add("nested:" + input.Text));
+        Target first = new(input =>
+        {
+            order.Add("first:" + input.Text);
+            sequence.Modified(nested, 'n', LibreInputModifiers.None, 3);
+            sequence.Plain(nested, 'n');
+        });
+        Target second = new(input => order.Add("second:" + input.Text));
+        sequence.Modified(first, 'f', LibreInputModifiers.Alt, 1);
+        sequence.Modified(second, 'x', LibreInputModifiers.None, 2);
+        order.Should().BeEmpty();
+        sequence.Plain(second, 'x');
+        sequence.Flush();
+        order.Should().Equal("first:f", "second:x", "nested:n");
+        second.Events.Should().ContainSingle().Which.Kind.Should().Be(LibreInputEventKind.TextInput);
+        nested.Events.Should().ContainSingle().Which.Kind.Should().Be(LibreInputEventKind.TextInput);
+    }
+
+    [Fact]
+    public void ReentrantRetirementCancelsQueuedCharactersOfOnlyThatOwner()
+    {
+        NativeCharacterSequence sequence = new();
+        Target second = new();
+        Target first = new(_ => sequence.Cancel(second));
+        sequence.Modified(first, 'f', LibreInputModifiers.Alt, 1);
+        sequence.Modified(second, 'x', LibreInputModifiers.None, 2);
+        sequence.Plain(second, 'x');
+        sequence.Flush();
+        first.Events.Should().ContainSingle();
+        second.Events.Should().BeEmpty();
     }
 
     [Fact]
