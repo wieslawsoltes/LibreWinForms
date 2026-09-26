@@ -536,6 +536,11 @@ public partial class ComboBox : ListControl
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            // The canonical portable focus owner already includes hosted input.
+            // This control has no native edit/list child HWNDs to query.
+            return base.Focused;
+#else
             if (base.Focused)
             {
                 return true;
@@ -544,6 +549,7 @@ public partial class ComboBox : ListControl
             HWND focus = PInvoke.GetFocus();
             return !focus.IsNull
                 && ((_childEdit is not null && focus == _childEdit.Handle) || (_childListBox is not null && focus == _childListBox.Handle));
+#endif
         }
     }
 
