@@ -8,12 +8,13 @@ using Xunit;
 
 namespace LibreWinForms.ProGPU.Tests;
 
+[Collection(ProGpuDesktopCaptureCollection.Name)]
 public class ProGpuDispatcherTests
 {
     [Fact]
     public void CreateServices_UsesTypedProGpuImplementations()
     {
-        LibrePlatformServices services = ProGpuPlatform.CreateServices();
+        using LibrePlatformServices services = ProGpuPlatform.CreateServices();
 
         services.Dispatcher.Should().BeOfType<ProGpuDispatcher>();
         services.ThreadDispatchers.Should().BeSameAs(services.Dispatcher);
@@ -57,12 +58,14 @@ public class ProGpuDispatcherTests
         {
             services.FileDialogs.Should().BeOfType<PreferredLinuxLibreFileDialogService>();
         }
+        else if (OperatingSystem.IsMacOS())
+        {
+            services.FileDialogs.Should().BeOfType<MacOsAppKitFileDialogService>();
+        }
         else
         {
             services.FileDialogs.Should().BeSameAs(UnsupportedLibreFileDialogService.Instance);
         }
-
-        services.Dispose();
     }
 
     [Fact]
