@@ -4082,6 +4082,15 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
         }
     }
 
+#if LIBREWINFORMS_PORTABLE
+    internal void ResetPortableMenuKeyState()
+    {
+        // Finish old source state before MenuDeactivate can create a new lease.
+        _lastMouseDownedItem = null;
+        MenuAutoExpand = false;
+    }
+#endif
+
     // override if you want to control (when TabStop = false) where the focus returns to
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected virtual void RestoreFocus()

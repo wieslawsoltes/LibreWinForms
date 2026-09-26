@@ -36,18 +36,5 @@ public partial class Control
             : (key is Keys.LMenu or Keys.RMenu or Keys.Menu)
                 && (_portableMenuKeyModifiers & ~LibreInputModifiers.Alt) == LibreInputModifiers.None;
 
-    private static void ProcessPortableMenuKeyRelease(Form owner)
-    {
-        if (ToolStripDropDown.GetPortableKeyboardTarget(owner) is ToolStrip { IsDropDown: false } active)
-        {
-            active.RestoreFocusInternal();
-            return;
-        }
-
-        MenuStrip? menu = ToolStripManager.GetMainMenuStrip(owner);
-        if (menu is { Visible: true, Enabled: true, IsHandleCreated: true, IsDisposed: false, Disposing: false }
-            && ReferenceEquals(menu.FindForm(), owner))
-            menu.OnMenuKey();
-    }
 }
 #endif

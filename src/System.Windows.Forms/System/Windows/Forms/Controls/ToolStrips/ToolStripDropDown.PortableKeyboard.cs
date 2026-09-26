@@ -59,6 +59,54 @@ public partial class ToolStripDropDown
         }
     }
 
+    internal readonly struct PortableMenuKeyRelease
+    {
+        private readonly Form _owner;
+        private readonly MenuStrip? _mainMenu;
+        private readonly nint _mainMenuHandle;
+        private readonly PortableKeyboardContinuation? _continuation;
+        private readonly ToolStripDropDown? _dropDown;
+
+        internal PortableMenuKeyRelease(Form owner)
+        {
+            _owner = owner;
+            _mainMenu = ToolStripManager.GetMainMenuStrip(owner);
+            _mainMenuHandle = _mainMenu is { IsHandleCreated: true } ? _mainMenu.Handle : 0;
+            _continuation = s_portableKeyboardContinuation;
+            _dropDown = GetPortableActiveDropDown(owner);
+        }
+
+        internal void Process()
+        {
+            // KeyUp filters and handlers can establish another menu without
+            // sending input or moving focus. Default processing owns only the
+            // exact menu/lease present before those callbacks.
+            if (_dropDown is not null || GetPortableActiveDropDown(_owner) is not null
+                || !ReferenceEquals(s_portableKeyboardContinuation, _continuation)
+                || !ReferenceEquals(ToolStripManager.GetMainMenuStrip(_owner), _mainMenu)
+                || (_mainMenu is not null && (!_mainMenu.IsHandleCreated || _mainMenu.Handle != _mainMenuHandle)))
+                return;
+
+            if (_continuation is { IsLive: true } continuation && ReferenceEquals(continuation.Owner, _owner))
+            {
+                continuation.Strip.NotifySelectionChange(item: null);
+                // Deselecting paints and raises application callbacks. A new
+                // lease, even for the same strip, belongs to that callback.
+                if (ReferenceEquals(s_portableKeyboardContinuation, continuation))
+                {
+                    continuation.Strip.ResetPortableMenuKeyState();
+                    ClearPortableKeyboardContinuation();
+                }
+
+                return;
+            }
+
+            if (_mainMenu is { Visible: true, Enabled: true, IsHandleCreated: true, IsDisposed: false, Disposing: false }
+                && ReferenceEquals(_mainMenu.FindForm(), _owner))
+                _mainMenu.OnMenuKey();
+        }
+    }
+
     private sealed class PortableKeyboardContinuation(ToolStrip strip, Form owner)
     {
         internal ToolStrip Strip { get; } = strip;
