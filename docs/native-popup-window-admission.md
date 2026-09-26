@@ -85,5 +85,8 @@ session fixture. An initial extra `--fail-skips on` full-suite probe correctly
 rejected those platform skips; the retained full-suite CI policy is unchanged.
 These results do not qualify actual popup desktop display, input or nonactivation
 on any platform, and the integrated source/package CI gates remain required.
-The subsequent normal-popup `Dispose` routing change has not yet been rebuilt;
-the recorded coordinator tests do not inject real GPU-resource disposal failures.
+The normal-popup `Dispose` routing change was rebuilt and retested at exact
+commit `7c1271831f90c94ef5f8559d7b4ccd18dc0c45ac`: zero build warnings/errors,
+24 focused passes with zero skips, and the same unfiltered 75 passes/eight
+platform skips. The recorded coordinator tests do not inject real GPU-resource
+disposal failures.
