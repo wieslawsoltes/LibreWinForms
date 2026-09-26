@@ -140,6 +140,54 @@ fourteen-phase scenario for the portable Linux application. It is not a Linux
 Microsoft reference, and its offline implementation checks do not qualify native
 input or usable compositor capture.
 
+### Read-only macOS geometry prerequisite
+
+The unchanged fourteen-phase driver requires independent native **client**
+rectangles, not window frames or source-reported coordinates. The current Cocoa
+popup prepare/show ownership capability does not supply that external geometry
+contract. Core Graphics window information supplies PID, window number and
+screen-space window bounds; it is not an `NSWindow.contentView` snapshot.
+Accessibility `AXContents` denotes optional interesting children, not a promise
+that one child is the native content view. Do not subtract assumed title-bar
+sizes, infer a backing scale from two rectangles, or replace the strict client
+check with matching frame bounds.
+
+For a separately authorized, already-running task-owned app, the read-only
+inventory can determine what the actual host exposes:
+
+```sh
+python3 eng/librewinforms-popup-macos-inventory.py \
+  --pid ACTUAL_PID --title 'PopupInteractionApp [ACTUAL_RUN_ID]' \
+  --evidence-parent /absolute/existing/evidence-parent
+```
+
+It does not start, activate, capture, inject input into, or signal the observed
+application. It requests no permissions and changes no accessibility attributes.
+Accessibility and screen-recording preflight denial fails before window queries;
+event-post permission is reported only, since no events are posted. Fresh evidence
+retains the target PID/title, native windows before/after, bounded AX children and
+contents, unsupported attributes, worker output and any failure. The native walk
+has a ten-second deadline with at most 250 ms per AX message, 128 nodes/eight
+levels and 256 KiB output; a separate fifteen-second watchdog retires only its
+own inventory worker. No application or scenario deadline is extended.
+
+Even a complete inventory reports `observed-not-client-geometry-qualified` and
+`qualified: false`. A readable AX tree, frame match or offline control is not
+native popup input, pixel parity or proof of content-view identity. Microsoft
+WinForms remains a separately captured Windows reference, not a fabricated
+macOS executable pair. The actual macOS fourteen-phase driver remains blocked
+until an independent exact native client geometry contract is established.
+
+The thirteen offline controls in `eng/tests/test_popup_macos_inventory.py` cover
+permission, PID/title, geometry-change, depth/node/output/deadline rejection and
+owned-worker cleanup without loading native frameworks or launching Forms.
+Apple documents [window-server information](https://developer.apple.com/documentation/coregraphics/cgwindowlistcopywindowinfo(_:_:)),
+[window bounds](https://developer.apple.com/documentation/coregraphics/kcgwindowbounds),
+[AX contents](https://developer.apple.com/documentation/appkit/nsaccessibility-c.protocol/accessibilitycontents)
+and [unsupported AX attributes](https://developer.apple.com/documentation/applicationservices/1462085-axuielementcopyattributevalue).
+
+### Historical Windows preparation and execution
+
 The historical `net10.0-windows` Microsoft project/source at `4ee4336ba` cross-compiled on macOS with
 .NET SDK `11.0.100-preview.5.26302.115`, Microsoft's `10.0.8` WindowsDesktop reference
 pack and a `win-arm64` framework-dependent apphost: **0 warnings, 0 errors**, 4.80 s.
