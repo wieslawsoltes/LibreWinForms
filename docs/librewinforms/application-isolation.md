@@ -50,5 +50,14 @@ There is no assembly scanning, binding hook, custom load context or Microsoft
 Drawing replacement. Desktop interaction and native clipboard behavior require
 their existing platform gates separately.
 
-Implementation and package-consumer regressions are being added in this change;
-no runtime qualification is claimed until exact-head CI passes.
+The usable pair is in `samples/LibreWinForms.IsolatedApplication`. The source
+package gate compiles that pair, then runs ten real child-process contracts
+against fresh packages: a host with Microsoft Drawing already loaded, actual
+canonical child Control/Font/Bitmap state, exact Unicode/string arguments,
+missing/malformed/oversized results, nonzero exit, one-time publication, the
+value limit, and wait-cancellation/Dispose lifetime. Both output Drawing DLLs
+and the launcher are compared with their selected package bytes. Failed logs
+and result files are retained. This gate does not launch visible GUI windows.
+
+No runtime qualification is claimed until exact-head CI passes. The new package
+is not published to NuGet by this PR; source-first feed consumption is explicit.

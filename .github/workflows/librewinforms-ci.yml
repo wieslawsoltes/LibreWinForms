@@ -80,6 +80,17 @@ jobs:
         shell: bash
         run: ./eng/librewinforms-pack-source-first.sh
 
+      - name: Retain application isolation package evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: application-isolation-contracts
+          path: |
+            artifacts/application-isolation/**/receipt.json
+            artifacts/application-isolation/**/*.log
+            artifacts/application-isolation/**/result.json
+          if-no-files-found: warn
+
       - name: Upload canonical source-first package
         uses: actions/upload-artifact@v4
         with:

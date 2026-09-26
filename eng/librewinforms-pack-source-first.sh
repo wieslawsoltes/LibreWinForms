@@ -107,6 +107,14 @@ NUGET_PACKAGES="${smoke_root}/backend-packages" "${dotnet}" pack \
   -p:LibreWinFormsProGpuPackageVersion="${progpu_package_version}" \
   -p:ContinuousIntegrationBuild=true
 
+"${dotnet}" pack \
+  "${repo_root}/src/LibreWinForms.ApplicationIsolation/LibreWinForms.ApplicationIsolation.csproj" \
+  --configuration "${configuration}" \
+  --output "${package_output}" \
+  -p:PackageVersion="${package_version}" \
+  -p:Version="${package_version}" \
+  -p:ContinuousIntegrationBuild=true
+
 if [[ ! -f "${package_file}" ]]; then
   echo "Canonical source-first package was not produced: ${package_file}" >&2
   exit 1
@@ -461,6 +469,13 @@ python3 "${repo_root}/eng/test-drawing-runtime-identity.py" \
   --canonical-version "${package_version}" \
   --backend-version "${backend_package_version}" \
   --sdk-version "${sdk_package_version}"
+
+python3 "${repo_root}/eng/test-application-isolation.py" \
+  --dotnet "${dotnet}" \
+  --package-feed "${package_output}" \
+  --package-version "${package_version}" \
+  --sdk-version "${sdk_package_version}" \
+  --progpu-version "${progpu_package_version}"
 
 echo "Canonical source-first package validated: ${package_file}"
 echo "Source-first ProGPU backend package validated: ${backend_package_file}"

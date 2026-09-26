@@ -1,0 +1,10 @@
+<Project Sdk="LibreWinForms.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LibreWinFormsReferenceMode>Package</LibreWinFormsReferenceMode>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="LibreWinForms.ApplicationIsolation" Version="$(IsolationPackageVersion)" />
+  </ItemGroup>
+</Project>

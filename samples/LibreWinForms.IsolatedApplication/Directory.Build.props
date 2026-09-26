@@ -1,0 +1,10 @@
+<Project>
+  <!-- These are ordinary installed-package applications, not repository source consumers. -->
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsolationPackageVersion Condition="'$(IsolationPackageVersion)' == ''">0.1.0-source-first</IsolationPackageVersion>
+  </PropertyGroup>
+</Project>
