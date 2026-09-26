@@ -77,6 +77,9 @@ public unsafe partial class Control
             case LibreInputEventKind.TextInput:
                 root.DispatchPortableText(inputEvent.Text);
                 break;
+            case LibreInputEventKind.SystemTextInput:
+                root.DispatchPortableText(inputEvent.Text, systemCharacter: true);
+                break;
             case LibreInputEventKind.PointerMove:
             case LibreInputEventKind.PointerDown:
             case LibreInputEventKind.PointerUp:
@@ -292,7 +295,7 @@ public unsafe partial class Control
         return processed || handled;
     }
 
-    private void DispatchPortableText(string? text)
+    private void DispatchPortableText(string? text, bool systemCharacter = false)
     {
         if (string.IsNullOrEmpty(text) || _portableSuppressKeyPress)
         {
@@ -307,13 +310,14 @@ public unsafe partial class Control
                 break;
             }
 
-            target.ProcessPortableCharacter(character);
+            target.ProcessPortableCharacter(character, systemCharacter);
         }
     }
 
-    internal void ProcessPortableCharacter(char character)
+    internal void ProcessPortableCharacter(char character, bool systemCharacter = false)
     {
-        Message message = Message.Create(Handle, (int)PInvokeCore.WM_CHAR, character, 0);
+        Message message = Message.Create(Handle,
+            (int)(systemCharacter ? PInvokeCore.WM_SYSCHAR : PInvokeCore.WM_CHAR), character, 0);
         GetPortableTopLevelControl().DispatchPortableKeyboardMessage(this, ref message);
     }
 

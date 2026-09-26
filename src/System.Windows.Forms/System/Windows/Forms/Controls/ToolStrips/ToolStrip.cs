@@ -4269,7 +4269,11 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
         }
         else
         {
+#if LIBREWINFORMS_PORTABLE
+            ToolStripDropDown.SetPortableKeyboardContinuation(this);
+#else
             ToolStripManager.ModalMenuFilter.SetActiveToolStrip(this, menuKeyPressed: false);
+#endif
         }
     }
 

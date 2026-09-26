@@ -14,6 +14,7 @@ public enum LibreInputEventKind
     PointerWheel,
     FocusGained,
     FocusLost,
+    SystemTextInput,
 }
 
 [Flags]
