@@ -15,8 +15,10 @@ bitmap cases and the real native 1/4/8/24/32-bit bottom-up and 24-bit top-down
 round trips. This is not a whole producer Build result: Build
 [36248366666](https://github.com/wieslawsoltes/ProGPU/actions/runs/36248366666)
 must complete successfully and ProGPU #188 must merge before this dependency
-alignment is published. Canceled/failed superseded producers are not acceptable
-artifact sources.
+alignment is merged or released. Its draft PR may run independent source checks
+while that producer finishes; native artifact staging still requires the whole
+exact producer Build to succeed. Canceled/failed superseded producers are not
+acceptable artifact sources.
 
 After this repository's exact-head source, package and visible-consumer gates
 pass and its PR merges, LibreWPF #174 must pin that merged LibreWinForms revision
