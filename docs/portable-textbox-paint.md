@@ -45,8 +45,15 @@ correction then passed the complete 188-case source suite, no skips, using .NET
 its 619 warnings include four new portable protected-override API inventory
 warnings, not suppressed by this change. The actual backend text-renderer class
 then passed all three tests with no skips, including the clipped-ink case, after
-a zero-warning/zero-error build. Full exact-head CI is still pending. Local logs
-are retained under `artifacts/textbox-paint/log`.
+a zero-warning/zero-error build. Local logs are retained under
+`artifacts/textbox-paint/log`.
+
+The paint-only head `1b40151e960b49fa1c174db71702c1dfc4e0ae8d` then passed
+the complete Build and Docs workflows. Integration with main
+`992ad141d49cee658b7c414335608bd9c30a7d9a` retains all 166 original canonical
+cases, 22 paint cases, and 29 clipboard cases; the source gate now requires at
+least 217. Both test files and the real clipped-ink backend test remain intact.
+This integration requires fresh exact-head CI and has not been locally rebuilt.
 
 These source results do not qualify the original sample's native GUI or complete
 editing visuals. Selection highlighting, shaped

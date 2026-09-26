@@ -252,7 +252,11 @@ public partial class TextBox : TextBoxBase
     ///  Determines if the control is in password protect mode.
     /// </summary>
     private protected override bool PasswordProtect
+#if LIBREWINFORMS_PORTABLE
+        => _useSystemPasswordChar || _passwordChar != '\0';
+#else
         => PasswordChar != '\0';
+#endif
 
     /// <summary>
     ///  Returns the parameters needed to create the handle. Inheriting classes
@@ -622,6 +626,7 @@ public partial class TextBox : TextBoxBase
 
         SetSelectionOnHandle();
 
+#if !LIBREWINFORMS_PORTABLE
         if (_passwordChar != 0)
         {
             if (!_useSystemPasswordChar)
@@ -629,6 +634,7 @@ public partial class TextBox : TextBoxBase
                 PInvokeCore.SendMessage(this, PInvokeCore.EM_SETPASSWORDCHAR, (WPARAM)_passwordChar);
             }
         }
+#endif
 
         VerifyImeRestrictedModeChanged();
 
