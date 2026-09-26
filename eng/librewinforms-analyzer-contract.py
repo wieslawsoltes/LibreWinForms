@@ -225,6 +225,46 @@ ENTRYPOINTS = {
 CALLER_CONFIGURATION = "internal static class ApplicationConfiguration { internal static void Initialize() { } }"
 
 
+def validate_project_packages(args, package):
+    """Borrow only the calling gate's existing, exact SDK Project cache."""
+    if args.project_packages is None:
+        return
+    if args.scratch_parent is None or args.producer_snapshot is None:
+        raise AssertionError("Project cache reuse requires caller-owned scratch and a verified producer snapshot")
+    parent_path = args.scratch_parent.absolute()
+    parent = parent_path.resolve(strict=True)
+    cache = args.project_packages.absolute()
+    try:
+        relative = cache.relative_to(parent_path)
+    except ValueError as error:
+        raise AssertionError("Project cache must be inside the calling gate's scratch directory") from error
+    if not relative.parts:
+        raise AssertionError("Project cache cannot be the scratch directory itself")
+    current = parent
+    for part in relative.parts:
+        current /= part
+        if part in (".", "..") or current.is_symlink() or not current.is_dir():
+            raise AssertionError("Project cache must be an existing directory without symlink traversal")
+    for part in ("librewinforms.sdk", args.sdk_version):
+        current /= part
+        if current.is_symlink() or not current.is_dir():
+            raise AssertionError("Project cache SDK must not traverse symlink directories")
+    installed = cache / "librewinforms.sdk" / args.sdk_version / f"librewinforms.sdk.{args.sdk_version}.nupkg"
+    if installed.is_symlink() or not installed.is_file() or installed.read_bytes() != package.read_bytes():
+        raise AssertionError("Project cache must contain the exact current producer SDK archive")
+    # Keep the original spelling used by the SDK smoke (e.g. macOS /var vs
+    # /private/var); canonicalizing it would itself change reference paths.
+    args.project_packages = cache
+
+
+def case_packages(args, scratch, mode):
+    if mode == "Project" and args.project_packages is not None:
+        return args.project_packages
+    # Installed Package and damaged-SDK controls always keep their own fresh
+    # cache. Standalone callers retain the original cold-Project behavior.
+    return scratch / "packages"
+
+
 def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
                executable=False, caller_configuration=False, disable_configuration=False,
                expected_errors=(), ordinary_generator=False, sdk_directory=None,
@@ -290,11 +330,12 @@ def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
         # Match the existing source-first SDK consumer graph. Global properties
         # also reach the canonical runtime's real transitive project references.
         command.extend(["-p:LibreWinFormsUseCanonicalRuntime=true", "-p:LibreWinFormsUseProGpuSystemDrawing=true",
-                        "-p:LibreWinFormsReferenceMode=Project", "-p:MicrosoftNETCoreAppRefPackageVersion="])
+                        "-p:LibreWinFormsReferenceMode=Project", "-p:MicrosoftNETCoreAppRefPackageVersion=",
+                        "-p:LibreWinFormsSourceRoot=" + str(args.repo_root) + "/"])
     if args.progpu_source_root:
         command.append("-p:LibreWinFormsProGpuSourceRoot=" + str(args.progpu_source_root) + "/")
     environment = os.environ.copy()
-    environment["NUGET_PACKAGES"] = str(scratch / "packages")
+    environment["NUGET_PACKAGES"] = str(case_packages(args, scratch, mode))
     log = evidence / (case.name + ".log")
     with log.open("w", encoding="utf-8") as output:
         process = subprocess.Popen(command, cwd=scratch, env=environment, start_new_session=True,
@@ -551,6 +592,8 @@ def main():
     parser.add_argument("--progpu-source-root", type=Path)
     parser.add_argument("--scratch-parent", type=Path,
                         help="Parent owned by the calling gate's cleanup; omitted scratch is retained for local diagnosis")
+    parser.add_argument("--project-packages", type=Path,
+                        help="Existing SDK Project smoke cache inside --scratch-parent; never used for Package controls")
     parser.add_argument("--evidence-directory", type=Path, required=True)
     parser.add_argument("--capture-producer", action="store_true",
                         help="Only capture exact source producer bytes; print the retained manifest SHA256")
@@ -563,6 +606,8 @@ def main():
         parser.error("--producer-snapshot and --producer-manifest-sha256 are required together")
     if args.capture_producer and args.producer_snapshot:
         parser.error("Capture and consumer verification are separate phases")
+    if args.capture_producer and args.project_packages:
+        parser.error("Producer capture cannot reuse a consumer cache")
     args.repo_root = args.repo_root.resolve()
     args.package_source = args.package_source.resolve()
     evidence = args.evidence_directory.resolve()
@@ -579,6 +624,7 @@ def main():
         payload["producerManifestSha256"] = args.producer_manifest_sha256
     else:
         payload = verify_payload(args.repo_root, package, args.configuration)
+    validate_project_packages(args, package)
     payload["sourceHead"] = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=args.repo_root, text=True).strip()
     payload["sourceChanges"] = subprocess.check_output(["git", "status", "--porcelain"], cwd=args.repo_root, text=True).splitlines()
     (evidence / "analyzer-payload.json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
