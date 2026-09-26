@@ -30,6 +30,13 @@ internal static class Program
             Require(rejected.ExitCode == 0 && !rejected.Succeeded && rejected.Reply is null && rejected.ProtocolError is not null, invalid);
         }
 
+        foreach (string invalid in new[] { "version", "identity", "field", "unicode-key", "unicode-value" })
+        {
+            PortableApplicationExit rejected = await Run(invalid);
+            Require(rejected.ExitCode == 29 && !rejected.Succeeded && rejected.Reply is null && rejected.ProtocolError is not null,
+                $"{invalid} protocol failure must retain the real child exit code");
+        }
+
         PortableApplicationExit duplicate = await Run("duplicate");
         Require(duplicate.Succeeded && duplicate.Reply?.Value == "first", "one-time result cannot overwrite");
         PortableApplicationExit limited = await Run("value-limit");
@@ -38,7 +45,7 @@ internal static class Program
         await VerifyDisposeLeavesChildRunning();
         Require(ReferenceEquals(microsoft, typeof(System.Drawing.Font).Assembly), "host Drawing identity retained after every child");
         Require(Convert.ToHexString(microsoft.GetName().GetPublicKeyToken()!) == "CC7B13FFCD2DDD51", "host still uses Microsoft Drawing");
-        Console.WriteLine("Application isolation contracts passed: 10 real child cases; Microsoft host / canonical child remain independent.");
+        Console.WriteLine("Application isolation contracts passed: 15 real child cases; Microsoft host / canonical child remain independent.");
         return 0;
     }
 

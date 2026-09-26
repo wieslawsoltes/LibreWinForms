@@ -41,7 +41,7 @@ public sealed class PortableApplicationSession : IDisposable
         {
             return new PortableApplicationExit(exitCode, ReadReply(), null);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException or InvalidDataException)
         {
             // A missing/invalid reply must not disguise the actual child exit status.
             return new PortableApplicationExit(exitCode, null, exception.Message);
@@ -93,7 +93,8 @@ public sealed class PortableApplicationSession : IDisposable
         string? value = null;
         foreach (JsonProperty property in document.RootElement.EnumerateObject())
         {
-            int flag = property.Name switch
+            string name = ReadPropertyName(property);
+            int flag = name switch
             {
                 "version" => 1,
                 "launchId" => 2,
@@ -108,10 +109,10 @@ public sealed class PortableApplicationSession : IDisposable
             }
 
             fields |= flag;
-            bool valid = property.Name switch
+            bool valid = name switch
             {
                 "version" => property.Value.ValueKind == JsonValueKind.Number && property.Value.TryGetInt32(out int version) && version == 1,
-                "launchId" => property.Value.ValueKind == JsonValueKind.String && property.Value.GetString() == _launchId,
+                "launchId" => property.Value.ValueKind == JsonValueKind.String && ReadString(property.Value) == _launchId,
                 "processId" => property.Value.ValueKind == JsonValueKind.Number && property.Value.TryGetInt32(out int processId) && processId == ProcessId,
                 "accepted" => property.Value.ValueKind is JsonValueKind.True or JsonValueKind.False,
                 "value" => property.Value.ValueKind is JsonValueKind.String or JsonValueKind.Null,
@@ -122,13 +123,13 @@ public sealed class PortableApplicationSession : IDisposable
                 throw new InvalidDataException("The application result has an unsupported version, identity or primitive value.");
             }
 
-            if (property.Name == "accepted")
+            if (name == "accepted")
             {
                 accepted = property.Value.GetBoolean();
             }
-            else if (property.Name == "value")
+            else if (name == "value")
             {
-                value = property.Value.GetString();
+                value = ReadString(property.Value);
             }
         }
 
@@ -138,5 +139,32 @@ public sealed class PortableApplicationSession : IDisposable
         }
 
         return new PortableApplicationReply(accepted, value);
+    }
+
+    private static string ReadPropertyName(JsonProperty property)
+    {
+        try
+        {
+            return property.Name;
+        }
+        catch (InvalidOperationException exception)
+        {
+            // JsonDocument defers decoding escaped UTF-16 until the name is read.
+            throw new InvalidDataException("The application result contains an invalid Unicode property name.", exception);
+        }
+    }
+
+    private static string? ReadString(JsonElement value)
+    {
+        try
+        {
+            return value.GetString();
+        }
+        catch (InvalidOperationException exception)
+        {
+            // Called only after String/Null admission; a lone escaped surrogate
+            // is invalid protocol data, not a failure of the completed process.
+            throw new InvalidDataException("The application result contains invalid Unicode text.", exception);
+        }
     }
 }

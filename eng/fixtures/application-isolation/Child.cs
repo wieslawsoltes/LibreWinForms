@@ -35,6 +35,13 @@ internal static class Program
                 case "oversized":
                     File.WriteAllBytes(ResultPath, new byte[32769]);
                     return 0;
+                case "version":
+                case "identity":
+                case "field":
+                case "unicode-key":
+                case "unicode-value":
+                    WriteInvalidResult(args[0]);
+                    return 29;
                 case "duplicate":
                     PortableApplication.Complete(true, "first");
                     try { PortableApplication.Complete(false, "overwrite"); }
@@ -63,6 +70,22 @@ internal static class Program
 
     private static string ResultPath => Environment.GetEnvironmentVariable("LIBREWINFORMS_APPLICATION_RESULT_PATH")
         ?? throw new InvalidOperationException("Missing owned result location.");
+
+    private static void WriteInvalidResult(string mode)
+    {
+        string nonce = Environment.GetEnvironmentVariable("LIBREWINFORMS_APPLICATION_LAUNCH_ID")!;
+        string json = $$"""{"version":1,"launchId":"{{nonce}}","processId":{{Environment.ProcessId}},"accepted":true,"value":"ok"}""";
+        json = mode switch
+        {
+            "version" => json.Replace("\"version\":1", "\"version\":2"),
+            "identity" => json.Replace($"\"processId\":{Environment.ProcessId}", "\"processId\":0"),
+            "field" => json.Replace("\"accepted\":true", "\"accepted\":\"true\""),
+            "unicode-key" => json.Replace("\"value\"", "\"\\uD800\""),
+            "unicode-value" => json.Replace("\"value\":\"ok\"", "\"value\":\"\\uD800\""),
+            _ => throw new ArgumentException("Unknown invalid result mode.", nameof(mode))
+        };
+        File.WriteAllText(ResultPath, json);
+    }
 
     private static void VerifyControls(string text)
     {

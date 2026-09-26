@@ -51,13 +51,19 @@ Drawing replacement. Desktop interaction and native clipboard behavior require
 their existing platform gates separately.
 
 The usable pair is in `samples/LibreWinForms.IsolatedApplication`. The source
-package gate compiles that pair, then runs ten real child-process contracts
+package gate compiles that pair, then runs fifteen real child-process contracts
 against fresh packages: a host with Microsoft Drawing already loaded, actual
 canonical child Control/Font/Bitmap state, exact Unicode/string arguments,
-missing/malformed/oversized results, nonzero exit, one-time publication, the
+missing/malformed/oversized results, invalid version/identity/field/Unicode with
+the actual nonzero exit retained, one-time publication, the
 value limit, and wait-cancellation/Dispose lifetime. Both output Drawing DLLs
 and the launcher are compared with their selected package bytes. Failed logs
 and result files are retained. This gate does not launch visible GUI windows.
 
-No runtime qualification is claimed until exact-head CI passes. The new package
-is not published to NuGet by this PR; source-first feed consumption is explicit.
+A source-linked BCL-only .NET 10 probe compiled with zero warnings/errors and
+executed four cases: valid Unicode plus bad version and escaped lone-surrogate
+key/value payloads. The three negative cases reproduced escaped exceptions
+before correction and now retain the child's exit code 29 with a protocol error.
+This does not qualify the separate fifteen-case installed-package gate or GUI.
+Those still require exact-head CI. The new package is not published to NuGet by
+this PR; source-first feed consumption is explicit.

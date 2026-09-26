@@ -104,7 +104,7 @@ def main():
         root, environment, root / "microsoft-first-contracts.log", timeout=120)
     receipt = {"success": True, "hostDrawingSha256": sha256(microsoft.read_bytes()),
                "childDrawingSha256": sha256(canonical_drawing), "isolationSha256": sha256(isolation_bytes),
-               "contracts": 10, "guiExecuted": False, "sampleCompiled": True}
+               "contracts": 15, "guiExecuted": False, "sampleCompiled": True}
     with (root / "receipt.json").open("x", encoding="utf-8") as stream:
         json.dump(receipt, stream, indent=2)
     print(json.dumps(receipt), flush=True)
