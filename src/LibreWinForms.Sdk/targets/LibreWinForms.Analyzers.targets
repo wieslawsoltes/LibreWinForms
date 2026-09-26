@@ -21,6 +21,7 @@
     <CompilerVisibleProperty Include="LibreWinFormsSdkOwnsApplicationConfiguration" />
     <CompilerVisibleProperty Include="LibreWinFormsSdkGeneratesApplicationConfiguration" />
     <CompilerVisibleProperty Include="ApplicationDefaultFont" />
+    <CompilerVisibleProperty Include="ApplicationHighDpiMode" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Project' And '$(LibreWinFormsSourceRoot)' != ''">

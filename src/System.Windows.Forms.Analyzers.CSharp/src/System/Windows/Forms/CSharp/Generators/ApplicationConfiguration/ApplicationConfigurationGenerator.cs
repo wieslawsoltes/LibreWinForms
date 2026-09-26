@@ -105,6 +105,33 @@ internal class ApplicationConfigurationGenerator : IIncrementalGenerator
             }
         });
 
+        // Reuse upstream enum parsing/defaults only for the SDK-owned class.
+        // Its call site preserves the canonical DPI-before-default-font order.
+        var sdkHighDpiMode = context.AnalyzerConfigOptionsProvider.Select(
+            (options, _) =>
+            {
+                if (!IsEnabled(options, "LibreWinFormsSdkOwnsApplicationConfiguration")
+                    || !IsEnabled(options, "LibreWinFormsSdkGeneratesApplicationConfiguration"))
+                {
+                    return (Mode: (HighDpiMode?)null, Diagnostic: (Diagnostic?)null);
+                }
+
+                bool valid = ProjectFileReader.TryReadHighDpiMode(options, out HighDpiMode mode, out Diagnostic? diagnostic);
+                return (Mode: valid ? (HighDpiMode?)mode : null, Diagnostic: diagnostic);
+            });
+        context.RegisterSourceOutput(sdkHighDpiMode, (context, configuration) =>
+        {
+            if (configuration.Diagnostic is not null)
+            {
+                context.ReportDiagnostic(configuration.Diagnostic);
+            }
+            else if (configuration.Mode is { } mode)
+            {
+                context.AddSource("LibreWinForms.ApplicationHighDpiMode.g.cs",
+                    ApplicationConfigurationInitializeBuilder.GenerateSdkHighDpiMode(mode));
+            }
+        });
+
         IncrementalValueProvider<OutputKind> outputKindProvider = context.CompilationProvider.Select((compilation, _)
             => compilation.Options.OutputKind);
 
