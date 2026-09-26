@@ -345,6 +345,13 @@ public partial class TextBox : TextBoxBase
         }
         set
         {
+#if LIBREWINFORMS_PORTABLE
+            if (_passwordChar != value)
+            {
+                _passwordChar = value;
+                Invalidate();
+            }
+#else
             _passwordChar = value;
             if (!_useSystemPasswordChar)
             {
@@ -363,6 +370,7 @@ public partial class TextBox : TextBoxBase
                     }
                 }
             }
+#endif
         }
     }
 
@@ -480,6 +488,9 @@ public partial class TextBox : TextBoxBase
             if (value != _useSystemPasswordChar)
             {
                 _useSystemPasswordChar = value;
+#if LIBREWINFORMS_PORTABLE
+                Invalidate();
+#endif
 
                 // RecreateHandle will update IME restricted mode.
                 RecreateHandle();
