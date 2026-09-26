@@ -19,11 +19,11 @@ internal static class Program
         var start = new PortableApplicationStartInfo(args[0]) { DotNetHostPath = args[1] };
         start.Arguments.Add(text);
         using PortableApplicationSession child = PortableApplication.Start(start);
-        Require(child.ProcessId != Environment.ProcessId, "The UI must belong to a separate process.");
-        Console.WriteLine($"Window child {child.ProcessId}; retained result {child.ResultDirectory}");
-        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(150));
         try
         {
+            Require(child.ProcessId != Environment.ProcessId, "The UI must belong to a separate process.");
+            Console.WriteLine($"Window child {child.ProcessId}; retained result {child.ResultDirectory}");
+            using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(150));
             PortableApplicationExit exit = await child.WaitForExitAsync(deadline.Token).ConfigureAwait(false);
             Require(exit.Succeeded && exit.Reply is { Accepted: true } && exit.Reply.Value == text,
                 $"Child visible lifecycle failed: exit={exit.ExitCode}; protocol={exit.ProtocolError}");
