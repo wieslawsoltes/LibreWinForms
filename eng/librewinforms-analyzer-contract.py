@@ -229,6 +229,8 @@ def validate_project_packages(args, package):
     """Borrow only the calling gate's existing, exact SDK Project cache."""
     if args.project_packages is None:
         return
+    if args.reference_mode != "Both":
+        raise AssertionError("Project cache handoff requires the complete Both reference-mode matrix")
     if args.scratch_parent is None or args.producer_snapshot is None:
         raise AssertionError("Project cache reuse requires caller-owned scratch and a verified producer snapshot")
     parent_path = args.scratch_parent.absolute()
@@ -428,7 +430,7 @@ def main():
     parser.add_argument("--scratch-parent", type=Path,
                         help="Parent owned by the calling gate's cleanup; omitted scratch is retained for local diagnosis")
     parser.add_argument("--project-packages", type=Path,
-                        help="Existing SDK Project smoke cache inside --scratch-parent; never used for Package controls")
+                        help="Existing SDK Project smoke cache inside --scratch-parent; requires --reference-mode Both and is never used for Package controls")
     parser.add_argument("--evidence-directory", type=Path, required=True)
     parser.add_argument("--capture-producer", action="store_true",
                         help="Only capture exact source producer bytes; print the retained manifest SHA256")

@@ -26,7 +26,7 @@ class ProjectCacheTests(unittest.TestCase):
         self.installed.parent.mkdir(parents=True)
         self.installed.write_bytes(self.package.read_bytes())
         self.args = SimpleNamespace(project_packages=self.cache, scratch_parent=self.root,
-                                    producer_snapshot=self.root / "producer", sdk_version="fixture")
+                                    producer_snapshot=self.root / "producer", sdk_version="fixture", reference_mode="Both")
 
     def verify(self):
         CONTRACT.validate_project_packages(self.args, self.package)
@@ -46,7 +46,16 @@ class ProjectCacheTests(unittest.TestCase):
         self.verify()
         scratch = self.root / "consumer"
         for mode in ("Project", "Package"):
+            self.args.reference_mode = mode
+            self.verify()
             self.assertEqual(scratch / "packages", CONTRACT.case_packages(self.args, scratch, mode))
+
+    def test_handoff_requires_the_complete_both_matrix(self):
+        for mode in ("Project", "Package"):
+            with self.subTest(reference_mode=mode):
+                self.args.reference_mode = mode
+                with self.assertRaisesRegex(AssertionError, "complete Both reference-mode matrix"):
+                    self.verify()
 
     def test_parent_alias_preserves_original_reference_path_spelling(self):
         alias = self.root / "parent-alias"
