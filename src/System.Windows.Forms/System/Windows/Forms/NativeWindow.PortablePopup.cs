@@ -19,10 +19,9 @@ public unsafe partial class NativeWindow
     {
         LibreRectangle bounds = new(parameters.X, parameters.Y,
             Math.Max(1, parameters.Width), Math.Max(1, parameters.Height));
-        LibreWindowCoordinateMode coordinates = ScaleHelper.IsThreadPerMonitorV2Aware
-            ? LibreWindowCoordinateMode.DevicePixels : LibreWindowCoordinateMode.Logical;
-        double scale = coordinates == LibreWindowCoordinateMode.DevicePixels
-            ? services.Monitors.GetNearest(bounds).DpiScale : 1d;
+        LibreWindowCoordinateMode coordinates = ScaleHelper.PortableCoordinateMode;
+        double scale = ScaleHelper.IsThreadPerMonitorV2Aware
+            ? ScaleHelper.GetPortableMonitor(bounds).DpiScale : ScaleHelper.InitialSystemDpi / 96d;
         // Source dropdown bounds are already arranged in the active coordinate
         // mode. Do not apply Form's initial autoscaling to them a second time.
         _portableWindow = CreatePortableWindow(services, new LibreWindowCreateOptions(
@@ -31,7 +30,10 @@ public unsafe partial class NativeWindow
                 | (dropDown.PortablePopupTopMost ? LibreWindowOptions.TopMost : LibreWindowOptions.None),
             default, coordinates, scale, LibreWindowState.Normal,
             ShowInTaskbar: false, CanMinimize: false, CanMaximize: false,
-            MinimumSize: default, MaximumSize: default, CanClose: false));
+            MinimumSize: default, MaximumSize: default, CanClose: false)
+        {
+            ScaleOnDpiChange = ScaleHelper.IsThreadPerMonitorV2Aware
+        });
         _portableHandle = _portableWindow.Handle;
         _portableCoordinateMode = _portableWindow.CoordinateMode;
         _portablePresentationScale = _portableWindow.DpiScale;

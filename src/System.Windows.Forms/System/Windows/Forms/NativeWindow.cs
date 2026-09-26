@@ -501,13 +501,11 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
                     cp.Y == PInvoke.CW_USEDEFAULT ? 100 : cp.Y,
                     Math.Max(1, cp.Width),
                     Math.Max(1, cp.Height));
-                LibreWindowCoordinateMode coordinateMode = ScaleHelper.IsThreadPerMonitorV2Aware
-                    ? LibreWindowCoordinateMode.DevicePixels
-                    : LibreWindowCoordinateMode.Logical;
-                double initialDpiScale = coordinateMode == LibreWindowCoordinateMode.DevicePixels
-                    ? services.Monitors.GetNearest(requestedBounds).DpiScale
-                    : 1.0;
-                if (coordinateMode == LibreWindowCoordinateMode.DevicePixels)
+                LibreWindowCoordinateMode coordinateMode = ScaleHelper.PortableCoordinateMode;
+                double initialDpiScale = ScaleHelper.IsThreadPerMonitorV2Aware
+                    ? ScaleHelper.GetPortableMonitor(requestedBounds).DpiScale
+                    : ScaleHelper.InitialSystemDpi / 96d;
+                if (ScaleHelper.IsThreadPerMonitorV2Aware)
                 {
                     // Canonical top-level autoscaling changes size but deliberately keeps
                     // Location unchanged. Create the native window at those eventual managed
@@ -540,7 +538,10 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
                     new LibreSize(form.MinimumSize.Width, form.MinimumSize.Height),
                     new LibreSize(form.MaximumSize.Width, form.MaximumSize.Height),
                     CanClose: hasControlBox,
-                    Opacity: double.IsFinite(form.Opacity) ? form.Opacity : 0d);
+                    Opacity: double.IsFinite(form.Opacity) ? form.Opacity : 0d)
+                {
+                    ScaleOnDpiChange = ScaleHelper.IsThreadPerMonitorV2Aware
+                };
                 _portableWindow = CreatePortableWindow(services, createOptions);
                 _portableHandle = _portableWindow.Handle;
                 _portableCoordinateMode = _portableWindow.CoordinateMode;

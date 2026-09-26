@@ -43,7 +43,7 @@ public sealed class SilkMonitorServiceTests
     }
 
     [Fact]
-    public void GetMonitorsDerivesScaleFromVideoModeWhenTypedScaleIsUnavailable()
+    public void GetMonitorsDoesNotInferPixelScaleFromVideoModeAndWorkArea()
     {
         FakeMonitor monitor = new(
             "HiDpi",
@@ -54,8 +54,65 @@ public sealed class SilkMonitorServiceTests
 
         LibreMonitor mapped = Assert.Single(service.GetMonitors());
 
-        Assert.Equal(2.0, mapped.DpiScale);
+        Assert.Equal(1.0, mapped.DpiScale);
+        Assert.Null(mapped.NativeCoordinateScale);
         Assert.Equal(mapped.Bounds, mapped.WorkArea);
+    }
+
+    [Fact]
+    public void GetMonitorsKeepsExplicitFullBoundsWorkAreaAndNativeUnitsIndependentOfDpi()
+    {
+        FakeMonitor monitor = new("Windows", 0, new Rectangle<int>(0, 40, 2400, 1460),
+            new VideoMode(new Vector2D<int>(2400, 1600), 60));
+        SilkMonitorService service = new(() => [monitor], () => monitor,
+            _ => 2, _ => monitor.Bounds, _ => 1, _ => new Rectangle<int>(0, 0, 2400, 1600));
+
+        LibreMonitor mapped = Assert.Single(service.GetMonitors());
+
+        Assert.Equal(new LibreRectangle(0, 0, 2400, 1600), mapped.Bounds);
+        Assert.Equal(new LibreRectangle(0, 40, 2400, 1460), mapped.WorkArea);
+        Assert.Equal(2, mapped.DpiScale);
+        Assert.Equal(1, mapped.NativeCoordinateScale);
+        Assert.Equal(mapped.Bounds, LibreMonitorCoordinates.ToManaged(mapped, LibreWindowCoordinateMode.DevicePixels).Bounds);
+        Assert.Equal(new LibreRectangle(0, 0, 1200, 800),
+            LibreMonitorCoordinates.ToManaged(mapped, LibreWindowCoordinateMode.Logical).Bounds);
+    }
+
+    [Theory]
+    [InlineData(0d)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void MonitorConversionRejectsInvalidDeclaredNativeScale(double scale)
+    {
+        LibreMonitor monitor = new("invalid", new(0, 0, 2400, 1600), new(0, 0, 2400, 1500), 2, true)
+        { NativeCoordinateScale = scale };
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => LibreMonitorCoordinates.ToManaged(monitor, LibreWindowCoordinateMode.Logical));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(0d)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void ExplicitContentDpiProviderCannotSilentlyFallBackTo96Dpi(double? scale)
+    {
+        FakeMonitor monitor = new("invalid", 0, new Rectangle<int>(0, 0, 2400, 1600),
+            new VideoMode(new Vector2D<int>(2400, 1600), 60));
+        SilkMonitorService service = new(() => [monitor], () => monitor, _ => scale);
+        Assert.Throws<PlatformNotSupportedException>(() => service.GetMonitors());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ExplicitFullBoundsProviderCannotSilentlyFallBackToWorkArea(bool empty)
+    {
+        FakeMonitor monitor = new("invalid", 0, new Rectangle<int>(0, 40, 2400, 1460),
+            new VideoMode(new Vector2D<int>(2400, 1600), 60));
+        SilkMonitorService service = new(() => [monitor], () => monitor, _ => 2, null, _ => 1,
+            _ => empty ? new Rectangle<int>(0, 0, 0, 0) : null);
+        Assert.Throws<PlatformNotSupportedException>(() => service.GetMonitors());
     }
 
     [Fact]
