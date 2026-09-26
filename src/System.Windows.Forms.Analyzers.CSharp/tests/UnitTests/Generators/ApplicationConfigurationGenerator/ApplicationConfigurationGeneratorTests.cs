@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Windows.Forms.Analyzers.Diagnostics;
 using System.Windows.Forms.CSharp.Generators.ApplicationConfiguration;
 using Microsoft.CodeAnalysis;
@@ -223,6 +224,90 @@ public partial class ApplicationConfigurationGeneratorTests
     private async Task<SourceText> LoadFileContentAsync(string testName)
     {
         string input = await TestFileLoader.GetGeneratorTestCodeAsync($"{GetType().Name}.{testName}.cs").ConfigureAwait(false);
-        return SourceText.From(input, Encoding.UTF8);
+        return SourceText.From(RestoreCanonicalStatementNewlines(input), Encoding.UTF8);
+    }
+
+    private static string RestoreCanonicalStatementNewlines(string input)
+    {
+        // GenerateCode explicitly joins consecutive configuration statements
+        // with CRLF, independently of checkout EOLs in its surrounding template.
+        // Reconstruct only those joins in the expected fixture. The actual
+        // generated source and every other expected byte remain unnormalized.
+        return CanonicalStatementJoin().Replace(input, "$1\r\n");
+    }
+
+    [GeneratedRegex(@"(^[ \t]*(?:///[ \t]+)?global::System\.Windows\.Forms\.Application\.[^\r\n]+;)\r?\n(?=[ \t]*(?:///[ \t]+)?global::System\.Windows\.Forms\.Application\.)", RegexOptions.Multiline)]
+    private static partial Regex CanonicalStatementJoin();
+
+    [Fact]
+    public void Generator_fixture_reconstructs_only_canonical_statement_joins()
+    {
+        const string input = "header\n  global::System.Windows.Forms.Application.EnableVisualStyles();\n"
+            + "  global::System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);\nfooter\r\n";
+        const string expected = "header\n  global::System.Windows.Forms.Application.EnableVisualStyles();\r\n"
+            + "  global::System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);\nfooter\r\n";
+        Assert.Equal(expected, RestoreCanonicalStatementNewlines(input));
+        Assert.Equal(expected, RestoreCanonicalStatementNewlines(expected));
+    }
+
+    [Theory]
+    [InlineData("ApplicationConfiguration.Initialize();")]
+    [InlineData("namespace Example { internal static class Program { private static void Main() { ApplicationConfiguration.Initialize(); } } }")]
+    [InlineData("namespace Example; internal static class Program { private static void Main() { ApplicationConfiguration.Initialize(); } }")]
+    public async Task CS_ApplicationConfigurationGenerator_preserves_explicit_sdk_configuration_owner(string source)
+    {
+        var test = new Verifiers.CSharpIncrementalSourceGeneratorVerifier<ApplicationConfigurationGenerator>.Test
+        {
+            TestState =
+            {
+                OutputKind = OutputKind.WindowsApplication,
+                Sources =
+                {
+                    source,
+                    "internal static class ApplicationConfiguration { internal static void Initialize() { } }",
+                },
+                AnalyzerConfigFiles =
+                {
+                    ("/.globalconfig", """
+                    is_global = true
+
+                    build_property.LibreWinFormsSdkOwnsApplicationConfiguration = true
+                    build_property.ApplicationHighDpiMode = NotAnUpstreamSetting
+                    """),
+                },
+            },
+        };
+
+        await test.RunAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("false")]
+    public async Task CS_ApplicationConfigurationGenerator_retains_upstream_generation_without_sdk_ownership(string value)
+    {
+        SourceText generatedCode = await LoadFileContentAsync("GenerateInitialize_default_boilerplate");
+        var test = new Verifiers.CSharpIncrementalSourceGeneratorVerifier<ApplicationConfigurationGenerator>.Test
+        {
+            TestState =
+            {
+                OutputKind = OutputKind.WindowsApplication,
+                Sources = { SourceCompilable },
+                AnalyzerConfigFiles =
+                {
+                    ("/.globalconfig", $"""
+                    is_global = true
+
+                    build_property.LibreWinFormsSdkOwnsApplicationConfiguration = {value}
+                    """),
+                },
+                GeneratedSources =
+                {
+                    (typeof(ApplicationConfigurationGenerator), "ApplicationConfiguration.g.cs", generatedCode),
+                },
+            },
+        };
+
+        await test.RunAsync(TestContext.Current.CancellationToken);
     }
 }

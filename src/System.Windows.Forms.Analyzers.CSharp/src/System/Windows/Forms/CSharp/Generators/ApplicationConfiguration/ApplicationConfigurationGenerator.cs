@@ -71,6 +71,14 @@ internal class ApplicationConfigurationGenerator : IIncrementalGenerator
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
+        // LibreWinForms.Sdk already owns this configuration policy, including
+        // its explicit caller-owned GenerateApplicationConfiguration=false case.
+        // Keep all diagnostic analyzers active without generating a second entrypoint.
+        IncrementalValueProvider<bool> sdkOwnsConfiguration = context.AnalyzerConfigOptionsProvider.Select(
+            (options, _) => options.GetMSBuildProperty("LibreWinFormsSdkOwnsApplicationConfiguration", out string? value)
+                && bool.TryParse(value, out bool ownsConfiguration)
+                && ownsConfiguration);
+
         IncrementalValueProvider<OutputKind> outputKindProvider = context.CompilationProvider.Select((compilation, _)
             => compilation.Options.OutputKind);
 
@@ -92,17 +100,25 @@ internal class ApplicationConfigurationGenerator : IIncrementalGenerator
                     ApplicationConfigDiagnostics: data.Right.Diagnostic));
 
         context.RegisterSourceOutput(
-            inputs,
+            inputs.Combine(sdkOwnsConfiguration),
             (context, source)
-                => Execute(
+            =>
+            {
+                if (source.Right)
+                {
+                    return;
+                }
+
+                Execute(
                     context: context,
-                    hasSupportedSyntaxNode: source.ProjectNamespaces.Length > 0,
-                    projectNamespace: source.ProjectNamespaces.Length > 0
-                        ? source.ProjectNamespaces[0]
+                    hasSupportedSyntaxNode: source.Left.ProjectNamespaces.Length > 0,
+                    projectNamespace: source.Left.ProjectNamespaces.Length > 0
+                        ? source.Left.ProjectNamespaces[0]
                         : null,
-                    outputKind: source.OutputKind,
-                    applicationConfig: source.ApplicationConfig,
-                    applicationConfigDiagnostics: source.ApplicationConfigDiagnostics));
+                    outputKind: source.Left.OutputKind,
+                    applicationConfig: source.Left.ApplicationConfig,
+                    applicationConfigDiagnostics: source.Left.ApplicationConfigDiagnostics);
+            });
     }
 
     public static bool IsSupportedSyntaxNode(SyntaxNode syntaxNode) =>
