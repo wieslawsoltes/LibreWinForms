@@ -7,11 +7,11 @@ namespace System.Windows.Forms;
 public partial class ToolStripDropDown
 {
     [ThreadStatic]
-    private static List<ToolStripDropDown>? t_portableActivationRoots;
+    private static List<ToolStripDropDown>? s_portableActivationRoots;
 
     internal static ToolStripDropDown? GetPortableActiveDropDown(Control? recipient = null)
     {
-        if (t_portableActivationRoots is not { } roots)
+        if (s_portableActivationRoots is not { } roots)
             return null;
         for (int rootIndex = roots.Count - 1; rootIndex >= 0; rootIndex--)
         {
@@ -36,7 +36,7 @@ public partial class ToolStripDropDown
     internal static int GetPortableActiveDropDownCount()
     {
         int count = 0;
-        if (t_portableActivationRoots is { } roots)
+        if (s_portableActivationRoots is { } roots)
         {
             foreach (ToolStripDropDown root in roots)
             {

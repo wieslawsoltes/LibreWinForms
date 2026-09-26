@@ -66,8 +66,8 @@ public partial class ToolStripDropDown
         _portableActivationRoot = root;
         (root._portableActivationMembers ??= []).Add(this);
         root._portableOpeningDepth++;
-        (t_portableActivationRoots ??= []).Remove(root);
-        t_portableActivationRoots.Add(root);
+        (s_portableActivationRoots ??= []).Remove(root);
+        s_portableActivationRoots.Add(root);
         if (ReferenceEquals(root, this))
         {
             // Like the native foreground snapshot, retain ownership before
@@ -141,7 +141,7 @@ public partial class ToolStripDropDown
 
             root._portableActivationMenus?.Clear();
             root._portableActivationClosePending = false;
-            t_portableActivationRoots?.Remove(root);
+            s_portableActivationRoots?.Remove(root);
         }
     }
 
