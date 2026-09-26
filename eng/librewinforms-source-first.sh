@@ -60,12 +60,17 @@ run_test_project \
   50
 run_test_project \
   "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
-  69
+  97
 "${repo_root}/eng/common/dotnet.sh" run \
   --project "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
   --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" -- \
   --filter-class '*NativePopupAdmissionTests*' \
   --minimum-expected-tests 24 --fail-skips on --timeout 10m
+"${repo_root}/eng/common/dotnet.sh" run \
+  --project "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
+  --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" -- \
+  --filter-class '*NativeCharacter*' \
+  --minimum-expected-tests 28 --fail-skips on --timeout 10m
 
 echo "Testing original application configuration generation and explicit SDK ownership."
 generator_tests="${repo_root}/src/System.Windows.Forms.Analyzers.CSharp/tests/UnitTests/System.Windows.Forms.Analyzers.CSharp.Tests.csproj"
