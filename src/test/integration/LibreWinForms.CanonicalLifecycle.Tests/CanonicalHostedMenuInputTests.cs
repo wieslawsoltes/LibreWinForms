@@ -99,6 +99,7 @@ public partial class CanonicalLifecycleTests
                     message.HWnd.Should().Be(hosted.Handle);
                     order.Add("filter");
                 }
+
                 return false;
             });
             hosted.KeyDown += (_, e) => { order.Add("key"); e.SuppressKeyPress = true; };

@@ -1966,8 +1966,8 @@ public unsafe partial class Control :
     public virtual bool Focused
 #if LIBREWINFORMS_PORTABLE
         => IsHandleCreated
-            && GetPortableTopLevelControl()._portableWindowFocused
-            && GetPortableTopLevelControl()._portableFocusedControl == this;
+            && GetPortableFocusRoot()._portableWindowFocused
+            && GetPortableFocusRoot()._portableFocusedControl == this;
 #else
         => IsHandleCreated && PInvoke.GetFocus() == InternalHandle;
 #endif
@@ -5461,7 +5461,11 @@ public unsafe partial class Control :
 #if LIBREWINFORMS_PORTABLE
         if (CanFocus)
         {
-            GetPortableTopLevelControl().SetPortableFocus(this);
+            Control root = GetPortableTopLevelControl();
+            if (root is ToolStripDropDown dropDown && !ReferenceEquals(this, dropDown))
+                dropDown.FocusPortableHostedControl(this);
+            else
+                root.SetPortableFocus(this);
         }
 #else
         if (CanFocus)

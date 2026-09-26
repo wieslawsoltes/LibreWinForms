@@ -1,0 +1,125 @@
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+
+#if LIBREWINFORMS_PORTABLE
+namespace System.Windows.Forms;
+
+public partial class ToolStripDropDown
+{
+    private PortableHostedFocus? _portableHostedFocus;
+
+    internal Form? PortableHostedFocusOwner => _portableHostedFocus is { IsLive: true } focus ? focus.Owner : null;
+    internal Control? PortableHostedFocusRestoreTarget => _portableHostedFocus?.RestoreTarget;
+
+    internal Control GetPortableHostedKeyboardTarget()
+        => _portableHostedFocus is { IsLive: true } focus
+            && ReferenceEquals(focus.Owner.PortableFocusedControl, focus.Target) ? focus.Target : this;
+
+    internal bool FocusPortableHostedControl(Control target)
+    {
+        if (!Visible || !IsHandleCreated || IsDisposed || Disposing
+            || _portableActivationRoot?._portableActivationOwner is not { IsPortableActivationOwner: true } owner
+            || !ContainsPortableHostedControl(target))
+            return false;
+
+        if (_portableHostedFocus is { IsLive: true } current && ReferenceEquals(current.Target, target))
+        {
+            owner.SetPortableHostedControlFocus(target);
+            return target.Focused;
+        }
+
+        Control? restore = owner.GetPortableFocusRestoreTarget();
+        PortableHostedFocus? previous = _portableHostedFocus;
+        _portableHostedFocus = null;
+        previous?.Detach();
+        PortableHostedFocus focus = new(this, owner, target, restore);
+        _portableHostedFocus = focus;
+        focus.Attach();
+        try
+        {
+            owner.SetPortableHostedControlFocus(target);
+        }
+        finally
+        {
+            if (ReferenceEquals(_portableHostedFocus, focus) && !focus.IsLive)
+                focus.End();
+        }
+
+        return ReferenceEquals(_portableHostedFocus, focus) && target.Focused;
+    }
+
+    private bool ContainsPortableHostedControl(Control target)
+    {
+        foreach (ToolStripItem item in Items)
+        {
+            if (item is ToolStripControlHost host && ReferenceEquals(host.ParentInternal, this)
+                && host.Visible && host.Enabled && (ReferenceEquals(host.Control, target) || host.Control.Contains(target)))
+                return true;
+        }
+
+        return false;
+    }
+
+    private sealed class PortableHostedFocus(ToolStripDropDown menu, Form owner, Control target, Control? restoreTarget)
+    {
+        private readonly nint _menuHandle = menu.Handle;
+        private readonly nint _ownerHandle = owner.Handle;
+        internal Form Owner { get; } = owner;
+        internal Control Target { get; } = target;
+        internal Control? RestoreTarget { get; } = restoreTarget;
+        internal bool IsLive => menu is { IsDisposed: false, Disposing: false, Visible: true, IsHandleCreated: true }
+            && menu.Handle == _menuHandle
+            && Owner is { IsDisposed: false, Disposing: false, Visible: true, IsHandleCreated: true, IsPortableActivationOwner: true }
+            && Owner.Handle == _ownerHandle
+            && Target is { IsDisposed: false, Disposing: false, Visible: true, Enabled: true, IsHandleCreated: true }
+            && menu.ContainsPortableHostedControl(Target);
+
+        internal void Attach()
+        {
+            menu.VisibleChanged += Changed;
+            menu.HandleDestroyed += Changed;
+            menu.Disposed += Changed;
+            Owner.Deactivate += Changed;
+            Owner.VisibleChanged += Changed;
+            Owner.HandleDestroyed += Changed;
+            Target.VisibleChanged += Changed;
+            Target.EnabledChanged += Changed;
+            Target.ParentChanged += Changed;
+            Target.HandleDestroyed += Changed;
+            Target.Disposed += Changed;
+        }
+
+        internal void Detach()
+        {
+            menu.VisibleChanged -= Changed;
+            menu.HandleDestroyed -= Changed;
+            menu.Disposed -= Changed;
+            Owner.Deactivate -= Changed;
+            Owner.VisibleChanged -= Changed;
+            Owner.HandleDestroyed -= Changed;
+            Target.VisibleChanged -= Changed;
+            Target.EnabledChanged -= Changed;
+            Target.ParentChanged -= Changed;
+            Target.HandleDestroyed -= Changed;
+            Target.Disposed -= Changed;
+        }
+
+        private void Changed(object? sender, EventArgs e)
+        {
+            if (!IsLive)
+                End();
+        }
+
+        internal void End()
+        {
+            if (!ReferenceEquals(menu._portableHostedFocus, this))
+                return;
+            menu._portableHostedFocus = null;
+            Detach();
+            // Publish retirement before LostFocus/GotFocus callbacks can open a
+            // replacement popup or deliberately choose another source control.
+            Owner.RestorePortableHostedControlFocus(Target, RestoreTarget);
+        }
+    }
+}
+#endif
