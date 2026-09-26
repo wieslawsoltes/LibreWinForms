@@ -5,6 +5,7 @@ librewinforms_preview_package_ids=(
   LibreWinForms.ProGPU
   LibreWinForms.WindowsFormsIntegration
   LibreWinForms.Sdk
+  LibreWinForms.ApplicationIsolation
 )
 
 librewinforms_preview_progpu_package_ids=(

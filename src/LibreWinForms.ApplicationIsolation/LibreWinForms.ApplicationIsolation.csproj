@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>LibreWinForms.ApplicationIsolation</AssemblyName>
+    <RootNamespace>LibreWinForms.ApplicationIsolation</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ProduceReferenceAssembly>true</ProduceReferenceAssembly>
+    <IsPackable>true</IsPackable>
+    <PackageId>LibreWinForms.ApplicationIsolation</PackageId>
+    <Description>Explicit process lifetime and primitive completion results for independently deployed LibreWinForms applications.</Description>
+    <PackageProjectUrl>https://github.com/wieslawsoltes/LibreWinForms</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="../../docs/librewinforms/application-isolation.md" Pack="true" PackagePath="README.md" />
+  </ItemGroup>
+</Project>

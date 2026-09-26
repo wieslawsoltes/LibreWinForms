@@ -6,6 +6,11 @@ LibreWinForms preview releases publish one canonical WinForms package set:
 - `LibreWinForms.System.Windows.Forms`
 - `LibreWinForms.ProGPU`
 - `LibreWinForms.WindowsFormsIntegration`
+- `LibreWinForms.ApplicationIsolation`
+
+The optional isolation launcher is included in the source-first package inventory,
+manifest and release bundle. It is not yet published to NuGet; adding it to this
+inventory does not itself publish a release or qualify visible application UI.
 
 The same bundle contains the exact ten-package ProGPU drawing closure built
 from the pinned submodule. It never publishes
