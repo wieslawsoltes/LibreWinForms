@@ -62,6 +62,16 @@ run_test_project \
   "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
   45
 
+echo "Testing original application configuration generation and explicit SDK ownership."
+generator_tests="${repo_root}/src/System.Windows.Forms.Analyzers.CSharp/tests/UnitTests/System.Windows.Forms.Analyzers.CSharp.Tests.csproj"
+"${repo_root}/eng/common/dotnet.sh" build "${generator_tests}" \
+  --configuration "${configuration}" --nologo -t:Rebuild \
+  -p:NetCurrent="${portable_net_current}" -p:MicrosoftNETCoreAppRefPackageVersion=
+"${repo_root}/eng/common/dotnet.sh" run --project "${generator_tests}" \
+  --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" -- \
+  --filter-class '*ApplicationConfigurationGeneratorTests*' \
+  --minimum-expected-tests 16 --timeout 10m
+
 echo "Testing unchanged canonical Application.Run(Form) against a typed headless backend."
 run_test_project \
   "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \

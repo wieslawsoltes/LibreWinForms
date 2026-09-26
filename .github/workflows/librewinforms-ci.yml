@@ -80,6 +80,14 @@ jobs:
         shell: bash
         run: ./eng/librewinforms-pack-source-first.sh
 
+      - name: Upload analyzer compiler diagnostics and exact payload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-analyzer-contract
+          path: artifacts/log/analyzer-contract.*/**
+          if-no-files-found: ignore
+
       - name: Upload canonical source-first package
         uses: actions/upload-artifact@v4
         with:
