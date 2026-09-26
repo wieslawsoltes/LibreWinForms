@@ -50,6 +50,42 @@ public partial class CanonicalLifecycleTests
         characters.Should().Be(0, "clipboard replacement is not a synthesized key press");
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PortableClipboardReverseSelectionRetainsOrderedUtf16Range(bool createHandle)
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using TextBox editor = new() { Text = "A🙂B" };
+        if (createHandle)
+        {
+            _ = editor.Handle;
+        }
+
+        editor.Select(3, -2);
+        editor.SelectionStart.Should().Be(1);
+        editor.SelectionLength.Should().Be(2);
+        editor.SelectedText.Should().Be("🙂");
+        editor.IsHandleCreated.Should().Be(createHandle);
+        editor.Copy();
+        Clipboard.GetText().Should().Be("🙂");
+        editor.Text.Should().Be("A🙂B");
+
+        Clipboard.SetText("x");
+        editor.Paste();
+        editor.Text.Should().Be("AxB");
+        editor.SelectionStart.Should().Be(2);
+        editor.SelectionLength.Should().Be(0);
+
+        editor.Text = "A🙂B";
+        editor.Select(3, -2);
+        editor.Cut();
+        Clipboard.GetText().Should().Be("🙂");
+        editor.Text.Should().Be("AB");
+        editor.SelectionStart.Should().Be(1);
+        editor.SelectionLength.Should().Be(0);
+    }
+
     [Fact]
     public void PortableClipboardEmptySelectionAndReadOnlyRetainSourceAndClipboard()
     {

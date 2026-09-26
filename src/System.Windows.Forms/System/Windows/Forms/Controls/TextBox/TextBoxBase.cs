@@ -889,6 +889,14 @@ public abstract partial class TextBoxBase : Control
             // to keep the old cached values in case the Text is changed again making the cached values
             // valid again.
             AdjustSelectionStartAndEnd(_selectionStart, _selectionLength, out start, out end, -1);
+#if LIBREWINFORMS_PORTABLE
+            // EM_GETSEL exposes an ordered range even when Select supplied a
+            // negative length. Keep the cached anchor/direction unchanged.
+            if (end < start)
+            {
+                Swap(ref start, ref end);
+            }
+#endif
             length = end - start;
         }
         else

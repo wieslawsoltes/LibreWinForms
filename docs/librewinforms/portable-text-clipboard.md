@@ -6,6 +6,11 @@ their existing clipboard messages through the source control's virtual
 Ordinary text controls use the existing `Clipboard` conversion/service and
 source-owned UTF-16 selection replacement; no backend text copy is introduced.
 `MaskedTextBox` retains its original mask-provider clipboard handlers.
+Portable selection reads order the cached endpoints, matching the native
+[`EM_GETSEL`](https://learn.microsoft.com/en-us/windows/win32/controls/em-getsel)
+range contract even when `Select` receives a negative length.
+This retains the source's cached anchor/direction while copy, cut and paste
+consume the same nonnegative UTF-16 interval.
 
 The portable command path also handles Ctrl+C/X/V and Shift+Delete/Insert after
 the original parent-command and `ShortcutsEnabled` processing. Copy and cut
@@ -38,7 +43,7 @@ documentation. Native undo remains a separate unconnected contract; these
 changes do not claim it from successful clipboard replacement.
 
 `CanonicalClipboardEditingTests` exercises actual canonical controls with the
-existing typed headless clipboard/input service: UTF-16 selection, source
+existing typed headless clipboard/input service: forward/reverse UTF-16 selection, source
 events, absent/empty/converted text, password/read-only protection, failed
 writes, length/casing/line boundaries, command ownership, original masked
 handlers, and a real DataGridView editor entered by F2 and committed by Enter.
