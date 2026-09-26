@@ -127,6 +127,20 @@ its cases. Later mutable `bin` files are never used as the producer reference.
 Standalone invocations without a snapshot still compare the actual current
 source outputs directly.
 
+The Project compiler cases borrow the original SDK Project smoke's private
+NuGet cache until the enclosing gate exits. Removing it early and restoring
+identical reference DLLs at different absolute paths invalidated the source
+runtime's `CoreCompileInputs` and caused another cold compile. The optional
+`--project-packages` handoff requires the caller's scratch ownership, verified
+producer snapshot, existing non-symlink cache and byte-identical installed SDK
+archive. Project source-root globals also match the original smoke. This is
+ordinary incremental building, not `NoBuild`, an extra warmup, or a timeout
+extension. All compiler cases and diagnostic assertions still execute. Package
+and damaged-SDK controls retain their separate fresh cache; standalone Project
+invocations stay cold. Routing and rejection controls live in
+`eng/test-librewinforms-analyzer-cache.py`. Full compiler and CI timing evidence
+for this handoff remains required; path stability alone is not a speed claim.
+
 `eng/test-librewinforms-analyzer-snapshot.py` covers modified/missing/additional
 snapshot files, symlinks, writable files, forged manifests/hashes, source and
 submodule changes, configuration/package identity, and legitimate later consumer
