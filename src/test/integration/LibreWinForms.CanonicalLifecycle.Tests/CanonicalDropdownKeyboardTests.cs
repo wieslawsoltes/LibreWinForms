@@ -260,6 +260,10 @@ public partial class CanonicalLifecycleTests
             using MenuStrip bar = new();
             ToolStripMenuItem first = new("First");
             ToolStripMenuItem second = new("Second");
+            int activations = 0;
+            int deactivations = 0;
+            bar.MenuActivate += (_, _) => activations++;
+            bar.MenuDeactivate += (_, _) => deactivations++;
             first.DropDownItems.Add("First command");
             second.DropDownItems.Add("Second command");
             bar.Items.Add(first);
@@ -278,10 +282,14 @@ public partial class CanonicalLifecycleTests
             SendDropdownKey(platform, owner, LibreKey.Escape);
             next.DropDown.Visible.Should().BeFalse();
             next.Selected.Should().BeTrue();
+            activations.Should().Be(1);
+            deactivations.Should().Be(0, "returning to the same live continuation is not a new menu-mode transition");
             SendDropdownKey(platform, owner, LibreKey.Down);
             next.DropDown.Visible.Should().BeTrue();
             SendDropdownKey(platform, owner, LibreKey.Escape);
             SendDropdownKey(platform, owner, LibreKey.Escape);
+            activations.Should().Be(1);
+            deactivations.Should().Be(1);
             SendDropdownText(platform, owner, "x");
             editor.Text.Should().Be("x");
             editor.Focused.Should().BeTrue();

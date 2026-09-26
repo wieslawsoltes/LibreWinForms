@@ -21,6 +21,8 @@ public partial class ToolStripDropDown
 
     private static void SetPortableKeyboardContinuation(ToolStrip strip)
     {
+        if (s_portableKeyboardContinuation is { IsLive: true } current && ReferenceEquals(current.Strip, strip))
+            return;
         ClearPortableKeyboardContinuation();
         if (strip.IsDisposed || strip.Disposing || !strip.Visible || !strip.IsHandleCreated
             || strip.FindForm() is not { IsDisposed: false, Disposing: false, Visible: true } owner)
