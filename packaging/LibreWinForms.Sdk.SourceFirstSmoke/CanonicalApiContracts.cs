@@ -4,6 +4,7 @@
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
+using System.Drawing.Printing;
 using System.Windows.Forms;
 
 namespace LibreWinForms.TestContracts;
@@ -31,6 +32,9 @@ internal static class CanonicalApiContracts
         TableLayoutMixedSizing();
         TableLayoutSpansAndRtl();
         TableLayoutNestedInvalidation();
+        PrintDocumentPreviewAction();
+        PrintDocumentCancellationOrder();
+        PrintDocumentRetainedQuerySettings();
     }
 
     internal static void LabelAutoEllipsis()
@@ -437,6 +441,119 @@ internal static class CanonicalApiContracts
         RequireBounds(leaf, new Rectangle(3, 5, 30, 12), "restored nested leaf");
         RequireBounds(remainder, new Rectangle(60, 0, 180, 100), "restored outer remainder");
         RequireTableTracks(outer, [60, 180], [100]);
+    }
+
+    internal static void PrintDocumentPreviewAction()
+    {
+        using PrintDocument document = CreateSmallPrintDocument();
+        PreviewPrintController controller = new();
+        document.PrintController = controller;
+        PrintEventArgs? begin = null;
+        PrintEventArgs? end = null;
+        int printed = 0;
+        document.BeginPrint += (_, e) => begin = e;
+        document.EndPrint += (_, e) => end = e;
+        document.PrintPage += (_, e) =>
+        {
+            Require(++printed == 1, "The preview fixture must print exactly one page.");
+            e.HasMorePages = false;
+        };
+        try
+        {
+            document.Print();
+            PreviewPageInfo[] pages = controller.GetPreviewPageInfo();
+            Require(begin?.PrintAction == PrintAction.PrintToPreview && ReferenceEquals(begin, end),
+                "A real preview controller must report the same preview action at BeginPrint and EndPrint.");
+            Require(printed == 1 && pages.Length == 1 && pages[0].PhysicalSize == new Size(8, 8),
+                "The real preview controller must retain the bounded page.");
+        }
+        finally
+        {
+            foreach (PreviewPageInfo page in controller.GetPreviewPageInfo()) page.Image.Dispose();
+        }
+    }
+
+    internal static void PrintDocumentCancellationOrder()
+    {
+        foreach ((string stage, string expected) in new[]
+        {
+            ("begin", "begin,end:True"),
+            ("start", "begin,start,end:True,finish:True"),
+            ("query", "begin,start,query,end:False,finish:True")
+        })
+        {
+            using PrintDocument document = CreateSmallPrintDocument();
+            List<string> callbacks = [];
+            document.PrintController = new PrintContractController(
+                start: e => { callbacks.Add("start"); e.Cancel = stage == "start"; },
+                finish: e => callbacks.Add($"finish:{e.Cancel}"));
+            document.BeginPrint += (_, e) => { callbacks.Add("begin"); e.Cancel = stage == "begin"; };
+            document.QueryPageSettings += (_, e) => { callbacks.Add("query"); e.Cancel = true; };
+            document.EndPrint += (_, e) => callbacks.Add($"end:{e.Cancel}");
+            document.PrintPage += (_, _) => throw new InvalidOperationException("Canceled printing must not render a page.");
+
+            document.Print();
+
+            string actual = string.Join(",", callbacks);
+            Require(actual == expected, $"Print cancellation at {stage}: expected {expected}, actual {actual}.");
+        }
+    }
+
+    internal static void PrintDocumentRetainedQuerySettings()
+    {
+        using PrintDocument document = CreateSmallPrintDocument();
+        document.PrintController = new PrintContractController();
+        PageSettings defaults = document.DefaultPageSettings;
+        QueryPageSettingsEventArgs? firstQuery = null;
+        PageSettings? settings = null;
+        int queried = 0;
+        int printed = 0;
+        document.QueryPageSettings += (_, e) =>
+        {
+            Require(++queried <= 2, "The retained-query fixture must query at most two pages.");
+            if (queried == 1)
+            {
+                firstQuery = e;
+                settings = e.PageSettings;
+                Require(!ReferenceEquals(settings, defaults) && !ReferenceEquals(settings.Margins, defaults.Margins),
+                    "Print query settings must begin as an independent snapshot.");
+                settings.Margins.Left = 2;
+                settings.Color = true;
+            }
+            else
+            {
+                Require(ReferenceEquals(firstQuery, e) && ReferenceEquals(settings, e.PageSettings)
+                    && e.PageSettings.Margins.Left == 2 && e.PageSettings.Color,
+                    "Later pages must retain the first query's settings identity and edits.");
+            }
+        };
+        document.PrintPage += (_, e) =>
+        {
+            Require(++printed <= 2, "The retained-query fixture must print at most two pages.");
+            Require(ReferenceEquals(settings, e.PageSettings) && e.PageBounds == new Rectangle(0, 0, 8, 8)
+                && e.MarginBounds == new Rectangle(2, 0, 6, 8), "Both pages must use the retained 2px left margin.");
+            e.HasMorePages = printed == 1;
+        };
+
+        document.Print();
+
+        Require(queried == 2 && printed == 2 && ReferenceEquals(document.DefaultPageSettings, defaults)
+            && defaults.Margins.Left == 0 && !defaults.Color, "Printing must leave document defaults unchanged.");
+    }
+
+    private static PrintDocument CreateSmallPrintDocument()
+    {
+        PrintDocument document = new();
+        document.DefaultPageSettings.PaperSize = new PaperSize("Canonical lifecycle", 8, 8);
+        document.DefaultPageSettings.Margins = new Margins(0, 0, 0, 0);
+        return document;
+    }
+
+    private sealed class PrintContractController(Action<PrintEventArgs>? start = null, Action<PrintEventArgs>? finish = null) : PrintController
+    {
+        public override void OnStartPrint(PrintDocument document, PrintEventArgs e) => start?.Invoke(e);
+
+        public override void OnEndPrint(PrintDocument document, PrintEventArgs e) => finish?.Invoke(e);
     }
 
     private static Panel CreateTableFill(Padding margin) => new()
