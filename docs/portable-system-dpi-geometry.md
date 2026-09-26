@@ -72,3 +72,11 @@ required. Source/provider tests do not qualify native input, popup UI, physical
 keyboard layouts, or heterogeneous multi-monitor SystemAware virtualization.
 This change does not force PMv2, change the backend's default coordinate mode,
 rescale an external driver, or claim complete PerMonitor-v1 behavior.
+
+The integrated SDK/runtime source head `9add89167` reran all 405 canonical cases
+with zero failures/skips. Its 25 fresh-process initialization composition
+controls also passed, including explicit DpiUnaware and PerMonitorV2 choices
+before the generated SystemAware call. Current source DLLs were hash-verified
+in new consumer output directories; original installed package artifacts were
+not replaced. See [SDK DPI evidence](sdk-application-high-dpi-mode.md) for this
+source/package distinction and the still-required full installed matrix.

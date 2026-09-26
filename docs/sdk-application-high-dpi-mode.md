@@ -108,5 +108,15 @@ The two subsequent prior-policy cases both failed against that unchanged
 runtime: explicit PerMonitorV2 and explicit DpiUnaware were overwritten by the
 generated SystemAware call. Their compile/runtime logs are retained separately
 under `artifacts/sdk-dpi-evidence/prior-policy-negative`. These negative controls
-require the separate runtime first-successful-policy fix before the composed
-88-case Project/Package matrix can pass. No native window or input was exercised.
+require the runtime first-successful-policy fix included in this combined change.
+
+At integrated source head `9add89167`, all 25 applicable fresh-process controls
+passed against SHA-verified current source runtime/backend assemblies, including
+both prior-choice cases. The consumer binaries/generated SDK policy were
+unchanged; seven current source assemblies were copied into separate fresh
+outputs, with original and replacement hashes retained and rechecked. No CI
+package/archive/cache was modified. This is deliberately source-composition
+evidence, not qualification of a newly produced installed package. The full
+88-case Project/Package matrix remains a mandatory exact-head CI gate. The
+composition receipt is `artifacts/sdk-dpi-composition/receipt.json`; no native
+window or input was exercised by these initialization consumers.
