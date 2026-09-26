@@ -280,7 +280,7 @@ public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindo
         => !owner.IsNull && owner.Kind == LibreHandleKind.Window;
 }
 
-internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, INativePopupAdmissionHost
+internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, INativePopupAdmissionHost, INativeCharacterTarget
 {
     private readonly SilkWindowService _service;
     private readonly ProGpuDispatcher _dispatcher;
@@ -300,6 +300,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
     private readonly Dictionary<LibreHandle, DrawingVisual> _paintLayers = [];
     private readonly ProGpuAdornerStore _adorners;
     private IInputContext? _input;
+    private NativeCharacterSequence? _characters;
+    private GlfwCharacterInput? _characterInput;
     private volatile WgpuContext? _wgpuContext;
     private Compositor? _compositor;
     private bool _paintQueued;
@@ -411,10 +413,10 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
                 Show();
             }
         }
-        catch (Exception failure) when (_popupAdmission is not null)
+        catch (Exception failure)
         {
-            try { DiscardPopup(); }
-            catch (Exception cleanupFailure) { failure.Data[nameof(NativePopupAdmission)] = cleanupFailure; }
+            try { ReleaseNativeWindow(); }
+            catch (Exception cleanupFailure) { failure.Data[nameof(SilkLibreWindow)] = cleanupFailure; }
             throw;
         }
     }
@@ -745,42 +747,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         _window.Close();
     }
 
-    public void Dispose()
-    {
-        if (_popupAdmission is not null)
-        {
-            DiscardPopup();
-            return;
-        }
-
-        if (_disposed)
-        {
-            return;
-        }
-
-        VerifyAccess();
-        _disposed = true;
-        _service.Unregister(this);
-        _dispatcher.Unregister(this);
-        _input?.Dispose();
-        foreach (DrawingVisual visual in _paintLayers.Values)
-        {
-            visual.Context.Clear();
-        }
-
-        _paintLayers.Clear();
-        _adorners.Clear();
-        _fallbackPaintVisual.Context.Clear();
-        _transientPaintVisual.Context.Clear();
-        _reversiblePaintVisual.Context.Clear();
-        _paintRoot.ClearChildren();
-        _compositor?.Dispose();
-        _wgpuContext?.Dispose();
-        _controller.Dispose();
-        _window.Dispose();
-        _handles.Release(Handle);
-        RaiseClosed();
-    }
+    public void Dispose() => ReleaseNativeWindow();
 
     void INativePopupAdmissionHost.VerifyAccess() => VerifyAccess();
 
@@ -842,9 +809,9 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         }
     }
 
-    void INativePopupAdmissionHost.Discard() => DiscardPopup();
+    void INativePopupAdmissionHost.Discard() => ReleaseNativeWindow();
 
-    private void DiscardPopup()
+    private void ReleaseNativeWindow()
     {
         if (_disposed)
             return;
@@ -857,10 +824,12 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
             catch (Exception failure) { firstFailure ??= failure; }
         }
 
-        // A rejected/partially initialized popup must never leave a native
-        // surface or logical handle behind, even if cleanup/user callbacks fail.
+        // A rejected/partially initialized window must never leave a native
+        // surface, character callback or logical handle behind, even if another
+        // cleanup operation or a user callback fails.
         Release(() => _service.Unregister(this));
         Release(() => _dispatcher.Unregister(this));
+        Release(() => _characterInput?.Dispose());
         Release(() => _input?.Dispose());
         foreach (DrawingVisual visual in _paintLayers.Values)
             Release(visual.Context.Clear);
@@ -1267,6 +1236,9 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         }
 
         _window.DoEvents();
+        _characters?.Flush();
+        if (_disposed)
+            return;
         _window.DoUpdate();
         if ((_paintQueued || _presentationQueued) && Visible)
         {
@@ -1540,12 +1512,17 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
                 PrimarySampleCount = 1,
             });
         _input = _window.CreateInput();
+        nint characterWindow = _window.Native?.Glfw ?? 0;
+        if (characterWindow == 0)
+            throw new PlatformNotSupportedException("Native character input requires the owned GLFW window.");
+        _characters = NativeCharacterSequence.Current;
+        _characterInput = new GlfwCharacterInput(new GlfwCharacterCallbacks(characterWindow), characterWindow,
+            _characters, this, Timestamp);
         ApplyCursor();
         foreach (IKeyboard keyboard in _input.Keyboards)
         {
             keyboard.KeyDown += OnKeyDown;
             keyboard.KeyUp += OnKeyUp;
-            keyboard.KeyChar += OnKeyChar;
         }
 
         foreach (IMouse mouse in _input.Mice)
@@ -1731,12 +1708,6 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         EmitInput(LibreInputEventKind.KeyUp, key: MapKey(key), modifiers: ReadModifiers(keyboard));
     }
 
-    private void OnKeyChar(IKeyboard keyboard, char character)
-    {
-        _ = keyboard;
-        EmitInput(LibreInputEventKind.TextInput, text: character.ToString());
-    }
-
     private void OnMouseDown(IMouse mouse, MouseButton button)
         => EmitPointer(LibreInputEventKind.PointerDown, mouse.Position, button);
 
@@ -1831,6 +1802,9 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
 
     private void DeliverInput(in LibreInputEvent inputEvent)
     {
+        _characters?.Flush();
+        if (_disposed)
+            return;
         if (_service.RecordDragInput(this, inputEvent))
         {
             return;
@@ -1840,6 +1814,16 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         {
             _events.Input(inputEvent);
         }
+    }
+
+    bool INativeCharacterTarget.IsAlive => !_disposed && _enabled;
+
+    void INativeCharacterTarget.Input(in LibreInputEvent input)
+    {
+        // The sequence has already retired its pending generation. Do not
+        // recursively flush a character produced by a nested application callback.
+        if (!_disposed && _enabled && !_service.RecordDragInput(this, input))
+            _events.Input(input);
     }
 
     private LibreInputModifiers ReadModifiers()
