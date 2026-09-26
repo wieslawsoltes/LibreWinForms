@@ -102,7 +102,7 @@ public unsafe partial class Control
         }
     }
 
-    internal void CancelPortableCapture()
+    internal void CancelPortableCapture(bool updateCursor = true)
     {
         Control root = GetPortableTopLevelControl();
         Control? captured = root._portableCapturedControl;
@@ -111,7 +111,8 @@ public unsafe partial class Control
         root._portablePressedButton = MouseButtons.None;
         s_portableMouseButtons = MouseButtons.None;
         captured?.OnMouseCaptureChanged(EventArgs.Empty);
-        root.RefreshPortableCursor();
+        if (updateCursor)
+            root.RefreshPortableCursor();
     }
 
     internal void SetPortableWindowFocus(bool focused)

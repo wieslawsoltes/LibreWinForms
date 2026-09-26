@@ -12,6 +12,8 @@ Platform work should be typed and reusable: windowing/input, menus/popups, paint
 
 Portable dropdown owner deactivation reuses the native bounded active-leaf close policy. Keep opening/visible ownership separate from AutoClose admission: canceled parent openings or closes can leave a live child, including persistent children. Retain its typed Form owner until the last member releases it; preserve cancellation, original callback exceptions, and forced root-disposal cleanup. Source lifecycle tests do not qualify native popup input or UI. See docs/portable-popup-deactivation.md.
 
+Canonical top-level dropdowns stage a real hidden Popup window and bind a live typed Form owner before display. Preserve arranged coordinate bounds, nonactivating backend admission, precreated handle reuse, and independent popup topmost state. Native owner hide/minimize/destruction must release persistent as well as ordinary popup surfaces and reject reentrant admission during teardown; callback exceptions cannot leave stale handles or roll back a completed visibility transition. Keep reusable source dropdown objects and ordinary cancelable closes distinct from forced native resource loss. Native window creation alone does not qualify keyboard/menu-mode routing or platform UI. See docs/canonical-native-dropdowns.md.
+
 SharpDevelop is the initial integration driver. Prefer porting the real WinForms API/designer/resource code from this repository over expanding LibreWPF-local compatibility shims.
 
 Portable plain-text clipboard editing uses canonical Clipboard conversion and
