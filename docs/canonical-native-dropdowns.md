@@ -71,6 +71,14 @@ to the original GroupBox/LinkLabel test; menu painting independently requires it
 own source text. Existing TextBox, tooltip, bounds, font, format and color checks
 remain intact. This is not a pixel parity assertion.
 
+The complete source lifecycle suite now passes **300 / 300, zero skipped** on
+the macOS ARM64 host, including all 261 prior cases and 39 new cases. The
+production source build completed with zero errors; its 622 pre-existing source
+warnings remain visible. The final added generation-test build had zero warnings
+and errors. CI keeps the unfiltered suite and raises its minimum from 261 to 300.
+The native backend's separate full suite and strict 24-case admission gate are
+retained; typed/headless tests do not execute native window-system calls.
+
 Actual native desktop acceptance still requires paired Windows reference and
 portable Windows, Linux and macOS captures/input, including edges/DPI, nested
 menus, keyboard focus/navigation, outside-click/Escape, owner changes, appearance
