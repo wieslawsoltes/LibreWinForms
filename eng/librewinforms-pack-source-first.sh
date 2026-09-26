@@ -450,6 +450,18 @@ NUGET_PACKAGES="${smoke_root}/sdk-package-packages" "${dotnet}" run \
   --no-restore \
   "${sdk_package_smoke_properties[@]}"
 
+# Use the exact just-produced package closure and consumer output. The Microsoft
+# negative control is restored only into the test's isolated temporary cache.
+python3 "${repo_root}/eng/test-drawing-runtime-identity.py" \
+  --dotnet "${dotnet}" \
+  --framework net11.0 \
+  --progpu-drawing "${sdk_package_smoke_drawing}" \
+  --canonical-directory "${sdk_package_smoke_output}" \
+  --package-feed "${package_output}" \
+  --canonical-version "${package_version}" \
+  --backend-version "${backend_package_version}" \
+  --sdk-version "${sdk_package_version}"
+
 echo "Canonical source-first package validated: ${package_file}"
 echo "Source-first ProGPU backend package validated: ${backend_package_file}"
 echo "Source-first SDK package validated: ${sdk_package_file}"

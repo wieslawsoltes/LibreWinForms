@@ -1,4 +1,6 @@
 <Project>
+  <Import Project="$(MSBuildThisFileDirectory)LibreWinForms.DrawingIdentity.targets"
+          Condition="'$(_LibreWinFormsDrawingIdentityTargetsImported)' != 'true'" />
   <Target Name="_LibreWinFormsValidateCanonicalSdkConfiguration"
           BeforeTargets="PrepareForBuild">
     <Error Condition="'$(LibreWinFormsUseCanonicalRuntime)' != 'true'"
@@ -74,6 +76,24 @@
       <_LibreWinFormsApplicationBootstrapLine Include="    {" />
       <_LibreWinFormsApplicationBootstrapLine Include="        [global::System.Runtime.CompilerServices.ModuleInitializer]" />
       <_LibreWinFormsApplicationBootstrapLine Include="        internal static void Initialize()" />
+      <_LibreWinFormsApplicationBootstrapLine Include="        {" />
+      <_LibreWinFormsApplicationBootstrapLine Include="            try" />
+      <_LibreWinFormsApplicationBootstrapLine Include="            {" />
+      <_LibreWinFormsApplicationBootstrapLine Include="                RequireDrawingAbi()%3B" />
+      <_LibreWinFormsApplicationBootstrapLine Include="            }" />
+      <_LibreWinFormsApplicationBootstrapLine Include="            catch (global::System.Exception error) when (error is global::System.TypeLoadException or global::System.MissingMethodException or global::System.IO.FileNotFoundException or global::System.IO.FileLoadException)" />
+      <_LibreWinFormsApplicationBootstrapLine Include="            {" />
+      <_LibreWinFormsApplicationBootstrapLine Include="                throw new global::System.InvalidOperationException(&quot;LibreWinForms requires the aligned ProGPU System.Drawing.Common assembly. An already-loaded Microsoft System.Drawing.Common cannot be replaced in that load context. Remove the conflicting dependency and restart the process.&quot;, error)%3B" />
+      <_LibreWinFormsApplicationBootstrapLine Include="            }" />
+      <_LibreWinFormsApplicationBootstrapLine Include="            RegisterBackend()%3B" />
+      <_LibreWinFormsApplicationBootstrapLine Include="        }" />
+      <_LibreWinFormsApplicationBootstrapLine Include="        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]" />
+      <_LibreWinFormsApplicationBootstrapLine Include="        private static void RequireDrawingAbi()" />
+      <_LibreWinFormsApplicationBootstrapLine Include="        {" />
+      <_LibreWinFormsApplicationBootstrapLine Include="            _ = global::ProGPU.SystemDrawing.NativeFontInteropServices.IsRegistered%3B" />
+      <_LibreWinFormsApplicationBootstrapLine Include="        }" />
+      <_LibreWinFormsApplicationBootstrapLine Include="        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]" />
+      <_LibreWinFormsApplicationBootstrapLine Include="        private static void RegisterBackend()" />
       <_LibreWinFormsApplicationBootstrapLine Include="        {" />
       <_LibreWinFormsApplicationBootstrapLine Include="            global::LibreWinForms.ProGPU.ProGpuPlatform.Register()%3B" />
       <_LibreWinFormsApplicationBootstrapLine Include="        }" />
