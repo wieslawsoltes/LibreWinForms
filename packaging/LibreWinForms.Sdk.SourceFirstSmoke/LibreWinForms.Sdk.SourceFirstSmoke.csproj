@@ -1,6 +1,7 @@
 <Project Sdk="LibreWinForms.Sdk/0.1.0-source-first-sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <Product>LibreWinForms canonical API contracts</Product>
     <TargetFramework>net11.0</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
