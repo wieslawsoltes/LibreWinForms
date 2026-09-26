@@ -21,7 +21,7 @@ using Xunit;
 
 namespace LibreWinForms.CanonicalLifecycle.Tests;
 
-public class CanonicalLifecycleTests
+public partial class CanonicalLifecycleTests
 {
     private delegate int AddValues(int left, int right);
 

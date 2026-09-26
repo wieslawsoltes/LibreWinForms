@@ -23,6 +23,7 @@ internal static class Program
         Application.EnableVisualStyles();
         Application.SetHighDpiMode(HighDpiMode.SystemAware);
         ApplicationConfiguration.Initialize();
+        LibreWinForms.TestContracts.CanonicalApiContracts.VerifyAll();
         VerifyHexEditorInputScrollContracts();
         VerifyHexEditorControlContracts();
         VerifyHexEditorMenuContracts();
