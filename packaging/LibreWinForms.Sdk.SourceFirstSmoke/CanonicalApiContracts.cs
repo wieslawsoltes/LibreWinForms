@@ -28,6 +28,9 @@ internal static class CanonicalApiContracts
         BindableComponentAndUpdateModes();
         BindingAndConversionEventArgs();
         NativeAndControlHandleLifetime();
+        TableLayoutMixedSizing();
+        TableLayoutSpansAndRtl();
+        TableLayoutNestedInvalidation();
     }
 
     internal static void LabelAutoEllipsis()
@@ -274,6 +277,184 @@ internal static class CanonicalApiContracts
         {
             window.DestroyHandle();
         }
+    }
+
+    internal static void TableLayoutMixedSizing()
+    {
+        using TableLayoutPanel table = new()
+        {
+            ClientSize = new Size(320, 120), Padding = new Padding(10, 8, 14, 12),
+            Margin = Padding.Empty, AutoSize = false, BorderStyle = BorderStyle.None,
+            CellBorderStyle = TableLayoutPanelCellBorderStyle.None,
+            ColumnCount = 4, RowCount = 2, GrowStyle = TableLayoutPanelGrowStyle.FixedSize
+        };
+        table.SuspendLayout();
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 60));
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 75));
+        table.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+        table.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        Panel absolute = CreateTableFill(Padding.Empty);
+        Panel auto = new()
+        {
+            Size = new Size(40, 20), AutoSize = false, Anchor = AnchorStyles.Top | AnchorStyles.Left,
+            Margin = new Padding(3, 2, 5, 4)
+        };
+        Panel quarter = CreateTableFill(new Padding(2, 3, 4, 5));
+        Panel remainder = CreateTableFill(Padding.Empty);
+        table.Controls.Add(absolute, 0, 0);
+        table.Controls.Add(auto, 1, 0);
+        table.Controls.Add(quarter, 2, 0);
+        table.Controls.Add(remainder, 3, 0);
+        table.ResumeLayout(performLayout: true);
+
+        // The 296px content width leaves 188 after 60 absolute + 48 auto.
+        // Its 25:75 split is exactly 47:141, with no rounding oracle needed.
+        for (int pass = 0; pass < 2; pass++)
+        {
+            table.PerformLayout();
+            Require(table.DisplayRectangle == new Rectangle(10, 8, 296, 100), "Table padding changed the content rectangle.");
+            RequireTableTracks(table, [60, 48, 47, 141], [40, 60]);
+            RequireBounds(absolute, new Rectangle(10, 8, 60, 40), "absolute cell");
+            RequireBounds(auto, new Rectangle(73, 10, 40, 20), "auto cell");
+            RequireBounds(quarter, new Rectangle(120, 11, 41, 32), "25 percent cell with margins");
+            RequireBounds(remainder, new Rectangle(165, 8, 141, 40), "75 percent cell");
+        }
+    }
+
+    internal static void TableLayoutSpansAndRtl()
+    {
+        using TableLayoutPanel table = new()
+        {
+            ClientSize = new Size(200, 120), Padding = Padding.Empty, Margin = Padding.Empty,
+            AutoSize = false, BorderStyle = BorderStyle.None, CellBorderStyle = TableLayoutPanelCellBorderStyle.None,
+            ColumnCount = 3, RowCount = 3, GrowStyle = TableLayoutPanelGrowStyle.FixedSize
+        };
+        table.SuspendLayout();
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 40));
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 60));
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        table.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        table.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
+        table.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        Panel span = CreateTableFill(new Padding(3, 4, 5, 6));
+        Panel top = CreateTableFill(Padding.Empty);
+        Panel middle = CreateTableFill(Padding.Empty);
+        Panel bottom = CreateTableFill(Padding.Empty);
+        table.Controls.Add(span, 0, 0);
+        table.SetColumnSpan(span, 2);
+        table.SetRowSpan(span, 2);
+        table.Controls.Add(top, 2, 0);
+        table.Controls.Add(middle, 2, 1);
+        table.Controls.Add(bottom, 0, 2);
+        table.SetColumnSpan(bottom, 3);
+        table.ResumeLayout(performLayout: true);
+        table.PerformLayout();
+        RequireTableTracks(table, [40, 60, 100], [30, 50, 40]);
+        RequireBounds(span, new Rectangle(3, 4, 92, 70), "LTR two-column/two-row span");
+        RequireBounds(top, new Rectangle(100, 0, 100, 30), "LTR upper final column");
+        RequireBounds(middle, new Rectangle(100, 30, 100, 50), "LTR middle final column");
+        RequireBounds(bottom, new Rectangle(0, 80, 200, 40), "LTR full bottom row");
+        Require(ReferenceEquals(table.GetControlFromPosition(1, 1), span), "A covered cell must resolve its spanning control.");
+
+        table.RightToLeft = RightToLeft.Yes;
+        table.PerformLayout();
+        RequireTableTracks(table, [40, 60, 100], [30, 50, 40]);
+        // Mirror the cell and its asymmetric margins, not logical cell indices.
+        RequireBounds(span, new Rectangle(105, 4, 92, 70), "RTL two-column/two-row span");
+        RequireBounds(top, new Rectangle(0, 0, 100, 30), "RTL upper final column");
+        RequireBounds(middle, new Rectangle(0, 30, 100, 50), "RTL middle final column");
+        RequireBounds(bottom, new Rectangle(0, 80, 200, 40), "RTL full bottom row");
+        Require(table.GetPositionFromControl(span) == new TableLayoutPanelCellPosition(0, 0)
+            && ReferenceEquals(table.GetControlFromPosition(1, 1), span), "RTL must preserve logical cell ownership.");
+
+        table.SetColumnSpan(span, 1);
+        table.PerformLayout();
+        RequireBounds(span, new Rectangle(165, 4, 32, 70), "RTL changed column span");
+        Require(table.GetColumnSpan(span) == 1 && table.GetRowSpan(span) == 2
+            && table.GetControlFromPosition(1, 1) is null, "Changing a span must invalidate covered-cell assignments.");
+    }
+
+    internal static void TableLayoutNestedInvalidation()
+    {
+        using TableLayoutPanel outer = new()
+        {
+            ClientSize = new Size(240, 100), Padding = Padding.Empty, Margin = Padding.Empty,
+            AutoSize = false, ColumnCount = 2, RowCount = 1,
+            BorderStyle = BorderStyle.None, CellBorderStyle = TableLayoutPanelCellBorderStyle.None,
+            GrowStyle = TableLayoutPanelGrowStyle.FixedSize
+        };
+        outer.SuspendLayout();
+        outer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        outer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        outer.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        TableLayoutPanel inner = new()
+        {
+            AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Anchor = AnchorStyles.Top | AnchorStyles.Left, Padding = new Padding(2, 3, 4, 5), Margin = Padding.Empty,
+            ColumnCount = 2, RowCount = 1, BorderStyle = BorderStyle.None,
+            CellBorderStyle = TableLayoutPanelCellBorderStyle.None, GrowStyle = TableLayoutPanelGrowStyle.FixedSize
+        };
+        inner.SuspendLayout();
+        inner.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        inner.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 20));
+        inner.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        Panel leaf = new()
+        {
+            Size = new Size(30, 12), AutoSize = false, Anchor = AnchorStyles.Top | AnchorStyles.Left,
+            Margin = new Padding(1, 2, 3, 4)
+        };
+        inner.Controls.Add(leaf, 0, 0);
+        inner.Controls.Add(CreateTableFill(Padding.Empty), 1, 0);
+        inner.ResumeLayout(performLayout: false);
+        Panel remainder = CreateTableFill(Padding.Empty);
+        outer.Controls.Add(inner, 0, 0);
+        outer.Controls.Add(remainder, 1, 0);
+        outer.ResumeLayout(performLayout: true);
+        outer.PerformLayout();
+
+        // Preferred width = leaf 30 + margins 4 + fixed column 20 + padding 6.
+        // Preferred height = leaf 12 + margins 6 + padding 8.
+        RequireBounds(inner, new Rectangle(0, 0, 60, 26), "initial nested table");
+        RequireBounds(leaf, new Rectangle(3, 5, 30, 12), "initial nested leaf");
+        RequireBounds(remainder, new Rectangle(60, 0, 180, 100), "initial outer remainder");
+        Require(inner.GetPreferredSize(Size.Empty) == new Size(60, 26), "Nested preferred size must include margins and padding.");
+        Require(inner.GetPreferredSize(Size.Empty) == new Size(60, 26), "Warmed nested preferred-size cache changed.");
+
+        leaf.Size = new Size(50, 22);
+        // Request only the outer layout: do not repair the child cache by
+        // explicitly laying out or measuring the inner table before asserting.
+        outer.PerformLayout();
+        RequireBounds(inner, new Rectangle(0, 0, 80, 36), "grown nested table");
+        RequireBounds(leaf, new Rectangle(3, 5, 50, 22), "grown nested leaf");
+        RequireBounds(remainder, new Rectangle(80, 0, 160, 100), "grown outer remainder");
+        RequireTableTracks(outer, [80, 160], [100]);
+
+        leaf.Size = new Size(30, 12);
+        outer.PerformLayout();
+        RequireBounds(inner, new Rectangle(0, 0, 60, 26), "restored nested table");
+        RequireBounds(leaf, new Rectangle(3, 5, 30, 12), "restored nested leaf");
+        RequireBounds(remainder, new Rectangle(60, 0, 180, 100), "restored outer remainder");
+        RequireTableTracks(outer, [60, 180], [100]);
+    }
+
+    private static Panel CreateTableFill(Padding margin) => new()
+    {
+        Size = new Size(1, 1), AutoSize = false, Margin = margin, Dock = DockStyle.Fill
+    };
+
+    private static void RequireBounds(Control control, Rectangle expected, string name) =>
+        Require(control.Bounds == expected, $"{name}: expected {expected}, actual {control.Bounds}.");
+
+    private static void RequireTableTracks(TableLayoutPanel table, int[] columns, int[] rows)
+    {
+        int[] actualColumns = table.GetColumnWidths();
+        int[] actualRows = table.GetRowHeights();
+        Require(actualColumns.SequenceEqual(columns),
+            $"Column widths: expected [{string.Join(", ", columns)}], actual [{string.Join(", ", actualColumns)}].");
+        Require(actualRows.SequenceEqual(rows),
+            $"Row heights: expected [{string.Join(", ", rows)}], actual [{string.Join(", ", actualRows)}].");
     }
 
     private static DataGridView CreateGrid()

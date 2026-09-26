@@ -124,6 +124,10 @@ diagnostic when Microsoft drawing is already loaded; it cannot replace that
 assembly in the running process. See the [drawing identity contract](docs/librewinforms/drawing-runtime-identity.md)
 for the excluded-package, library, and single-file boundaries.
 
+Shared [TableLayoutPanel contracts](docs/librewinforms/table-layout-contracts.md)
+exercise exact sizing, spans, RTL, and nested invalidation in the source and
+isolated SDK package consumers.
+
 ```bash
 LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.65 ./eng/librewinforms-pack.sh
 ```
