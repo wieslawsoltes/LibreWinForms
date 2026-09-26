@@ -45,6 +45,8 @@
     <PackageReference Include="System.Resources.Extensions" />
     <PackageReference Include="System.Windows.Extensions" />
     <None Include="$(RepoRoot)README.md" Pack="true" PackagePath="/" />
+    <None Include="$(RepoRoot)src/LibreWinForms.Sdk/targets/LibreWinForms.DrawingIdentity.targets"
+          Pack="true" PackagePath="buildTransitive/LibreWinForms.System.Windows.Forms.targets" />
   </ItemGroup>
 
   <Target Name="BuildCanonicalWinFormsPackagePayload"
