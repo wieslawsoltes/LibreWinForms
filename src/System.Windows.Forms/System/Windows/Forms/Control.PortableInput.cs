@@ -251,7 +251,8 @@ public unsafe partial class Control
 
         if (menu is not null && (target._portableSuppressKeyPress
             || (processed && message.MsgInternal == PInvokeCore.WM_KEYDOWN)
-            || !ReferenceEquals(ToolStripDropDown.GetPortableKeyboardTarget(this), menu)))
+            || !ReferenceEquals(ToolStripDropDown.GetPortableKeyboardTarget(this), menu)
+            || !menu.IsHandleCreated || menu.Handle != handle))
         {
             // Typed backends may deliver a translated character after a
             // consumed key or a mnemonic that closed the menu. It must not
