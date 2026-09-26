@@ -252,6 +252,15 @@ def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
         source_output = args.repo_root / "artifacts/bin" / path.stem / args.configuration / "netstandard2.0" / path.name
         if mode == "Project" and path.resolve() != source_output.resolve():
             raise AssertionError(f"Project-mode compiler selected a different analyzer source output: {path}")
+        if mode == "Package":
+            language = "vb/" if vb else "cs/"
+            relative = "analyzers/dotnet/" + ("" if path.name == "System.Windows.Forms.Analyzers.dll" else language) + path.name
+            expected_path = scratch / "packages/librewinforms.sdk" / args.sdk_version / relative
+            if path.resolve() != expected_path.resolve():
+                raise AssertionError(f"Package-mode compiler selected a different installed SDK analyzer: {path}")
+            with zipfile.ZipFile(args.package_source / f"LibreWinForms.Sdk.{args.sdk_version}.nupkg") as archive:
+                if path.read_bytes() != archive.read(relative):
+                    raise AssertionError(f"Compiler analyzer differs from the verified producer package: {path}")
         selected_hashes[str(path)] = sha256(path.read_bytes())
     (saved / "analyzer-inputs.json").write_text(json.dumps(selected_hashes, indent=2) + "\n", encoding="utf-8")
     shutil.copy2(project, saved / project.name)
