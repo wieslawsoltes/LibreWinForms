@@ -259,13 +259,16 @@ internal static class CanonicalApiContracts
             IntPtr handle = window.Handle;
             Require(handle != IntPtr.Zero && ReferenceEquals(NativeWindow.FromHandle(handle), window)
                 && Control.FromHandle(handle) is null, "NativeWindow must register its own handle without inventing a Control.");
-            Require(window.Changes.Count == 1 && window.Changes[0] == handle, "OnHandleChange override missed creation.");
+            Require(window.CreateHandleCalls == 1 && window.Changes.Count == 1 && window.Changes[0] == handle,
+                "CreateHandle or OnHandleChange override missed creation.");
             RequireThrows<InvalidOperationException>(() => window.CreateHandle(parameters));
+            Require(window.CreateHandleCalls == 2 && window.Changes.Count == 1, "Rejected creation must dispatch without changing the handle.");
             window.DestroyHandle();
             Require(window.Handle == IntPtr.Zero && NativeWindow.FromHandle(handle) is null
                 && window.Changes.Count == 2 && window.Changes[1] == IntPtr.Zero, "DestroyHandle must clear ownership and notify the override.");
             window.CreateHandle(parameters);
-            Require(window.Handle != IntPtr.Zero && window.Changes.Count == 3, "A destroyed NativeWindow must support recreation.");
+            Require(window.Handle != IntPtr.Zero && window.CreateHandleCalls == 3 && window.Changes.Count == 3,
+                "A destroyed NativeWindow must support virtual recreation.");
         }
         finally
         {
@@ -307,7 +310,15 @@ internal static class CanonicalApiContracts
 
     private sealed class HandleChangeWindow : NativeWindow
     {
+        internal int CreateHandleCalls { get; private set; }
+
         internal List<IntPtr> Changes { get; } = [];
+
+        public override void CreateHandle(CreateParams cp)
+        {
+            CreateHandleCalls++;
+            base.CreateHandle(cp);
+        }
 
         protected override void OnHandleChange()
         {
