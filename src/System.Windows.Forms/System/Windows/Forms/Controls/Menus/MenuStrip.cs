@@ -201,7 +201,12 @@ public partial class MenuStrip : ToolStrip
     {
         if (!(Focused || ContainsFocus))
         {
+#if LIBREWINFORMS_PORTABLE
+            if (!ToolStripDropDown.SetPortableKeyboardContinuation(this, requireMainMenu: true))
+                return false;
+#else
             ToolStripManager.ModalMenuFilter.SetActiveToolStrip(this, menuKeyPressed: true);
+#endif
 
             if (DisplayedItems.Count > 0)
             {

@@ -9505,6 +9505,10 @@ public unsafe partial class Control :
     {
         Keys keyCode = (Keys)(nint)msg.WParamInternal & Keys.KeyCode;
 
+#if LIBREWINFORMS_PORTABLE
+        if (keyCode is Keys.LMenu or Keys.RMenu)
+            keyCode = Keys.Menu;
+#endif
         if (keyCode is not Keys.F10 and not Keys.Menu and not Keys.Tab)
         {
             return;  // PERF: don't WM_QUERYUISTATE if we don't have to.
