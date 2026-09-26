@@ -8,6 +8,7 @@ on:
     paths:
       - README.md
       - docs/**
+      - .github/ISSUE_TEMPLATE/**
       - eng/librewinforms-*.sh
       - .github/workflows/librewinforms-*.yml
   push:
@@ -16,6 +17,7 @@ on:
     paths:
       - README.md
       - docs/**
+      - .github/ISSUE_TEMPLATE/**
       - eng/librewinforms-*.sh
       - .github/workflows/librewinforms-*.yml
   workflow_dispatch:
@@ -43,3 +45,4 @@ jobs:
           path: |
             README.md
             docs/**
+            .github/ISSUE_TEMPLATE/**

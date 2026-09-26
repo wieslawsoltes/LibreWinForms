@@ -32,6 +32,32 @@ require_text README.md '"LibreWinForms.Sdk": "0.1.0-preview.65"'
 require_text README.md '<Project Sdk="LibreWinForms.Sdk">'
 require_text README.md 'preserve your existing `sdk` settings'
 reject_text README.md '<Project Sdk="LibreWinForms.Sdk/'
+require_text .github/ISSUE_TEMPLATE/bug_report.yml 'name: LibreWinForms bug report'
+require_text .github/ISSUE_TEMPLATE/bug_report.yml 'label: LibreWinForms and .NET versions'
+require_text .github/ISSUE_TEMPLATE/bug_report.yml 'dotnet --info'
+require_text .github/ISSUE_TEMPLATE/bug_report.yml 'Windows, macOS, and Linux'
+require_text .github/ISSUE_TEMPLATE/bug_report.yml 'label: Platform and environment'
+require_text .github/ISSUE_TEMPLATE/bug_report.yml 'label: Expected and actual behavior'
+require_text .github/ISSUE_TEMPLATE/bug_report.yml 'label: Steps and minimal reproduction'
+require_text .github/ISSUE_TEMPLATE/bug_report.yml 'fully qualified test name'
+require_text .github/ISSUE_TEMPLATE/bug_report.yml 'Windows access is not required'
+require_text .github/ISSUE_TEMPLATE/bug_report.yml 'label: Logs and diagnostics'
+require_text .github/ISSUE_TEMPLATE/feature_request.yml 'name: LibreWinForms API or feature request'
+require_text .github/ISSUE_TEMPLATE/feature_request.yml 'fully qualified type/member'
+require_text .github/ISSUE_TEMPLATE/feature_request.yml 'accessibility, localization'
+require_text .github/ISSUE_TEMPLATE/config.yml 'blank_issues_enabled: true'
+reject_text .github/ISSUE_TEMPLATE/config.yml 'contact_links:'
+for template in .github/ISSUE_TEMPLATE/bug_report.yml .github/ISSUE_TEMPLATE/feature_request.yml; do
+  reject_text "${template}" 'github.com/dotnet/'
+  reject_text "${template}" '.NET Framework'
+  reject_text "${template}" '.NET Core 3.1'
+done
+for template in bug_report_designer.yml internal-tracking-issue.md localization-issue-report.yml test_issue.yaml; do
+  if [[ -e "${repo_root}/.github/ISSUE_TEMPLATE/${template}" ]]; then
+    echo "Unexpected inherited issue template: ${template}." >&2
+    exit 1
+  fi
+done
 require_text README.md "LibreWinForms.System.Windows.Forms"
 require_text README.md "LibreWinForms.WindowsFormsIntegration"
 require_text README.md "### Bridge Packages"
@@ -133,6 +159,7 @@ require_text .github/workflows/librewinforms-ci.yml "Run package-mode SDK smoke"
 reject_text .github/workflows/librewinforms-ci.yml 'src/test/compatibility/LibreWinForms.Portable.Tests/LibreWinForms.Portable.Tests.csproj'
 require_text .github/workflows/librewinforms-docs.yml "LibreWinForms Docs"
 require_text .github/workflows/librewinforms-docs.yml "docs/**"
+require_text .github/workflows/librewinforms-docs.yml ".github/ISSUE_TEMPLATE/**"
 require_text .github/workflows/librewinforms-public-package-smoke.yml "LibreWinForms Public Package Smoke"
 require_text .github/workflows/librewinforms-public-package-smoke.yml '<Project Sdk="LibreWinForms.Sdk/${LIBREWINFORMS_VERSION}">'
 require_text .github/workflows/librewinforms-public-package-smoke.yml "<TargetFramework>net11.0</TargetFramework>"
