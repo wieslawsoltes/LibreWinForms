@@ -132,7 +132,8 @@ def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
                executable=False, caller_configuration=False, disable_configuration=False,
                expected_errors=(), ordinary_generator=False, sdk_directory=None,
                missing_analyzer=None, default_font=None, expected_font=None,
-               use_forms=None, runtime=False, late_properties=None, expected_configuration=None):
+               use_forms=None, runtime=False, late_properties=None, expected_configuration=None,
+               late_phase="PrepareForBuild"):
     case = scratch / (mode.lower() + "-" + name)
     case.mkdir()
     extension = "vb" if vb else "cs"
@@ -180,7 +181,7 @@ def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
                         Lines="@(Analyzer->'%(FullPath)')" Overwrite="true" />
     </Target>"""
     if late_properties:
-        recorder += '<Target Name="SetLateConfigurationPolicy" BeforeTargets="PrepareForBuild"><PropertyGroup>'
+        recorder += f'<Target Name="SetLateConfigurationPolicy" BeforeTargets="{late_phase}"><PropertyGroup>'
         recorder += "".join(f"<{key}>{escape(value)}</{key}>" for key, value in late_properties.items())
         recorder += "</PropertyGroup></Target>"
     project.write_text(start + "<PropertyGroup>" + "".join(properties)
@@ -431,7 +432,13 @@ global::System.Console.WriteLine(global::System.Text.Json.JsonSerializer.Seriali
                        ("portable-references", "LibreWinFormsUsePortableFrameworkReferences")):
         results.append(build_case(args, scratch, evidence, mode, "font-late-disable-" + name, "internal static class Library { }",
                                   use_forms=True, default_font="Arial, 12bogus", late_properties={flag: "false"},
-                                  expected_configuration=False))
+                                  expected_configuration=False,
+                                  # Turning off the whole portable graph during
+                                  # preparation also disables its existing path
+                                  # normalization. Isolate this predicate only
+                                  # after references, before compiler capture.
+                                  late_phase="_LibreWinFormsResolveGeneratedConfigurationPolicy"
+                                  if name == "portable-references" else "PrepareForBuild"))
     return results
 
 

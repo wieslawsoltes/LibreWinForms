@@ -46,9 +46,15 @@ The compiler-visible effective flag is refreshed at MSBuild's actual editorconfi
 property-capture phase, after `PrepareForBuild`, rather than frozen during project
 evaluation. The SDK source-emission target retains its original execution-time
 three-clause condition. Properties intended for a source generator must be set
-before that compiler configuration is captured. The gate changes every predicate
-input in a `PrepareForBuild` target and compares the captured flag with actual
-class/supplement emission, including late caller opt-out and SDK enablement.
+before that compiler configuration is captured. The gate changes generation and
+Forms enablement in `PrepareForBuild` targets and compares the captured flag with
+actual class/supplement emission, including late caller opt-out and SDK enablement.
+The portable-framework predicate is changed immediately before the compiler
+policy-capture target, after reference resolution. Turning off the entire portable
+graph during preparation also disables its existing Project-reference path
+normalization and fails before compilation on the current macOS SDK (retained
+MSB3202 evidence). That is not a supported Project source-graph transition and
+is not repaired or qualified by this font change.
 
 `LibreWinFormsGenerateApplicationConfiguration=false` leaves the class and font
 policy to the caller. It suppresses both the supplement and its diagnostics,
