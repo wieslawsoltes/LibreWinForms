@@ -413,7 +413,7 @@ public static partial class Clipboard
         return GetTypedDataIfAvailable<string>(ConvertToDataFormats(format)) is string text ? text : string.Empty;
     }
 
-    private static T? GetTypedDataIfAvailable<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(string format)
+    internal static T? GetTypedDataIfAvailable<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(string format)
     {
         IDataObject? data = GetDataObject();
         if (data is ITypedDataObject typed)

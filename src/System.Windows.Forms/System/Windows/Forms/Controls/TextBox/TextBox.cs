@@ -252,7 +252,11 @@ public partial class TextBox : TextBoxBase
     ///  Determines if the control is in password protect mode.
     /// </summary>
     private protected override bool PasswordProtect
+#if LIBREWINFORMS_PORTABLE
+        => _useSystemPasswordChar || _passwordChar != '\0';
+#else
         => PasswordChar != '\0';
+#endif
 
     /// <summary>
     ///  Returns the parameters needed to create the handle. Inheriting classes
