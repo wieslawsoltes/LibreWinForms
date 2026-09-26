@@ -18,6 +18,8 @@ Portable dropdown keyboard input retains the Form's real focus and reuses canoni
 
 Bare Alt/F10 menu entry waits for an unconsumed matching release in the same live window generation. Preserve shortcut/filter/managed-handler precedence, interrupted-chord cancellation and original source MenuStrip selection. Capture exact main-menu and continuation identities before release callbacks; deselection/paint or MenuDeactivate replacements, including a new lease for the same strip, must survive old cleanup. Do not install native menu hooks or transfer focus to emulate activation. See docs/portable-menu-key-activation.md; source cases do not qualify system menus, Alt+mnemonic entry or native platform UX.
 
+Hosted dropdown controls borrow source logical focus from their live Form owner, never native popup activation. Retain actual ToolStripControlHost membership, owner/window identities and source UTF-16 selection. Retire the lease through internal source lifetime boundaries before public callbacks can throw or replace it; restore only the still-owned source focus. Keep input filters, canonical preprocessing and translated-character suppression connected to the same focus owner. Source focus and caret indices do not qualify drawn caret, hit-to-character placement or native desktop UI. See docs/portable-hosted-menu-input.md.
+
 SharpDevelop is the initial integration driver. Prefer porting the real WinForms API/designer/resource code from this repository over expanding LibreWPF-local compatibility shims.
 
 Portable plain-text clipboard editing uses canonical Clipboard conversion and
