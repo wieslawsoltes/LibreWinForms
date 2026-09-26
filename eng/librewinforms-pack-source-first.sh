@@ -269,6 +269,7 @@ rm -rf "${smoke_root}/canonical-packages" \
 # Retain this digest outside the snapshot; later verification cannot self-trust a
 # rewritten manifest. The existing SDK Project smoke still owns the cold build.
 python3 "${repo_root}/eng/test-librewinforms-analyzer-snapshot.py"
+python3 "${repo_root}/eng/test-librewinforms-analyzer-cache.py"
 echo "Capturing original SDK analyzer producer generation."
 mkdir -p "${repo_root}/artifacts/log"
 analyzer_evidence_root="$(mktemp -d "${repo_root}/artifacts/log/analyzer-contract.XXXXXXXX")"
@@ -390,7 +391,11 @@ if ! grep -Fq 'supports only canonical Project or Package reference modes' "${sd
   exit 1
 fi
 
-rm -rf "${smoke_root}/sdk-packages" "${sdk_smoke_root}"
+# The later Project diagnostic consumers reference these same source projects.
+# Keep their already-owned package paths stable: deleting this cache and restoring
+# identical DLLs elsewhere changes CoreCompileInputs and recompiles the runtime.
+# Package-mode consumers below still restore into their own independent cache.
+rm -rf "${sdk_smoke_root}"
 
 sdk_package_smoke_root="${smoke_root}/sdk-package-project"
 sdk_package_smoke_project="${sdk_package_smoke_root}/LibreWinForms.Sdk.SourceFirstSmoke.csproj"
@@ -498,6 +503,7 @@ python3 "${repo_root}/eng/librewinforms-analyzer-contract.py" \
   --configuration "${configuration}" \
   --dotnet "${dotnet}" \
   --scratch-parent "${smoke_root}" \
+  --project-packages "${smoke_root}/sdk-packages" \
   --producer-snapshot "${analyzer_evidence_root}/producer" \
   --producer-manifest-sha256 "${analyzer_manifest_sha256}" \
   --evidence-directory "${analyzer_evidence_root}/results"
