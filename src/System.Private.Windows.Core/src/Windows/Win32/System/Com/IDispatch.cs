@@ -110,7 +110,7 @@ internal unsafe partial struct IDispatch
         HRESULT hr = Invoke(
             dispatchId,
             &guid,
-            PInvokeCore.GetThreadLocale(),
+            GetAutomationLcid(),
             DISPATCH_FLAGS.DISPATCH_PROPERTYPUT,
             &dispParams,
             null,
@@ -138,10 +138,26 @@ internal unsafe partial struct IDispatch
 
         fixed (char* n = name)
         {
-            HRESULT result = GetIDsOfNames(IID.NULL(), (PWSTR*)&n, 1u, PInvokeCore.GetThreadLocale(), &id);
+            HRESULT result = GetIDsOfNames(IID.NULL(), (PWSTR*)&n, 1u, GetAutomationLcid(), &id);
             dispId = id;
             return result;
         }
+    }
+
+    private static uint GetAutomationLcid()
+    {
+#if LIBREWINFORMS_PORTABLE
+        if (!OperatingSystem.IsWindows())
+        {
+            // Automation follows the calling thread's formatting culture, not
+            // UI language or a cached process-wide/default English locale.
+            return (uint)global::System.Globalization.CultureInfo.CurrentCulture.LCID;
+        }
+#endif
+
+        // Preserve an explicitly selected Win32 thread locale independently of
+        // the managed culture when Windows owns the automation call.
+        return PInvokeCore.GetThreadLocale();
     }
 
     // Prop flags for fields, methods, and properties follow the same
