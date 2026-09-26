@@ -112,4 +112,25 @@ public partial class CanonicalLifecycleTests
         UseHeadlessPlatform(autoCloseWindows: false);
         CanonicalApiContracts.TableLayoutNestedInvalidation();
     }
+
+    [Fact]
+    public void CanonicalApi_PrintDocumentPreviewAction()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        CanonicalApiContracts.PrintDocumentPreviewAction();
+    }
+
+    [Fact]
+    public void CanonicalApi_PrintDocumentCancellationOrder()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        CanonicalApiContracts.PrintDocumentCancellationOrder();
+    }
+
+    [Fact]
+    public void CanonicalApi_PrintDocumentRetainedQuerySettings()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        CanonicalApiContracts.PrintDocumentRetainedQuerySettings();
+    }
 }
