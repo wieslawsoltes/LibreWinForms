@@ -149,6 +149,7 @@ public unsafe partial class Control
         if (!focused)
         {
             _portableControlFocusNotified = false;
+            NotifyPortableHostedFocusLifetime();
         }
 
         if (this is Form form)
@@ -260,10 +261,11 @@ public unsafe partial class Control
         // The native menu filter redirects keyboard messages without moving
         // focus. Resolve after caller filters, which can close or replace a menu.
         ToolStrip? menu = ToolStripDropDown.GetPortableKeyboardTarget(this);
+        nint menuHandle = menu?.Handle ?? 0;
         if (menu is not null)
         {
-            target = menu;
-            message.HWnd = menu.Handle;
+            target = menu is ToolStripDropDown dropDown ? dropDown.GetPortableHostedKeyboardTarget() : menu;
+            message.HWnd = target.Handle;
             if (message.MsgInternal == PInvokeCore.WM_KEYDOWN || message.MsgInternal == PInvokeCore.WM_KEYUP)
                 target._portableSuppressKeyPress = false;
         }
@@ -276,7 +278,9 @@ public unsafe partial class Control
         bool handled = true;
         if (!processed && !target.IsDisposed && !target.Disposing
             && (menu is null || (ReferenceEquals(ToolStripDropDown.GetPortableKeyboardTarget(this), menu)
-                && menu.IsHandleCreated && menu.Handle == handle)))
+                && menu.IsHandleCreated && menu.Handle == menuHandle
+                && target.IsHandleCreated && target.Handle == handle
+                && (menu is not ToolStripDropDown currentDropDown || ReferenceEquals(currentDropDown.GetPortableHostedKeyboardTarget(), target)))))
         {
             handled = target.ProcessPortableKeyMessage(ref message);
         }
@@ -284,7 +288,9 @@ public unsafe partial class Control
         if (menu is not null && (target._portableSuppressKeyPress
             || (processed && message.MsgInternal == PInvokeCore.WM_KEYDOWN)
             || !ReferenceEquals(ToolStripDropDown.GetPortableKeyboardTarget(this), menu)
-            || !menu.IsHandleCreated || menu.Handle != handle))
+            || !menu.IsHandleCreated || menu.Handle != menuHandle
+            || (menu is ToolStripDropDown hostedMenu && !ReferenceEquals(hostedMenu.GetPortableHostedKeyboardTarget(), target))
+            || !target.IsHandleCreated || target.Handle != handle))
         {
             // Typed backends may deliver a translated character after a
             // consumed key or a mnemonic that closed the menu. It must not
@@ -318,7 +324,7 @@ public unsafe partial class Control
     {
         Message message = Message.Create(Handle,
             (int)(systemCharacter ? PInvokeCore.WM_SYSCHAR : PInvokeCore.WM_CHAR), character, 0);
-        GetPortableTopLevelControl().DispatchPortableKeyboardMessage(this, ref message);
+        GetPortableFocusRoot().DispatchPortableKeyboardMessage(this, ref message);
     }
 
     // The managed event/preprocessing path precedes the platform edit-control
@@ -343,10 +349,10 @@ public unsafe partial class Control
     internal virtual void ProcessPortableDefaultKeyMessage(ref Message message) { }
 
     internal bool IsPortableKeyPressSuppressed
-        => GetPortableTopLevelControl()._portableSuppressKeyPress;
+        => GetPortableFocusRoot()._portableSuppressKeyPress;
 
     internal void SuppressPortableKeyPress()
-        => GetPortableTopLevelControl()._portableSuppressKeyPress = true;
+        => GetPortableFocusRoot()._portableSuppressKeyPress = true;
 
     private void DispatchPortablePointer(in LibreInputEvent inputEvent)
     {
@@ -384,7 +390,18 @@ public unsafe partial class Control
                 s_portableMouseButtons |= button;
                 if (button == MouseButtons.Left && target.GetStyle(ControlStyles.Selectable))
                 {
+                    LibreHandle receivingHandle = _window.PortableHandle;
+                    nint targetHandle = target.Handle;
                     target.Focus();
+                    // GotFocus can close the popup or replace either source
+                    // handle. Do not finish this press in a retired control.
+                    if (!Visible || IsDisposed || Disposing || !IsHandleCreated || _window.PortableHandle != receivingHandle
+                        || !target.Visible || target.IsDisposed || target.Disposing || !target.IsHandleCreated || target.Handle != targetHandle)
+                    {
+                        if (ReferenceEquals(s_portablePointerRoot, this))
+                            s_portableMouseButtons &= ~button;
+                        return;
+                    }
                 }
 
                 _portableCapturedControl = target;
@@ -514,7 +531,7 @@ public unsafe partial class Control
 
     private bool PortableContainsFocus()
     {
-        Control root = GetPortableTopLevelControl();
+        Control root = GetPortableFocusRoot();
         if (!root._portableWindowFocused || root._portableFocusedControl is not { } focused)
         {
             return false;

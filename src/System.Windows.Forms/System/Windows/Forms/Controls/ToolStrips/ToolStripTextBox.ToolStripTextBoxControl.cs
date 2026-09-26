@@ -115,6 +115,9 @@ public partial class ToolStripTextBox
                 return;
             }
 
+#if LIBREWINFORMS_PORTABLE
+            Invalidate();
+#else
             var absoluteClientRectangle = AbsoluteClientRECT;
 
             // Get the total client area, then exclude the client by using XOR
@@ -135,6 +138,7 @@ public partial class ToolStripTextBox
                 hNonClientRegion,
                 REDRAW_WINDOW_FLAGS.RDW_INVALIDATE | REDRAW_WINDOW_FLAGS.RDW_ERASE | REDRAW_WINDOW_FLAGS.RDW_UPDATENOW
                     | REDRAW_WINDOW_FLAGS.RDW_ERASENOW | REDRAW_WINDOW_FLAGS.RDW_FRAME);
+#endif
         }
 
         protected override void OnGotFocus(EventArgs e)

@@ -1966,8 +1966,8 @@ public unsafe partial class Control :
     public virtual bool Focused
 #if LIBREWINFORMS_PORTABLE
         => IsHandleCreated
-            && GetPortableTopLevelControl()._portableWindowFocused
-            && GetPortableTopLevelControl()._portableFocusedControl == this;
+            && GetPortableFocusRoot()._portableWindowFocused
+            && GetPortableFocusRoot()._portableFocusedControl == this;
 #else
         => IsHandleCreated && PInvoke.GetFocus() == InternalHandle;
 #endif
@@ -5461,7 +5461,11 @@ public unsafe partial class Control :
 #if LIBREWINFORMS_PORTABLE
         if (CanFocus)
         {
-            GetPortableTopLevelControl().SetPortableFocus(this);
+            Control root = GetPortableTopLevelControl();
+            if (root is ToolStripDropDown dropDown && !ReferenceEquals(this, dropDown))
+                dropDown.FocusPortableHostedControl(this);
+            else
+                root.SetPortableFocus(this);
         }
 #else
         if (CanFocus)
@@ -7200,6 +7204,9 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected virtual void OnEnabledChanged(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        NotifyPortableHostedFocusLifetime();
+#endif
         if (GetAnyDisposingInHierarchy())
         {
             return;
@@ -7587,6 +7594,9 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected virtual void OnVisibleChanged(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        NotifyPortableHostedFocusLifetime();
+#endif
         bool visible = Visible;
         if (visible)
         {
@@ -7642,6 +7652,9 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected virtual void OnParentChanged(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        NotifyPortableHostedFocusLifetime(retiring: true);
+#endif
         if (Events[s_parentEvent] is EventHandler eh)
         {
             eh(this, e);
@@ -7883,6 +7896,9 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected virtual void OnHandleDestroyed(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        NotifyPortableHostedFocusLifetime(retiring: true);
+#endif
         ((EventHandler?)Events[s_handleDestroyedEvent])?.Invoke(this, e);
 
 #if LIBREWINFORMS_PORTABLE

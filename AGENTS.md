@@ -20,6 +20,8 @@ Bare Alt/F10 menu entry waits for an unconsumed matching release in the same liv
 
 Native character input retains full Unicode scalars and distinguishes an actual plain callback from an unpaired Alt system character. Never infer layout text from key names or classify Option/AltGr plain text as a mnemonic. Pair modified/plain callbacks before application delivery, retain FIFO order across nested pumps, and cancel exact-owner pending/queued input on retirement. Own the actual GLFW callback slots and release them before input/window destruction; preserve original installation errors and later callback replacements. See docs/native-menu-characters.md; deterministic source/callback tests do not qualify physical keyboard layouts or desktop UI.
 
+Hosted dropdown controls borrow source logical focus from their live Form owner, never native popup activation. Retain actual ToolStripControlHost membership, owner/window identities and source UTF-16 selection. Retire the lease through internal source lifetime boundaries before public callbacks can throw or replace it; restore only the still-owned source focus. Keep input filters, canonical preprocessing and translated-character suppression connected to the same focus owner. Source focus and caret indices do not qualify drawn caret, hit-to-character placement or native desktop UI. See docs/portable-hosted-menu-input.md.
+
 SharpDevelop is the initial integration driver. Prefer porting the real WinForms API/designer/resource code from this repository over expanding LibreWPF-local compatibility shims.
 
 Portable plain-text clipboard editing uses canonical Clipboard conversion and
