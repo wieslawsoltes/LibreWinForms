@@ -919,6 +919,21 @@ public partial class ToolStripDropDown : ToolStrip
         toplevelOwnerToolStrip?.MenuAutoExpand = false;
     }
 
+    private void CancelAutoExpand(ToolStripDropDownCloseReason reason)
+    {
+        ToolStrip? topLevelToolStrip = GetToplevelOwnerToolStrip();
+        ToolStrip? parentToolStrip = OwnerItem?.ParentInternal;
+        // Horizontal keyboard navigation retains automatic expansion. Escape
+        // and Alt clear it in SelectPreviousToolStrip/RestoreFocusInternal.
+        if (reason == ToolStripDropDownCloseReason.AppClicked
+            || reason == ToolStripDropDownCloseReason.ItemClicked
+            || (reason == ToolStripDropDownCloseReason.CloseCalled && topLevelToolStrip == parentToolStrip)
+            || (reason == ToolStripDropDownCloseReason.AppFocusChange && topLevelToolStrip == parentToolStrip))
+        {
+            CancelAutoExpand();
+        }
+    }
+
     internal override bool CanProcessMnemonic() =>
         // Don't let mnemonics act as keyboard input in IE in the internet.
         Application.MessageLoop && base.CanProcessMnemonic();
@@ -1264,10 +1279,14 @@ public partial class ToolStripDropDown : ToolStrip
                 // sent selection
                 if (!OwnerToolStrip.IsDropDown)
                 {
+#if LIBREWINFORMS_PORTABLE
+                    SetPortableKeyboardContinuation(OwnerToolStrip);
+#else
                     if (ToolStripManager.ModalMenuFilter.GetActiveToolStrip() != OwnerToolStrip)
                     {
                         ToolStripManager.ModalMenuFilter.SetActiveToolStrip(OwnerToolStrip);
                     }
+#endif
 
                     // escape should cancel auto expansion
                     OwnerToolStrip.MenuAutoExpand = false;
@@ -1339,10 +1358,14 @@ public partial class ToolStripDropDown : ToolStrip
 
                     if (toplevelToolStrip is not null && rootItem is not null)
                     {
+#if LIBREWINFORMS_PORTABLE
+                        SetPortableKeyboardContinuation(toplevelToolStrip);
+#else
                         if (ToolStripManager.ModalMenuFilter.GetActiveToolStrip() != toplevelToolStrip)
                         {
                             ToolStripManager.ModalMenuFilter.SetActiveToolStrip(toplevelToolStrip);
                         }
+#endif
 
                         toplevelToolStrip.SelectNextToolStripItem(rootItem, forward);
                     }
@@ -1675,24 +1698,7 @@ public partial class ToolStripDropDown : ToolStrip
                             // setting to not visible. Dismiss our child drop downs, reset, set ourselves visible false.
                             DismissActiveDropDowns();
 
-                            // Make sure we cancel auto expansion on the root
-                            ToolStrip? topLevelToolStrip = GetToplevelOwnerToolStrip();
-                            ToolStrip? parentToolStrip = OwnerItem?.ParentInternal;
-
-                            // We don't consider reason == ToolStripDropDownCloseReason.Keyboard here.
-                            // DropDown needs to be closed when Alt or ESC is pressed,
-                            // but these two keys are handled in ToolStrip.RestoreFocusInternal()
-                            // and ToolStripDropDown.SelectPreviousToolStrip() respectively,
-                            // and ToolStrip.MenuAutoExpand of top level tool strip will be set false there.
-                            // Left and Right keys may also close dropdown, but we don't need to
-                            // set ToolStrip.MenuAutoExpand of top level tool strip to be false in such cases.
-                            if ((reason == ToolStripDropDownCloseReason.AppClicked) ||
-                                (reason == ToolStripDropDownCloseReason.ItemClicked) ||
-                                (reason == ToolStripDropDownCloseReason.CloseCalled && topLevelToolStrip == parentToolStrip) ||
-                                (reason == ToolStripDropDownCloseReason.AppFocusChange && topLevelToolStrip == parentToolStrip))
-                            {
-                                CancelAutoExpand();
-                            }
+                            CancelAutoExpand(reason);
 
                             // if this came through via a click event we should actually
                             // dismiss everyone in the chain. Other windows will receive a

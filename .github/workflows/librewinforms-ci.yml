@@ -55,6 +55,9 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Validate offline popup desktop harness contracts
+        run: python3 eng/tests/test_popup_desktop_harness.py
+
       - name: Install software WebGPU adapter
         shell: bash
         run: |

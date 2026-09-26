@@ -1308,7 +1308,12 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
             {
                 if (GetToolStripState(STATE_MENUAUTOEXPAND))
                 {
-                    if (!IsDropDown && !ToolStripManager.ModalMenuFilter.InMenuMode)
+                    if (!IsDropDown && !ToolStripManager.ModalMenuFilter.InMenuMode
+#if LIBREWINFORMS_PORTABLE
+                        && !ReferenceEquals(ToolStripDropDown.GetPortableKeyboardTarget(), this)
+                        && !ReferenceEquals(ToolStripDropDown.GetPortableActiveDropDown()?.GetToplevelOwnerToolStrip(), this)
+#endif
+                        )
                     {
                         SetToolStripState(STATE_MENUAUTOEXPAND, false);
                         return false;
@@ -2856,6 +2861,10 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
             return ProcessMnemonicInternal(charCode);
         }
 
+#if LIBREWINFORMS_PORTABLE
+        if (ReferenceEquals(ToolStripDropDown.GetPortableKeyboardTarget(), this))
+            return ProcessMnemonicInternal(charCode);
+#endif
         bool inMenuMode = ToolStripManager.ModalMenuFilter.InMenuMode;
         if (!inMenuMode && ModifierKeys == Keys.Alt)
         {
@@ -4073,6 +4082,15 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
         }
     }
 
+#if LIBREWINFORMS_PORTABLE
+    internal void ResetPortableMenuKeyState()
+    {
+        // Finish old source state before MenuDeactivate can create a new lease.
+        _lastMouseDownedItem = null;
+        MenuAutoExpand = false;
+    }
+#endif
+
     // override if you want to control (when TabStop = false) where the focus returns to
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected virtual void RestoreFocus()
@@ -4238,13 +4256,24 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
 
     internal void SetFocusUnsafe()
     {
+#if LIBREWINFORMS_PORTABLE
+        if (ReferenceEquals(ToolStripDropDown.GetPortableKeyboardTarget(), this))
+        {
+            KeyboardActive = true;
+            return;
+        }
+#endif
         if (TabStop)
         {
             Focus();
         }
         else
         {
+#if LIBREWINFORMS_PORTABLE
+            ToolStripDropDown.SetPortableKeyboardContinuation(this);
+#else
             ToolStripManager.ModalMenuFilter.SetActiveToolStrip(this, menuKeyPressed: false);
+#endif
         }
     }
 
