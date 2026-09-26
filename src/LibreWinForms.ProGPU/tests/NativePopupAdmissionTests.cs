@@ -10,8 +10,8 @@ namespace LibreWinForms.ProGPU.Tests;
 
 public sealed class NativePopupAdmissionTests
 {
-    private static readonly LibreHandle First = new((nint)11, LibreHandleKind.Window);
-    private static readonly LibreHandle Second = new((nint)12, LibreHandleKind.Window);
+    private static readonly LibreHandle s_first = new((nint)11, LibreHandleKind.Window);
+    private static readonly LibreHandle s_second = new((nint)12, LibreHandleKind.Window);
 
     [Theory]
     [InlineData(NativeWindowKind.Win32, LibreWindowZOrder.Front, true)]
@@ -38,8 +38,8 @@ public sealed class NativePopupAdmissionTests
         admission.SetOwner(default);
         host.Operations.Should().Equal("verify");
         host.Visible.Should().BeFalse();
-        admission.SetOwner(First);
-        admission.Owner.Should().Be(First);
+        admission.SetOwner(s_first);
+        admission.Owner.Should().Be(s_first);
         host.PrepareCount.Should().Be(1);
         host.Visible.Should().BeFalse();
         admission.Show();
@@ -66,7 +66,7 @@ public sealed class NativePopupAdmissionTests
     {
         Host host = new();
         NativePopupAdmission admission = new(host);
-        admission.SetOwner(First);
+        admission.SetOwner(s_first);
         host.LiveOwner = false;
         Action show = admission.Show;
         show.Should().Throw<InvalidOperationException>();
@@ -79,11 +79,11 @@ public sealed class NativePopupAdmissionTests
     {
         Host host = new();
         NativePopupAdmission admission = new(host);
-        admission.SetOwner(First);
+        admission.SetOwner(s_first);
         host.LiveOwner = false;
-        Action change = () => admission.SetOwner(Second);
+        Action change = () => admission.SetOwner(s_second);
         change.Should().Throw<ArgumentException>();
-        admission.Owner.Should().Be(First);
+        admission.Owner.Should().Be(s_first);
         host.PrepareCount.Should().Be(1);
         host.DiscardCount.Should().Be(0);
     }
@@ -93,20 +93,20 @@ public sealed class NativePopupAdmissionTests
     {
         Host host = new();
         NativePopupAdmission admission = new(host);
-        admission.SetOwner(First);
+        admission.SetOwner(s_first);
         admission.Show();
-        Action change = () => admission.SetOwner(Second);
+        Action change = () => admission.SetOwner(s_second);
         change.Should().Throw<InvalidOperationException>();
-        admission.Owner.Should().Be(First);
+        admission.Owner.Should().Be(s_first);
         host.PrepareCount.Should().Be(1);
         host.Visible.Should().BeTrue();
         host.DiscardCount.Should().Be(0);
         host.Visible = false;
         change();
-        admission.Owner.Should().Be(Second);
+        admission.Owner.Should().Be(s_second);
         host.PrepareCount.Should().Be(2);
         admission.Show();
-        host.ShownOwner.Handle.Should().Be(Second.Value);
+        host.ShownOwner.Handle.Should().Be(s_second.Value);
     }
 
     [Fact]
@@ -114,10 +114,10 @@ public sealed class NativePopupAdmissionTests
     {
         Host host = new();
         NativePopupAdmission admission = new(host);
-        admission.SetOwner(First);
-        host.DuringShow = () => admission.SetOwner(First);
+        admission.SetOwner(s_first);
+        host.DuringShow = () => admission.SetOwner(s_first);
         admission.Show();
-        admission.SetOwner(First);
+        admission.SetOwner(s_first);
         admission.Show();
         host.PrepareCount.Should().Be(1);
         host.ShowCount.Should().Be(1);
@@ -130,16 +130,16 @@ public sealed class NativePopupAdmissionTests
     {
         Host host = new();
         NativePopupAdmission admission = new(host);
-        admission.SetOwner(First);
+        admission.SetOwner(s_first);
         var failure = new InvalidOperationException("native preparation callback");
         host.PrepareAccepted = false;
         if (throws) host.DuringPrepare = () => throw failure;
-        Action change = () => admission.SetOwner(Second);
+        Action change = () => admission.SetOwner(s_second);
         if (throws)
             change.Should().Throw<InvalidOperationException>().Which.Should().BeSameAs(failure);
         else
             change.Should().Throw<PlatformNotSupportedException>();
-        admission.Owner.Should().Be(First);
+        admission.Owner.Should().Be(s_first);
         host.DiscardCount.Should().Be(1);
         host.HandleReleased.Should().BeTrue();
         host.ClosedCount.Should().Be(1);
@@ -151,7 +151,7 @@ public sealed class NativePopupAdmissionTests
         Host host = new();
         NativePopupAdmission admission = new(host);
         host.DuringPrepare = () => host.Visible = true;
-        Action prepare = () => admission.SetOwner(First);
+        Action prepare = () => admission.SetOwner(s_first);
         prepare.Should().Throw<InvalidOperationException>();
         admission.Owner.IsNull.Should().BeTrue();
         host.DiscardCount.Should().Be(1);
@@ -163,8 +163,8 @@ public sealed class NativePopupAdmissionTests
     {
         Host host = new();
         NativePopupAdmission admission = new(host);
-        host.DuringPrepare = () => admission.SetOwner(Second);
-        Action prepare = () => admission.SetOwner(First);
+        host.DuringPrepare = () => admission.SetOwner(s_second);
+        Action prepare = () => admission.SetOwner(s_first);
         prepare.Should().Throw<InvalidOperationException>();
         admission.Owner.IsNull.Should().BeTrue();
         host.DiscardCount.Should().Be(1);
@@ -176,7 +176,7 @@ public sealed class NativePopupAdmissionTests
     {
         Host host = new();
         NativePopupAdmission admission = new(host);
-        admission.SetOwner(First);
+        admission.SetOwner(s_first);
         admission.SetOwner(default);
         admission.Owner.IsNull.Should().BeTrue();
         host.ClearCount.Should().Be(1);
@@ -188,10 +188,10 @@ public sealed class NativePopupAdmissionTests
     {
         Host host = new() { ClearAccepted = false };
         NativePopupAdmission admission = new(host);
-        admission.SetOwner(First);
+        admission.SetOwner(s_first);
         Action clear = () => admission.SetOwner(default);
         clear.Should().Throw<PlatformNotSupportedException>();
-        admission.Owner.Should().Be(First);
+        admission.Owner.Should().Be(s_first);
         host.DiscardCount.Should().Be(1);
     }
 
@@ -202,7 +202,7 @@ public sealed class NativePopupAdmissionTests
     {
         Host host = new();
         NativePopupAdmission admission = new(host);
-        admission.SetOwner(First);
+        admission.SetOwner(s_first);
         var failure = new InvalidOperationException("show callback");
         host.ShowAccepted = false;
         if (throws) host.DuringShow = () => throw failure;
@@ -220,7 +220,7 @@ public sealed class NativePopupAdmissionTests
     {
         Host host = new();
         NativePopupAdmission admission = new(host);
-        admission.SetOwner(First);
+        admission.SetOwner(s_first);
         var failure = new InvalidOperationException("show failed");
         var cleanupFailure = new InvalidOperationException("Closed handler failed");
         host.DuringShow = () => throw failure;
@@ -237,7 +237,7 @@ public sealed class NativePopupAdmissionTests
     {
         Host host = new();
         NativePopupAdmission admission = new(host);
-        admission.SetOwner(First);
+        admission.SetOwner(s_first);
         host.Operations.Clear();
         admission.Show();
         host.Operations.Should().Equal("verify", "resolve", "native-show", "nonactivating-show", "native-shown", "verify");
@@ -251,7 +251,7 @@ public sealed class NativePopupAdmissionTests
         Host host = new();
         NativePopupAdmission admission = new(host);
         host.AccessAllowed = false;
-        Action operation = show ? admission.Show : () => admission.SetOwner(First);
+        Action operation = show ? admission.Show : () => admission.SetOwner(s_first);
         operation.Should().Throw<InvalidOperationException>();
         host.Operations.Should().Equal("verify");
         host.DiscardCount.Should().Be(0);

@@ -375,6 +375,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
             _popupAdmission = new NativePopupAdmission(this);
             _controller.SetTopMost(options.Options.HasFlag(LibreWindowOptions.TopMost));
         }
+
         _showInTaskbar = options.ShowInTaskbar;
         _canClose = options.CanClose;
         _canMinimize = options.CanMinimize;
