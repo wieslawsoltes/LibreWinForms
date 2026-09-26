@@ -28,7 +28,19 @@ LibreWinForms is packaged as an MSBuild SDK so normal WinForms apps can move to 
 
 `LibreWinForms.Sdk` supplies canonical source-built WinForms plus the typed ProGPU/Silk.NET backend. Package mode is the default; source checkouts can select project mode explicitly.
 
-3. Change only the project SDK.
+3. Set the LibreWinForms SDK version once in a `global.json` at the solution root (above all projects that use it):
+
+```json
+{
+  "msbuild-sdks": {
+    "LibreWinForms.Sdk": "0.1.0-preview.65"
+  }
+}
+```
+
+If you already have a `global.json`, merge the `msbuild-sdks` entry into it and preserve your existing `sdk` settings. The `sdk` section selects the installed .NET SDK; `msbuild-sdks` selects the LibreWinForms NuGet SDK package. Use a .NET SDK that supports the project's target framework. See [MSBuild project SDK resolution](https://learn.microsoft.com/en-us/visualstudio/msbuild/how-to-use-project-sdk#how-project-sdks-are-resolved).
+
+4. Change the project SDK to the versionless `LibreWinForms.Sdk`. All projects under this `global.json` share its version, so upgrade the package in one place instead of repeating a version in each `.csproj`.
 
 Before:
 
@@ -45,7 +57,7 @@ Before:
 After:
 
 ```xml
-<Project Sdk="LibreWinForms.Sdk/0.1.0-preview.65">
+<Project Sdk="LibreWinForms.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net11.0</TargetFramework>
@@ -56,10 +68,10 @@ After:
 
 Older projects that still use `Microsoft.NET.Sdk.WindowsDesktop` should make the same SDK change and keep the existing WinForms properties.
 
-4. Keep existing app dependencies in place. For example, a mixed WPF/WinForms app only changes the SDK line in the WinForms project:
+5. Keep existing app dependencies in place. For example, a mixed WPF/WinForms app uses the same centrally versioned SDK in the WinForms project:
 
 ```xml
-<Project Sdk="LibreWinForms.Sdk/0.1.0-preview.65">
+<Project Sdk="LibreWinForms.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net11.0</TargetFramework>
@@ -72,14 +84,14 @@ Older projects that still use `Microsoft.NET.Sdk.WindowsDesktop` should make the
 </Project>
 ```
 
-5. Restore and run the app normally:
+6. Restore and run the app normally:
 
 ```bash
 dotnet restore
 dotnet run
 ```
 
-6. Treat Windows-only interop, custom HWND hosting, native common controls, P/Invoke-heavy owner-draw paths, GDI handles, and designer-only APIs as the first compatibility review points. Normal WinForms managed code should remain source-compatible as the portable runtime fills out.
+7. Treat Windows-only interop, custom HWND hosting, native common controls, P/Invoke-heavy owner-draw paths, GDI handles, and designer-only APIs as the first compatibility review points. Normal WinForms managed code should remain source-compatible as the portable runtime fills out.
 
 ## NuGet Packages
 
