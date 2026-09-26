@@ -43,9 +43,10 @@ initial twenty paint cases (186/186, no skips). The reviewed focus/password
 correction then passed the complete 188-case source suite, no skips, using .NET
 11.0.0-preview.5.26302.115 to run the net10.0 assembly. The build had zero errors;
 its 619 warnings include four new portable protected-override API inventory
-warnings, not suppressed by this change. Backend pixel execution and full
-exact-head CI are still pending. Local logs are retained under
-`artifacts/textbox-paint/log`.
+warnings, not suppressed by this change. The actual backend text-renderer class
+then passed all three tests with no skips, including the clipped-ink case, after
+a zero-warning/zero-error build. Full exact-head CI is still pending. Local logs
+are retained under `artifacts/textbox-paint/log`.
 
 These source results do not qualify the original sample's native GUI or complete
 editing visuals. Selection highlighting, shaped
