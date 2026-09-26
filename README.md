@@ -128,6 +128,10 @@ Shared [TableLayoutPanel contracts](docs/librewinforms/table-layout-contracts.md
 exercise exact sizing, spans, RTL, and nested invalidation in the source and
 isolated SDK package consumers.
 
+The same source/package gates exercise the pinned
+[PrintDocument lifecycle](docs/librewinforms/print-document-lifecycle.md),
+including preview actions, cancellation order, and retained page settings.
+
 ```bash
 LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.65 ./eng/librewinforms-pack.sh
 ```
