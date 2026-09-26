@@ -280,7 +280,7 @@ public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindo
         => !owner.IsNull && owner.Kind == LibreHandleKind.Window;
 }
 
-internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
+internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, INativePopupAdmissionHost
 {
     private readonly SilkWindowService _service;
     private readonly ProGpuDispatcher _dispatcher;
@@ -289,6 +289,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private readonly ILibreWindowEvents _events;
     private readonly IWindow _window;
     private readonly SilkWindowController _controller;
+    private readonly NativePopupAdmission? _popupAdmission;
     private readonly LibreWindowCoordinateMode _coordinateMode;
     private readonly bool _inputTransparent;
     private readonly ContainerVisual _paintRoot = new();
@@ -369,6 +370,11 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _window = Silk.NET.Windowing.Window.Create(silkOptions);
         _controller = new SilkWindowController(_window);
         _controller.SetIsPopup(options.Options.HasFlag(LibreWindowOptions.Popup));
+        if (options.Options.HasFlag(LibreWindowOptions.Popup))
+        {
+            _popupAdmission = new NativePopupAdmission(this);
+            _controller.SetTopMost(options.Options.HasFlag(LibreWindowOptions.TopMost));
+        }
         _showInTaskbar = options.ShowInTaskbar;
         _canClose = options.CanClose;
         _canMinimize = options.CanMinimize;
@@ -378,28 +384,37 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _maximumSize = options.MaximumSize;
         Handle = handles.Allocate(this, LibreHandleKind.Window);
         AttachEvents();
-        _window.Initialize();
-        ApplyControllerBorder(ResolveBorder(options.Options));
-        _controller.SetCanClose(_canClose);
-        _controller.SetCanMinimize(_canMinimize);
-        _controller.SetCanMaximize(_canMaximize);
-        _controller.SetOpacity(_opacity);
-        _controller.SetShowInTaskbar(_showInTaskbar);
-        _reportedDpiScale = DpiScale;
-        _reportedFramebufferScale = FramebufferScale;
-        ApplySizeConstraints();
-        SetNativeBounds(LibreWindowCoordinates.ToNative(
-            options.Bounds,
-            _coordinateMode,
-            _reportedDpiScale,
-            _reportedFramebufferScale));
-        _initializing = false;
-
-        Owner = options.Owner;
-        _dispatcher.Register(this);
-        if (options.Options.HasFlag(LibreWindowOptions.Visible))
+        try
         {
-            Show();
+            _window.Initialize();
+            ApplyControllerBorder(ResolveBorder(options.Options));
+            _controller.SetCanClose(_canClose);
+            _controller.SetCanMinimize(_canMinimize);
+            _controller.SetCanMaximize(_canMaximize);
+            _controller.SetOpacity(_opacity);
+            _controller.SetShowInTaskbar(_showInTaskbar);
+            _reportedDpiScale = DpiScale;
+            _reportedFramebufferScale = FramebufferScale;
+            ApplySizeConstraints();
+            SetNativeBounds(LibreWindowCoordinates.ToNative(
+                options.Bounds,
+                _coordinateMode,
+                _reportedDpiScale,
+                _reportedFramebufferScale));
+            _initializing = false;
+
+            Owner = options.Owner;
+            _dispatcher.Register(this);
+            if (options.Options.HasFlag(LibreWindowOptions.Visible))
+            {
+                Show();
+            }
+        }
+        catch (Exception failure) when (_popupAdmission is not null)
+        {
+            try { DiscardPopup(); }
+            catch (Exception cleanupFailure) { failure.Data[nameof(NativePopupAdmission)] = cleanupFailure; }
+            throw;
         }
     }
 
@@ -426,13 +441,19 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
 
     public LibreHandle Owner
     {
-        get => _owner;
+        get => _popupAdmission?.Owner ?? _owner;
         set
         {
             VerifyAccess();
             if (value == Handle)
             {
                 throw new ArgumentException("A window cannot own itself.", nameof(value));
+            }
+
+            if (_popupAdmission is not null)
+            {
+                _popupAdmission.SetOwner(value);
+                return;
             }
 
             NativeWindowHandle nativeOwner = NativeWindowHandle.Empty;
@@ -614,12 +635,25 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     public void SetZOrder(LibreWindowZOrder value)
     {
         VerifyAccess();
-        _controller.SetZOrder(value switch
+        NativeWindowZOrder order = value switch
         {
             LibreWindowZOrder.Front => NativeWindowZOrder.Front,
             LibreWindowZOrder.Back => NativeWindowZOrder.Back,
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, "Unknown window z-order operation."),
-        });
+        };
+        if (_popupAdmission is not null
+            && NativePopupAdmission.RequiresNonactivatingFront(NativeHandle.Kind, value))
+        {
+            // The pinned Win32 SetZOrder omits SWP_NOACTIVATE. Setting the same
+            // topmost rank uses its existing nonactivating SetWindowPos path.
+            if (!_controller.SetTopMost(TopMost))
+                throw new PlatformNotSupportedException("The native host rejected nonactivating popup ordering.");
+            return;
+        }
+
+        bool accepted = _controller.SetZOrder(order);
+        if (_popupAdmission is not null && !accepted)
+            throw new PlatformNotSupportedException("The native host rejected popup ordering.");
     }
 
     public void SetCursor(LibreCursorShape shape)
@@ -684,7 +718,10 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     public void Show()
     {
         VerifyAccess();
-        _window.IsVisible = true;
+        if (_popupAdmission is not null)
+            _popupAdmission.Show();
+        else
+            _window.IsVisible = true;
     }
 
     public void Hide()
@@ -696,6 +733,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     public void Activate()
     {
         VerifyAccess();
+        if (_popupAdmission is not null)
+            throw new InvalidOperationException("A nonactivating popup cannot take native focus.");
         _window.Focus();
     }
 
@@ -734,6 +773,104 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _window.Dispose();
         _handles.Release(Handle);
         RaiseClosed();
+    }
+
+    void INativePopupAdmissionHost.VerifyAccess() => VerifyAccess();
+
+    bool INativePopupAdmissionHost.TryResolveOwner(LibreHandle owner, out NativeWindowHandle nativeOwner)
+    {
+        if (_handles.TryGet(owner, out SilkLibreWindow? silkOwner))
+        {
+            if (silkOwner.IsDisposed || !silkOwner.Dispatcher.CheckAccess())
+            {
+                nativeOwner = NativeWindowHandle.Empty;
+                return false;
+            }
+
+            return SilkWindowService.TryResolveNativeOwner(_handles, owner, out nativeOwner);
+        }
+
+        if (!SilkWindowService.TryResolveNativeOwner(_handles, owner, out nativeOwner))
+            return false;
+        // The external registry proves a live native identity, not its X11
+        // display-thread serialization. Do not borrow an unqualified XID.
+        if (nativeOwner.Kind == NativeWindowKind.X11)
+        {
+            nativeOwner = NativeWindowHandle.Empty;
+            return false;
+        }
+
+        return true;
+    }
+
+    bool INativePopupAdmissionHost.PrepareOwner(NativeWindowHandle owner)
+        => NativePopupWindow.TryPrepareOwner(owner, NativeHandle);
+
+    bool INativePopupAdmissionHost.ClearOwner() => _controller.SetParent(NativeWindowHandle.Empty);
+
+    bool INativePopupAdmissionHost.ShowOwned(NativeWindowHandle owner, Action showWithoutActivation)
+        => NativePopupWindow.TryShowOwned(owner, NativeHandle, showWithoutActivation);
+
+    unsafe void INativePopupAdmissionHost.ShowWithoutActivation()
+    {
+        // Use the existing host's GLFW visibility path without its default focus
+        // transfer. NativePopupWindow separately admits the platform owner and
+        // nonactivation contract; this is not an alternative ownership path.
+        var native = (Silk.NET.GLFW.WindowHandle*)(_window.Native?.Glfw ?? IntPtr.Zero);
+        if (native == null)
+            throw new PlatformNotSupportedException("Popup display requires the live GLFW host identity.");
+        var glfw = Silk.NET.GLFW.GlfwProvider.GLFW.Value;
+        bool previous = glfw.GetWindowAttrib(native, Silk.NET.GLFW.WindowAttributeGetter.FocusOnShow);
+        glfw.SetWindowAttrib(native, Silk.NET.GLFW.WindowAttributeSetter.FocusOnShow, false);
+        try
+        {
+            if (glfw.GetWindowAttrib(native, Silk.NET.GLFW.WindowAttributeGetter.FocusOnShow))
+                throw new PlatformNotSupportedException("The native host rejected nonactivating visibility.");
+            _window.IsVisible = true;
+        }
+        finally
+        {
+            if (!_disposed)
+                glfw.SetWindowAttrib(native, Silk.NET.GLFW.WindowAttributeSetter.FocusOnShow, previous);
+        }
+    }
+
+    void INativePopupAdmissionHost.Discard() => DiscardPopup();
+
+    private void DiscardPopup()
+    {
+        if (_disposed)
+            return;
+        VerifyAccess();
+        _disposed = true;
+        Exception? firstFailure = null;
+        void Release(Action release)
+        {
+            try { release(); }
+            catch (Exception failure) { firstFailure ??= failure; }
+        }
+
+        // A rejected/partially initialized popup must never leave a native
+        // surface or logical handle behind, even if cleanup/user callbacks fail.
+        Release(() => _service.Unregister(this));
+        Release(() => _dispatcher.Unregister(this));
+        Release(() => _input?.Dispose());
+        foreach (DrawingVisual visual in _paintLayers.Values)
+            Release(visual.Context.Clear);
+        _paintLayers.Clear();
+        Release(_adorners.Clear);
+        Release(_fallbackPaintVisual.Context.Clear);
+        Release(_transientPaintVisual.Context.Clear);
+        Release(_reversiblePaintVisual.Context.Clear);
+        Release(_paintRoot.ClearChildren);
+        Release(() => _compositor?.Dispose());
+        Release(() => _wgpuContext?.Dispose());
+        Release(_controller.Dispose);
+        Release(_window.Dispose);
+        Release(() => _handles.Release(Handle));
+        Release(RaiseClosed);
+        if (firstFailure is not null)
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(firstFailure).Throw();
     }
 
     internal void RequestPaint(LibreRectangle? dirtyRectangle)
