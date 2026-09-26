@@ -123,6 +123,12 @@ without replacing its existing application initialization policy. See the
 [SDK analyzer contract](docs/sdk-analyzer-parity.md) for source/package provenance,
 configuration ownership, and compiler regression gates.
 
+C# SDK consumers can set `ApplicationDefaultFont` and call
+`ApplicationConfiguration.Initialize()` before creating a window. The SDK reuses
+the original invariant font parser without changing absent-property defaults,
+DPI policy, or caller-owned initialization. See the
+[explicit default-font contract](docs/sdk-application-default-font.md).
+
 Canonical packages reject incompatible selected `System.Drawing.Common`
 compiler, output, and publish assets. The SDK reports an early dependency
 diagnostic when Microsoft drawing is already loaded; it cannot replace that

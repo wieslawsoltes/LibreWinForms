@@ -4,8 +4,23 @@
          switch is false: that switch leaves Initialize to the caller. -->
     <LibreWinFormsSdkOwnsApplicationConfiguration>true</LibreWinFormsSdkOwnsApplicationConfiguration>
   </PropertyGroup>
+  <PropertyGroup>
+    <LibreWinFormsSdkGeneratesApplicationConfiguration>false</LibreWinFormsSdkGeneratesApplicationConfiguration>
+  </PropertyGroup>
+  <Target Name="_LibreWinFormsResolveGeneratedConfigurationPolicy"
+          BeforeTargets="GenerateMSBuildEditorConfigFileCore">
+    <!-- Resolve where the compiler captures its properties, after PrepareForBuild
+         may set them. The actual source-emission target still evaluates its
+         original three-clause predicate at execution time. No OutputType policy. -->
+    <PropertyGroup>
+      <LibreWinFormsSdkGeneratesApplicationConfiguration>false</LibreWinFormsSdkGeneratesApplicationConfiguration>
+      <LibreWinFormsSdkGeneratesApplicationConfiguration Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsUseSystemWindowsForms)' == 'true' And '$(LibreWinFormsGenerateApplicationConfiguration)' != 'false'">true</LibreWinFormsSdkGeneratesApplicationConfiguration>
+    </PropertyGroup>
+  </Target>
   <ItemGroup>
     <CompilerVisibleProperty Include="LibreWinFormsSdkOwnsApplicationConfiguration" />
+    <CompilerVisibleProperty Include="LibreWinFormsSdkGeneratesApplicationConfiguration" />
+    <CompilerVisibleProperty Include="ApplicationDefaultFont" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Project' And '$(LibreWinFormsSourceRoot)' != ''">

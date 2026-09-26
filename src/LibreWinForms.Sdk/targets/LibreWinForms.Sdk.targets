@@ -125,7 +125,9 @@
       <_LibreWinFormsApplicationConfigurationLine Include="    internal static void Initialize()" />
       <_LibreWinFormsApplicationConfigurationLine Include="    {" />
       <_LibreWinFormsApplicationConfigurationLine Include="        global::System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false)%3B" />
+      <_LibreWinFormsApplicationConfigurationLine Include="        ConfigureDefaultFont()%3B" />
       <_LibreWinFormsApplicationConfigurationLine Include="    }" />
+      <_LibreWinFormsApplicationConfigurationLine Include="    static partial void ConfigureDefaultFont()%3B" />
       <_LibreWinFormsApplicationConfigurationLine Include="}" />
     </ItemGroup>
 

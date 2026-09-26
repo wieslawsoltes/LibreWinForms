@@ -5,6 +5,7 @@ using System.Windows.Forms.Analyzers;
 using System.Windows.Forms.CSharp.Analyzers.Diagnostics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace System.Windows.Forms.CSharp.Generators.ApplicationConfiguration;
 
@@ -75,9 +76,34 @@ internal class ApplicationConfigurationGenerator : IIncrementalGenerator
         // its explicit caller-owned GenerateApplicationConfiguration=false case.
         // Keep all diagnostic analyzers active without generating a second entrypoint.
         IncrementalValueProvider<bool> sdkOwnsConfiguration = context.AnalyzerConfigOptionsProvider.Select(
-            (options, _) => options.GetMSBuildProperty("LibreWinFormsSdkOwnsApplicationConfiguration", out string? value)
-                && bool.TryParse(value, out bool ownsConfiguration)
-                && ownsConfiguration);
+            (options, _) => IsEnabled(options, "LibreWinFormsSdkOwnsApplicationConfiguration"));
+
+        // Only supplement the SDK's actual global partial class. Do not parse
+        // unrelated upstream defaults or claim caller-owned initialization.
+        var sdkDefaultFont = context.AnalyzerConfigOptionsProvider.Select(
+            (options, _) =>
+            {
+                if (!IsEnabled(options, "LibreWinFormsSdkOwnsApplicationConfiguration")
+                    || !IsEnabled(options, "LibreWinFormsSdkGeneratesApplicationConfiguration"))
+                {
+                    return (Font: (string?)null, Diagnostic: (Diagnostic?)null);
+                }
+
+                ProjectFileReader.TryReadFont(options, out ApplicationConfig.FontDescriptor? font, out Diagnostic? diagnostic);
+                return (Font: font?.ToString(), Diagnostic: diagnostic);
+            });
+        context.RegisterSourceOutput(sdkDefaultFont, (context, font) =>
+        {
+            if (font.Diagnostic is not null)
+            {
+                context.ReportDiagnostic(font.Diagnostic);
+            }
+            else if (font.Font is not null)
+            {
+                context.AddSource("LibreWinForms.ApplicationDefaultFont.g.cs",
+                    ApplicationConfigurationInitializeBuilder.GenerateSdkDefaultFont(font.Font));
+            }
+        });
 
         IncrementalValueProvider<OutputKind> outputKindProvider = context.CompilationProvider.Select((compilation, _)
             => compilation.Options.OutputKind);
@@ -120,6 +146,11 @@ internal class ApplicationConfigurationGenerator : IIncrementalGenerator
                     applicationConfigDiagnostics: source.Left.ApplicationConfigDiagnostics);
             });
     }
+
+    private static bool IsEnabled(AnalyzerConfigOptionsProvider options, string propertyName) =>
+        options.GetMSBuildProperty(propertyName, out string? value)
+        && bool.TryParse(value, out bool enabled)
+        && enabled;
 
     public static bool IsSupportedSyntaxNode(SyntaxNode syntaxNode) =>
         syntaxNode is InvocationExpressionSyntax
