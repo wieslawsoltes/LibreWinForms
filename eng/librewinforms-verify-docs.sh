@@ -27,6 +27,7 @@ require_text README.md "## Getting Started: Switch From WinForms To LibreWinForm
 require_text README.md "## NuGet Packages"
 require_text README.md "default GitHub branch is \`librewinforms-progpu-port\`"
 require_text README.md "LibreWinForms.Sdk"
+require_text eng/librewinforms-package-list.sh '  LibreWinForms.ApplicationIsolation'
 require_text README.md '"msbuild-sdks": {'
 require_text README.md '"LibreWinForms.Sdk": "0.1.0-preview.65"'
 require_text README.md '<Project Sdk="LibreWinForms.Sdk">'
