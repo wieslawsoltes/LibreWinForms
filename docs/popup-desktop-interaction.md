@@ -76,6 +76,8 @@ application watchdog. Screenshot storage is bounded at 16 MiB of pixels per
 image and 128 MiB per process. Only the freshly launched PID's windows receive input.
 Source coordinates must agree exactly with the real main/popup client geometry;
 WindowFromPoint and foreground PID are checked before native pointer input.
+Held buttons or modifiers reject both hovering and clicking before any cursor
+movement; a held requested physical key rejects its injected down/up pair.
 SendInput submits real down/up pairs, never direct source callbacks. A blocked
 foreground, covered target, failed native call, changed geometry, missing popup,
 wrong event or expired deadline fails and retains earlier evidence. No retry with
@@ -113,7 +115,7 @@ passed; the apphost is an actual Windows ARM64 PE. The shared Program.cs SHA-256
 
 The driver/preparer/tests also passed Python bytecode compilation; this does not
 initialize or validate Win32 interop. `eng/tests/test_popup_desktop_harness.py`
-passes six offline preparation/safety cases and runs before the unchanged
+passes eight offline preparation/safety cases and runs before the unchanged
 canonical source lane in CI. The first offline run exposed a missing `returncode`
 field in the inert process fixture; that fixture was corrected without changing
 the PID-rejection assertion. The installed portable project and all actual

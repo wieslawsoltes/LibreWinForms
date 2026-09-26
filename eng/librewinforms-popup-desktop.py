@@ -146,8 +146,8 @@ class WindowsDesktop:
     def key(self, pid, key):
         self.foreground(pid)
         # Never release user-held modifiers or silently work around an interactive desktop.
-        require(not any(self.user.GetAsyncKeyState(k) & 0x8000 for k in (0x10, 0x11, 0x12, 0x5B, 0x5C)),
-                "A physical modifier is held; refusing keyboard injection")
+        require(not any(self.user.GetAsyncKeyState(k) & 0x8000 for k in (key, 0x10, 0x11, 0x12, 0x5B, 0x5C)),
+                "The requested physical key or a modifier is held; refusing keyboard injection")
         inputs = (Input * 2)(Input(1, InputUnion(key=KeyInput(key, 0, 0, 0, 0))),
                              Input(1, InputUnion(key=KeyInput(key, 0, 2, 0, 0))))
         self.send_pair(inputs)
@@ -162,13 +162,15 @@ class WindowsDesktop:
 
     def pointer(self, pid, rect, click=None):
         self.foreground(pid)
+        require(not any(self.user.GetAsyncKeyState(k) & 0x8000 for k in (1, 2, 4, 5, 6, 0x10, 0x11, 0x12, 0x5B, 0x5C)),
+                "A physical pointer button or modifier is held; refusing pointer movement")
         require(rect and rect["width"] > 0 and rect["height"] > 0, "Missing observed target geometry")
         x, y = rect["x"] + rect["width"] // 2, rect["y"] + rect["height"] // 2
         require(self.pid(self.user.WindowFromPoint(Point(x, y))) == pid, "Observed point is covered by another process")
         require(self.user.SetCursorPos(x, y), "Could not move the native pointer")
         if click:
             self.foreground(pid)
-            require(not any(self.user.GetAsyncKeyState(k) & 0x8000 for k in (1, 2, 4)),
+            require(not any(self.user.GetAsyncKeyState(k) & 0x8000 for k in (1, 2, 4, 5, 6, 0x10, 0x11, 0x12, 0x5B, 0x5C)),
                     "A physical pointer button is held; refusing click injection")
             require(self.pid(self.user.WindowFromPoint(Point(x, y))) == pid, "Pointer owner changed before click")
             down, up = (0x2, 0x4) if click == "left" else (0x8, 0x10)

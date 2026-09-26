@@ -24,6 +24,51 @@ DRIVER = load("popup_driver", "librewinforms-popup-desktop.py")
 
 
 class PopupDesktopContracts(unittest.TestCase):
+    @staticmethod
+    def desktop_with_held_key(key):
+        class Native:
+            def __init__(self):
+                self.mutations = []
+
+            def GetForegroundWindow(self):
+                return 1
+
+            def GetAsyncKeyState(self, requested):
+                return 0x8000 if requested == key else 0
+
+            def WindowFromPoint(self, point):
+                return 1
+
+            def SetCursorPos(self, x, y):
+                self.mutations.append("move")
+                return 1
+
+            def SendInput(self, count, inputs, size):
+                self.mutations.append("input")
+                return count
+
+        desktop = DRIVER.WindowsDesktop.__new__(DRIVER.WindowsDesktop)
+        desktop.user = Native()
+        desktop.pid = lambda _: 24
+        return desktop
+
+    def test_held_buttons_or_modifiers_prevent_hover_and_click_before_any_native_mutation(self):
+        for key in (1, 2, 4, 5, 6, 0x10, 0x11, 0x12, 0x5B, 0x5C):
+            for button in (None, "left", "right"):
+                with self.subTest(key=key, button=button):
+                    desktop = self.desktop_with_held_key(key)
+                    with self.assertRaisesRegex(RuntimeError, "held"):
+                        desktop.pointer(24, dict(x=10, y=20, width=30, height=40), button)
+                    self.assertEqual(desktop.user.mutations, [])
+
+    def test_requested_physical_key_already_held_prevents_pair_injection(self):
+        for key in (0x79, 0x28, 0x0D, 0x1B, 0x12):
+            with self.subTest(key=key):
+                desktop = self.desktop_with_held_key(key)
+                with self.assertRaisesRegex(RuntimeError, "physical key.*held"):
+                    desktop.key(24, key)
+                self.assertEqual(desktop.user.mutations, [])
+
     def test_pair_staging_preserves_exact_source_and_scoped_versions(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
