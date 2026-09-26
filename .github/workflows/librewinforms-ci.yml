@@ -14,6 +14,36 @@ permissions:
   contents: read
 
 jobs:
+  automation-locale:
+    name: Automation thread locale (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-15
+          - windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Setup LibreWinForms repository SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Verify actual automation helper locale arguments
+        shell: bash
+        run: bash ./eng/librewinforms-automation-locale.sh
+
   source-first-shadow:
     name: Canonical source and ProGPU submodule lane
     runs-on: ubuntu-latest
