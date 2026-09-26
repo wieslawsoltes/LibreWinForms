@@ -5979,6 +5979,7 @@ public partial class CanonicalLifecycleTests
             VisualStyleEdgeDrawCount = 0;
             VisualStyleTextDrawCount = 0;
             TextDrawCount = 0;
+            TextBoxDraws.Clear();
             TextMeasureCount = 0;
             LastTextBounds = default;
             LastTextFormat = default;
@@ -6244,6 +6245,7 @@ public partial class CanonicalLifecycleTests
         internal int VisualStyleEdgeDrawCount { get; private set; }
         internal int VisualStyleTextDrawCount { get; private set; }
         internal int TextDrawCount { get; private set; }
+        internal List<TextBoxPaintCall> TextBoxDraws { get; } = [];
         internal int TextMeasureCount { get; private set; }
         internal Rectangle LastTextBounds { get; private set; }
         internal LibreTextFormat LastTextFormat { get; private set; }
@@ -7076,7 +7078,16 @@ public partial class CanonicalLifecycleTests
         {
             TextDrawCount++;
             font.Should().NotBeNull();
-            if (text == "portable")
+            if ((format & (LibreTextFormat.TextBoxControl | LibreTextFormat.NoPrefix))
+                == (LibreTextFormat.TextBoxControl | LibreTextFormat.NoPrefix))
+            {
+                format.HasFlag(LibreTextFormat.NoPadding).Should().BeTrue();
+                bounds.Width.Should().BeGreaterThan(0);
+                bounds.Height.Should().BeGreaterThan(0);
+                backColor.Should().Be(Color.Empty);
+                TextBoxDraws.Add(new(text, font!, bounds, foreColor, format, graphics.ClipBounds));
+            }
+            else if (text == "portable")
             {
                 bounds.Should().Be(new Rectangle(4, 5, 60, 18));
                 foreColor.Should().Be(Color.Navy);
