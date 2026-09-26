@@ -118,6 +118,12 @@ The canonical runtime and its ten-package ProGPU drawing closure are built from 
 
 ## Build And Release
 
+Canonical packages reject incompatible selected `System.Drawing.Common`
+compiler, output, and publish assets. The SDK reports an early dependency
+diagnostic when Microsoft drawing is already loaded; it cannot replace that
+assembly in the running process. See the [drawing identity contract](docs/librewinforms/drawing-runtime-identity.md)
+for the excluded-package, library, and single-file boundaries.
+
 ```bash
 LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.65 ./eng/librewinforms-pack.sh
 ```
