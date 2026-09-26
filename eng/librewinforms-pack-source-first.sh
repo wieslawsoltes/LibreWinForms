@@ -272,6 +272,7 @@ sed "s#LibreWinForms.Sdk/0.1.0-source-first-sdk#LibreWinForms.Sdk/${sdk_package_
   "${sdk_smoke_source}/LibreWinForms.Sdk.SourceFirstSmoke.csproj" \
   >"${sdk_smoke_project}"
 cp "${sdk_smoke_source}/Program.cs" "${sdk_smoke_root}/"
+cp "${sdk_smoke_source}/CanonicalApiContracts.cs" "${sdk_smoke_root}/"
 cp "${repo_root}/NuGet.config" "${sdk_smoke_config}"
 "${dotnet}" nuget add source "${package_output}" \
   --name LibreWinFormsSourceFirstSdk \
@@ -383,6 +384,7 @@ sed "s#LibreWinForms.Sdk/0.1.0-source-first-sdk#LibreWinForms.Sdk/${sdk_package_
   "${sdk_smoke_source}/LibreWinForms.Sdk.SourceFirstSmoke.csproj" \
   >"${sdk_package_smoke_project}"
 cp "${sdk_smoke_source}/Program.cs" "${sdk_package_smoke_root}/"
+cp "${sdk_smoke_source}/CanonicalApiContracts.cs" "${sdk_package_smoke_root}/"
 cp "${repo_root}/NuGet.config" "${sdk_package_smoke_config}"
 "${dotnet}" nuget add source "${package_output}" \
   --name LibreWinFormsSourceFirstSdkPackages \
