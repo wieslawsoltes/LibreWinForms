@@ -131,19 +131,21 @@ CALLER_CONFIGURATION = "internal static class ApplicationConfiguration { interna
 def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
                executable=False, caller_configuration=False, disable_configuration=False,
                expected_errors=(), ordinary_generator=False, sdk_directory=None,
-               missing_analyzer=None):
+               missing_analyzer=None, default_font=None, expected_font=None,
+               use_forms=None, runtime=False):
     case = scratch / (mode.lower() + "-" + name)
     case.mkdir()
     extension = "vb" if vb else "cs"
     project = case / ("Consumer." + extension + "proj")
     (case / ("Consumer." + extension)).write_text(source, encoding="utf-8")
     if caller_configuration:
-        (case / "Caller.cs").write_text(CALLER_CONFIGURATION, encoding="utf-8")
+        (case / "Caller.cs").write_text(
+            CALLER_CONFIGURATION if caller_configuration is True else caller_configuration, encoding="utf-8")
     sdk = "Microsoft.NET.Sdk" if ordinary_generator else "LibreWinForms.Sdk/" + args.sdk_version
     properties = [
         "<TargetFramework>net11.0</TargetFramework>",
         "<OutputType>Exe</OutputType>" if executable else "<OutputType>Library</OutputType>",
-        f"<UseWindowsForms>{str(executable and not ordinary_generator).lower()}</UseWindowsForms>",
+        f"<UseWindowsForms>{str(executable and not ordinary_generator if use_forms is None else use_forms).lower()}</UseWindowsForms>",
         "<RootNamespace></RootNamespace>",
         "<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>",
         "<CompilerGeneratedFilesOutputPath>$(IntermediateOutputPath)generated</CompilerGeneratedFilesOutputPath>",
@@ -151,6 +153,8 @@ def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
     ]
     if disable_configuration:
         properties.append("<LibreWinFormsGenerateApplicationConfiguration>false</LibreWinFormsGenerateApplicationConfiguration>")
+    if default_font is not None:
+        properties.append(f"<ApplicationDefaultFont>{escape(default_font)}</ApplicationDefaultFont>")
     if mode == "Project":
         properties.append(f"<LibreWinFormsSourceRoot>{escape(str(args.repo_root))}/</LibreWinFormsSourceRoot>")
     if args.progpu_source_root:
@@ -231,6 +235,7 @@ def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
                 raise AssertionError(f"WFO1000 did not report the actual source property in {case.name}")
     generated = list(case.rglob("ApplicationConfiguration.g.cs"))
     sdk_generated = list(case.rglob("LibreWinForms.ApplicationConfiguration.g.cs"))
+    font_generated = list(case.rglob("LibreWinForms.ApplicationDefaultFont.g.cs"))
     if ordinary_generator:
         if len(generated) != 1:
             raise AssertionError("The ordinary upstream generator must remain present and active")
@@ -241,8 +246,30 @@ def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
                 raise AssertionError(f"Ordinary upstream default is missing: {statement}")
     elif generated:
         raise AssertionError(f"Upstream generator emitted SDK/caller-owned configuration in {case.name}")
-    if executable and not ordinary_generator and bool(sdk_generated) != (not disable_configuration):
+    forms_enabled = executable if use_forms is None else use_forms
+    if not ordinary_generator and bool(sdk_generated) != (forms_enabled and not disable_configuration):
         raise AssertionError(f"The existing SDK configuration ownership switch changed: {case.name}")
+    if len(font_generated) != (0 if expected_font is None else 1):
+        raise AssertionError(f"Unexpected explicit-font supplement ownership in {case.name}: {font_generated}")
+    if expected_font is not None:
+        expected = sdk_font_source(*expected_font)
+        if font_generated[0].read_text(encoding="utf-8-sig") != expected:
+            raise AssertionError(f"Explicit font did not reuse the canonical descriptor in {case.name}")
+    for configuration in sdk_generated:
+        # The only non-erased policy remains the original compatible-rendering
+        # call followed by the explicit-font hook. No upstream DPI/style defaults.
+        expected = ["internal static partial class ApplicationConfiguration", "{",
+                    "internal static void Initialize()", "{",
+                    "global::System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);",
+                    "ConfigureDefaultFont();", "}", "static partial void ConfigureDefaultFont();", "}"]
+        if [line.strip() for line in configuration.read_text(encoding="utf-8-sig").splitlines() if line.strip()] != expected:
+            raise AssertionError(f"SDK initialization policy changed unexpectedly in {case.name}")
+    for diagnostic in diagnostics:
+        if diagnostic["ruleId"] == "WFO0002":
+            message = diagnostic.get("message", {})
+            text = message.get("text", "") if isinstance(message, dict) else message
+            if "ApplicationDefaultFont" not in text or default_font not in text:
+                raise AssertionError(f"WFO0002 did not identify the actual invalid font property in {case.name}")
     saved = evidence / case.name
     saved.mkdir()
     analyzer_inputs = [Path(line) for line in (case / "analyzer-inputs.txt").read_text(encoding="utf-8").splitlines()
@@ -271,10 +298,113 @@ def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
     shutil.copy2(sarif, saved / sarif.name)
     for source_file in case.glob("*." + extension):
         shutil.copy2(source_file, saved / source_file.name)
-    for index, generated_file in enumerate(generated + sdk_generated):
+    for index, generated_file in enumerate(generated + sdk_generated + font_generated):
         shutil.copy2(generated_file, saved / f"{index}-{generated_file.name}")
+    if runtime:
+        runtime_log = evidence / (case.name + "-runtime.log")
+        with runtime_log.open("w", encoding="utf-8") as output:
+            # Each font policy runs in a fresh process, before any Control font
+            # cache or native window can exist. No Show/input/GPU fixture runs.
+            process = subprocess.Popen([args.dotnet, str(case / "bin" / args.configuration / "net11.0/Consumer.dll")],
+                                       cwd=case, env=environment, start_new_session=True,
+                                       stdout=output, stderr=subprocess.STDOUT)
+            try:
+                runtime_exit = process.wait(timeout=60)
+            except BaseException:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                process.wait()
+                raise
+        runtime_output = runtime_log.read_text(encoding="utf-8").strip()
+        if runtime_exit != 0:
+            raise AssertionError(f"Actual Initialize/default-font contract failed in {case.name}; see {runtime_log}")
+        if runtime == "font-family":
+            inventory = json.loads(runtime_output)
+            family = inventory.get("fontFamily")
+            if set(inventory) != {"fontFamily"} or not isinstance(family, str) or not family.strip():
+                raise AssertionError(f"Font fixture discovery did not report one real family: {inventory}")
+            # The original descriptor sanitizes punctuation. Select the actual
+            # generic family only if it is directly representable; never insert
+            # an OS-specific alias, fallback name or substitute default policy.
+            if not all(character.isalnum() or character == " " for character in family):
+                raise AssertionError(f"Discovered fixture family needs a separate name-format contract: {family!r}")
+        elif runtime_output != "PASS explicit font policy":
+            raise AssertionError(f"Runtime did not confirm the font policy in {case.name}; see {runtime_log}")
     print(f"PASS {case.name}: expected errors={list(expected_errors)}", flush=True)
-    return {"case": case.name, "exitCode": exit_code, "expectedErrors": list(expected_errors)}
+    result = {"case": case.name, "exitCode": exit_code, "expectedErrors": list(expected_errors), "runtime": runtime}
+    if runtime == "font-family":
+        result["fontFamily"] = family
+    return result
+
+
+def sdk_font_source(name, size, style, unit):
+    return f'''// <auto-generated />
+internal static partial class ApplicationConfiguration
+{{
+    static partial void ConfigureDefaultFont()
+    {{
+        global::System.Windows.Forms.Application.SetDefaultFont(new global::System.Drawing.Font(new global::System.Drawing.FontFamily("{name}"), {size}f, (global::System.Drawing.FontStyle){style}, (global::System.Drawing.GraphicsUnit){unit}));
+    }}
+}}'''
+
+
+def font_runtime_source(name=None, size=None, style=0, unit=3, *, caller=False):
+    if name is None:
+        body = '''var before = global::System.Windows.Forms.Control.DefaultFont;
+ApplicationConfiguration.Initialize();
+if (!global::System.Object.ReferenceEquals(before, global::System.Windows.Forms.Control.DefaultFont))
+    throw new global::System.Exception("Absent explicit font changed the existing default");'''
+    else:
+        body = f'''ApplicationConfiguration.Initialize();
+var actual = global::System.Windows.Forms.Control.DefaultFont;
+using var expectedFamily = new global::System.Drawing.FontFamily("{name}");
+if (actual.FontFamily.Name != expectedFamily.Name || actual.Size != {size}f || (int)actual.Style != {style} || (int)actual.Unit != {unit})
+    throw new global::System.Exception($"Explicit font not applied: {{actual}}");'''
+    if caller:
+        body += '\nif (ApplicationConfiguration.Calls != 1) throw new global::System.Exception("Caller did not own Initialize");'
+    return body + '\nglobal::System.Console.WriteLine("PASS explicit font policy");'
+
+
+def build_font_cases(args, scratch, evidence, mode):
+    # Discover the actual fixture family from this exact source/package runtime,
+    # not the host OS name or an assumed Windows/Linux font installation. No
+    # Control font cache is read, and each later Initialize has its own process.
+    inventory = build_case(args, scratch, evidence, mode, "font-family-discovery", '''
+using var family = global::System.Drawing.FontFamily.GenericSansSerif;
+global::System.Console.WriteLine(global::System.Text.Json.JsonSerializer.Serialize(new { fontFamily = family.Name }));
+''', executable=True, runtime="font-family")
+    results = [inventory]
+    family = inventory["fontFamily"]
+    font = (family, "14.25", 3, 2)
+    for name, entry in ENTRYPOINTS.items():
+        source = entry.replace("ApplicationConfiguration.Initialize();", font_runtime_source(*font))
+        results.append(build_case(args, scratch, evidence, mode, "font-" + name, source, executable=True,
+                                  default_font=family + ", 14.25px, style=Bold, Italic", expected_font=font, runtime=True))
+    results.append(build_case(args, scratch, evidence, mode, "font-sanitization", font_runtime_source(family, "12"),
+                              executable=True, default_font=family[0] + '\\"<&>' + family[1:] + ", 12pt",
+                              expected_font=(family, "12", 0, 3), runtime=True))
+    for name, value in (("absent", None), ("empty", ""), ("whitespace", "   ")):
+        results.append(build_case(args, scratch, evidence, mode, "font-" + name, font_runtime_source(),
+                                  executable=True, default_font=value, runtime=True))
+    results.append(build_case(args, scratch, evidence, mode, "font-invalid", ENTRYPOINTS["top-level"],
+                              executable=True, default_font="Arial, 12bogus", expected_errors=("WFO0002",)))
+    caller = f'''internal static class ApplicationConfiguration {{
+    internal static int Calls;
+    internal static void Initialize() {{
+        Calls++;
+        global::System.Windows.Forms.Application.SetDefaultFont(new global::System.Drawing.Font("{family}", 17f));
+    }}
+}}'''
+    results.append(build_case(args, scratch, evidence, mode, "font-caller-owned", font_runtime_source(family, "17", caller=True),
+                              executable=True, default_font="Arial, 12bogus", disable_configuration=True,
+                              caller_configuration=caller, runtime=True))
+    results.append(build_case(args, scratch, evidence, mode, "font-library-without-forms", "internal static class Library { }",
+                              default_font="Arial, 12bogus"))
+    results.append(build_case(args, scratch, evidence, mode, "font-explicit-forms-library", "internal static class Library { }",
+                              use_forms=True, default_font="Arial, 11pt", expected_font=("Arial", "11", 0, 3)))
+    return results
 
 
 def main():
@@ -322,6 +452,7 @@ def main():
                                   executable=True, caller_configuration=True, disable_configuration=True))
         results.append(build_case(args, scratch, evidence, mode, "caller-missing", ENTRYPOINTS["top-level"],
                                   executable=True, disable_configuration=True, expected_errors=("CS0103",)))
+        results.extend(build_font_cases(args, scratch, evidence, mode))
     results.append(build_case(args, scratch, evidence, "Package", "ordinary-upstream", ENTRYPOINTS["top-level"],
                               executable=True, ordinary_generator=True))
     for language, entry in (("shared", "analyzers/dotnet/System.Windows.Forms.Analyzers.dll"),

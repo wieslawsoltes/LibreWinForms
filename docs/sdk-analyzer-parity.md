@@ -48,12 +48,17 @@ compilation. Roslyn compiler packages, code-fix/test dependencies, and PDBs are
 not bundled as runtime dependencies or analyzer payload.
 
 The compiler-visible `LibreWinFormsSdkOwnsApplicationConfiguration=true` marker
-prevents only the original C# configuration generator from producing output.
+prevents the original C# configuration generator from producing a second full
+`Initialize` implementation.
 Its behavior is unchanged when the property is absent or false. The SDK retains
 its existing `Initialize` body and bootstrap. In particular,
 `LibreWinFormsGenerateApplicationConfiguration=false` still means that the
 caller owns the class; it does not silently re-enable upstream generation.
 These controls include top-level, block-namespace, and file-scoped programs.
+An explicit font setting now uses a separate optional partial hook, gated by the
+same actual SDK emission predicate; see
+[ApplicationDefaultFont](sdk-application-default-font.md). It does not re-enable
+the upstream defaults or consume the caller-owned opt-out.
 
 VB qualification here is the actual diagnostic assembly running on an ordinary
 class-library consumer. It does not introduce or claim a new VB application
@@ -61,8 +66,8 @@ bootstrap or designer-host contract.
 
 ## Validation and retained evidence
 
-`eng/librewinforms-source-first.sh` runs the complete 16-case configuration
-generator test class, requiring at least 16 executed tests and rejecting skips,
+`eng/librewinforms-source-first.sh` runs the complete 28-case configuration
+generator test class, requiring at least 28 executed tests and rejecting skips,
 including the original absent-property controls and the explicit SDK-owner
 controls. The original generator deliberately joins adjacent
 application statements with CRLF. Six unmodified golden tests failed on an LF
@@ -83,6 +88,9 @@ hashes under `artifacts/log/analyzer-contract.*`. Its controls cover:
 - The ordinary upstream generator with the ownership property absent, including
   its original visual-style, rendering, and DPI defaults.
 - Exact archive-to-source DLL equality and the complete resource inventory.
+- Explicit-font generation, canonical invalid-format diagnostics/name sanitation,
+  and fresh-process default-font behavior in Project and Package modes, retaining
+  absent/empty/whitespace and caller-owned controls plus both library conditions.
 - Rejection of scratch archives with missing, modified, extra, or duplicate
   analyzer entries, and actual build rejection after each selected DLL is
   removed from a private extracted SDK copy (never a package cache).
