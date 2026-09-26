@@ -6634,7 +6634,10 @@ public partial class CanonicalLifecycleTests
         {
             if (RejectClipboardWrites)
             {
+                // Match the canonical Clipboard.SetDataObject native-write failure.
+#pragma warning disable CA2201 // The clipboard failure contract deliberately uses ExternalException.
                 throw new System.Runtime.InteropServices.ExternalException("Test clipboard is unavailable.");
+#pragma warning restore CA2201
             }
 
             ClipboardData = data;
