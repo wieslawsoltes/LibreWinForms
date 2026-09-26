@@ -12,6 +12,62 @@ namespace LibreWinForms.CanonicalLifecycle.Tests;
 public partial class CanonicalLifecycleTests
 {
     [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void ClickedDataGridViewCellCommitsNativeStyleTyping(bool populatedRow, bool multipleColumns)
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { ClientSize = new Size(634, 515), ShowIcon = false };
+        using DataGridView grid = new() { Bounds = new Rectangle(26, 119, 577, 299) };
+        grid.RowTemplate.Height = 21;
+        grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Name", Width = 120 });
+        if (multipleColumns)
+        {
+            foreach (int width in new[] { 75, 75, 150, 75, 40, 75, 75 })
+            {
+                grid.Columns.Add(new DataGridViewTextBoxColumn { Width = width });
+            }
+        }
+
+        if (populatedRow)
+        {
+            grid.Rows.Add("seed");
+        }
+
+        form.Controls.Add(grid);
+        form.Show();
+        platform.SendInput(LibreInputEventKind.FocusGained);
+        Rectangle cellBounds = grid.GetCellDisplayRectangle(0, 0, cutOverflow: false);
+        LibrePoint center = new(grid.Left + cellBounds.Left + cellBounds.Width / 2,
+            grid.Top + cellBounds.Top + cellBounds.Height / 2);
+        platform.SendInput(LibreInputEventKind.PointerDown, position: center, button: LibrePointerButton.Primary);
+        platform.SendInput(LibreInputEventKind.PointerUp, position: center, button: LibrePointerButton.Primary);
+        grid.CurrentCell.Should().BeSameAs(grid.Rows[0].Cells[0]);
+        platform.SendInput(LibreInputEventKind.KeyDown, key: LibreKey.LeftShift, modifiers: LibreInputModifiers.Shift);
+        platform.SendInput(LibreInputEventKind.KeyDown, key: LibreKey.A, modifiers: LibreInputModifiers.Shift);
+        platform.SendInput(LibreInputEventKind.TextInput, text: "A", modifiers: LibreInputModifiers.Shift);
+        platform.SendInput(LibreInputEventKind.KeyUp, key: LibreKey.LeftShift);
+        platform.SendInput(LibreInputEventKind.KeyUp, key: LibreKey.A);
+        foreach ((LibreKey key, string text) in new[] { (LibreKey.L, "l"), (LibreKey.I, "i"), (LibreKey.C, "c"), (LibreKey.E, "e") })
+        {
+            platform.SendInput(LibreInputEventKind.KeyDown, key: key);
+            platform.SendInput(LibreInputEventKind.TextInput, text: text);
+            platform.SendInput(LibreInputEventKind.KeyUp, key: key);
+        }
+
+        DataGridViewTextBoxEditingControl editor = grid.EditingControl
+            .Should().BeOfType<DataGridViewTextBoxEditingControl>().Subject;
+        editor.Focused.Should().BeTrue();
+        editor.Text.Should().Be("Alice");
+        platform.SendInput(LibreInputEventKind.KeyDown, key: LibreKey.Enter);
+        platform.SendInput(LibreInputEventKind.KeyUp, key: LibreKey.Enter);
+        grid.Rows[0].Cells[0].Value.Should().Be("Alice");
+        grid.IsCurrentCellInEditMode.Should().BeFalse();
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void DefaultDataGridViewEditsCommitsAndCancelsThroughPortableInput(bool useF2)
