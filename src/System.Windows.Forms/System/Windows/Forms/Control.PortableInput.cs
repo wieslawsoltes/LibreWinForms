@@ -226,21 +226,24 @@ public unsafe partial class Control
         uint inputVersion = _portableMenuInputVersion;
         uint focusVersion = _portableWindowFocusVersion;
         LibreHandle windowHandle = _window.PortableHandle;
+        ToolStripDropDown.PortableMenuKeyRelease? menuRelease =
+            messageId == PInvokeCore.WM_KEYUP && pendingMenuKey == keyCode && pendingMenuWindow == windowHandle
+                && IsPortableBareMenuKey(keyCode) && this is Form receivingOwner
+                ? new(receivingOwner) : null;
         bool handled = DispatchPortableKeyboardMessage(target, ref message);
         if (handled && inputVersion == _portableMenuInputVersion)
             _portablePendingMenuKey = Keys.None;
         if (!handled && inputVersion == _portableMenuInputVersion && focusVersion == _portableWindowFocusVersion
             && !IsDisposed && !Disposing && IsHandleCreated && _window.PortableHandle == windowHandle
-            && _portableWindowFocused && this is Form { IsPortableActivationOwner: true } owner)
+            && _portableWindowFocused && this is Form { IsPortableActivationOwner: true })
         {
             if (messageId == PInvokeCore.WM_KEYDOWN && firstKeyDown && IsPortableBareMenuKey(keyCode))
             {
                 _portablePendingMenuKey = keyCode;
                 _portablePendingMenuWindow = windowHandle;
             }
-            else if (messageId == PInvokeCore.WM_KEYUP && pendingMenuKey == keyCode
-                && pendingMenuWindow == windowHandle && IsPortableBareMenuKey(keyCode))
-                ProcessPortableMenuKeyRelease(owner);
+            else
+                menuRelease?.Process();
         }
     }
 
