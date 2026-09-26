@@ -15,7 +15,7 @@ var start = new PortableApplicationStartInfo(args[0]) { DotNetHostPath = args[1]
 foreach (string argument in args.Skip(2))
     start.Arguments.Add(argument);
 using PortableApplicationSession child = PortableApplication.Start(start);
-PortableApplicationExit exit = await child.WaitForExitAsync();
+PortableApplicationExit exit = await child.WaitForExitAsync().ConfigureAwait(false);
 if (!ReferenceEquals(drawing, typeof(System.Drawing.Font).Assembly))
     throw new InvalidOperationException("The host's Drawing identity changed.");
 Console.WriteLine($"Child exit={exit.ExitCode}; accepted={exit.Reply?.Accepted}; value={exit.Reply?.Value}; error={exit.ProtocolError}");

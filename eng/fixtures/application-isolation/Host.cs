@@ -18,31 +18,31 @@ internal static class Program
         s_child = args[0];
         s_dotnet = args[1];
         const string text = "A🙂 \"quote\"; $HOME\nsecond line";
-        PortableApplicationExit success = await Run("verify", text);
+        PortableApplicationExit success = await Run("verify", text).ConfigureAwait(false);
         Require(success.Succeeded && success.Reply is { Accepted: true } && success.Reply.Value == text, "actual child control and exact primitive round trip");
-        PortableApplicationExit decision = await Run("decision");
+        PortableApplicationExit decision = await Run("decision").ConfigureAwait(false);
         Require(decision.Succeeded && decision.Reply is { Accepted: false, Value: null }, "user cancellation is a valid decision");
-        PortableApplicationExit nonzero = await Run("nonzero");
+        PortableApplicationExit nonzero = await Run("nonzero").ConfigureAwait(false);
         Require(nonzero.ExitCode == 23 && !nonzero.Succeeded && nonzero.Reply is not null, "nonzero child exit retained");
         foreach (string invalid in new[] { "missing", "malformed", "oversized" })
         {
-            PortableApplicationExit rejected = await Run(invalid);
+            PortableApplicationExit rejected = await Run(invalid).ConfigureAwait(false);
             Require(rejected.ExitCode == 0 && !rejected.Succeeded && rejected.Reply is null && rejected.ProtocolError is not null, invalid);
         }
 
         foreach (string invalid in new[] { "version", "identity", "field", "unicode-key", "unicode-value" })
         {
-            PortableApplicationExit rejected = await Run(invalid);
+            PortableApplicationExit rejected = await Run(invalid).ConfigureAwait(false);
             Require(rejected.ExitCode == 29 && !rejected.Succeeded && rejected.Reply is null && rejected.ProtocolError is not null,
                 $"{invalid} protocol failure must retain the real child exit code");
         }
 
-        PortableApplicationExit duplicate = await Run("duplicate");
+        PortableApplicationExit duplicate = await Run("duplicate").ConfigureAwait(false);
         Require(duplicate.Succeeded && duplicate.Reply?.Value == "first", "one-time result cannot overwrite");
-        PortableApplicationExit limited = await Run("value-limit");
+        PortableApplicationExit limited = await Run("value-limit").ConfigureAwait(false);
         Require(limited.Succeeded && limited.Reply?.Value == "bounded", "text limit before publication");
-        await VerifyCanceledWait();
-        await VerifyDisposeLeavesChildRunning();
+        await VerifyCanceledWait().ConfigureAwait(false);
+        await VerifyDisposeLeavesChildRunning().ConfigureAwait(false);
         Require(ReferenceEquals(microsoft, typeof(System.Drawing.Font).Assembly), "host Drawing identity retained after every child");
         Require(Convert.ToHexString(microsoft.GetName().GetPublicKeyToken()!) == "CC7B13FFCD2DDD51", "host still uses Microsoft Drawing");
         Console.WriteLine("Application isolation contracts passed: 15 real child cases; Microsoft host / canonical child remain independent.");
@@ -66,13 +66,13 @@ internal static class Program
         using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(20));
         try
         {
-            return await child.WaitForExitAsync(deadline.Token);
+            return await child.WaitForExitAsync(deadline.Token).ConfigureAwait(false);
         }
         finally
         {
             // The fixture explicitly owns this timeout/failure termination policy.
             if (!child.HasExited)
-                await Terminate(child);
+                await Terminate(child).ConfigureAwait(false);
         }
     }
 
@@ -84,7 +84,7 @@ internal static class Program
             using CancellationTokenSource wait = new(TimeSpan.FromMilliseconds(200));
             try
             {
-                await child.WaitForExitAsync(wait.Token);
+                await child.WaitForExitAsync(wait.Token).ConfigureAwait(false);
                 throw new InvalidOperationException("The bounded wait was not canceled.");
             }
             catch (OperationCanceledException) when (wait.IsCancellationRequested)
@@ -94,7 +94,7 @@ internal static class Program
         }
         finally
         {
-            await Terminate(child);
+            await Terminate(child).ConfigureAwait(false);
         }
     }
 
@@ -105,7 +105,7 @@ internal static class Program
         child.Dispose();
         try
         {
-            await Task.Delay(200);
+            await Task.Delay(200).ConfigureAwait(false);
             Require(!owned.HasExited, "disposing a session must not kill its GUI process");
         }
         finally
@@ -113,7 +113,7 @@ internal static class Program
             if (!owned.HasExited)
                 owned.Kill(entireProcessTree: true);
             using CancellationTokenSource cleanup = new(TimeSpan.FromSeconds(5));
-            await owned.WaitForExitAsync(cleanup.Token);
+            await owned.WaitForExitAsync(cleanup.Token).ConfigureAwait(false);
         }
     }
 
@@ -121,7 +121,7 @@ internal static class Program
     {
         child.Terminate();
         using CancellationTokenSource cleanup = new(TimeSpan.FromSeconds(5));
-        await child.WaitForExitAsync(cleanup.Token);
+        await child.WaitForExitAsync(cleanup.Token).ConfigureAwait(false);
     }
 
     private static void Require(bool condition, string contract)
