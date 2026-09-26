@@ -137,7 +137,11 @@ archive. Project source-root globals also match the original smoke. This is
 ordinary incremental building, not `NoBuild`, an extra warmup, or a timeout
 extension. All compiler cases and diagnostic assertions still execute. Package
 and damaged-SDK controls retain their separate fresh cache; standalone Project
-invocations stay cold. Routing and rejection controls live in
+invocations stay cold. Cache handoff is accepted only for the complete default
+`--reference-mode Both` matrix: its Package cases populate the separate fresh
+cache used by the ordinary upstream-generator control. Combining handoff with
+Project-only or Package-only fails before consumer cases; all no-handoff modes
+remain available unchanged. Routing and rejection controls live in
 `eng/test-librewinforms-analyzer-cache.py`. Full compiler and CI timing evidence
 for this handoff remains required; path stability alone is not a speed claim.
 
