@@ -91,4 +91,25 @@ public partial class CanonicalLifecycleTests
         UseHeadlessPlatform(autoCloseWindows: false);
         CanonicalApiContracts.NativeAndControlHandleLifetime();
     }
+
+    [Fact]
+    public void CanonicalApi_TableLayoutMixedSizing()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        CanonicalApiContracts.TableLayoutMixedSizing();
+    }
+
+    [Fact]
+    public void CanonicalApi_TableLayoutSpansAndRtl()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        CanonicalApiContracts.TableLayoutSpansAndRtl();
+    }
+
+    [Fact]
+    public void CanonicalApi_TableLayoutNestedInvalidation()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        CanonicalApiContracts.TableLayoutNestedInvalidation();
+    }
 }
