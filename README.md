@@ -132,6 +132,11 @@ The same source/package gates exercise the pinned
 [PrintDocument lifecycle](docs/librewinforms/print-document-lifecycle.md),
 including preview actions, cancellation order, and retained page settings.
 
+Canonical [portable committed-text input](docs/librewinforms/portable-committed-text-input.md)
+retains source text/selection and ordinary DataGridView editing/commit/cancel.
+IME composition, undo, full navigation and visible sample qualification remain
+separate from these headless input contracts.
+
 ```bash
 LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.65 ./eng/librewinforms-pack.sh
 ```
