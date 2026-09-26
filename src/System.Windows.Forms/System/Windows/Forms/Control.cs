@@ -11012,6 +11012,11 @@ public unsafe partial class Control :
 #if LIBREWINFORMS_PORTABLE
         if (value == Visible)
         {
+            // Effective visibility includes the parent. Preserve the caller's
+            // own visibility choice even while that parent is hidden, just as
+            // the native path does. Otherwise hidden hosted menu controls can
+            // reappear over the actual menu items when the parent is shown.
+            SetState(States.Visible, value);
             return;
         }
 
@@ -11021,6 +11026,7 @@ public unsafe partial class Control :
         }
 
         SetState(States.Visible, value);
+        bool visibilityCommitted = false;
         try
         {
             if (value)
@@ -11030,12 +11036,13 @@ public unsafe partial class Control :
 
             if (IsHandleCreated)
             {
-                _window.SetPortableVisibility(value);
+                _window.SetPortableVisibility(value, out visibilityCommitted);
             }
         }
         catch
         {
-            SetState(States.Visible, !value);
+            if (!visibilityCommitted && !IsDisposed)
+                SetState(States.Visible, !value);
             throw;
         }
 
@@ -11511,6 +11518,9 @@ public unsafe partial class Control :
 
     internal void SetPortableWindowTopMost(bool topMost)
         => _window.SetPortableTopMost(topMost);
+
+    internal void SetPortablePopupOwner(Form owner)
+        => _window.SetPortablePopupOwner(owner);
 
     internal void SetPortableWindowOpacity(double opacity)
         => _window.SetPortableOpacity(opacity);

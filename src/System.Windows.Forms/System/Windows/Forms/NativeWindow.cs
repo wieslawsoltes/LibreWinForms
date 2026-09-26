@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Runtime.ConstrainedExecution;
 using System.Runtime.InteropServices;
 #if LIBREWINFORMS_PORTABLE
+using System.Runtime.ExceptionServices;
 using LibreWinForms.Platform;
 #endif
 
@@ -74,6 +75,7 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
         Application.ThreadContext.FromCurrent().Dispatcher;
     private LibreHandle _portableHandle;
     private ILibreWindow? _portableWindow;
+    private PortableWindowEvents? _portableWindowEvents;
     private LibreWindowCoordinateMode _portableCoordinateMode;
     private double _portablePresentationScale = 1.0;
     private WINDOW_STYLE _portableStyle;
@@ -539,10 +541,15 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
                     new LibreSize(form.MaximumSize.Width, form.MaximumSize.Height),
                     CanClose: hasControlBox,
                     Opacity: double.IsFinite(form.Opacity) ? form.Opacity : 0d);
-                _portableWindow = services.Windows.Create(createOptions, new PortableWindowEvents(this));
+                _portableWindow = CreatePortableWindow(services, createOptions);
                 _portableHandle = _portableWindow.Handle;
                 _portableCoordinateMode = _portableWindow.CoordinateMode;
                 _portablePresentationScale = _portableWindow.DpiScale;
+            }
+            else if (this is Control.ControlNativeWindow popupWindow
+                && popupWindow.GetControl() is ToolStripDropDown { TopLevel: true } dropDown)
+            {
+                CreatePortablePopupWindow(services, cp, dropDown);
             }
             else
             {
@@ -948,7 +955,45 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
     {
         if (_portableWindow is { } window)
         {
-            window.State = state;
+            if (state != LibreWindowState.Minimized)
+            {
+                window.State = state;
+                return;
+            }
+
+            _portableOwnerTransitionDepth++;
+            ExceptionDispatchInfo? failure = null;
+            try
+            {
+                failure = ClosePortableOwnedPopups();
+                // Child callbacks can dispose or replace the owner window.
+                if (ReferenceEquals(window, _portableWindow))
+                {
+                    try
+                    {
+                        window.State = state;
+                    }
+                    catch (Exception exception)
+                    {
+                        failure ??= ExceptionDispatchInfo.Capture(exception);
+                    }
+
+                    // Some providers acknowledge state synchronously, others
+                    // later. Publish a committed state even when a child failed.
+                    if (ReferenceEquals(window, _portableWindow) && window.State == state
+                        && this is Control.ControlNativeWindow controlWindow
+                        && controlWindow.GetControl() is Form form)
+                    {
+                        form.UpdatePortableWindowState(state);
+                    }
+                }
+            }
+            finally
+            {
+                _portableOwnerTransitionDepth--;
+            }
+
+            failure?.Throw();
         }
     }
 
@@ -1030,20 +1075,49 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
         _portableWindow?.Activate();
     }
 
-    internal void SetPortableVisibility(bool visible)
+    internal void SetPortableVisibility(bool visible, out bool committed)
     {
-        if (_portableWindow is null)
+        committed = false;
+        if (_portableWindow is not { } window)
         {
+            committed = true;
             return;
         }
 
         if (visible)
         {
-            _portableWindow.Show();
+            if (_portableOwnerTransitionDepth != 0)
+                throw new InvalidOperationException("The native owner is becoming unavailable.");
+            window.Show();
+            committed = true;
         }
         else
         {
-            _portableWindow.Hide();
+            _portableOwnerTransitionDepth++;
+            ExceptionDispatchInfo? failure = null;
+            try
+            {
+                failure = ClosePortableOwnedPopups();
+                if (ReferenceEquals(window, _portableWindow))
+                {
+                    try
+                    {
+                        window.Hide();
+                    }
+                    catch (Exception exception)
+                    {
+                        failure ??= ExceptionDispatchInfo.Capture(exception);
+                    }
+                }
+
+                committed = !ReferenceEquals(window, _portableWindow) || !window.Visible;
+            }
+            finally
+            {
+                _portableOwnerTransitionDepth--;
+            }
+
+            failure?.Throw();
         }
     }
 
@@ -1117,39 +1191,92 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
 
     private void ReleasePortableHandle(bool disposeWindow)
     {
-        ILibreWindow? window;
-        lock (_lock)
+        // Retire callbacks before invoking user code or disposing the native
+        // window. The same source NativeWindow may acquire another handle.
+        _portableWindowEvents = null;
+        _portableOwnerTransitionDepth++;
+        ExceptionDispatchInfo? failure = null;
+        try
         {
-            if (HWND.IsNull)
+            failure = ClosePortableOwnedPopups();
+            DetachPortablePopupOwner();
+            ILibreWindow? window = null;
+            lock (_lock)
             {
-                return;
+                if (!HWND.IsNull)
+                {
+                    HWND oldHandle = HWND;
+                    window = _portableWindow;
+                    _portableWindow = null;
+                    RemoveWindowFromDictionary(oldHandle, this);
+                    if (window is null)
+                    {
+                        LibrePlatform.Current.Handles.Release(_portableHandle);
+                    }
+
+                    _portableHandle = default;
+                    _portableCoordinateMode = LibreWindowCoordinateMode.Logical;
+                    _portablePresentationScale = 1.0;
+                    _portableStyle = default;
+                    _portableExtendedStyle = default;
+                    _portableShowInTaskbar = true;
+                    HWND = HWND.Null;
+                    _ownHandle = false;
+                    GC.SuppressFinalize(this);
+                    _suppressedGC = true;
+                    try
+                    {
+                        OnHandleChange();
+                    }
+                    catch (Exception exception)
+                    {
+                        failure ??= ExceptionDispatchInfo.Capture(exception);
+                    }
+                }
             }
 
-            HWND oldHandle = HWND;
-            window = _portableWindow;
-            _portableWindow = null;
-            RemoveWindowFromDictionary(oldHandle, this);
-            if (window is null)
+            if (disposeWindow)
             {
-                LibrePlatform.Current.Handles.Release(_portableHandle);
+                try
+                {
+                    window?.Dispose();
+                }
+                catch (Exception exception)
+                {
+                    failure ??= ExceptionDispatchInfo.Capture(exception);
+                }
             }
-
-            _portableHandle = default;
-            _portableCoordinateMode = LibreWindowCoordinateMode.Logical;
-            _portablePresentationScale = 1.0;
-            _portableStyle = default;
-            _portableExtendedStyle = default;
-            _portableShowInTaskbar = true;
-            HWND = HWND.Null;
-            _ownHandle = false;
-            OnHandleChange();
-            GC.SuppressFinalize(this);
-            _suppressedGC = true;
+        }
+        finally
+        {
+            _portableOwnerTransitionDepth--;
         }
 
-        if (disposeWindow)
+        failure?.Throw();
+    }
+
+    private ILibreWindow CreatePortableWindow(LibrePlatformServices services, LibreWindowCreateOptions options)
+    {
+        PortableWindowEvents events = new(this);
+        _portableWindowEvents = events;
+        try
         {
-            window?.Dispose();
+            // Some providers report initial bounds/state synchronously from
+            // Create, before the returned window or its handle is published.
+            ILibreWindow window = services.Windows.Create(options, events);
+            if (!ReferenceEquals(_portableWindowEvents, events))
+            {
+                window.Dispose();
+                throw new InvalidOperationException("The native window closed during creation.");
+            }
+
+            return window;
+        }
+        catch
+        {
+            if (ReferenceEquals(_portableWindowEvents, events))
+                _portableWindowEvents = null;
+            throw;
         }
     }
 
@@ -1159,17 +1286,25 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
 
         internal PortableWindowEvents(NativeWindow owner) => _owner = owner;
 
+        private bool IsCurrent => ReferenceEquals(_owner._portableWindowEvents, this);
+
         public bool Closing()
         {
+            if (!IsCurrent)
+                return true;
             _owner.DispatchPortableMessage(PInvokeCore.WM_CLOSE);
-            return _owner.HWND.IsNull;
+            return !IsCurrent || _owner.HWND.IsNull;
         }
 
-        public void Closed() => _owner.ReleasePortableHandle(disposeWindow: false);
+        public void Closed()
+        {
+            if (IsCurrent)
+                _owner.ClosePortablePopupWindow(disposeWindow: false);
+        }
 
         public void BoundsChanged(LibreRectangle bounds)
         {
-            if (_owner is Control.ControlNativeWindow controlWindow && controlWindow.GetControl() is { } control)
+            if (IsCurrent && _owner is Control.ControlNativeWindow controlWindow && controlWindow.GetControl() is { } control)
             {
                 control.UpdatePortableBounds(bounds);
             }
@@ -1177,15 +1312,27 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
 
         public void StateChanged(LibreWindowState state)
         {
-            if (_owner is Control.ControlNativeWindow controlWindow && controlWindow.GetControl() is Form form)
+            if (IsCurrent && _owner is Control.ControlNativeWindow controlWindow && controlWindow.GetControl() is Form form)
             {
                 form.UpdatePortableWindowState(state);
+                if (IsCurrent && state == LibreWindowState.Minimized)
+                {
+                    _owner._portableOwnerTransitionDepth++;
+                    try
+                    {
+                        _owner.ClosePortableOwnedPopups()?.Throw();
+                    }
+                    finally
+                    {
+                        _owner._portableOwnerTransitionDepth--;
+                    }
+                }
             }
         }
 
         public void PresentationScaleChanged(double scale)
         {
-            if (!double.IsFinite(scale) || scale <= 0.0 || scale > 8.0)
+            if (!IsCurrent || !double.IsFinite(scale) || scale <= 0.0 || scale > 8.0)
             {
                 return;
             }
@@ -1199,6 +1346,8 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
 
         public void PaintRequested(ILibrePaintFrame frame)
         {
+            if (!IsCurrent)
+                return;
             ArgumentNullException.ThrowIfNull(frame);
             if (_owner is Control.ControlNativeWindow controlWindow && controlWindow.GetControl() is { } control)
             {
@@ -1208,7 +1357,7 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
 
         public void Input(in LibreInputEvent inputEvent)
         {
-            if (_owner is Control.ControlNativeWindow controlWindow && controlWindow.GetControl() is { } control)
+            if (IsCurrent && _owner is Control.ControlNativeWindow controlWindow && controlWindow.GetControl() is { } control)
             {
                 control.DispatchPortableInput(inputEvent);
             }

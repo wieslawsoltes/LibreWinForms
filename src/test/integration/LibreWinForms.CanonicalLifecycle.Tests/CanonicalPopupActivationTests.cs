@@ -398,7 +398,7 @@ public partial class CanonicalLifecycleTests
     }
 
     [Fact]
-    public void PortableLogicalMenuHandleDoesNotChangeTheOwnerWindowTopMost()
+    public void PortablePersistentMenuHandleHasIndependentTopMostFromTheOwnerWindow()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
         using Form owner = new() { ShowIcon = false };
@@ -406,13 +406,13 @@ public partial class CanonicalLifecycleTests
         using ContextMenuStrip menu = new() { AutoClose = false };
         menu.Items.Add("Open");
         _ = menu.Handle;
-        // Dropdowns currently have logical handles, not native popup windows.
-        // Keep this source-only route safe without claiming native topmost.
-        platform.LastWindowTopMost.Should().BeFalse();
+        platform.IsWindowTopMost(menu).Should().BeTrue();
+        platform.IsWindowTopMost(owner).Should().BeFalse();
         menu.AutoClose = true;
-        platform.LastWindowTopMost.Should().BeFalse();
+        platform.IsWindowTopMost(menu).Should().BeFalse();
         menu.AutoClose = false;
-        platform.LastWindowTopMost.Should().BeFalse();
+        platform.IsWindowTopMost(menu).Should().BeTrue();
+        platform.IsWindowTopMost(owner).Should().BeFalse();
     }
 
     [Fact]

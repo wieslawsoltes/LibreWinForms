@@ -3500,6 +3500,8 @@ public partial class CanonicalLifecycleTests
 
         platform.TextMeasureCount.Should().BeGreaterThan(0);
         platform.TextDrawCount.Should().BeGreaterThan(1);
+        platform.TextDrawStrings.Should().OnlyContain(text => text == "group" || text == "link");
+        platform.TextDrawStrings.Should().Contain("group").And.Contain("link");
         groupBox.IsHandleCreated.Should().BeFalse();
         linkLabel.IsHandleCreated.Should().BeFalse();
     }
@@ -5289,7 +5291,8 @@ public partial class CanonicalLifecycleTests
     public void ContextMenuStripUsesCanonicalPortablePopupLifecycleAndTypedCloseReasons()
     {
         _ = UseHeadlessPlatform(autoCloseWindows: false);
-        using Control owner = new();
+        using Form owner = new() { ShowIcon = false };
+        owner.Show();
         using ContextMenuStrip menu = new();
         int opening = 0;
         int opened = 0;
@@ -5944,6 +5947,11 @@ public partial class CanonicalLifecycleTests
             }
 
             WindowsCreated = 0;
+            LastWindowOptions = default;
+            RejectPopupCreation = false;
+            PopupShowFailure = null;
+            PopupOwnerAssigned = null;
+            WindowCreating = null;
             LastWindowBounds = default;
             LastNativeWindowBounds = default;
             LastDirtyRectangle = default;
@@ -5985,6 +5993,7 @@ public partial class CanonicalLifecycleTests
             VisualStyleEdgeDrawCount = 0;
             VisualStyleTextDrawCount = 0;
             TextDrawCount = 0;
+            TextDrawStrings.Clear();
             TextBoxDraws.Clear();
             TextMeasureCount = 0;
             LastTextBounds = default;
@@ -6681,10 +6690,14 @@ public partial class CanonicalLifecycleTests
 
         public ILibreWindow Create(in LibreWindowCreateOptions options, ILibreWindowEvents events)
         {
+            if (RejectPopupCreation && options.Options.HasFlag(LibreWindowOptions.Popup))
+                throw new PlatformNotSupportedException("popup admission rejected");
             WindowsCreated++;
+            LastWindowOptions = options;
             LastCoordinateMode = options.CoordinateMode;
             LastWindowOwner = options.Owner;
             _lastWindow = new HeadlessWindow(this, options, events);
+            WindowCreating?.Invoke(events);
             return _lastWindow;
         }
 
@@ -6744,8 +6757,8 @@ public partial class CanonicalLifecycleTests
         internal void TrackForm(Form form)
             => _formHandles[form] = GetWindowHandle(form);
 
-        internal LibreHandle GetWindowHandle(Form form)
-            => new(form.Handle, LibreHandleKind.Window);
+        internal LibreHandle GetWindowHandle(Control control)
+            => new(control.Handle, LibreHandleKind.Window);
 
         internal LibreHandle GetFormerWindowHandle(Form form)
             => _formHandles[form];
@@ -6756,10 +6769,46 @@ public partial class CanonicalLifecycleTests
             return window!.Enabled;
         }
 
-        internal LibreHandle GetWindowOwner(Form form)
+        internal LibreHandle GetWindowOwner(Control form)
         {
             Handles.TryGet(GetWindowHandle(form), out HeadlessWindow? window).Should().BeTrue();
             return window!.Owner;
+        }
+
+        internal LibreWindowCreateOptions LastWindowOptions { get; private set; }
+
+        internal bool RejectPopupCreation { get; set; }
+
+        internal Exception? PopupShowFailure { get; set; }
+
+        internal Action? PopupOwnerAssigned { get; set; }
+
+        internal Action<ILibreWindowEvents>? WindowCreating { get; set; }
+
+        internal ILibreWindowEvents GetWindowEvents(Control control)
+        {
+            Handles.TryGet(GetWindowHandle(control), out HeadlessWindow? window).Should().BeTrue();
+            return window!.Events;
+        }
+
+        internal List<string> TextDrawStrings { get; } = [];
+
+        internal bool IsWindowVisible(Control control)
+        {
+            Handles.TryGet(GetWindowHandle(control), out HeadlessWindow? window).Should().BeTrue();
+            return window!.Visible;
+        }
+
+        internal bool IsWindowTopMost(Control control)
+        {
+            Handles.TryGet(GetWindowHandle(control), out HeadlessWindow? window).Should().BeTrue();
+            return window!.TopMost;
+        }
+
+        internal void SendControlInput(Control control, in LibreInputEvent input)
+        {
+            Handles.TryGet(GetWindowHandle(control), out HeadlessWindow? window).Should().BeTrue();
+            window!.SendInput(input);
         }
 
         internal void SendFormInput(Form form, LibreInputEventKind kind)
@@ -7100,6 +7149,7 @@ public partial class CanonicalLifecycleTests
             LibreTextFormat format)
         {
             TextDrawCount++;
+            TextDrawStrings.Add(text);
             font.Should().NotBeNull();
             if ((format & (LibreTextFormat.TextBoxControl | LibreTextFormat.NoPrefix))
                 == (LibreTextFormat.TextBoxControl | LibreTextFormat.NoPrefix))
@@ -7143,7 +7193,6 @@ public partial class CanonicalLifecycleTests
             }
             else
             {
-                text.Should().BeOneOf("group", "link");
                 bounds.Width.Should().BeGreaterThan(0);
                 bounds.Height.Should().BeGreaterThan(0);
             }
@@ -7272,6 +7321,8 @@ public partial class CanonicalLifecycleTests
             private bool _canClose;
             private bool _canMinimize;
             private bool _canMaximize;
+            private readonly bool _isPopup;
+            private LibreHandle _owner;
             private double _opacity = 1d;
 
             internal HeadlessWindow(
@@ -7281,6 +7332,7 @@ public partial class CanonicalLifecycleTests
             {
                 _platform = platform;
                 _events = events;
+                _isPopup = options.Options.HasFlag(LibreWindowOptions.Popup);
                 _coordinateMode = options.CoordinateMode;
                 _dpiScale = platform._initialDpiScale ?? options.InitialDpiScale;
                 _framebufferScale = platform._initialFramebufferScale ?? options.InitialDpiScale;
@@ -7313,6 +7365,8 @@ public partial class CanonicalLifecycleTests
 
             public LibreHandle Handle { get; }
 
+            internal ILibreWindowEvents Events => _events;
+
             public string Title
             {
                 get => _title;
@@ -7324,7 +7378,16 @@ public partial class CanonicalLifecycleTests
                 }
             }
 
-            public LibreHandle Owner { get; set; }
+            public LibreHandle Owner
+            {
+                get => _owner;
+                set
+                {
+                    _owner = value;
+                    if (_isPopup && !value.IsNull)
+                        _platform.PopupOwnerAssigned?.Invoke();
+                }
+            }
 
             public LibreRectangle Bounds
             {
@@ -7466,6 +7529,20 @@ public partial class CanonicalLifecycleTests
 
             public void Show()
             {
+                if (_isPopup && _platform.PopupShowFailure is Exception failure)
+                {
+                    try
+                    {
+                        Dispose();
+                    }
+                    catch (Exception cleanupFailure)
+                    {
+                        failure.Data["PopupCleanupFailure"] = cleanupFailure;
+                    }
+
+                    throw failure;
+                }
+
                 Visible = true;
                 if (_platform._autoCloseWindows)
                 {

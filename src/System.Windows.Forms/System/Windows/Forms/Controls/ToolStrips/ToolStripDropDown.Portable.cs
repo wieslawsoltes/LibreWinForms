@@ -17,6 +17,47 @@ public partial class ToolStripDropDown
     private int _portableOpeningDepth;
     private bool _portableActivationClosePending;
 
+    internal bool PortablePopupTopMost => TopMost;
+
+    private void BindPortablePopupOwner(ToolStripDropDown root)
+    {
+        if (!TopLevel)
+            return;
+        Form owner = root._portableActivationOwner
+            ?? throw new InvalidOperationException("A top-level dropdown requires a native Form owner.");
+        _ = Handle;
+        SetPortablePopupOwner(owner);
+        if (ReferenceEquals(root, this) && root._portableActivationMembers is { } members)
+        {
+            foreach (ToolStripDropDown member in members.ToArray())
+            {
+                if (member != this && member.TopLevel && member.Visible)
+                    member.SetPortablePopupOwner(owner);
+            }
+        }
+    }
+
+    internal bool OnPortablePopupWindowDestroying()
+    {
+        // Native owner teardown is not a cancelable close request. The native
+        // resource must be released; retain the source object for later reuse.
+        bool visible = Visible;
+        SetState(States.Visible, false);
+        SetState(States.Created, false);
+        ReleasePortableActivation();
+        OwnerToolStrip?.ActiveDropDowns.Remove(this);
+        ActiveDropDowns.Clear();
+        CancelPortableCapture(updateCursor: false);
+        OnHandleDestroyed(EventArgs.Empty);
+        return visible;
+    }
+
+    internal void OnPortablePopupWindowClosed()
+    {
+        OnVisibleChanged(EventArgs.Empty);
+        OnClosed(new ToolStripDropDownClosedEventArgs(ToolStripDropDownCloseReason.AppFocusChange));
+    }
+
     private ToolStripDropDown BeginPortableActivationOpening()
     {
         ToolStripDropDown first = GetFirstDropDown();
@@ -130,6 +171,7 @@ public partial class ToolStripDropDown
                 }
 
                 ObjectDisposedException.ThrowIf(IsDisposed, this);
+                BindPortablePopupOwner(openingRoot);
 
                 try
                 {
@@ -151,7 +193,13 @@ public partial class ToolStripDropDown
                 }
                 finally
                 {
-                    OnOpened(EventArgs.Empty);
+                    // Native admission can synchronously destroy the rejected
+                    // window before Show throws. Do not publish Opened (or mask
+                    // that failure) for a surface that no longer exists. A
+                    // visible, admitted window retains the original callback
+                    // behavior if a later managed visibility callback throws.
+                    if (Visible && IsHandleCreated)
+                        OnOpened(EventArgs.Empty);
                 }
 
                 openingCompleted = true;
