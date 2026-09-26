@@ -694,6 +694,7 @@ internal static class Program
 
     private sealed class DoubleBufferedProbeControl : Control
     {
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public bool IsDoubleBuffered
         {
             get => DoubleBuffered;

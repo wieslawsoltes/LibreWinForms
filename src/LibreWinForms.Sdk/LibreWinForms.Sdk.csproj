@@ -13,7 +13,7 @@
     <LibreWinFormsCanonicalPackageVersion Condition="'$(LibreWinFormsCanonicalPackageVersion)' == ''">$(PackageVersion)</LibreWinFormsCanonicalPackageVersion>
     <LibreWinFormsProGpuBackendPackageVersion Condition="'$(LibreWinFormsProGpuBackendPackageVersion)' == ''">$(PackageVersion)</LibreWinFormsProGpuBackendPackageVersion>
     <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == ''">0.1.0-preview.65</LibreWinFormsProGpuPackageVersion>
-    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);CollectLibreWinFormsSdkVersionFile</TargetsForTfmSpecificContentInPackage>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);CollectLibreWinFormsSdkVersionFile;CollectLibreWinFormsSdkAnalyzers</TargetsForTfmSpecificContentInPackage>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,6 +21,43 @@
     <None Include="targets\**\*" Pack="true" PackagePath="targets\" />
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
+
+  <ItemGroup>
+    <_LibreWinFormsAnalyzerProject Include="../System.Windows.Forms.Analyzers/src/System.Windows.Forms.Analyzers.csproj;
+                                         ../System.Windows.Forms.Analyzers.CSharp/src/System.Windows.Forms.Analyzers.CSharp.csproj;
+                                         ../System.Windows.Forms.Analyzers.VisualBasic/src/System.Windows.Forms.Analyzers.VisualBasic.vbproj" />
+    <ProjectReference Include="@(_LibreWinFormsAnalyzerProject)"
+                      ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+
+  <Target Name="CollectLibreWinFormsSdkAnalyzers" DependsOnTargets="ResolveProjectReferences">
+    <!-- Reuse the original analyzer projects' owned assembly/satellite outputs;
+         do not bundle Roslyn or test/runtime dependencies into the SDK. -->
+    <MSBuild Projects="@(_LibreWinFormsAnalyzerProject)"
+             Targets="GetPackageContent"
+             Properties="Configuration=$(Configuration);TargetFramework=netstandard2.0"
+             BuildInParallel="false">
+      <Output TaskParameter="TargetOutputs" ItemName="_LibreWinFormsAnalyzerPackageFile" />
+    </MSBuild>
+    <Error Condition="'@(_LibreWinFormsAnalyzerPackageFile)' == ''"
+           Text="The original WinForms analyzer payload was not produced." />
+    <Error Condition="!Exists('%(_LibreWinFormsAnalyzerPackageFile.Identity)')"
+           Text="An original WinForms analyzer payload file is missing: %(_LibreWinFormsAnalyzerPackageFile.Identity)" />
+    <ItemGroup>
+      <_LibreWinFormsAnalyzerAssembly Include="@(_LibreWinFormsAnalyzerPackageFile)"
+                                     Condition="'%(_LibreWinFormsAnalyzerPackageFile.Filename)' == 'System.Windows.Forms.Analyzers' Or '%(_LibreWinFormsAnalyzerPackageFile.Filename)' == 'System.Windows.Forms.Analyzers.CSharp' Or '%(_LibreWinFormsAnalyzerPackageFile.Filename)' == 'System.Windows.Forms.Analyzers.VisualBasic'">
+        <_IsAssembly Condition="'%(_LibreWinFormsAnalyzerPackageFile.Extension)' == '.dll'">true</_IsAssembly>
+      </_LibreWinFormsAnalyzerAssembly>
+    </ItemGroup>
+    <Error Condition="'@(_LibreWinFormsAnalyzerAssembly->WithMetadataValue('_IsAssembly', 'true')->Count())' != '3'"
+           Text="The SDK requires all three original shared, CSharp, and VisualBasic analyzer assemblies." />
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="@(_LibreWinFormsAnalyzerPackageFile)"
+                              Condition="'%(_LibreWinFormsAnalyzerPackageFile.Extension)' == '.dll'">
+        <PackagePath>$([System.String]::Copy('%(_LibreWinFormsAnalyzerPackageFile.PackagePath)').Replace('sdk/analyzers/', 'analyzers/'))/</PackagePath>
+      </TfmSpecificPackageFile>
+    </ItemGroup>
+  </Target>
 
   <Target Name="CollectLibreWinFormsSdkVersionFile">
     <PropertyGroup>
