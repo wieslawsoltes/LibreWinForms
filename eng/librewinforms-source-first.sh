@@ -80,12 +80,12 @@ generator_tests="${repo_root}/src/System.Windows.Forms.Analyzers.CSharp/tests/Un
 "${repo_root}/eng/common/dotnet.sh" run --project "${generator_tests}" \
   --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" -- \
   --filter-class '*ApplicationConfigurationGeneratorTests*' \
-  --minimum-expected-tests 28 --fail-skips on --timeout 10m
+  --minimum-expected-tests 42 --fail-skips on --timeout 10m
 
 echo "Testing unchanged canonical Application.Run(Form) against a typed headless backend."
 run_test_project \
   "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
-  390 \
+  406 \
   -p:LibreWinFormsUseProGpuSystemDrawing=true \
   -p:LibreWinFormsReferenceMode=Project
 

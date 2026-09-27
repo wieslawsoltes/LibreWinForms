@@ -125,7 +125,7 @@ public partial class Screen
         get
         {
 #if LIBREWINFORMS_PORTABLE
-            IReadOnlyList<LibreMonitor> monitors = LibrePlatform.Current.Monitors.GetMonitors();
+            IReadOnlyList<LibreMonitor> monitors = ScaleHelper.GetPortableMonitors();
             if (monitors.Count == 0)
             {
                 throw new InvalidOperationException("The platform monitor inventory is empty.");
@@ -430,7 +430,7 @@ public partial class Screen
 
 #if LIBREWINFORMS_PORTABLE
     private static Screen FromLibreRectangle(LibreRectangle bounds)
-        => new(LibrePlatform.Current.Monitors.GetNearest(bounds));
+        => new(ScaleHelper.GetPortableMonitor(bounds));
 
     private static Rectangle ToRectangle(LibreRectangle rectangle)
         => new(rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height);

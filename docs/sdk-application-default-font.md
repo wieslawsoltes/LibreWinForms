@@ -28,10 +28,13 @@ This existing behavior is tested rather than replaced with new string escaping.
 
 The SDK still owns the global `internal static partial ApplicationConfiguration`
 class. Its existing `SetCompatibleTextRenderingDefault(false)` call is followed
-by an optional private partial `ConfigureDefaultFont` hook. Only an explicit
+by the [DPI policy hook](sdk-application-high-dpi-mode.md), then an optional private
+partial `ConfigureDefaultFont` hook. Only an explicit
 nonempty parsed font supplies an implementation calling `SetDefaultFont`.
-Otherwise C# erases the hook and call. No `EnableVisualStyles`, DPI-setting call,
-new system font, window creation, or bootstrap behavior is introduced.
+Otherwise C# erases the font hook and call. The separate DPI policy runs before
+font selection, following the original generator's ordering. The font supplement
+does not introduce `EnableVisualStyles`, a system font, window creation, or new
+bootstrap behavior.
 
 `LibreWinFormsSdkGeneratesApplicationConfiguration` shares the existing class
 emission predicate: portable framework references and SystemWindowsForms enabled,
@@ -64,8 +67,9 @@ VB diagnostic support remains unchanged; this is not a new VB bootstrap.
 
 ## Qualification
 
-The source generator suite preserves all previous 16 cases and adds 12 controls,
-with a 28-executed-test minimum and zero skips. Its original .NET Framework 4.7.2
+The font change preserved all previous 16 cases and added 12 controls. The
+composed source generator suite now also includes the DPI controls, with a
+42-executed-test minimum and zero skips. Its original .NET Framework 4.7.2
 reference oracle still marks the framework's missing `SetDefaultFont` member in
 expected generated-source fixtures, just as the original font fixtures do.
 That source-output check is separate from the current runtime consumers below.
@@ -99,5 +103,6 @@ are the implementation provenance. Microsoft's
 documents the invariant font syntax and the empty-property default. The
 [SetDefaultFont contract](https://learn.microsoft.com/en-us/dotnet/api/system.windows.forms.application.setdefaultfont)
 requires initialization before the first window and retains runtime text scaling.
-Both references were inspected for this change; neither warrants hardcoding an
-OS font or changing the SDK's existing absent-property DPI/bootstrap policy.
+Both references were inspected for the font change; neither warrants hardcoding
+an OS font. The separate DPI property contract is documented independently and
+does not change the SDK bootstrap.

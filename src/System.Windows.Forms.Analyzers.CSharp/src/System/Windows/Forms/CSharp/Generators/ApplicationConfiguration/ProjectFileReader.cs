@@ -96,7 +96,7 @@ internal static partial class ProjectFileReader
         return false;
     }
 
-    private static bool TryReadHighDpiMode(AnalyzerConfigOptionsProvider configOptions, out HighDpiMode highDpiMode, out Diagnostic? diagnostic)
+    internal static bool TryReadHighDpiMode(AnalyzerConfigOptionsProvider configOptions, out HighDpiMode highDpiMode, out Diagnostic? diagnostic)
     {
         highDpiMode = PropertyDefaultValue.DpiMode;
         diagnostic = null;

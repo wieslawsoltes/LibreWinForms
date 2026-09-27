@@ -291,6 +291,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
     private readonly SilkWindowController _controller;
     private readonly NativePopupAdmission? _popupAdmission;
     private readonly LibreWindowCoordinateMode _coordinateMode;
+    private readonly bool _scaleOnDpiChange;
     private readonly bool _inputTransparent;
     private readonly ContainerVisual _paintRoot = new();
     private readonly DrawingVisual _fallbackPaintVisual = new();
@@ -340,6 +341,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         _events = events;
         _adorners = new ProGpuAdornerStore(_adornerRoot);
         _coordinateMode = options.CoordinateMode;
+        _scaleOnDpiChange = options.ScaleOnDpiChange;
         _inputTransparent = options.Options.HasFlag(LibreWindowOptions.InputTransparent);
         ValidateSizeConstraints(options.MinimumSize, options.MaximumSize);
         ValidateOpacity(options.Opacity);
@@ -1419,7 +1421,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         bool dpiChanged)
     {
         bool preserveLogicalSize = _coordinateMode == LibreWindowCoordinateMode.Logical;
-        if (!preserveLogicalSize && !dpiChanged)
+        if (!preserveLogicalSize && _scaleOnDpiChange && !dpiChanged)
         {
             return;
         }
@@ -1429,10 +1431,10 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
             _coordinateMode,
             oldDpiScale,
             oldFramebufferScale);
-        int desiredWidth = preserveLogicalSize
+        int desiredWidth = preserveLogicalSize || !_scaleOnDpiChange
             ? oldManagedSize.Width
             : ScaleForDpi(oldManagedSize.Width, newDpiScale, oldDpiScale);
-        int desiredHeight = preserveLogicalSize
+        int desiredHeight = preserveLogicalSize || !_scaleOnDpiChange
             ? oldManagedSize.Height
             : ScaleForDpi(oldManagedSize.Height, newDpiScale, oldDpiScale);
         LibreRectangle nativeSize = LibreWindowCoordinates.ToNative(

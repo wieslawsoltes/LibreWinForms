@@ -4926,7 +4926,7 @@ public partial class CanonicalLifecycleTests
                 1,
                 true,
                 32,
-                "Primary display"),
+                "Primary display") { NativeCoordinateScale = 1 },
             new LibreMonitor(
                 "secondary",
                 new(-1280, 0, 1280, 1024),
@@ -4934,7 +4934,7 @@ public partial class CanonicalLifecycleTests
                 1.5,
                 false,
                 30,
-                "Secondary display"));
+                "Secondary display") { NativeCoordinateScale = 1.5 });
 
         Screen[] screens = Screen.AllScreens;
         screens.Should().HaveCount(2);
@@ -5021,13 +5021,18 @@ public partial class CanonicalLifecycleTests
     [Fact]
     public void PerMonitorV2_UsesDevicePixelCoordinatesAndRaisesCanonicalDpiEvents()
     {
+        if (RunDpiCaseInNewProcess())
+        {
+            return;
+        }
+
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
         platform.SetMonitors(new LibreMonitor(
             "primary",
             new(0, 0, 1920, 1080),
             new(0, 0, 1920, 1040),
             2.0,
-            true));
+            true) { NativeCoordinateScale = 1 });
         platform.SetInitialPresentationScales(dpiScale: 2.0, framebufferScale: 2.0);
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2).Should().BeTrue();
 
@@ -5092,7 +5097,7 @@ public partial class CanonicalLifecycleTests
         }
         finally
         {
-            Application.SetHighDpiMode(HighDpiMode.DpiUnaware).Should().BeTrue();
+            Application.SetHighDpiMode(HighDpiMode.DpiUnaware).Should().BeFalse();
         }
 
         platform.LastCoordinateMode.Should().Be(LibreWindowCoordinateMode.DevicePixels);
@@ -5116,13 +5121,18 @@ public partial class CanonicalLifecycleTests
     [Fact]
     public void PerMonitorV2_SeparatesWindowsDpiFromFramebufferScale()
     {
+        if (RunDpiCaseInNewProcess())
+        {
+            return;
+        }
+
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
         platform.SetMonitors(new LibreMonitor(
             "primary",
             new(0, 0, 1920, 1080),
             new(0, 0, 1920, 1040),
             2.0,
-            true));
+            true) { NativeCoordinateScale = 1 });
         platform.SetInitialPresentationScales(dpiScale: 2.0, framebufferScale: 1.0);
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2).Should().BeTrue();
 
@@ -5150,7 +5160,7 @@ public partial class CanonicalLifecycleTests
         }
         finally
         {
-            Application.SetHighDpiMode(HighDpiMode.DpiUnaware).Should().BeTrue();
+            Application.SetHighDpiMode(HighDpiMode.DpiUnaware).Should().BeFalse();
         }
 
         initialManagedBounds.Should().Be(new Rectangle(10, 20, 800, 600));
@@ -6877,7 +6887,7 @@ public partial class CanonicalLifecycleTests
         }
 
         private static IReadOnlyList<LibreMonitor> CreateDefaultMonitorInventory()
-            => [new("headless", new(0, 0, 1920, 1080), new(0, 0, 1920, 1040), 1, true)];
+            => [new("headless", new(0, 0, 1920, 1080), new(0, 0, 1920, 1040), 1, true) { NativeCoordinateScale = 1 }];
 
         public void Invalidate(LibreHandle target, LibreRectangle dirtyRectangle)
         {
@@ -7305,6 +7315,7 @@ public partial class CanonicalLifecycleTests
             private readonly HeadlessPlatform _platform;
             private readonly ILibreWindowEvents _events;
             private readonly LibreWindowCoordinateMode _coordinateMode;
+            private readonly bool _scaleOnDpiChange;
             private readonly DrawingContext _retainedContext = new();
             private readonly Dictionary<LibreHandle, HeadlessRetainedLayer> _retainedLayers = [];
             private bool _disposed;
@@ -7334,6 +7345,7 @@ public partial class CanonicalLifecycleTests
                 _events = events;
                 _isPopup = options.Options.HasFlag(LibreWindowOptions.Popup);
                 _coordinateMode = options.CoordinateMode;
+                _scaleOnDpiChange = options.ScaleOnDpiChange;
                 _dpiScale = platform._initialDpiScale ?? options.InitialDpiScale;
                 _framebufferScale = platform._initialFramebufferScale ?? options.InitialDpiScale;
                 _nativeBounds = LibreWindowCoordinates.ToNative(
@@ -7695,10 +7707,10 @@ public partial class CanonicalLifecycleTests
                 double oldDpiScale = _dpiScale;
                 _dpiScale = dpiScale;
                 _framebufferScale = framebufferScale;
-                int desiredWidth = _coordinateMode == LibreWindowCoordinateMode.DevicePixels
+                int desiredWidth = _coordinateMode == LibreWindowCoordinateMode.DevicePixels && _scaleOnDpiChange
                     ? ScaleForDpi(oldManagedBounds.Width, dpiScale, oldDpiScale)
                     : oldManagedBounds.Width;
-                int desiredHeight = _coordinateMode == LibreWindowCoordinateMode.DevicePixels
+                int desiredHeight = _coordinateMode == LibreWindowCoordinateMode.DevicePixels && _scaleOnDpiChange
                     ? ScaleForDpi(oldManagedBounds.Height, dpiScale, oldDpiScale)
                     : oldManagedBounds.Height;
                 if (_coordinateMode == LibreWindowCoordinateMode.Logical)

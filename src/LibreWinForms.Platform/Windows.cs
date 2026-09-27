@@ -94,7 +94,11 @@ public readonly record struct LibreWindowCreateOptions(
     LibreSize MinimumSize = default,
     LibreSize MaximumSize = default,
     bool CanClose = true,
-    double Opacity = 1d);
+    double Opacity = 1d)
+{
+    /// <summary>Whether device-pixel content follows monitor DPI changes after creation.</summary>
+    public bool ScaleOnDpiChange { get; init; } = true;
+}
 
 /// <summary>Observable state for a live top-level owner supplied by another desktop stack.</summary>
 public readonly record struct LibreExternalWindowOwnerState(bool IsVisible, bool IsEnabled);

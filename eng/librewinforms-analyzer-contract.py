@@ -272,7 +272,7 @@ def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
                expected_errors=(), ordinary_generator=False, sdk_directory=None,
                missing_analyzer=None, default_font=None, expected_font=None,
                use_forms=None, runtime=False, late_properties=None, expected_configuration=None,
-               late_phase="PrepareForBuild"):
+               late_phase="PrepareForBuild", high_dpi_mode=None, expected_high_dpi="SystemAware"):
     case = scratch / (mode.lower() + "-" + name)
     case.mkdir()
     extension = "vb" if vb else "cs"
@@ -295,6 +295,8 @@ def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
         properties.append("<LibreWinFormsGenerateApplicationConfiguration>false</LibreWinFormsGenerateApplicationConfiguration>")
     if default_font is not None:
         properties.append(f"<ApplicationDefaultFont>{escape(default_font)}</ApplicationDefaultFont>")
+    if high_dpi_mode is not None:
+        properties.append(f"<ApplicationHighDpiMode>{escape(high_dpi_mode)}</ApplicationHighDpiMode>")
     if mode == "Project":
         properties.append(f"<LibreWinFormsSourceRoot>{escape(str(args.repo_root))}/</LibreWinFormsSourceRoot>")
     if args.progpu_source_root:
@@ -381,6 +383,7 @@ def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
     generated = list(case.rglob("ApplicationConfiguration.g.cs"))
     sdk_generated = list(case.rglob("LibreWinForms.ApplicationConfiguration.g.cs"))
     font_generated = list(case.rglob("LibreWinForms.ApplicationDefaultFont.g.cs"))
+    dpi_generated = list(case.rglob("LibreWinForms.ApplicationHighDpiMode.g.cs"))
     if ordinary_generator:
         if len(generated) != 1:
             raise AssertionError("The ordinary upstream generator must remain present and active")
@@ -402,21 +405,28 @@ def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
         expected = sdk_font_source(*expected_font)
         if font_generated[0].read_text(encoding="utf-8-sig") != expected:
             raise AssertionError(f"Explicit font did not reuse the canonical descriptor in {case.name}")
+    expects_dpi = expected_configuration and not ordinary_generator and not vb and expected_high_dpi is not None
+    if len(dpi_generated) != int(expects_dpi):
+        raise AssertionError(f"Unexpected DPI supplement ownership in {case.name}: {dpi_generated}")
+    if expects_dpi and dpi_generated[0].read_text(encoding="utf-8-sig") != sdk_dpi_source(expected_high_dpi):
+        raise AssertionError(f"DPI policy did not reuse the canonical enum/default in {case.name}")
     for configuration in sdk_generated:
-        # The only non-erased policy remains the original compatible-rendering
-        # call followed by the explicit-font hook. No upstream DPI/style defaults.
+        # Keep the existing text policy, followed by the canonical DPI-before-
+        # font ordering. Visual-styles/bootstrap policy is not changed here.
         expected = ["internal static partial class ApplicationConfiguration", "{",
                     "internal static void Initialize()", "{",
                     "global::System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);",
-                    "ConfigureDefaultFont();", "}", "static partial void ConfigureDefaultFont();", "}"]
+                    "ConfigureHighDpiMode();", "ConfigureDefaultFont();", "}",
+                    "static partial void ConfigureHighDpiMode();", "static partial void ConfigureDefaultFont();", "}"]
         if [line.strip() for line in configuration.read_text(encoding="utf-8-sig").splitlines() if line.strip()] != expected:
             raise AssertionError(f"SDK initialization policy changed unexpectedly in {case.name}")
     for diagnostic in diagnostics:
         if diagnostic["ruleId"] == "WFO0002":
             message = diagnostic.get("message", {})
             text = message.get("text", "") if isinstance(message, dict) else message
-            if "ApplicationDefaultFont" not in text or default_font not in text:
-                raise AssertionError(f"WFO0002 did not identify the actual invalid font property in {case.name}")
+            property_name, value = ("ApplicationHighDpiMode", high_dpi_mode) if expected_high_dpi is None else ("ApplicationDefaultFont", default_font)
+            if property_name not in text or value is None or value not in text:
+                raise AssertionError(f"WFO0002 did not identify the actual invalid property in {case.name}")
     saved = evidence / case.name
     saved.mkdir()
     analyzer_inputs = [Path(line) for line in (case / "analyzer-inputs.txt").read_text(encoding="utf-8").splitlines()
@@ -445,7 +455,7 @@ def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
     shutil.copy2(sarif, saved / sarif.name)
     for source_file in case.glob("*." + extension):
         shutil.copy2(source_file, saved / source_file.name)
-    for index, generated_file in enumerate(generated + sdk_generated + font_generated):
+    for index, generated_file in enumerate(generated + sdk_generated + dpi_generated + font_generated):
         shutil.copy2(generated_file, saved / f"{index}-{generated_file.name}")
     if not ordinary_generator:
         compiler_configs = list(case.rglob("Consumer.GeneratedMSBuildEditorConfig.editorconfig"))
@@ -458,7 +468,7 @@ def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
     if runtime:
         runtime_log = evidence / (case.name + "-runtime.log")
         with runtime_log.open("w", encoding="utf-8") as output:
-            # Each font policy runs in a fresh process, before any Control font
+            # Each policy runs in a fresh process, before any Control font
             # cache or native window can exist. No Show/input/GPU fixture runs.
             process = subprocess.Popen([args.dotnet, str(case / "bin" / args.configuration / "net11.0/Consumer.dll")],
                                        cwd=case, env=environment, start_new_session=True,
@@ -474,7 +484,7 @@ def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
                 raise
         runtime_output = runtime_log.read_text(encoding="utf-8").strip()
         if runtime_exit != 0:
-            raise AssertionError(f"Actual Initialize/default-font contract failed in {case.name}; see {runtime_log}")
+            raise AssertionError(f"Actual Initialize policy contract failed in {case.name}; see {runtime_log}")
         if runtime == "font-family":
             inventory = json.loads(runtime_output)
             family = inventory.get("fontFamily")
@@ -485,13 +495,82 @@ def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
             # an OS-specific alias, fallback name or substitute default policy.
             if not all(character.isalnum() or character == " " for character in family):
                 raise AssertionError(f"Discovered fixture family needs a separate name-format contract: {family!r}")
-        elif runtime_output != "PASS explicit font policy":
-            raise AssertionError(f"Runtime did not confirm the font policy in {case.name}; see {runtime_log}")
+        elif runtime_output != ("PASS explicit DPI policy" if runtime == "dpi" else "PASS explicit font policy"):
+            raise AssertionError(f"Runtime did not confirm the policy in {case.name}; see {runtime_log}")
     print(f"PASS {case.name}: expected errors={list(expected_errors)}", flush=True)
     result = {"case": case.name, "exitCode": exit_code, "expectedErrors": list(expected_errors), "runtime": runtime}
     if runtime == "font-family":
         result["fontFamily"] = family
     return result
+
+
+def sdk_dpi_source(mode):
+    return f'''// <auto-generated />
+internal static partial class ApplicationConfiguration
+{{
+    static partial void ConfigureHighDpiMode()
+    {{
+        global::System.Windows.Forms.Application.SetHighDpiMode(global::System.Windows.Forms.HighDpiMode.{mode});
+    }}
+}}'''
+
+
+def dpi_runtime_source(mode, *, caller=False, prior_policy=False):
+    body = f'''ApplicationConfiguration.Initialize();
+if (global::System.Windows.Forms.Application.HighDpiMode != global::System.Windows.Forms.HighDpiMode.{mode})
+    throw new global::System.Exception("Initialize did not apply the expected DPI policy");'''
+    if caller:
+        body += '\nif (ApplicationConfiguration.Calls != 1) throw new global::System.Exception("Caller did not own Initialize");'
+    if prior_policy:
+        body = f'''if (!global::System.Windows.Forms.Application.SetHighDpiMode(global::System.Windows.Forms.HighDpiMode.{mode}))
+    throw new global::System.Exception("The first explicit DPI policy was not admitted");
+''' + body
+    return body + '\nglobal::System.Console.WriteLine("PASS explicit DPI policy");'
+
+
+def build_dpi_cases(args, scratch, evidence, mode):
+    results = []
+    for name, value, expected in (
+        ("absent", None, "SystemAware"), ("empty", "", "SystemAware"),
+        *((value.lower(), value, value) for value in
+          ("DpiUnaware", "SystemAware", "PerMonitor", "PerMonitorV2", "DpiUnawareGdiScaled")),
+        ("case-insensitive", "permonitorv2", "PerMonitorV2"), ("numeric", "1", "SystemAware"),
+    ):
+        results.append(build_case(args, scratch, evidence, mode, "dpi-" + name, dpi_runtime_source(expected),
+                                  executable=True, high_dpi_mode=value, expected_high_dpi=expected, runtime="dpi"))
+    for name, value in (("invalid-name", "NotAnUpstreamSetting"), ("invalid-number", "999"),
+                        ("invalid-escaping", 'SystemAware"<&>')):
+        results.append(build_case(args, scratch, evidence, mode, "dpi-" + name, ENTRYPOINTS["top-level"],
+                                  executable=True, high_dpi_mode=value, expected_high_dpi=None,
+                                  expected_errors=("WFO0002",)))
+    caller = '''internal static class ApplicationConfiguration {
+    internal static int Calls;
+    internal static void Initialize() {
+        Calls++;
+        global::System.Windows.Forms.Application.SetHighDpiMode(global::System.Windows.Forms.HighDpiMode.PerMonitor);
+    }
+}'''
+    results.append(build_case(args, scratch, evidence, mode, "dpi-caller-owned", dpi_runtime_source("PerMonitor", caller=True),
+                              executable=True, high_dpi_mode="NotAnUpstreamSetting", disable_configuration=True,
+                              caller_configuration=caller, runtime="dpi"))
+    results.append(build_case(args, scratch, evidence, mode, "dpi-late-policy", dpi_runtime_source("PerMonitorV2"),
+                              executable=True, high_dpi_mode="NotAnUpstreamSetting", expected_high_dpi="PerMonitorV2",
+                              late_properties={"ApplicationHighDpiMode": "PerMonitorV2"}, runtime="dpi"))
+    results.append(build_case(args, scratch, evidence, mode, "dpi-late-caller-owned", dpi_runtime_source("PerMonitor", caller=True),
+                              executable=True, high_dpi_mode="NotAnUpstreamSetting", caller_configuration=caller,
+                              late_properties={"LibreWinFormsGenerateApplicationConfiguration": "false"},
+                              expected_configuration=False, runtime="dpi"))
+    results.extend(build_dpi_prior_policy_cases(args, scratch, evidence, mode))
+    return results
+
+
+def build_dpi_prior_policy_cases(args, scratch, evidence, mode):
+    # The generated default call must remain. The actual runtime, just like the
+    # native process policy, must reject replacing an earlier successful choice.
+    # Explicit DpiUnaware is not equivalent to "no choice yet".
+    return [build_case(args, scratch, evidence, mode, "dpi-prior-" + selected.lower(),
+                       dpi_runtime_source(selected, prior_policy=True), executable=True, runtime="dpi")
+            for selected in ("PerMonitorV2", "DpiUnaware")]
 
 
 def sdk_font_source(name, size, style, unit):
@@ -653,6 +732,7 @@ def main():
         results.append(build_case(args, scratch, evidence, mode, "caller-missing", ENTRYPOINTS["top-level"],
                                   executable=True, disable_configuration=True, expected_errors=("CS0103",)))
         results.extend(build_font_cases(args, scratch, evidence, mode))
+        results.extend(build_dpi_cases(args, scratch, evidence, mode))
     results.append(build_case(args, scratch, evidence, "Package", "ordinary-upstream", ENTRYPOINTS["top-level"],
                               executable=True, ordinary_generator=True))
     for language, entry in (("shared", "analyzers/dotnet/System.Windows.Forms.Analyzers.dll"),

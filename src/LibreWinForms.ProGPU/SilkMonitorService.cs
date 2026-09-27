@@ -15,13 +15,17 @@ public sealed class SilkMonitorService : ILibreMonitorService
     private readonly Func<IMonitor?> _getMainMonitor;
     private readonly Func<IMonitor, double?>? _getDpiScale;
     private readonly Func<IMonitor, Rectangle<int>?>? _getWorkArea;
+    private readonly Func<IMonitor, double?>? _getNativeCoordinateScale;
+    private readonly Func<IMonitor, Rectangle<int>?>? _getBounds;
 
     public SilkMonitorService()
         : this(
             static () => Silk.NET.Windowing.Monitor.GetMonitors(null),
             static () => Silk.NET.Windowing.Monitor.GetMainMonitor(null),
             TryGetGlfwMonitorContentScale,
-            TryGetGlfwMonitorWorkArea)
+            TryGetGlfwMonitorWorkArea,
+            TryGetGlfwNativeCoordinateScale,
+            TryGetGlfwMonitorBounds)
     {
     }
 
@@ -30,11 +34,24 @@ public sealed class SilkMonitorService : ILibreMonitorService
         Func<IMonitor?> getMainMonitor,
         Func<IMonitor, double?>? getDpiScale = null,
         Func<IMonitor, Rectangle<int>?>? getWorkArea = null)
+        : this(getMonitors, getMainMonitor, getDpiScale, getWorkArea, null, null)
+    {
+    }
+
+    public SilkMonitorService(
+        Func<IEnumerable<IMonitor>> getMonitors,
+        Func<IMonitor?> getMainMonitor,
+        Func<IMonitor, double?>? getDpiScale,
+        Func<IMonitor, Rectangle<int>?>? getWorkArea,
+        Func<IMonitor, double?>? getNativeCoordinateScale,
+        Func<IMonitor, Rectangle<int>?>? getBounds)
     {
         _getMonitors = getMonitors ?? throw new ArgumentNullException(nameof(getMonitors));
         _getMainMonitor = getMainMonitor ?? throw new ArgumentNullException(nameof(getMainMonitor));
         _getDpiScale = getDpiScale;
         _getWorkArea = getWorkArea;
+        _getNativeCoordinateScale = getNativeCoordinateScale;
+        _getBounds = getBounds;
     }
 
     public IReadOnlyList<LibreMonitor> GetMonitors()
@@ -55,7 +72,9 @@ public sealed class SilkMonitorService : ILibreMonitorService
                     silkMonitors[index],
                     primaryMonitor,
                     _getDpiScale,
-                    _getWorkArea);
+                    _getWorkArea,
+                    _getNativeCoordinateScale,
+                    _getBounds);
             }
 
             return monitors;
@@ -84,10 +103,31 @@ public sealed class SilkMonitorService : ILibreMonitorService
         IMonitor? primaryMonitor,
         Func<IMonitor, double?>? getDpiScale = null,
         Func<IMonitor, Rectangle<int>?>? getWorkArea = null)
+        => ToMonitorInfo(monitor, primaryMonitor, getDpiScale, getWorkArea, null, null);
+
+    public static LibreMonitor ToMonitorInfo(
+        IMonitor monitor,
+        IMonitor? primaryMonitor,
+        Func<IMonitor, double?>? getDpiScale,
+        Func<IMonitor, Rectangle<int>?>? getWorkArea,
+        Func<IMonitor, double?>? getNativeCoordinateScale,
+        Func<IMonitor, Rectangle<int>?>? getBounds)
     {
         ArgumentNullException.ThrowIfNull(monitor);
 
-        Rectangle<int> bounds = monitor.Bounds;
+        Rectangle<int>? declaredBounds = getBounds?.Invoke(monitor);
+        if (getBounds is not null && (declaredBounds is not { } fullBounds || fullBounds.Size.X <= 0 || fullBounds.Size.Y <= 0))
+        {
+            throw new PlatformNotSupportedException("The monitor provider did not return valid full desktop bounds.");
+        }
+
+        double? declaredDpi = getDpiScale?.Invoke(monitor);
+        if (getDpiScale is not null && (declaredDpi is not double dpi || !IsUsableScale(dpi)))
+        {
+            throw new PlatformNotSupportedException("The monitor provider did not return a valid content DPI scale.");
+        }
+
+        Rectangle<int> bounds = declaredBounds ?? monitor.Bounds;
         int width = bounds.Size.X;
         int height = bounds.Size.Y;
         if ((width <= 0 || height <= 0) && monitor.VideoMode.Resolution is { } resolution)
@@ -112,10 +152,13 @@ public sealed class SilkMonitorService : ILibreMonitorService
             $"silk:{monitor.Index}",
             monitorBounds,
             monitorWorkArea,
-            ResolveDpiScale(monitor, width, height, getDpiScale?.Invoke(monitor)),
+            ResolveDpiScale(monitor, width, height, declaredDpi),
             ReferenceEquals(monitor, primaryMonitor) || monitor.Index == primaryMonitor?.Index,
             BitsPerPixel: 32,
-            DisplayName: monitor.Name);
+            DisplayName: monitor.Name)
+        {
+            NativeCoordinateScale = getNativeCoordinateScale?.Invoke(monitor)
+        };
     }
 
     public static double ResolveDpiScale(
@@ -131,21 +174,58 @@ public sealed class SilkMonitorService : ILibreMonitorService
             return NormalizeScale(scale);
         }
 
-        if (boundsWidth > 0
-            && boundsHeight > 0
-            && monitor.VideoMode.Resolution is { } resolution
-            && resolution.X > 0
-            && resolution.Y > 0)
+        // GLFW video modes are in screen coordinates, not framebuffer pixels.
+        // In particular Silk's monitor.Bounds is its work area, not full bounds.
+        return 1.0;
+    }
+
+    private static unsafe double? TryGetGlfwNativeCoordinateScale(IMonitor monitor)
+    {
+        Glfw glfw = GlfwProvider.GLFW.Value;
+        if (glfw.Context.TryGetProcAddress("glfwGetPlatform", out nint address) && address != 0)
         {
-            double scaleX = resolution.X / (double)boundsWidth;
-            double scaleY = resolution.Y / (double)boundsHeight;
-            if (IsUsableScale(scaleX) && IsUsableScale(scaleY))
+            int platform = ((delegate* unmanaged[Cdecl]<int>)address)();
+            return platform switch
             {
-                return NormalizeScale((scaleX + scaleY) / 2.0);
-            }
+                0x00060001 or 0x00060004 => 1d, // GLFW_PLATFORM_WIN32 / X11
+                // Cocoa's content-scale query measures NSScreen points through
+                // convertRectToBacking, so it also declares desktop pixel units.
+                0x00060002 => TryGetGlfwMonitorContentScale(monitor),
+                _ => null // Wayland/unknown desktop positioning is not declared.
+            };
         }
 
-        return 1.0;
+        // Older GLFW has no platform query. Require an actual native provider
+        // handle; the host OS alone does not establish X11 rather than Wayland.
+        if (OperatingSystem.IsLinux()
+            && glfw.Context.TryGetProcAddress("glfwGetX11Display", out address) && address != 0
+            && ((delegate* unmanaged[Cdecl]<nint>)address)() != 0)
+            return 1d;
+
+        Silk.NET.GLFW.Monitor** monitors = glfw.GetMonitors(out int count);
+        if (monitors is null || monitor.Index < 0 || monitor.Index >= count)
+            return null;
+        if (OperatingSystem.IsWindows()
+            && glfw.Context.TryGetProcAddress("glfwGetWin32Monitor", out address) && address != 0
+            && ((delegate* unmanaged[Cdecl]<Silk.NET.GLFW.Monitor*, nint>)address)(monitors[monitor.Index]) != 0)
+            return 1d;
+        if (OperatingSystem.IsMacOS()
+            && glfw.Context.TryGetProcAddress("glfwGetCocoaMonitor", out address) && address != 0
+            && ((delegate* unmanaged[Cdecl]<Silk.NET.GLFW.Monitor*, uint>)address)(monitors[monitor.Index]) != 0)
+            return TryGetGlfwMonitorContentScale(monitor);
+        return null;
+    }
+
+    private static unsafe Rectangle<int>? TryGetGlfwMonitorBounds(IMonitor monitor)
+    {
+        Glfw glfw = GlfwProvider.GLFW.Value;
+        Silk.NET.GLFW.Monitor** monitors = glfw.GetMonitors(out int count);
+        if (monitors is null || monitor.Index < 0 || monitor.Index >= count)
+            return null;
+        glfw.GetMonitorPos(monitors[monitor.Index], out int x, out int y);
+        Silk.NET.GLFW.VideoMode* mode = glfw.GetVideoMode(monitors[monitor.Index]);
+        return mode is not null && mode->Width > 0 && mode->Height > 0
+            ? new Rectangle<int>(x, y, mode->Width, mode->Height) : null;
     }
 
     private static bool IsUsableScale(double scale)

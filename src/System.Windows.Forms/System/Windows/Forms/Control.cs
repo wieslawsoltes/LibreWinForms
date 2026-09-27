@@ -11565,7 +11565,7 @@ public unsafe partial class Control :
     internal void UpdatePortablePresentationScale(double scale)
     {
         Control root = GetPortableTopLevelControl();
-        if (root is Form form
+        if (ScaleHelper.IsThreadPerMonitorV2Aware && root is Form form
             && root._window.PortableCoordinateMode == LibreWindowCoordinateMode.DevicePixels)
         {
             LibreRectangle suggested = root._window.PortableBounds;

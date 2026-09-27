@@ -16,8 +16,10 @@ public partial class ApplicationConfigurationGeneratorTests
             internal static void Initialize()
             {
                 global::System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
+                ConfigureHighDpiMode();
                 ConfigureDefaultFont();
             }
+            static partial void ConfigureHighDpiMode();
             static partial void ConfigureDefaultFont();
         }
         """;
@@ -45,9 +47,10 @@ public partial class ApplicationConfigurationGeneratorTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public async Task CS_ApplicationConfigurationGenerator_sdk_without_font_has_no_supplement(string? font)
+    public async Task CS_ApplicationConfigurationGenerator_sdk_without_font_has_no_font_supplement(string? font)
     {
         var test = CreateSdkFontTest("ApplicationConfiguration.Initialize();", font);
+        ExpectSdkHighDpiMode(test, "SystemAware");
         await test.RunAsync(TestContext.Current.CancellationToken);
     }
 
@@ -66,6 +69,7 @@ public partial class ApplicationConfigurationGeneratorTests
     {
         var test = CreateSdkFontTest("ApplicationConfiguration.Initialize();", "Arial, 12bogus");
         test.TestState.ExpectedDiagnostics.Add(DiagnosticResult.CompilerError(DiagnosticIDs.PropertyCantBeSetToValue));
+        ExpectSdkHighDpiMode(test, "SystemAware");
         await test.RunAsync(TestContext.Current.CancellationToken);
     }
 
@@ -109,7 +113,7 @@ public partial class ApplicationConfigurationGeneratorTests
         string source, string? font, string generates = "true", string configuration = SdkConfiguration)
     {
         string fontProperty = font is null ? string.Empty : $"build_property.ApplicationDefaultFont = {font}";
-        return new()
+        var test = new Verifiers.CSharpIncrementalSourceGeneratorVerifier<ApplicationConfigurationGenerator>.Test
         {
             TestState =
             {
@@ -122,7 +126,7 @@ public partial class ApplicationConfigurationGeneratorTests
 
                     build_property.LibreWinFormsSdkOwnsApplicationConfiguration = true
                     build_property.LibreWinFormsSdkGeneratesApplicationConfiguration = {generates}
-                    build_property.ApplicationHighDpiMode = NotAnUpstreamSetting
+                    build_property.ApplicationHighDpiMode = SystemAware
                     build_property.ApplicationVisualStyles = NotAnUpstreamSetting
                     build_property.ApplicationUseCompatibleTextRendering = NotAnUpstreamSetting
                     {fontProperty}
@@ -130,6 +134,7 @@ public partial class ApplicationConfigurationGeneratorTests
                 },
             },
         };
+        return test;
     }
 
     private static void ExpectSdkFont(
@@ -152,5 +157,7 @@ public partial class ApplicationConfigurationGeneratorTests
                 }
             }
             """));
+        // Match the generator's original font output, then its DPI supplement.
+        ExpectSdkHighDpiMode(test, "SystemAware");
     }
 }
