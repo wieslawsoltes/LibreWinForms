@@ -51,7 +51,10 @@ alter permissions, start a display server, run a VM, or dismiss another app's UI
   --evidence-parent /path/to/fresh-task/evidence
 ```
 
-The evidence parent must already exist; every run creates a fresh child directory.
+The evidence parent must already exist; every run creates a fresh child directory
+and retains the preparation receipt before dependency/display preflight. Missing
+providers and unsupported formats leave a bounded `driver-failure.json` with
+`appNotLaunched: true` and `qualified: false`; no application is launched.
 
 ## Native admission and input
 
@@ -66,8 +69,13 @@ override-redirect popups. Their `_NET_WM_PID`, translated client origin, server
 width/height, border extent, transient owner and window type are recorded. An
 override-redirect popup must have a live same-process transient owner. Source
 client rectangles must equal these native rectangles exactly. No frame-size
-subtraction, DPI inference or fallback coordinate system is used. The image crop
-includes owned X window borders, not unrelated window-manager decorations.
+subtraction, DPI inference or fallback coordinate system is used. Independently
+queried client-to-root ancestry identifies a reparenting window-manager frame;
+its actual translated geometry and X border define the outer crop. Borderless
+override-redirect popups retain their own actual outer X bounds. The exact client
+rectangle remains separate and unchanged. If a managed window is a direct root
+child, its native X bounds are retained but decoration extent is explicitly
+unverified; that case does not claim a full-chrome crop.
 
 Initial activation is an EWMH request to the window manager for the freshly
 launched PID/title-matched app, never direct input-focus assignment. Every input
@@ -92,6 +100,12 @@ masks and 32-bit scanline padding. Other layouts fail without conversion. Reply
 depth/visual, complete stride/length and the shared 16 MiB image/128 MiB aggregate
 budgets are checked. BMP output retains the original top-down bytes.
 
+Each window records its outer-frame XID, bounds source and
+`chromeGeometryVerified`; the capture's aggregate
+`fullChromeGeometryVerified` is false if any managed direct-root window has
+unverified decoration extent. Even a verified frame crop does not verify that
+the root image contains usable compositor pixels.
+
 **Rootless XWayland may not expose compositor desktop pixels through root
 GetImage.** Receipts explicitly retain `compositorCaptureVerified: false` and
 `usableWindowPixelsVerified: false`, even when input/state phases complete. A
@@ -110,7 +124,7 @@ They do not import Xlib or connect to a desktop. The existing thirteen Windows
 harness controls remain unchanged. Native Linux/XWayland execution, usable capture
 and comparison with the matching Windows reference remain pending.
 
-The final local offline run passed 18 new controls and all 13 existing controls,
+The final local offline run passed 22 new controls and all 13 existing controls,
 with ResourceWarning treated as an error. A task-owned virtual environment
 installed the hash-pinned original wheels and successfully serialized actual
 python-xlib XTEST, ClientMessage and TranslateCoords requests without constructing

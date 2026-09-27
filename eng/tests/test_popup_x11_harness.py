@@ -168,7 +168,7 @@ class X11PopupContracts(unittest.TestCase):
         value.root.query_tree.return_value.children = [owner, popup]
         for window, override in ((owner, False), (popup, True)):
             window.get_attributes.return_value = NS(map_state=2, override_redirect=override)
-            window.query_tree.return_value.children = []
+            window.query_tree.return_value = NS(children=[], parent=value.root, root=value.root)
             window.get_geometry.return_value = NS(root=value.root, width=80, height=60, border_width=1)
         value.root.translate_coords.side_effect = lambda window, _x, _y: NS(same_screen=True, x=window.id + 3, y=17)
         value.pid = mock.Mock(return_value=24)
@@ -179,11 +179,57 @@ class X11PopupContracts(unittest.TestCase):
         self.assertEqual([w["xid"] for w in result], [100, 200])
         self.assertEqual(result[1]["client"], dict(x=203, y=17, width=80, height=60))
         self.assertEqual(result[1]["bounds"], dict(x=202, y=16, width=82, height=62))
+        self.assertEqual(result[1]["outerFrameXid"], 200)
+        self.assertTrue(result[1]["chromeGeometryVerified"])
+        self.assertFalse(result[0]["chromeGeometryVerified"])
         self.assertEqual(result[1]["transientFor"], 100)
         value.root.translate_coords.assert_any_call(popup, 0, 0)
         value.scalar.return_value = None
         with self.assertRaisesRegex(RuntimeError, "transient owner"):
             value.windows(24)
+
+    def test_reparented_window_uses_actual_outer_frame_without_changing_client(self):
+        value = desktop()
+        window, frame = mock.Mock(id=100), mock.Mock(id=500)
+        window.query_tree.return_value = NS(parent=frame, root=value.root)
+        frame.query_tree.return_value = NS(parent=value.root, root=value.root)
+        frame.get_attributes.return_value = NS(map_state=2)
+        frame.get_geometry.return_value = NS(root=value.root, width=100, height=95, border_width=2)
+        value.root.translate_coords.return_value = NS(same_screen=True, x=40, y=50)
+        client = dict(x=45, y=80, width=90, height=60)
+        result = value.outer_bounds(window, client, False)
+        self.assertEqual(client, dict(x=45, y=80, width=90, height=60))
+        self.assertEqual(result, dict(bounds=dict(x=38, y=48, width=104, height=99),
+                                     outerFrameXid=500, boundsSource="ancestor-frame", chromeGeometryVerified=True))
+        value.root.translate_coords.assert_called_once_with(frame, 0, 0)
+        frame.get_geometry.return_value.height = 20
+        with self.assertRaisesRegex(RuntimeError, "contain"):
+            value.outer_bounds(window, client, False)
+
+    def test_cyclic_or_cross_screen_frame_ancestry_fails_closed(self):
+        value = desktop()
+        window = mock.Mock(id=100)
+        window.query_tree.return_value = NS(parent=window, root=value.root)
+        with self.assertRaisesRegex(RuntimeError, "Cycle"):
+            value.outer_bounds(window, dict(x=0, y=0, width=1, height=1), False)
+        window.query_tree.return_value = NS(parent=value.root, root=mock.Mock())
+        with self.assertRaisesRegex(RuntimeError, "another X11 screen"):
+            value.outer_bounds(window, dict(x=0, y=0, width=1, height=1), False)
+
+    def test_capture_keeps_chrome_geometry_distinct_from_pixel_verification(self):
+        for verified in (True, False):
+            with self.subTest(verified=verified), tempfile.TemporaryDirectory() as temporary:
+                value = desktop()
+                value.X.ZPixmap = 2
+                value.layout = dict(depth=24, visual=21)
+                value.root.get_image.return_value = NS(depth=24, visual=21, data=bytes(range(24)))
+                windows = [dict(pid=24, bounds=dict(x=10, y=20, width=3, height=2),
+                                chromeGeometryVerified=verified)]
+                receipt = value.screenshot(24, windows, Path(temporary) / "native.bmp")
+                self.assertEqual(receipt["fullChromeGeometryVerified"], verified)
+                self.assertFalse(receipt["compositorCaptureVerified"])
+                self.assertFalse(receipt["usableWindowPixelsVerified"])
+                value.root.get_image.assert_called_once_with(10, 20, 3, 2, 2, 0xFFFFFFFF)
 
     def test_foreground_requires_both_ewmh_owner_and_actual_keyboard_focus(self):
         value = desktop()
@@ -232,6 +278,34 @@ class X11PopupContracts(unittest.TestCase):
             receipt = json.loads((root / "portable/receipt.json").read_text())
             self.assertEqual(receipt["status"], "incomplete")
             self.assertFalse(receipt["qualified"])
+
+    def test_missing_provider_and_unsupported_format_keep_preflight_receipt_without_launch(self):
+        for failure in (ModuleNotFoundError("missing pinned binding"), RuntimeError("Unsupported actual root pixel format")):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary).resolve()
+                app = root / "inert-app"
+                app.write_bytes(b"not executed")
+                preparation = dict(schema="inert preparation")
+                args = ["driver", "--portable-app", str(app), "--prepared-root", str(root), "--evidence-parent", str(root)]
+                with mock.patch.object(DRIVER.sys, "argv", args), \
+                        mock.patch.object(DRIVER, "check_preparation", return_value=preparation), \
+                        mock.patch.object(DRIVER, "X11Desktop", side_effect=failure), \
+                        mock.patch.object(DRIVER.SHARED, "run_case") as run_case, \
+                        mock.patch.object(DRIVER.signal, "signal"), mock.patch("builtins.print"):
+                    with self.assertRaises(type(failure)) as raised:
+                        DRIVER.main()
+                self.assertIs(raised.exception, failure)
+                run_case.assert_not_called()
+                evidence, = root.glob("popup-x11-interaction-*")
+                self.assertEqual(json.loads((evidence / "preparation.json").read_text()), preparation)
+                receipt = json.loads((evidence / "driver-failure.json").read_text())
+                self.assertEqual(receipt["status"], "preflight-failed")
+                self.assertTrue(receipt["appNotLaunched"])
+                self.assertFalse(receipt["qualified"])
+                self.assertLessEqual(len(receipt["error"]), 2048)
+                self.assertFalse((evidence / "portable").exists())
+                self.assertFalse((evidence / "x11.json").exists())
+
     def test_linux_preparation_accepts_only_identical_source_and_exact_elf_apphost(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()

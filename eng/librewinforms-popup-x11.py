@@ -173,6 +173,39 @@ class X11Desktop:
             window = window.query_tree().parent
         raise RuntimeError("Native ownership ancestry budget exceeded")
 
+    def outer_bounds(self, window, client, override_redirect):
+        # Reparenting frames belong to the WM, not the application PID. Resolve
+        # them through the actual client ancestry, never decoration constants.
+        outer, seen = window, set()
+        for _ in range(64):
+            require(outer.id not in seen, "Cycle in native frame ancestry")
+            seen.add(outer.id)
+            tree = outer.query_tree()
+            require(tree.root == self.root, "Native frame is on another X11 screen")
+            if tree.parent == self.root:
+                break
+            require(tree.parent and not isinstance(tree.parent, int), "Missing native frame parent")
+            outer = tree.parent
+        else:
+            raise RuntimeError("Native frame ancestry budget exceeded")
+        geometry = outer.get_geometry()
+        origin = self.root.translate_coords(outer, 0, 0)
+        require(origin.same_screen and geometry.root == self.root and
+                outer.get_attributes().map_state == self.X.IsViewable,
+                "Native outer frame is not viewable on the admitted screen")
+        border = geometry.border_width
+        bounds = dict(x=origin.x - border, y=origin.y - border,
+                      width=geometry.width + 2 * border, height=geometry.height + 2 * border)
+        require(bounds["width"] > 0 and bounds["height"] > 0 and
+                bounds["x"] <= client["x"] and bounds["y"] <= client["y"] and
+                bounds["x"] + bounds["width"] >= client["x"] + client["width"] and
+                bounds["y"] + bounds["height"] >= client["y"] + client["height"],
+                "Actual outer frame does not contain its observed client")
+        reparented = outer.id != window.id
+        return dict(bounds=bounds, outerFrameXid=outer.id,
+                    boundsSource="ancestor-frame" if reparented else "owned-x-window",
+                    chromeGeometryVerified=reparented or bool(override_redirect))
+
     @bounded
     def windows(self, pid):
         pending = [(window, 0) for window in self.root.query_tree().children]
@@ -197,10 +230,8 @@ class X11Desktop:
                 require(owner and self.pid(self.window(owner)) == pid,
                         "Override-redirect popup lacks a live same-process transient owner")
             client = dict(x=origin.x, y=origin.y, width=geometry.width, height=geometry.height)
-            border = geometry.border_width
             result.append(dict(xid=window.id, pid=pid, title=title, client=client,
-                               bounds=dict(x=origin.x - border, y=origin.y - border,
-                                           width=geometry.width + 2 * border, height=geometry.height + 2 * border),
+                               **self.outer_bounds(window, client, attrs.override_redirect),
                                transientFor=owner, overrideRedirect=bool(attrs.override_redirect),
                                windowTypes=list(self.property(window, "_NET_WM_WINDOW_TYPE", self.atom_types.ATOM, 32) or [])))
         return sorted(result, key=lambda item: item["xid"])
@@ -308,6 +339,7 @@ class X11Desktop:
         write_bmp(destination, width, height, capture.data)
         return dict(x=x, y=y, width=width, height=height, stride=width * 4,
                     format=self.layout, captureProvider="X11 root GetImage", compositorCaptureVerified=False,
+                    fullChromeGeometryVerified=all(w["chromeGeometryVerified"] for w in windows),
                     usableWindowPixelsVerified=False, sha256=SHARED.digest(destination))
 
 
@@ -338,29 +370,33 @@ def main():
     app = args.portable_app.resolve(strict=True)
     require(args.evidence_parent.is_dir(), "Evidence parent must already exist")
     preparation = check_preparation(args.prepared_root.resolve(strict=True), app)
-    desktop = X11Desktop()  # All dependency/protocol preflight occurs before launch.
-    root = None
+    root = Path(tempfile.mkdtemp(prefix="popup-x11-interaction-", dir=args.evidence_parent.resolve()))
+    desktop = None
+    launch_attempted = False
     original_error = None
     try:
-        root = Path(tempfile.mkdtemp(prefix="popup-x11-interaction-", dir=args.evidence_parent.resolve()))
         with (root / "preparation.json").open("x") as stream:
             json.dump(preparation, stream, indent=2)
+        print(f"Unqualified real X11 evidence: {root}", flush=True)
+        desktop = X11Desktop()  # All dependency/protocol preflight occurs before launch.
         with (root / "x11.json").open("x") as stream:
             json.dump(desktop.provenance, stream, indent=2)
-        print(f"Unqualified real X11 evidence: {root}", flush=True)
         desktop.deadline = time.monotonic() + 60
+        launch_attempted = True
         complete = SHARED.run_case(desktop, app, root, "portable", uuid.uuid4().hex)
         print("Fourteen raw phases captured; independent Windows comparison remains required." if complete else "Incomplete evidence; inspect retained receipt.")
         return 0 if complete else 1
     except BaseException as error:
         original_error = error
-        if root is not None:
-            with (root / "driver-failure.json").open("x") as stream:
-                json.dump(dict(error=f"{type(error).__name__}: {error}", qualified=False), stream, indent=2)
+        with (root / "driver-failure.json").open("x") as stream:
+            json.dump(dict(error=f"{type(error).__name__}: {error}"[:2048], qualified=False,
+                           appNotLaunched=not launch_attempted,
+                           status="driver-failed" if launch_attempted else "preflight-failed"), stream, indent=2)
         raise
     finally:
         try:
-            desktop.close()
+            if desktop is not None:
+                desktop.close()
         except Exception as cleanup_error:
             if root is not None:
                 with (root / "connection-cleanup-failure.json").open("x") as stream:
