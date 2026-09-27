@@ -193,23 +193,58 @@ public partial class CanonicalLifecycleTests
     }
 
     [Theory]
-    [InlineData(LibreKey.Home)]
-    [InlineData(LibreKey.End)]
-    public void EditableComboBoxDoesNotHijackEditHomeEndForListNavigation(LibreKey key)
+    [InlineData(LibreKey.Home, false)]
+    [InlineData(LibreKey.End, false)]
+    [InlineData(LibreKey.Home, true)]
+    [InlineData(LibreKey.End, true)]
+    public void EditableComboBoxDoesNotHijackEditHomeEndForListNavigation(LibreKey key, bool open)
     {
         RunDropdownKeyboard((platform, owner, _) =>
         {
             using ComboBox combo = AddEditableCombo(owner);
             combo.SelectedIndex = 1;
-            combo.DroppedDown = true;
+            combo.DroppedDown = open;
+            combo.Select(2, 0);
             int keys = 0;
             combo.KeyDown += (_, _) => keys++;
             SendDropdownKey(platform, owner, key);
             combo.SelectedIndex.Should().Be(1);
             keys.Should().Be(1);
             GetEditableComboTextBox(combo).Focused.Should().BeTrue();
-            // This is a routing assertion, not qualification of the TextBox's
-            // still-separate caret navigation or native glyph hit placement.
+            combo.DroppedDown.Should().Be(open);
+            combo.SelectionStart.Should().Be(key == LibreKey.Home ? 0 : 4);
+            combo.SelectionLength.Should().Be(0);
+            combo.Text.Should().Be("Beta");
+        });
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void EditableComboBoxShiftHomeEndRetainsEditAnchorWithoutListCommit(bool open)
+    {
+        RunDropdownKeyboard((platform, owner, _) =>
+        {
+            using ComboBox combo = AddEditableCombo(owner);
+            combo.SelectedIndex = 1;
+            combo.DroppedDown = open;
+            combo.Select(2, 0);
+            int commits = 0;
+            int edits = 0;
+            combo.SelectionChangeCommitted += (_, _) => commits++;
+            combo.TextUpdate += (_, _) => edits++;
+            SendDropdownKey(platform, owner, LibreKey.Home, LibreInputModifiers.Shift);
+            combo.SelectionStart.Should().Be(0);
+            combo.SelectionLength.Should().Be(2);
+            SendDropdownKey(platform, owner, LibreKey.End, LibreInputModifiers.Shift);
+            combo.SelectionStart.Should().Be(2);
+            combo.SelectionLength.Should().Be(2);
+            combo.SelectedIndex.Should().Be(1);
+            combo.Text.Should().Be("Beta");
+            combo.DroppedDown.Should().Be(open);
+            commits.Should().Be(0);
+            edits.Should().Be(0);
+            GetEditableComboTextBox(combo).Focused.Should().BeTrue();
         });
     }
 

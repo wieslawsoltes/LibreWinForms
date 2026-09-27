@@ -84,6 +84,11 @@ edit keys are not redirected into list navigation. Enter accepts; Escape restore
 the opening text/selection when no callback has superseded that source state.
 Leaving the composite or retiring the editor closes the old popup target.
 
+The actual editor now handles single-line Home/End and Shift selection through
+the shared [plain-text boundary navigation](portable-text-boundary-navigation.md)
+path, without committing or moving the popup list selection. This is source
+selection movement, not drawn caret or native desktop qualification.
+
 The original source documentation and Microsoft's
 [combo-box key routing](https://learn.microsoft.com/en-us/windows/win32/controls/combo-box-features)
 distinguish editable input from DropDownList list input. This connection does not
