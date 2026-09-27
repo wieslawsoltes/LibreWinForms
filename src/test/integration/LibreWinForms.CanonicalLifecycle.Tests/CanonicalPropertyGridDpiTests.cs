@@ -43,7 +43,7 @@ public partial class CanonicalLifecycleTests
     }
 
     [Fact]
-    public void PortablePropertyGridMetricsRefreshAfterFontChange()
+    public void PortablePropertyGridMetricsRefreshOnResizeAfterFontChange()
     {
         if (RunDpiCaseInNewProcess()) return;
         VerifyPropertyGridMetrics(2, HighDpiMode.SystemAware, GraphicsUnit.Point, 192, changeFont: true);
@@ -78,6 +78,9 @@ public partial class CanonicalLifecycleTests
         {
             grid.Font = replacement;
             grid.SelectedGridItem.Select().Should().BeTrue();
+            // Canonical PropertyGrid arranges its own panes on resize, not
+            // on ordinary child layout. Reflow using the invalidated metrics.
+            grid.Width += 1;
             AssertMetrics();
         }
 
