@@ -44,3 +44,17 @@ routes for `Alice`, `X`, Return, F2 and Escape with NumLock left on: all symbols
 matched their lock-off controls, and the complete before/after XKB state matched.
 That check injected no input and does not qualify grid editing, pixels, chrome,
 other layouts or other desktop platforms.
+
+The subsequent original-sample run used the unchanged passive observer and
+canonical packages from successful Build `36317923429`, source head
+`9c4b700839a49878644284ed2614341caca677a6` (PR #94). All seven source phases
+completed through actual XTest pointer/key pairs: baseline, first character,
+editing `Alice`, Enter commit, F2 reopen, selection-relative `X`, and Escape
+restoration. Every route recorded its actual lock-on/off XKB symbols. The final
+read-only state check retained the original NumLock state, with no held Shift;
+the owned application was terminated and reaped without cleanup errors.
+
+Capture used the explicitly declared owned-client GetImage diagnostic, not the
+root/compositor path. Visual inspection still showed clipped row text and
+headers in this pre-autoscale-fix package. This is source input evidence, not
+pixel/chrome parity, PR #97 qualification, or closure of issue #6.
