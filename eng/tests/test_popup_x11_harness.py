@@ -214,6 +214,24 @@ class X11PopupContracts(unittest.TestCase):
         value.close()
         connection.display.socket.close.assert_called_once_with()
 
+    def test_term_cancellation_keeps_shared_owned_child_cleanup_and_incomplete_receipt(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            app = root / "PopupInteractionApp"
+            app.write_bytes(b"inert app never executed")
+            app.with_suffix(".dll").write_bytes(b"inert assembly")
+            process = mock.Mock(pid=24, returncode=-15)
+            process.poll.return_value = None
+            with mock.patch.object(DRIVER.SHARED.subprocess, "Popen", return_value=process), \
+                    mock.patch.object(DRIVER.SHARED, "scenario", side_effect=lambda _session: DRIVER.cancel(15, None)):
+                with self.assertRaises(SystemExit) as stopped:
+                    DRIVER.SHARED.run_case(None, app, root, "portable", "run")
+            self.assertEqual(stopped.exception.code, 143)
+            process.terminate.assert_called_once_with()
+            process.wait.assert_called_once_with(timeout=2)
+            receipt = json.loads((root / "portable/receipt.json").read_text())
+            self.assertEqual(receipt["status"], "incomplete")
+            self.assertFalse(receipt["qualified"])
     def test_linux_preparation_accepts_only_identical_source_and_exact_elf_apphost(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()

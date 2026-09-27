@@ -323,7 +323,13 @@ def check_preparation(prepared, portable):
     return manifest
 
 
+def cancel(signum, _frame):
+    # Route launcher cancellation through shared run_case's owned-child finally.
+    raise SystemExit(128 + signum)
+
+
 def main():
+    signal.signal(signal.SIGTERM, cancel)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--portable-app", type=Path, required=True)
     parser.add_argument("--prepared-root", type=Path, required=True)

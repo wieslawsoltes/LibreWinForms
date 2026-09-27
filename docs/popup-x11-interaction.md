@@ -110,7 +110,7 @@ They do not import Xlib or connect to a desktop. The existing thirteen Windows
 harness controls remain unchanged. Native Linux/XWayland execution, usable capture
 and comparison with the matching Windows reference remain pending.
 
-The final local offline run passed 17 new controls and all 13 existing controls,
+The final local offline run passed 18 new controls and all 13 existing controls,
 with ResourceWarning treated as an error. A task-owned virtual environment
 installed the hash-pinned original wheels and successfully serialized actual
 python-xlib XTEST, ClientMessage and TranslateCoords requests without constructing
