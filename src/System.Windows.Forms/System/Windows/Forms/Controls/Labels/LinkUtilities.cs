@@ -26,7 +26,7 @@ internal static class LinkUtilities
     /// </summary>
     private static Color GetIEColor(string name)
     {
-        RegistryKey? key = Registry.CurrentUser.OpenSubKey(IESettingsRegPath);
+        RegistryKey? key = OpenIEUserKey(IESettingsRegPath);
 
         if (key is not null)
         {
@@ -143,7 +143,7 @@ internal static class LinkUtilities
         RegistryKey? key = null;
         try
         {
-            key = Registry.CurrentUser.OpenSubKey(IEMainRegPath);
+            key = OpenIEUserKey(IEMainRegPath);
         }
         catch (Security.SecurityException)
         {
@@ -172,6 +172,19 @@ internal static class LinkUtilities
         }
 
         return LinkBehavior.AlwaysUnderline;
+    }
+
+    private static RegistryKey? OpenIEUserKey(string path)
+    {
+#if LIBREWINFORMS_PORTABLE
+        // Non-Windows hosts have no IE user settings. Reuse the existing
+        // missing-key color/underline policy; Windows keeps its real settings.
+        if (!OperatingSystem.IsWindows())
+        {
+            return null;
+        }
+#endif
+        return Registry.CurrentUser.OpenSubKey(path);
     }
 
     public static void EnsureLinkFonts(

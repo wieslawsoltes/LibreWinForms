@@ -1,5 +1,12 @@
 # Agent Guidance
 
+Portable PropertyGrid row/help/command metrics use the shared screen-reference
+font height, preserving padding, rounding, cached invalidation and canonical
+resize-driven pane arrangement. Non-Windows link settings reuse the existing
+missing-IE-settings defaults; both portable and native Windows still read real
+user preferences. Preserve explicit link styles and source font ownership.
+See docs/portable-property-grid-font-metrics.md.
+
 Portable DataGridView default rows use the shared screen-reference font height
 for Control.DefaultFont plus the original nine pixels. Preserve the process
 cache, minimum height, cloning and explicit row/template sizes; a different grid

@@ -92,7 +92,7 @@ internal partial class CommandsPane : PropertyGrid.SnappableControl
     {
         if (_optimalHeight == -1)
         {
-            int lineHeight = (int)(1.5 * Font.Height);
+            int lineHeight = (int)(1.5 * GetFontHeightForTarget(Font));
             int verbCount = 0;
             if (_verbs is not null)
             {
