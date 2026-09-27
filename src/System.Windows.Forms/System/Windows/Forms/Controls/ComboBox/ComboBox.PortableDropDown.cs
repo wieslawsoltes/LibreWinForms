@@ -231,6 +231,7 @@ public partial class ComboBox
                 _sourcePath.Add(control);
                 control.PortableHostedFocusLifetimeChanged += SourceLifetimeChanged;
             }
+
             _combo.SelectedIndexChanged += SourceSelectionChanged;
         }
 
@@ -262,6 +263,7 @@ public partial class ComboBox
             {
                 return false;
             }
+
             _combo.ValidatePortableDropDownStyle();
             _entries = _combo.Items.InnerList.ToArray();
             _items = _entries.Select(entry => entry.Item).ToArray();
@@ -280,6 +282,7 @@ public partial class ComboBox
                     throw new NotSupportedException("Changing ComboBox items while formatting its portable list requires a new dropdown.");
                 List.Items.Add(text);
             }
+
             _originalIndex = _combo.SelectedIndex;
             List.SelectedIndex = _originalIndex;
             int rows = Math.Min(Math.Max(_items.Length, 1), _combo.MaxDropDownItems);
@@ -330,6 +333,7 @@ public partial class ComboBox
                 RequestClose();
                 throw new NotSupportedException("Changing ComboBox items while the portable list is open requires a new dropdown. No stale list selection was committed.");
             }
+
             return true;
         }
 
@@ -404,6 +408,7 @@ public partial class ComboBox
                 _combo._dropDown = false;
                 _combo._dropDownWillBeClosed = false;
             }
+
             _combo.Invalidate();
         }
 
@@ -422,6 +427,7 @@ public partial class ComboBox
                 base.Dispose(false);
                 return;
             }
+
             if (_disposingPopup || IsDisposed)
                 return;
             _disposingPopup = true;
