@@ -35,7 +35,7 @@ def package(feed, name, version):
     return dict(path=str(path), sha256=sha256(path), id=name, version=version)
 
 
-def prepare(destination, feed, sdk_version, canonical_version, backend_version, dotnet_sdk):
+def prepare(destination, feed, sdk_version, canonical_version, backend_version, dotnet_sdk, native_geometry=False):
     if destination.exists():
         raise ValueError("Destination must be new; no existing source or evidence is overwritten")
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+[0-9A-Za-z.+-]*", dotnet_sdk):
@@ -50,6 +50,9 @@ def prepare(destination, feed, sdk_version, canonical_version, backend_version, 
                            capture_output=True, text=True, timeout=10).stdout.strip()
     destination.mkdir(parents=False)
     source_hash = sha256(SOURCE / "Program.cs")
+    observer_name = "PortableNativeGeometryObserver.cs"
+    native_observer = dict(enabled=bool(native_geometry), sourcePath=None, sourceSha256=None,
+                           environmentVariable="LIBREWINFORMS_POPUP_NATIVE_GEOMETRY")
     for mode in ("Microsoft", "Portable"):
         target = destination / mode
         target.mkdir()
@@ -59,6 +62,13 @@ def prepare(destination, feed, sdk_version, canonical_version, backend_version, 
             project = project.replace("LibreWinForms.Sdk/0.1.0-source-first-sdk", f"LibreWinForms.Sdk/{sdk_version}")
             project = project.replace("<LibreWinFormsCanonicalPackageVersion>0.1.0-source-first<", f"<LibreWinFormsCanonicalPackageVersion>{canonical_version}<")
             project = project.replace("<LibreWinFormsProGpuBackendPackageVersion>0.1.0-source-first-backend<", f"<LibreWinFormsProGpuBackendPackageVersion>{backend_version}<")
+            if native_geometry:
+                shutil.copyfile(SOURCE / observer_name, target / observer_name)
+                observer_hash = sha256(SOURCE / observer_name)
+                if sha256(target / observer_name) != observer_hash:
+                    raise ValueError("Portable native geometry observer copy changed")
+                project = project.replace("</PropertyGroup>", "  <PopupNativeGeometryDiagnostics>true</PopupNativeGeometryDiagnostics>\n  </PropertyGroup>", 1)
+                native_observer.update(sourcePath=f"Portable/{observer_name}", sourceSha256=observer_hash)
         (target / "PopupInteractionApp.csproj").write_text(project)
         if sha256(target / "Program.cs") != source_hash:
             raise ValueError("Shared source copy changed")
@@ -71,6 +81,7 @@ def prepare(destination, feed, sdk_version, canonical_version, backend_version, 
     (destination / "global.json").write_text(json.dumps(dict(sdk=dict(version=dotnet_sdk, allowPrerelease=True, rollForward="disable")), indent=2))
     receipt = dict(schema="popup-interaction-preparation-v1", sourceCommit=commit, sourceDirty=bool(dirty),
                    sourceSha256=source_hash, sdkVersion=dotnet_sdk, packages=packages, qualified=False,
+                   nativeGeometry=native_observer,
                    limitation="Source staging only; producer admission, compilation, loaded identity and desktop phases remain separate.")
     (destination / "preparation.json").write_text(json.dumps(receipt, indent=2))
     return receipt
@@ -80,10 +91,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--destination", type=Path, required=True)
     parser.add_argument("--feed", type=Path, required=True)
+    parser.add_argument("--native-geometry", action="store_true",
+                        help="Compile the optional portable-only native observer; requires the typed geometry package API and LIBREWINFORMS_POPUP_NATIVE_GEOMETRY=1 at runtime")
     for name in ("sdk-version", "canonical-version", "backend-version", "dotnet-sdk"):
         parser.add_argument("--" + name, required=True)
     args = parser.parse_args()
-    prepare(args.destination.resolve(), args.feed, args.sdk_version, args.canonical_version, args.backend_version, args.dotnet_sdk)
+    prepare(args.destination.resolve(), args.feed, args.sdk_version, args.canonical_version, args.backend_version, args.dotnet_sdk, args.native_geometry)
     print(f"Prepared identical source (not built/qualified): {args.destination}")
 
 
