@@ -5430,6 +5430,9 @@ public partial class CanonicalLifecycleTests
         child.Controls.Add(descendant);
         form.Controls.Add(child);
         form.Show();
+        Rectangle initialBounds = new(820, 430, 280, 180);
+        form.Bounds.Should().Be(initialBounds, "CenterScreen placement is published during native creation");
+        platform.LastWindowBounds.Should().Be(new LibreRectangle(820, 430, 280, 180));
         platform.SendInput(LibreInputEventKind.FocusGained);
         child.Focus().Should().BeTrue();
 
@@ -5488,7 +5491,7 @@ public partial class CanonicalLifecycleTests
         form.IsHandleCreated.Should().BeTrue();
         form.Created.Should().BeTrue();
         form.Visible.Should().BeTrue();
-        form.Bounds.Should().Be(new Rectangle(20, 30, 280, 180));
+        form.Bounds.Should().Be(initialBounds);
         form.StartPosition.Should().Be(FormStartPosition.CenterScreen);
         child.Handle.Should().Be(recreatedChildHandle);
         descendant.Handle.Should().Be(descendantHandle);
@@ -5962,6 +5965,7 @@ public partial class CanonicalLifecycleTests
             PopupShowFailure = null;
             PopupOwnerAssigned = null;
             WindowCreating = null;
+            InitialWindowLocation = null;
             LastWindowBounds = default;
             LastNativeWindowBounds = default;
             LastDirtyRectangle = default;
@@ -6801,6 +6805,8 @@ public partial class CanonicalLifecycleTests
 
         internal Action<ILibreWindowEvents>? WindowCreating { get; set; }
 
+        internal LibrePoint? InitialWindowLocation { get; set; }
+
         internal ILibreWindowEvents GetWindowEvents(Control control)
         {
             Handles.TryGet(GetWindowHandle(control), out HeadlessWindow? window).Should().BeTrue();
@@ -7357,12 +7363,18 @@ public partial class CanonicalLifecycleTests
                 _scaleOnDpiChange = options.ScaleOnDpiChange;
                 _dpiScale = platform._initialDpiScale ?? options.InitialDpiScale;
                 _framebufferScale = platform._initialFramebufferScale ?? options.InitialDpiScale;
+                LibreRectangle initialBounds = options.Bounds;
+                if (platform.InitialWindowLocation is { } location)
+                {
+                    initialBounds = new LibreRectangle(location.X, location.Y, initialBounds.Width, initialBounds.Height);
+                }
+
                 _nativeBounds = LibreWindowCoordinates.ToNative(
-                    options.Bounds,
+                    initialBounds,
                     _coordinateMode,
                     _dpiScale,
                     _framebufferScale);
-                _platform.LastWindowBounds = options.Bounds;
+                _platform.LastWindowBounds = initialBounds;
                 _platform.LastNativeWindowBounds = _nativeBounds;
                 Title = options.Title;
                 _state = options.InitialState;

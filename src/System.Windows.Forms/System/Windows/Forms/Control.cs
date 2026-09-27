@@ -4789,7 +4789,27 @@ public unsafe partial class Control :
             CreateParams cp = CreateParams;
             SetState(States.Mirrored, (cp.ExStyle & (int)WINDOW_EX_STYLE.WS_EX_LAYOUTRTL) != 0);
             _window.CreateHandle(cp);
-            OnHandleCreated(EventArgs.Empty);
+            LibreHandle createdHandle = _window.PortableHandle;
+            ILibreWindow? createdWindow = _window.PortableWindow;
+            if (createdWindow is not null && IsHandleCreated)
+            {
+                // StartPosition changes the creation request, not the source Location.
+                // Providers may suppress move callbacks while constructing their window.
+                // Read the actual typed position before publishing HandleCreated. Keep
+                // source sizes: PMv2 pre-sizes the native surface before canonical autoscaling.
+                LibreRectangle bounds = createdWindow.Bounds;
+                if (_window.PortableHandle == createdHandle && ReferenceEquals(_window.PortableWindow, createdWindow))
+                {
+                    UpdateBounds(bounds.X, bounds.Y, _width, _height, _clientWidth, _clientHeight);
+                }
+            }
+
+            // LocationChanged may dispose or replace the native generation.
+            if (IsHandleCreated && _window.PortableHandle == createdHandle
+                && ReferenceEquals(_window.PortableWindow, createdWindow))
+            {
+                OnHandleCreated(EventArgs.Empty);
+            }
         }
         finally
         {
