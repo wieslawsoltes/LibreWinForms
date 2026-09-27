@@ -9,7 +9,7 @@ using LibreWinForms.Platform;
 namespace LibreWinForms.ProGPU;
 
 /// <summary>Implements canonical WinForms text rendering through managed ProGPU System.Drawing.</summary>
-public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibreTextRowNavigationService
+public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibreTextSourceGeometryService
 {
     public ILibreTextLayout CreateLayout(Graphics graphics, string text, Font font,
         Size layoutSize, LibreTextFormat format)
@@ -32,7 +32,7 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
             graphics, text, font, layoutSize, selected));
     }
 
-    private sealed class RetainedLayout(global::ProGPU.SystemDrawing.DrawingTextLayout layout) : ILibreTextLayout, ILibreTextRowNavigation
+    private sealed class RetainedLayout(global::ProGPU.SystemDrawing.DrawingTextLayout layout) : ILibreTextLayout, ILibreTextRowNavigation, ILibreTextSourceGeometry
     {
         private global::ProGPU.SystemDrawing.DrawingTextLayout? _layout = layout;
         private int _selectionStart = -1;
@@ -42,6 +42,11 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
             => _layout ?? throw new ObjectDisposedException(nameof(RetainedLayout));
 
         public SizeF ContentSize => Layout.ContentSize;
+        public int RowCount => Layout.RowCount;
+        public int GetRowSourceStart(int rowIndex) => Layout.GetRowSourceStart(rowIndex);
+        public int GetRowIndexFromTextPosition(int textPosition) => Layout.GetRowIndexFromTextPosition(textPosition);
+        public int GetCaretRowIndex(int textPosition, bool trailing) => Layout.GetCaretRowIndex(textPosition, trailing);
+        public PointF GetSourcePositionPoint(int textPosition) => Layout.GetSourcePositionPoint(textPosition);
         public LibreTextCaret GetCaret(int textPosition, bool trailing = false)
             => Convert(Layout.GetCaretStop(textPosition, trailing));
         public LibreTextCaret MoveCaret(int textPosition, bool trailing, int visualDirection)
