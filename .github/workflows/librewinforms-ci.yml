@@ -64,6 +64,9 @@ jobs:
       - name: Validate native popup geometry evidence contracts
         run: python3 eng/tests/test_popup_native_geometry.py
 
+      - name: Validate popup observer Package verifier contracts
+        run: python3 eng/tests/test_popup_observer_package.py
+
       - name: Install Linux display and software WebGPU adapter
         shell: bash
         run: |
@@ -100,6 +103,16 @@ jobs:
             artifacts/application-isolation/**/receipt.json
             artifacts/application-isolation/**/*.log
             artifacts/application-isolation/**/result.json
+          if-no-files-found: warn
+
+      - name: Retain popup observer compile-only package evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: popup-observer-package-build
+          path: |
+            artifacts/popup-observer-package/*/*.json
+            artifacts/popup-observer-package/*/*.log
           if-no-files-found: warn
 
       - name: Upload analyzer compiler diagnostics and exact payload evidence

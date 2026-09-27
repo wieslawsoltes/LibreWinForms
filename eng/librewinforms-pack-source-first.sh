@@ -488,6 +488,20 @@ NUGET_PACKAGES="${smoke_root}/sdk-package-packages" "${dotnet}" run \
   --no-restore \
   "${sdk_package_smoke_properties[@]}"
 
+# Compile the optional typed observer against these same fresh Package products.
+# This never launches either desktop consumer and cannot skip the observer.
+python3 "${repo_root}/eng/librewinforms-popup-observer-package.py" \
+  --dotnet "${dotnet}" \
+  --feed "${package_output}" \
+  --configuration "${configuration}" \
+  --sdk-version "${sdk_package_version}" \
+  --canonical-version "${package_version}" \
+  --backend-version "${backend_package_version}" \
+  --drawing-version "${progpu_package_version}" \
+  --forms-sha256 "${implementation_hash}" \
+  --backend-sha256 "${backend_implementation_hash}" \
+  --drawing-sha256 "${progpu_drawing_source_hash}"
+
 # Use the exact just-produced package closure and consumer output. The Microsoft
 # negative control is restored only into the test's isolated temporary cache.
 python3 "${repo_root}/eng/test-drawing-runtime-identity.py" \
