@@ -348,7 +348,7 @@ public partial class CanonicalLifecycleTests
         internal void Drag(Point point) => OnMouseMove(new(MouseButtons.Left, 0, point.X, point.Y, 0));
     }
 
-    private sealed class RetainedTextRendererProbe : ILibreTextRendererService, ILibreTextRowNavigationService
+    private sealed class RetainedTextRendererProbe : ILibreTextRendererService, ILibreTextSourceGeometryService
     {
         private readonly ProGpuTextRendererService _renderer = new();
         internal List<RetainedLayoutProbe> Layouts { get; } = [];
@@ -372,12 +372,17 @@ public partial class CanonicalLifecycleTests
             => _renderer.MeasureText(graphics, text, font, size, format);
     }
 
-    private sealed class RetainedLayoutProbe(ILibreTextLayout layout) : ILibreTextLayout, ILibreTextRowNavigation
+    private sealed class RetainedLayoutProbe(ILibreTextLayout layout) : ILibreTextLayout, ILibreTextRowNavigation, ILibreTextSourceGeometry
     {
         internal bool Disposed { get; private set; }
         internal PointF LastOrigin { get; private set; }
         internal List<Color> Colors { get; } = [];
         public SizeF ContentSize => layout.ContentSize;
+        public int RowCount => ((ILibreTextSourceGeometry)layout).RowCount;
+        public int GetRowSourceStart(int rowIndex) => ((ILibreTextSourceGeometry)layout).GetRowSourceStart(rowIndex);
+        public int GetRowIndexFromTextPosition(int textPosition) => ((ILibreTextSourceGeometry)layout).GetRowIndexFromTextPosition(textPosition);
+        public int GetCaretRowIndex(int textPosition, bool trailing) => ((ILibreTextSourceGeometry)layout).GetCaretRowIndex(textPosition, trailing);
+        public PointF GetSourcePositionPoint(int textPosition) => ((ILibreTextSourceGeometry)layout).GetSourcePositionPoint(textPosition);
         public LibreTextCaret GetCaret(int position, bool trailing = false) => layout.GetCaret(position, trailing);
         public LibreTextCaret MoveCaret(int position, bool trailing, int direction) => layout.MoveCaret(position, trailing, direction);
         public LibreTextCaret GetRowBoundary(int position, bool trailing, bool end)

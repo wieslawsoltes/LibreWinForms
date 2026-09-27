@@ -1647,7 +1647,11 @@ public abstract partial class TextBoxBase : Control
     /// </summary>
     public virtual int GetCharIndexFromPosition(Point pt)
     {
+#if LIBREWINFORMS_PORTABLE
+        int index = (int)SendPortableTextQuery(PInvokeCore.EM_CHARFROMPOS, 0, PARAM.FromPoint(pt));
+#else
         int index = (int)PInvokeCore.SendMessage(this, PInvokeCore.EM_CHARFROMPOS, 0, PARAM.FromPoint(pt));
+#endif
         index = PARAM.LOWORD(index);
 
         if (index < 0)
@@ -1677,7 +1681,12 @@ public abstract partial class TextBoxBase : Control
     ///  you pass the index of a overflowed character, GetLineFromCharIndex would
     ///  return 1 and not 0.
     /// </summary>
-    public virtual int GetLineFromCharIndex(int index) => (int)PInvokeCore.SendMessage(this, PInvokeCore.EM_LINEFROMCHAR, (WPARAM)index);
+    public virtual int GetLineFromCharIndex(int index) =>
+#if LIBREWINFORMS_PORTABLE
+        (int)SendPortableTextQuery(PInvokeCore.EM_LINEFROMCHAR, (WPARAM)index);
+#else
+        (int)PInvokeCore.SendMessage(this, PInvokeCore.EM_LINEFROMCHAR, (WPARAM)index);
+#endif
 
     /// <summary>
     ///  Returns the location of the character at the given index.
@@ -1689,7 +1698,11 @@ public abstract partial class TextBoxBase : Control
             return Point.Empty;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        int i = (int)SendPortableTextQuery(PInvokeCore.EM_POSFROMCHAR, (WPARAM)index);
+#else
         int i = (int)PInvokeCore.SendMessage(this, PInvokeCore.EM_POSFROMCHAR, (WPARAM)index);
+#endif
         return new Point(PARAM.SignedLOWORD(i), PARAM.SignedHIWORD(i));
     }
 
@@ -1700,13 +1713,22 @@ public abstract partial class TextBoxBase : Control
     {
         ArgumentOutOfRangeException.ThrowIfNegative(lineNumber);
 
+#if LIBREWINFORMS_PORTABLE
+        return (int)SendPortableTextQuery(PInvokeCore.EM_LINEINDEX, (WPARAM)lineNumber);
+#else
         return (int)PInvokeCore.SendMessage(this, PInvokeCore.EM_LINEINDEX, (WPARAM)lineNumber);
+#endif
     }
 
     /// <summary>
     ///  Returns the index of the first character of the line where the caret is.
     /// </summary>
-    public int GetFirstCharIndexOfCurrentLine() => (int)PInvokeCore.SendMessage(this, PInvokeCore.EM_LINEINDEX, (WPARAM)(-1));
+    public int GetFirstCharIndexOfCurrentLine() =>
+#if LIBREWINFORMS_PORTABLE
+        (int)SendPortableTextQuery(PInvokeCore.EM_LINEINDEX, (WPARAM)(-1));
+#else
+        (int)PInvokeCore.SendMessage(this, PInvokeCore.EM_LINEINDEX, (WPARAM)(-1));
+#endif
 
     /// <summary>
     ///  Ensures that the caret is visible in the TextBox window, by scrolling the
@@ -2196,6 +2218,12 @@ public abstract partial class TextBoxBase : Control
         switch (m.MsgInternal)
         {
 #if LIBREWINFORMS_PORTABLE
+            case PInvokeCore.EM_CHARFROMPOS:
+            case PInvokeCore.EM_POSFROMCHAR:
+            case PInvokeCore.EM_LINEFROMCHAR:
+            case PInvokeCore.EM_LINEINDEX:
+                m.Result = QueryPortableTextGeometry(m.MsgInternal, m.WParam, m.LParam);
+                break;
             case PInvokeCore.EM_SCROLLCARET:
                 if (Focused && IsHandleCreated && !IsDisposed)
                 {

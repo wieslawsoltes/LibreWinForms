@@ -60,6 +60,21 @@ public interface ILibreTextRowNavigationService : ILibreTextLayoutService
 {
 }
 
+/// <summary>Optional capability whose layouts retain original source-row geometry.</summary>
+public interface ILibreTextSourceGeometryService : ILibreTextRowNavigationService
+{
+}
+
+/// <summary>Source queries over the same owned rows, shaped clusters and alignment as drawing.</summary>
+public interface ILibreTextSourceGeometry
+{
+    int RowCount { get; }
+    int GetRowSourceStart(int rowIndex);
+    int GetRowIndexFromTextPosition(int textPosition);
+    int GetCaretRowIndex(int textPosition, bool trailing);
+    PointF GetSourcePositionPoint(int textPosition);
+}
+
 /// <summary>Navigation over actual retained horizontal rows, including wrapping and empty rows.</summary>
 public interface ILibreTextRowNavigation
 {
