@@ -11550,6 +11550,9 @@ public unsafe partial class Control :
     internal void SetPortableWindowEnabled(bool enabled)
         => GetPortableTopLevelControl()._window.SetPortableEnabled(enabled);
 
+    internal LibreWindowCoordinateMode PortableWindowCoordinateMode
+        => GetPortableTopLevelControl()._window.PortableCoordinateMode;
+
     internal void SetPortableWindowTitle(string title)
         => _window.SetPortableTitle(title);
 

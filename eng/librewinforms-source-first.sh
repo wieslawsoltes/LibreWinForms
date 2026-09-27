@@ -60,7 +60,12 @@ run_test_project \
   50
 run_test_project \
   "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
-  107
+  115
+"${repo_root}/eng/common/dotnet.sh" run \
+  --project "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
+  --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" -- \
+  --filter-class '*ProGpuPopupSurfaceServiceTests*' \
+  --minimum-expected-tests 10 --fail-skips on --timeout 10m
 "${repo_root}/eng/common/dotnet.sh" run \
   --project "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
   --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" -- \
@@ -90,9 +95,15 @@ generator_tests="${repo_root}/src/System.Windows.Forms.Analyzers.CSharp/tests/Un
 echo "Testing unchanged canonical Application.Run(Form) against a typed headless backend."
 run_test_project \
   "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
-  529 \
+  533 \
   -p:LibreWinFormsUseProGpuSystemDrawing=true \
   -p:LibreWinFormsReferenceMode=Project
+"${repo_root}/eng/common/dotnet.sh" run \
+  --project "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
+  --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" \
+  -p:LibreWinFormsUseProGpuSystemDrawing=true -p:LibreWinFormsReferenceMode=Project -- \
+  --filter-method '*PortableToolTipCoordinateMode*' \
+  --minimum-expected-tests 4 --fail-skips on --timeout 10m
 
 echo "Verifying ProGPU System.Drawing API debt and focused quality gates."
 (
