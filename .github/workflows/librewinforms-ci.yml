@@ -58,6 +58,9 @@ jobs:
       - name: Validate offline popup desktop harness contracts
         run: python3 eng/tests/test_popup_desktop_harness.py
 
+      - name: Validate X11 popup driver offline contracts
+        run: python3 eng/tests/test_popup_x11_harness.py
+
       - name: Install software WebGPU adapter
         shell: bash
         run: |
