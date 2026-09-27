@@ -27,6 +27,13 @@ handlers/disposal, and trailing-row boundaries. The source test minimum rises
 from 607 to 613, preserving deadlines and zero-skip policy. Local build/test
 evidence is retained under `artifacts/row-navigation/`.
 
+The first full run passed 612 cases and exposed a disposal race in the remaining
+case: a KeyDown callback could dispose the editor, leaving the following KeyUp
+to read its creating Handle property. Key dispatch now rejects retired source
+recipients before reading Handle, while release bookkeeping still clears the
+pending menu key and suppression cycle. The regression also verifies that a
+newly focused editor receives subsequent text without recreating the old handle.
+
 This depends on ProGPU's retained row-navigation PR and LibreWinForms #91/#90.
 Native Windows/Linux/macOS UI comparison, word/page navigation, IME, scrollbar
 interaction and full release validation remain outstanding.

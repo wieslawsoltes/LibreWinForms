@@ -131,9 +131,17 @@ public partial class CanonicalLifecycleTests
             editor.KeyDown -= handled;
             editor.KeyDown += (_, _) => editor.Dispose();
             int layouts = probe.Layouts.Count;
+            int recreated = 0;
+            editor.HandleCreated += (_, _) => recreated++;
             SendRetainedKey(platform, owner, LibreKey.Down, LibreInputModifiers.None);
             editor.IsDisposed.Should().BeTrue();
             probe.Layouts.Count.Should().Be(layouts);
+            recreated.Should().Be(0);
+            using TextBox next = new();
+            owner.Controls.Add(next);
+            next.Focus().Should().BeTrue();
+            SendDropdownText(platform, owner, "x");
+            next.Text.Should().Be("x", "retired input must not suppress the next live recipient");
         });
     }
 

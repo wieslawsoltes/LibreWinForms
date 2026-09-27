@@ -226,11 +226,16 @@ public unsafe partial class Control
         }
 
         Control target = _portableFocusedControl ?? this;
-        Message message = Message.Create(target.Handle, (int)messageId, (nint)(int)keyCode, 0);
         Keys pendingMenuKey = _portablePendingMenuKey;
         LibreHandle pendingMenuWindow = _portablePendingMenuWindow;
         if (messageId == PInvokeCore.WM_KEYUP)
             _portablePendingMenuKey = Keys.None;
+        // A previous key callback can retire the focused editor. Reading Handle
+        // must not recreate that recipient for the later release/repeat event.
+        if (IsDisposed || Disposing || !IsHandleCreated
+            || target.IsDisposed || target.Disposing || !target.IsHandleCreated)
+            return;
+        Message message = Message.Create(target.Handle, (int)messageId, (nint)(int)keyCode, 0);
         uint inputVersion = _portableMenuInputVersion;
         uint focusVersion = _portableWindowFocusVersion;
         LibreHandle windowHandle = _window.PortableHandle;
