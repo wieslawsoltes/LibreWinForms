@@ -77,7 +77,11 @@ internal static class Program
             // Let the visible lifecycle return through the platform dispatcher.
             // Closing synchronously inside Shown can race native activation on a
             // cold hosted Windows runner and leave Application.Run waiting.
-            _ = form.BeginInvoke((Action)form.Close);
+            _ = form.BeginInvoke((Action)(() =>
+            {
+                ValidateOwnedPopupWindows(form);
+                form.Close();
+            }));
         };
 
         try
@@ -97,5 +101,62 @@ internal static class Program
         {
             LibrePlatform.Current.Dispose();
         }
+    }
+
+    private static void ValidateOwnedPopupWindows(Form owner)
+    {
+        using ContextMenuStrip menu = new() { AutoClose = false };
+        ToolStripMenuItem more = new("More");
+        more.DropDownItems.Add("Nested command");
+        more.DropDown.AutoClose = false;
+        menu.Items.Add("Open");
+        menu.Items.Add(more);
+        bool rootPainted = false;
+        bool childPainted = false;
+        int closed = 0;
+        menu.Paint += (_, _) => rootPainted = true;
+        more.DropDown.Paint += (_, _) => childPainted = true;
+        menu.Closed += (_, _) => closed++;
+        more.DropDown.Closed += (_, _) => closed++;
+        menu.Show(owner, new Point(24, 112));
+        more.ShowDropDown();
+        LibreHandle ownerHandle = new(owner.Handle, LibreHandleKind.Window);
+        LibreHandle rootHandle = VerifyPopup(menu, ownerHandle);
+        LibreHandle childHandle = VerifyPopup(more.DropDown, ownerHandle);
+        if (rootHandle == childHandle)
+            throw new InvalidOperationException("Root and submenu must own independent platform windows.");
+
+        menu.Refresh();
+        more.DropDown.Refresh();
+        if (!rootPainted || !childPainted)
+            throw new InvalidOperationException($"Native popup source paint did not execute (root={rootPainted}, child={childPainted}).");
+
+        // Persistent menus do not auto-close. Native owner loss must still
+        // release both surfaces while retaining their application-owned source.
+        owner.Hide();
+        if (menu.Visible || more.DropDown.Visible || menu.IsHandleCreated || more.DropDown.IsHandleCreated
+            || menu.IsDisposed || more.DropDown.IsDisposed || closed != 2
+            || LibrePlatform.Current.Handles.TryGet<ILibreWindow>(rootHandle, out _)
+            || LibrePlatform.Current.Handles.TryGet<ILibreWindow>(childHandle, out _))
+        {
+            throw new InvalidOperationException($"Owner hide did not retire both persistent native popup windows (closed={closed}).");
+        }
+
+        Console.WriteLine("Installed canonical popup windows passed: independent owned root/submenu, source paint, owner-hide release.");
+    }
+
+    private static LibreHandle VerifyPopup(ToolStripDropDown popup, LibreHandle owner)
+    {
+        if (!popup.Visible || !popup.IsHandleCreated)
+            throw new InvalidOperationException("The canonical popup is not visible with a live handle.");
+        LibreHandle handle = new(popup.Handle, LibreHandleKind.Window);
+        if (handle == owner || !LibrePlatform.Current.Handles.TryGet(handle, out ILibreWindow? window)
+            || !window.Visible || window.Owner != owner || window.Border != LibreWindowBorder.Hidden
+            || window.ShowInTaskbar || window.Bounds.Width <= 0 || window.Bounds.Height <= 0)
+        {
+            throw new InvalidOperationException("The source popup did not resolve to a distinct visible owned platform window.");
+        }
+
+        return handle;
     }
 }

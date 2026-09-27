@@ -1,0 +1,4 @@
+# Original wheels from https://pypi.org/project/python-xlib/0.33/ and /six/1.17.0/.
+# Install into a task-owned virtual environment with --require-hashes --only-binary=:all:.
+python-xlib==0.33 --hash=sha256:c3534038d42e0df2f1392a1b30a15a4ff5fdc2b86cfa94f072bf11b10a164398
+six==1.17.0 --hash=sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274
