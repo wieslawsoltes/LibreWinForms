@@ -73,3 +73,16 @@ native-geometry dependency is pinned to merged PR198 after its complete CI passe
 An actual successful Package build must now compile against the newly packed
 dependency; absent APIs must produce compiler errors, not a stub, conditional CI
 opt-out, or a native UI qualification claim.
+
+Because evidence is retained beneath the repository's `artifacts` directory,
+the task-owned consumer root supplies empty `Directory.Build.props`,
+`Directory.Build.targets`, and `Directory.Packages.props` boundaries. These stop
+upward discovery of the repository's Arcade/project build graph and central
+package policy; they do not replace or disable the actual NuGet SDK imports,
+analyzers, generated configuration, or Package references. Their exact bytes are
+checked after compilation. The original failed CI restore (Forms81 at a4a2977)
+is retained: before these boundaries, the ancestor `Directory.Build.props`
+requested Arcade without a version in the standalone consumer's global.json.
+Both callers retain observer receipts and command logs on failure: the canonical
+source lane uses `popup-observer-package-build`, and the complete Package lane
+uses the distinct `popup-observer-full-package-build` artifact.

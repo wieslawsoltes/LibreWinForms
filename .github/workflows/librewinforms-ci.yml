@@ -319,6 +319,16 @@ jobs:
           export LIBREWINFORMS_BRIDGE_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-bridge/artifacts/packages/Release/NonShipping"
           xvfb-run -a ./eng/librewinforms-package-smoke.sh
 
+      - name: Retain full Package lane popup observer compile evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: popup-observer-full-package-build
+          path: |
+            artifacts/popup-observer-package/*/*.json
+            artifacts/popup-observer-package/*/*.log
+          if-no-files-found: warn
+
       - name: Upload packages
         uses: actions/upload-artifact@v4
         with:

@@ -15,6 +15,16 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("popup_prepare", ROOT / "eng/librewinforms-prepare-popup-desktop.py")
 PREPARE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(PREPARE)
+ISOLATION_FILES = ("Directory.Build.props", "Directory.Build.targets", "Directory.Packages.props")
+ISOLATION_CONTENT = "<Project />\n"
+
+
+def isolate_consumer(stage):
+    # Evidence lives inside the repository: stop standard upward MSBuild searches
+    # here, without importing Arcade or changing the actual package SDK itself.
+    for name in ISOLATION_FILES:
+        with (stage / name).open("x") as stream:
+            stream.write(ISOLATION_CONTENT)
 
 
 class CommandFailure(RuntimeError):
@@ -33,6 +43,9 @@ def run(command, cwd, environment, evidence, name):
 
 
 def verify(stage, cache, preparation, result, configuration, drawing_version, expected_hashes):
+    for name in ISOLATION_FILES:
+        if (stage / name).read_text() != ISOLATION_CONTENT:
+            raise ValueError(f"Consumer isolation boundary changed: {name}")
     portable = stage / "Portable"
     properties = result["Properties"]
     if properties["LibreWinFormsReferenceMode"] != "Package" or properties["PopupNativeGeometryDiagnostics"] != "true":
@@ -83,6 +96,7 @@ def verify(stage, cache, preparation, result, configuration, drawing_version, ex
             raise ValueError(f"Output differs from the compiled producer payload: {name}")
         payloads[name] = actual
     return dict(compiledInputs={str(path.relative_to(portable)): PREPARE.sha256(path) for path in required},
+                isolationSha256={name: PREPARE.sha256(stage / name) for name in ISOLATION_FILES},
                 applicationSha256=PREPARE.sha256(assembly), payloadSha256=payloads)
 
 
@@ -112,6 +126,7 @@ def main():
         sdk = run([dotnet, "--version"], ROOT, environment, evidence, "sdk").strip()
         preparation = PREPARE.prepare(stage, args.feed, args.sdk_version, args.canonical_version,
                                       args.backend_version, sdk, native_geometry=True)
+        isolate_consumer(stage)
         (evidence / "preparation.json").write_text(json.dumps(preparation, indent=2))
         project = stage / "Portable/PopupInteractionApp.csproj"
         properties = [f"-p:Configuration={args.configuration}", "-p:MicrosoftNETCoreAppRefPackageVersion=",
