@@ -15,6 +15,92 @@ namespace LibreWinForms.CanonicalLifecycle.Tests;
 public partial class CanonicalLifecycleTests
 {
     [Fact]
+    public void PortableRetainedTextHardBreakRowsHaveCaretsButNoDrawableGlyphs()
+    {
+        if (RunDpiCaseInNewProcess(retainedTextLayout: true)) return;
+        RunRetainedEditor((_, _, editor, probe) =>
+        {
+            editor.Text = "\r\n\r\n";
+            editor.Select(0, 0);
+            DrawingContext context = editor.Record();
+            context.Commands.Should().NotContain(c => c.Type == RenderCommandType.DrawGlyphRun);
+            RetainedLayoutProbe layout = probe.Layouts.Last();
+            float height = layout.GetCaret(0).Height;
+            for (int row = 0; row < 3; row++)
+            {
+                LibreTextCaret caret = layout.GetCaret(row * 2);
+                caret.TextPosition.Should().Be(row * 2);
+                caret.Position.Y.Should().Be(row * height);
+                caret.Height.Should().Be(height);
+            }
+
+            editor.Select(4, 0);
+            DrawingContext selected = editor.Record();
+            RenderCommand caretInk = selected.Commands.Single(c => c.Type == RenderCommandType.DrawRectangle);
+            caretInk.Rect.Y.Should().Be(2 * height);
+            caretInk.Rect.Height.Should().Be(height);
+        });
+    }
+
+    [Fact]
+    public void PortableRetainedTextHardBreakPointerSelectionKeepsSourceIndices()
+    {
+        if (RunDpiCaseInNewProcess(retainedTextLayout: true)) return;
+        RunRetainedEditor((_, _, editor, probe) =>
+        {
+            editor.Text = "a\r\n\r\nb";
+            editor.Select(0, 0);
+            editor.Record();
+            float height = probe.Layouts.Last().GetCaret(0).Height;
+            editor.Press(new Point(100, (int)(height * 1.5f)));
+            editor.SelectionStart.Should().Be(3);
+            editor.SelectionLength.Should().Be(0);
+            editor.Drag(new Point(0, (int)(height * .5f)));
+            editor.SelectionStart.Should().Be(0);
+            editor.SelectionLength.Should().Be(3);
+            editor.Text.Should().Be("a\r\n\r\nb");
+            editor.Capture = false;
+        });
+    }
+
+    [Fact]
+    public void PortableRetainedTextHardBreakEnterCreatesOneTrailingRow()
+    {
+        if (RunDpiCaseInNewProcess(retainedTextLayout: true)) return;
+        RunRetainedEditor((platform, owner, editor, probe) =>
+        {
+            editor.AcceptsReturn = true;
+            editor.Text = "a";
+            editor.Select(1, 0);
+            int presses = 0;
+            editor.KeyPress += (_, e) => { if (e.KeyChar == '\r') presses++; };
+            SendDropdownKey(platform, owner, LibreKey.Enter, release: false);
+            editor.Text.Should().Be("a\r\n", "physical Enter must not depend on a host control-character callback");
+            SendDropdownText(platform, owner, "\r");
+            SendDropdownKeyUp(platform, owner, LibreKey.Enter);
+            editor.Text.Should().Be("a\r\n");
+            presses.Should().Be(1);
+            editor.SelectionStart.Should().Be(3);
+            editor.Record();
+            RetainedLayoutProbe layout = probe.Layouts.Last();
+            LibreTextCaret caret = layout.GetCaret(3);
+            caret.TextPosition.Should().Be(3);
+            caret.Position.Y.Should().Be(layout.GetCaret(0).Height);
+            SendDropdownText(platform, owner, "x");
+            editor.Text.Should().Be("a\r\nx");
+            editor.ReadOnly = true;
+            SendDropdownKey(platform, owner, LibreKey.Enter);
+            presses.Should().Be(2);
+            editor.Text.Should().Be("a\r\nx");
+            editor.ReadOnly = false;
+            editor.KeyDown += (_, e) => e.SuppressKeyPress = true;
+            SendDropdownKey(platform, owner, LibreKey.Enter);
+            presses.Should().Be(2);
+            editor.Text.Should().Be("a\r\nx");
+        });
+    }
+
+    [Fact]
     public void PortableRetainedTextReusesLayoutForSelectionAndPaint()
     {
         if (RunDpiCaseInNewProcess(retainedTextLayout: true)) return;

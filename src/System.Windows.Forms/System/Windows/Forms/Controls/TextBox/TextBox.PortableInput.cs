@@ -6,6 +6,25 @@ namespace System.Windows.Forms;
 
 public partial class TextBox
 {
+    internal override void ProcessPortableTranslatedKey(ref Message message)
+    {
+        if (message.MsgInternal == PInvokeCore.WM_KEYDOWN
+            && (Keys)(int)message.WParamInternal == Keys.Return
+            && Multiline
+            && ModifierKeys == Keys.None
+            && !IsPortableKeyPressSuppressed)
+        {
+            // Native text callbacks may omit Enter. Retain the canonical
+            // KeyPress/edit path and suppress a duplicate host character only
+            // for this key cycle, as the existing Backspace translation does.
+            ProcessPortableCharacter('\r');
+            SuppressPortableKeyPress();
+            return;
+        }
+
+        base.ProcessPortableTranslatedKey(ref message);
+    }
+
     internal override void ProcessPortableDefaultKeyMessage(ref Message message)
     {
         if (message.MsgInternal == PInvokeCore.WM_KEYDOWN
