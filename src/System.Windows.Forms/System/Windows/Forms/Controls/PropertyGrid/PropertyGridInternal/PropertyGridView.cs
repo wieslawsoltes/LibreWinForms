@@ -461,7 +461,7 @@ internal sealed partial class PropertyGridView :
         {
             if (_cachedRowHeight == -1)
             {
-                _cachedRowHeight = Font.Height + 2;
+                _cachedRowHeight = GetFontHeightForTarget(Font) + 2;
             }
 
             return _cachedRowHeight;
