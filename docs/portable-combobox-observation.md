@@ -26,3 +26,10 @@ popup surface, not the native-notification `_dropDown` bookkeeping field. A
 boolean-only implementation or synthetic open/close events cannot qualify it.
 Actual popup/list rendering, keyboard and pointer selection, dismissal, teardown
 and the independent native fourteen-phase scenarios remain required.
+
+The first product correction uses source-owned focus instead of querying missing
+native child HWNDs. Its full rerun passed 411 of 414 cases: all original 405 and
+all six focus/no-handle regressions; the three created-control dropdown queries
+still fail at their unchanged `USER32` call. This is not a passing dropdown gate.
+The baseline and corrected builds each report 623 existing warnings and zero
+errors; both complete test logs retain their failed cases without exclusions.
