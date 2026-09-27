@@ -117,11 +117,7 @@ public partial class TextBox
         float caretWidth = Math.Max(1, SystemInformation.CaretWidth);
         if (_portableEnsureCaretVisible && Focused && !placeholder)
         {
-            _portableTextScroll.X = Math.Clamp(_portableTextScroll.X,
-                Math.Max(0, caret.Position.X + Math.Min(caretWidth, ClientSize.Width) - ClientSize.Width), Math.Max(0, caret.Position.X));
-            _portableTextScroll.Y = Math.Clamp(_portableTextScroll.Y,
-                Math.Max(0, caret.Position.Y + Math.Min(caret.Height, ClientSize.Height) - ClientSize.Height), Math.Max(0, caret.Position.Y));
-            _portableEnsureCaretVisible = false;
+            EnsurePortableCaretVisible(caret, caretWidth);
         }
 
         if (placeholder) _portableTextScroll = PointF.Empty;
@@ -163,6 +159,38 @@ public partial class TextBox
 
         if (!hadLayout && !placeholder) ResetPortableCaretBlink();
         return true;
+    }
+
+    private bool EnsurePortableCaretVisible(LibreTextCaret caret, float caretWidth)
+    {
+        PointF previous = _portableTextScroll;
+        // Center/right alignment and RTL paragraphs can extend left of the
+        // layout frame. A zero-clamped offset cannot reveal those real carets.
+        // Keep the current viewport whenever the complete caret already fits.
+        _portableTextScroll.X = Math.Clamp(_portableTextScroll.X,
+            caret.Position.X + Math.Min(caretWidth, ClientSize.Width) - ClientSize.Width, caret.Position.X);
+        _portableTextScroll.Y = Math.Clamp(_portableTextScroll.Y,
+            caret.Position.Y + Math.Min(caret.Height, ClientSize.Height) - ClientSize.Height, caret.Position.Y);
+        _portableEnsureCaretVisible = false;
+        return _portableTextScroll != previous;
+    }
+
+    private protected override void ScrollPortableTextCaretIntoView()
+    {
+        if (ClientSize.Width <= 0 || ClientSize.Height <= 0)
+        {
+            return;
+        }
+
+        ILibreTextLayout layout = GetPortableInputLayout()
+            ?? throw new PlatformNotSupportedException("Caret scrolling requires a retained text-layout provider.");
+        LibreTextCaret caret = layout.GetCaret(PortableSelectionActiveEnd, _portableCaretTrailing);
+        if (EnsurePortableCaretVisible(caret, Math.Max(1, SystemInformation.CaretWidth)))
+        {
+            // Publish the offset before notification: a handler can repaint,
+            // hit-test, replace text, or dispose the control synchronously.
+            Invalidate();
+        }
     }
 
     private ILibreTextLayout? GetPortableInputLayout()
