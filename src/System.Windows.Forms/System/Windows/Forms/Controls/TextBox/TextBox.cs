@@ -546,6 +546,17 @@ public partial class TextBox : TextBoxBase
     /// </summary>
     protected override bool IsInputKey(Keys keyData)
     {
+#if LIBREWINFORMS_PORTABLE
+        // The native EDIT procedure normally supplies DLGC_WANTARROWS. Admit
+        // only implemented directions; command filters and public key events
+        // still precede the optional portable layout's default navigation.
+        if ((keyData & Keys.KeyCode) is Keys.Left or Keys.Right
+            && (keyData & Keys.Modifiers & ~Keys.Shift) == Keys.None
+            && LibreWinForms.Platform.LibrePlatform.Current.TextRenderer is LibreWinForms.Platform.ILibreTextLayoutService)
+        {
+            return true;
+        }
+#endif
         if (Multiline && (keyData & Keys.Alt) == 0)
         {
             switch (keyData & Keys.KeyCode)

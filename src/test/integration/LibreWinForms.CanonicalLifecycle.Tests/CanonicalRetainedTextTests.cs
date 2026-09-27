@@ -88,6 +88,9 @@ public partial class CanonicalLifecycleTests
             editor.SelectionStart.Should().Be(2);
             editor.SelectionLength.Should().Be(0);
             editor.Text.Should().Be("abcd");
+            editor.KeyDown += (_, e) => e.Handled = true;
+            SendRetainedKey(platform, owner, LibreKey.Right, LibreInputModifiers.None);
+            editor.SelectionStart.Should().Be(2, "public handlers retain precedence over default navigation");
         });
     }
 
@@ -165,6 +168,27 @@ public partial class CanonicalLifecycleTests
             probe.LastText.Should().Be("******");
             editor.Text.Should().Be("secret");
             probe.Layouts.Last().GetCaret(6).TextPosition.Should().Be(6);
+        });
+    }
+
+    [Fact]
+    public void PortableRetainedTextScrollKeepsTheSourceViewportFixed()
+    {
+        if (RunDpiCaseInNewProcess(retainedTextLayout: true)) return;
+        RunRetainedEditor((_, _, editor, probe) =>
+        {
+            editor.WordWrap = false;
+            editor.Text = new string('W', 80);
+            editor.Select(editor.TextLength, 0);
+            DrawingContext context = editor.Record();
+            RetainedLayoutProbe layout = probe.Layouts.Last();
+            layout.LastOrigin.X.Should().BeLessThan(0);
+            float caretX = layout.GetCaret(editor.TextLength).Position.X + layout.LastOrigin.X;
+            caretX.Should().BeInRange(0, editor.ClientSize.Width - 1);
+            RenderCommand[] clips = context.Commands.Where(c => c.Type == RenderCommandType.PushClip).ToArray();
+            clips.Should().NotBeEmpty();
+            clips.Should().OnlyContain(c => c.Rect.X >= 0 && c.Rect.Y >= 0,
+                "the paragraph offset must not translate or shrink the source viewport");
         });
     }
 
@@ -257,6 +281,7 @@ public partial class CanonicalLifecycleTests
     private sealed class RetainedLayoutProbe(ILibreTextLayout layout) : ILibreTextLayout
     {
         internal bool Disposed { get; private set; }
+        internal PointF LastOrigin { get; private set; }
         internal List<Color> Colors { get; } = [];
         public SizeF ContentSize => layout.ContentSize;
         public LibreTextCaret GetCaret(int position, bool trailing = false) => layout.GetCaret(position, trailing);
@@ -267,6 +292,7 @@ public partial class CanonicalLifecycleTests
         {
             Disposed.Should().BeFalse();
             Colors.Add(color);
+            LastOrigin = origin;
             layout.Draw(graphics, origin, color);
         }
 

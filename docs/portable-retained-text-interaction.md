@@ -25,9 +25,9 @@ providing retained editor interaction.
 
 ## Qualification
 
-Eight fresh-process canonical source cases exercise the actual ProGPU adapter,
+Nine fresh-process canonical source cases exercise the actual ProGPU adapter,
 not fabricated control objects. The full source-first gate retains its original
-581 cases and raises its minimum to 589. Local results and exact dependency CI
+581 cases and raises its minimum to 590. Local results and exact dependency CI
 must pass before this change is merged.
 
 This is not full editor or native desktop qualification. Empty hard-break rows,
