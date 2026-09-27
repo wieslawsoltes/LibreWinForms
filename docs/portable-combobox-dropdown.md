@@ -1,6 +1,7 @@
 # Canonical portable ComboBox dropdown
 
-The portable `ComboBoxStyle.DropDownList` / `DrawMode.Normal` surface uses the
+The portable `ComboBoxStyle.DropDownList` and editable `DropDown`, with
+`DrawMode.Normal`, use the
 actual source `ListBox`, hosted by `ToolStripControlHost` in an owned native
 `ToolStripDropDown`. It is not a menu-item approximation or a private list widget.
 The ListBox prerequisite owns row painting, point lookup, selection, keyboard
@@ -37,8 +38,8 @@ collection update until a live collection-refresh seam is implemented.
 
 ## Explicit remaining surfaces
 
-- Editable `DropDown` opening and owner-drawn dropdown surfaces are rejected;
-  their native edit/measurement/paint contracts have not been connected.
+- Owner-drawn dropdown surfaces are rejected; their source measurement/paint
+  contracts have not been connected.
 - `Simple` keeps the documented `CB_SHOWDROPDOWN` no-op. That does not implement
   its always-visible embedded list or editable text behavior.
 - The normal ListBox source prerequisite explicitly rejects unsupported
@@ -61,6 +62,35 @@ native list, phase 13 has index 1 and no list, with one each of `DropDown`,
 change event order, focus getters, Escape, toggle-close, F4, mutation or callback
 exceptions. Source regressions for those paths must not be relabeled as native
 desktop parity.
+
+## Editable source ownership
+
+Editable `DropDown` creates an actual canonical, borderless, single-line
+`TextBox` child. That child owns text input, source painting, UTF-16 selection,
+selected-text replacement, and MaxLength input admission. Programmatic `Text`
+keeps the original ComboBox matching-item policy; actual edits instead follow
+the checked-in native `CBN_EDITUPDATE` / `CBN_EDITCHANGE` path, without inventing
+selection-change or acceptance events. Source callbacks can replace text,
+change focus or dispose the control; obsolete work must not finish afterward.
+
+The editor retains real Form focus while its actual ListBox popup is open. It
+does not borrow the ToolStripControlHost focus lease: a distinct typed keyboard
+target capability verifies the exact popup, editor and owner handles, parent,
+active owner and current source focus. The list remains the canonical ListBox;
+only its source Selectable style is disabled for this nonactivating composite.
+Row pointer selection and plain Up/Down use its existing source operations.
+Filters and ComboBox key events run once before defaults; Home/End and modified
+edit keys are not redirected into list navigation. Enter accepts; Escape restores
+the opening text/selection when no callback has superseded that source state.
+Leaving the composite or retiring the editor closes the old popup target.
+
+The original source documentation and Microsoft's
+[combo-box key routing](https://learn.microsoft.com/en-us/windows/win32/controls/combo-box-features)
+distinguish editable input from DropDownList list input. This connection does not
+implement missing TextBox caret/selection ink, glyph hit placement or scrolling,
+nor Simple's embedded list, owner draw, autocomplete, native accessibility or
+Windows theme equivalence. Those capabilities and actual native editable desktop
+interaction remain separate requirements.
 
 ## Validation status
 
@@ -85,6 +115,28 @@ still held. Painting is observed through the shared text service, including
 font, color, direction and intersected clip; the product was not changed to emit
 TextBox flags. Initial compile/analyzer failures and the failed test run remain
 beside the final logs under `artifacts/dropdown-keyboard/log/combobox-*`.
+
+The integrated editable implementation has **32 source cases**, covering the
+actual editor, composite focus,
+input filter/event ordering, UTF-16 selection, user/programmatic text policies,
+plain versus edit-navigation keys, real row/arrow pointer input, cancellation,
+callback replacement/exception and lifetime retirement. The existing three
+unsupported-style cases remain three explicit owner-draw rejection cases.
+Four additional shared input cases keep standalone text-packet retirement
+separate from held-key suppression, including nested input ownership. The first
+integrated run passed 519 of 521 and exposed two real bugs: source recreation
+kept the ComboBox focus identity but did not focus its replacement editor, and
+retirement during a standalone character callback could suppress later text
+forever without a matching key-up. Exact-generation focus completion now routes
+to the actual replacement editor; obsolete text suffixes and physical key cycles
+retain separate cancellation ownership. Neither failure was removed or relaxed.
+
+The final integrated source build passed with zero errors; all **529 source
+cases passed with zero skips** on macOS ARM64/.NET 10.0.5, including the 493-case
+initial-position prerequisite and 36 additional editable/input cases. Logs are
+`artifacts/dropdown-keyboard/log/combobox-edit-input-fixed-build.log` and
+`combobox-edit-input-tests.log`. Earlier failed runs remain alongside them.
+The 479-case result above predates these changes and is not their qualification.
 
 Full exact-head CI and installed native desktop interaction remain required.
 No macOS native input, screenshot or successful fourteen-phase application

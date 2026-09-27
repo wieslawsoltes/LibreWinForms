@@ -80,8 +80,8 @@ public partial class ComboBox
 
     private void ValidatePortableDropDownStyle()
     {
-        if (DropDownStyle != ComboBoxStyle.DropDownList || DrawMode != DrawMode.Normal)
-            throw new NotSupportedException("Portable ComboBox popups currently require DropDownList and DrawMode.Normal. Editable, Simple-list and owner-drawn surfaces require their own source integration.");
+        if (DropDownStyle is not (ComboBoxStyle.DropDownList or ComboBoxStyle.DropDown) || DrawMode != DrawMode.Normal)
+            throw new NotSupportedException("Portable ComboBox popups require DropDown or DropDownList and DrawMode.Normal. Simple-list and owner-drawn surfaces require their own source integration.");
     }
 
     private void DisposePortableDropDown()
@@ -119,8 +119,28 @@ public partial class ComboBox
 
     private void HandlePortableDropDownMouse(MouseEventArgs e)
     {
-        if (e.Button == MouseButtons.Left && ClientRectangle.Contains(e.Location) && Enabled && Visible)
+        Rectangle toggle = DropDownStyle == ComboBoxStyle.DropDown ? GetPortableComboBoxButtonBounds() : ClientRectangle;
+        if (e.Button == MouseButtons.Left && toggle.Contains(e.Location) && Enabled && Visible)
             SetPortableDropDown(!IsPortableDropDownVisible);
+    }
+
+    private Rectangle GetPortableComboBoxButtonBounds()
+    {
+        Rectangle content = Rectangle.Inflate(ClientRectangle, -1, -1);
+        int width = Math.Min(Math.Max(0, content.Width), SystemInformation.GetVerticalScrollBarWidthForDpi(DeviceDpi));
+        return new Rectangle(RightToLeft == RightToLeft.Yes ? content.Left : content.Right - width,
+            content.Top, width, Math.Max(0, content.Height));
+    }
+
+    private Rectangle GetPortableComboBoxTextBounds()
+    {
+        Rectangle content = Rectangle.Inflate(ClientRectangle, -1, -1);
+        Rectangle button = GetPortableComboBoxButtonBounds();
+        Rectangle text = new(RightToLeft == RightToLeft.Yes ? button.Right : content.Left,
+            content.Top, Math.Max(0, content.Width - button.Width), Math.Max(0, content.Height));
+        if (text.Width > 2)
+            text.Inflate(-1, 0);
+        return text;
     }
 
     protected override void OnEnabledChanged(EventArgs e)
@@ -143,18 +163,13 @@ public partial class ComboBox
                 using SolidBrush brush = new(background);
                 e.Graphics.FillRectangle(brush, bounds);
                 ControlPaint.DrawBorder(e.Graphics, bounds, SystemColors.WindowFrame, ButtonBorderStyle.Solid);
-                Rectangle content = Rectangle.Inflate(bounds, -1, -1);
-                int buttonWidth = Math.Min(content.Width, SystemInformation.GetVerticalScrollBarWidthForDpi(DeviceDpi));
-                Rectangle button = new(RightToLeft == RightToLeft.Yes ? content.Left : content.Right - buttonWidth,
-                    content.Top, buttonWidth, content.Height);
+                Rectangle button = GetPortableComboBoxButtonBounds();
                 if (button.Width > 0)
                     ControlPaint.DrawComboButton(e.Graphics, button,
                         !Enabled ? ButtonState.Inactive : IsPortableDropDownVisible ? ButtonState.Pushed : ButtonState.Normal);
-                Rectangle text = new(RightToLeft == RightToLeft.Yes ? button.Right : content.Left,
-                    content.Top, content.Width - buttonWidth, content.Height);
-                if (text.Width > 2)
+                Rectangle text = GetPortableComboBoxTextBounds();
+                if (text.Width > 0 && GetLivePortableEditor() is null)
                 {
-                    text.Inflate(-1, 0);
                     TextFormatFlags flags = TextFormatFlags.SingleLine | TextFormatFlags.VerticalCenter
                         | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding | TextFormatFlags.EndEllipsis;
                     if (RightToLeft == RightToLeft.Yes)
@@ -179,6 +194,9 @@ public partial class ComboBox
         private object[] _items = [];
         private readonly ToolStripControlHost _host;
         private nint _sourceHandle;
+        private nint _sourceOwnerHandle;
+        private nint _editorHandle;
+        private nint _popupHandle;
         private Form? _sourceOwner;
         private bool _canceled;
         private bool _opened;
@@ -188,6 +206,10 @@ public partial class ComboBox
         private bool _syncingSelection;
         private bool _listPointerPressed;
         private int _originalIndex;
+        private string _originalSelectionText = string.Empty;
+        private string _originalEditText = string.Empty;
+        private int _originalEditStart;
+        private int _originalEditLength;
         internal ListBox List { get; }
 
         internal PortableComboBoxDropDown(ComboBox combo)
@@ -196,12 +218,13 @@ public partial class ComboBox
             AutoSize = false;
             Padding = new Padding(1);
             Margin = Padding.Empty;
-            List = new ListBox
-            {
-                BorderStyle = BorderStyle.None, DrawMode = DrawMode.Normal,
-                SelectionMode = SelectionMode.One, MultiColumn = false,
-                IntegralHeight = false, Margin = Padding.Empty
-            };
+            List = combo.DropDownStyle == ComboBoxStyle.DropDown ? new PortableComboBoxEditorList() : new ListBox();
+            List.BorderStyle = BorderStyle.None;
+            List.DrawMode = DrawMode.Normal;
+            List.SelectionMode = SelectionMode.One;
+            List.MultiColumn = false;
+            List.IntegralHeight = false;
+            List.Margin = Padding.Empty;
             _host = new ToolStripControlHost(List) { AutoSize = false, Margin = Padding.Empty, Padding = Padding.Empty };
             Items.Add(_host);
             List.SelectedIndexChanged += ListSelectionChanged;
@@ -226,6 +249,7 @@ public partial class ComboBox
         {
             _sourceHandle = _combo.Handle;
             _sourceOwner = _combo.FindForm();
+            _sourceOwnerHandle = _sourceOwner is { IsHandleCreated: true } ? _sourceOwner.Handle : 0;
             for (Control? control = _combo; control is not null; control = control.ParentInternal)
             {
                 _sourcePath.Add(control);
@@ -238,7 +262,19 @@ public partial class ComboBox
         private bool SourceIsLive => !_canceled && !_retired && ReferenceEquals(_combo._portableDropDown, this)
             && _combo is { IsDisposed: false, Disposing: false, Visible: true, Enabled: true, IsHandleCreated: true }
             && _combo.Handle == _sourceHandle && ReferenceEquals(_combo.FindForm(), _sourceOwner)
-            && _sourceOwner is { IsDisposed: false, Disposing: false, Visible: true, IsHandleCreated: true, IsPortableActivationOwner: true };
+            && _sourceOwner is { IsDisposed: false, Disposing: false, Visible: true, IsHandleCreated: true, IsPortableActivationOwner: true }
+            && _sourceOwner.Handle == _sourceOwnerHandle;
+
+        internal override Control GetPortableKeyboardInputTarget()
+        {
+            // An editable combo's input owner is a real child of the Form,
+            // distinct from the dropdown's ToolStripControlHost focus lease.
+            if (SourceIsLive && Visible && IsHandleCreated && Handle == _popupHandle && !IsDisposed && !Disposing
+                && _combo.GetLivePortableEditor() is { Visible: true, Enabled: true, IsHandleCreated: true, Focused: true } editor
+                && editor.Handle == _editorHandle && ReferenceEquals(_sourceOwner!.PortableFocusedControl, editor))
+                return editor;
+            return base.GetPortableKeyboardInputTarget();
+        }
 
         private void SourceLifetimeChanged(bool retiring)
         {
@@ -265,6 +301,8 @@ public partial class ComboBox
             }
 
             _combo.ValidatePortableDropDownStyle();
+            _combo.EnsurePortableEditor();
+            _editorHandle = _combo.GetLivePortableEditor() is { } editor ? editor.Handle : 0;
             _entries = [.. _combo.Items.InnerList];
             _items = [.. _entries.Select(entry => entry.Item)];
             List.Font = _combo.Font;
@@ -284,6 +322,10 @@ public partial class ComboBox
             }
 
             _originalIndex = _combo.SelectedIndex;
+            _originalSelectionText = _originalIndex < 0 ? string.Empty : (string)List.Items[_originalIndex];
+            _originalEditText = _combo.WindowText;
+            _originalEditStart = _combo.GetPortableEditSelectionStart();
+            _originalEditLength = _combo.GetPortableEditSelectionLength();
             List.SelectedIndex = _originalIndex;
             int rows = Math.Min(Math.Max(_items.Length, 1), _combo.MaxDropDownItems);
             int height = _combo.DropDownHeight == DefaultDropDownHeight
@@ -306,9 +348,16 @@ public partial class ComboBox
         protected override void OnOpened(EventArgs e)
         {
             _opened = true;
+            _popupHandle = Handle;
             base.OnOpened(e);
             if (!SourceIsLive)
                 RequestClose();
+            else if (_combo.DropDownStyle == ComboBoxStyle.DropDown)
+            {
+                _combo.FocusPortableEditor();
+                if (SourceIsLive && Visible && !_combo.HasPortableEditorFocus)
+                    throw new InvalidOperationException("The editable ComboBox could not retain its actual source editor focus.");
+            }
             else if (!FocusPortableHostedControl(List) && SourceIsLive && Visible)
                 throw new InvalidOperationException("The portable ComboBox list could not acquire source focus from its live Form owner.");
             _combo.Invalidate();
@@ -364,6 +413,27 @@ public partial class ComboBox
             _combo.Invalidate();
         }
 
+        internal void SynchronizeEditorSelection()
+        {
+            if (!SourceIsLive || !Visible || !HasCurrentItems())
+                return;
+            _syncingSelection = true;
+            try { List.SelectedIndex = _combo.SelectedIndex; }
+            finally { _syncingSelection = false; }
+        }
+
+        internal void NavigateFromEditor(KeyEventArgs e)
+        {
+            if (e.Modifiers != Keys.None || e.KeyCode is not (Keys.Up or Keys.Down)
+                || !AdmitSelection())
+                return;
+            e.SuppressKeyPress = true;
+            Message message = Message.Create(List.Handle, (int)PInvokeCore.WM_KEYDOWN, (nint)(int)e.KeyCode, 0);
+            // Reuse only the canonical list default operation. Caller filters,
+            // preprocessing and ComboBox.KeyDown have already run exactly once.
+            List.ProcessPortableDefaultKeyMessage(ref message);
+        }
+
         internal void Commit()
         {
             if (!AdmitSelection())
@@ -378,7 +448,13 @@ public partial class ComboBox
         {
             if (!AdmitSelection())
                 return;
+            bool selectionChanged = _combo.SelectedIndex != _originalIndex;
             _combo.SelectedIndex = _originalIndex;
+            if (SourceIsLive && _combo.DropDownStyle == ComboBoxStyle.DropDown
+                && _combo.SelectedIndex == _originalIndex
+                && HasCurrentItems()
+                && (!selectionChanged || _combo.WindowText == _originalSelectionText))
+                _combo.RestorePortableEditorText(_originalEditText, _originalEditStart, _originalEditLength);
             if (ReferenceEquals(_combo._portableDropDown, this) && !IsDisposed)
                 Close(ToolStripDropDownCloseReason.Keyboard);
         }
@@ -451,6 +527,16 @@ public partial class ComboBox
             }
             finally { _disposingPopup = false; }
             failure?.Throw();
+        }
+    }
+
+    private sealed class PortableComboBoxEditorList : ListBox
+    {
+        internal PortableComboBoxEditorList()
+        {
+            // The native combo list is nonactivating. Pointer selection uses the
+            // real ListBox rows while input remains in the real owner editor.
+            SetStyle(ControlStyles.Selectable, false);
         }
     }
 }

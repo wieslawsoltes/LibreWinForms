@@ -554,7 +554,7 @@ public partial class ComboBox : ListControl
 #if LIBREWINFORMS_PORTABLE
             // The canonical portable focus owner already includes hosted input.
             // This control has no native edit/list child HWNDs to query.
-            return base.Focused || HasPortableDropDownFocus;
+            return base.Focused || HasPortableDropDownFocus || HasPortableEditorFocus;
 #else
             if (base.Focused)
             {
@@ -737,10 +737,14 @@ public partial class ComboBox : ListControl
             if (MaxLength != value)
             {
                 Properties.AddValue(s_propMaxLength, value);
+#if LIBREWINFORMS_PORTABLE
+                SyncPortableEditorProperties();
+#else
                 if (IsHandleCreated)
                 {
                     PInvokeCore.SendMessage(this, PInvoke.CB_LIMITTEXT, (WPARAM)value);
                 }
+#endif
             }
         }
     }
@@ -1012,6 +1016,11 @@ public partial class ComboBox : ListControl
             if (DropDownStyle != ComboBoxStyle.DropDownList)
             {
 #if LIBREWINFORMS_PORTABLE
+                if (SetPortableEditSelectedText(value))
+                {
+                    return;
+                }
+
                 string replacement = value ?? string.Empty;
                 string text = Text;
                 int selectionStart = SelectionStart;
@@ -1043,7 +1052,7 @@ public partial class ComboBox : ListControl
         get
         {
 #if LIBREWINFORMS_PORTABLE
-            return _portableSelectionLength;
+            return GetPortableEditSelectionLength();
 #else
             int end = 0;
             int start = 0;
@@ -1069,7 +1078,7 @@ public partial class ComboBox : ListControl
         get
         {
 #if LIBREWINFORMS_PORTABLE
-            return _portableSelectionStart;
+            return GetPortableEditSelectionStart();
 #else
             int value = 0;
             PInvokeCore.SendMessage(this, PInvoke.CB_GETEDITSEL, (WPARAM)(&value));
@@ -1923,6 +1932,7 @@ public partial class ComboBox : ListControl
         if (disposing)
         {
             CompletePortableDropDownStage(DisposePortableDropDown, ref failure);
+            CompletePortableDropDownStage(DisposePortableEditor, ref failure);
             CompletePortableDropDownStage(() =>
             {
                 _autoCompleteCustomSource?.CollectionChanged -= OnAutoCompleteCustomSourceChanged;
@@ -2404,6 +2414,7 @@ public partial class ComboBox : ListControl
             Height = _requestedHeight;
         }
 
+        EnsurePortableEditor();
         return;
 #else
         if (MaxLength > 0)
@@ -2513,6 +2524,7 @@ public partial class ComboBox : ListControl
 #if LIBREWINFORMS_PORTABLE
         System.Runtime.ExceptionServices.ExceptionDispatchInfo? failure = null;
         CompletePortableDropDownStage(DisposePortableDropDown, ref failure);
+        CompletePortableDropDownStage(DisposePortableEditor, ref failure);
 #endif
         _dropDownHandle = HWND.Null;
         if (Disposing)
@@ -2877,6 +2889,10 @@ public partial class ComboBox : ListControl
     {
 #if LIBREWINFORMS_PORTABLE
         Invalidate();
+        if (HandlePortableEditorGotFocus(e))
+        {
+            return;
+        }
 #endif
         if (!_canFireLostFocus)
         {
@@ -2890,6 +2906,10 @@ public partial class ComboBox : ListControl
     {
 #if LIBREWINFORMS_PORTABLE
         Invalidate();
+        if (HandlePortableEditorLostFocus(e))
+        {
+            return;
+        }
 #endif
         if (_canFireLostFocus)
         {
@@ -2910,6 +2930,7 @@ public partial class ComboBox : ListControl
     {
 #if LIBREWINFORMS_PORTABLE
         Invalidate();
+        SyncPortableEditorText();
 #endif
         if (SystemAutoCompleteEnabled)
         {
@@ -3404,6 +3425,7 @@ public partial class ComboBox : ListControl
         int normalizedEnd = (int)Math.Clamp((long)start + length, 0, textLength);
         _portableSelectionStart = Math.Min(normalizedStart, normalizedEnd);
         _portableSelectionLength = Math.Abs(normalizedEnd - normalizedStart);
+        ApplyPortableEditSelection();
 #else
         int end = start + length;
         PInvokeCore.SendMessage(this, PInvoke.CB_SETEDITSEL, (WPARAM)0, LPARAM.MAKELPARAM(start, end));
