@@ -6283,7 +6283,7 @@ public partial class CanonicalLifecycleTests
         internal int TextMeasureCount { get; private set; }
         internal Rectangle LastTextBounds { get; private set; }
         internal LibreTextFormat LastTextFormat { get; private set; }
-        internal Font? LastDrawnTextFont { get; private set; }
+        internal CanonicalTextFontDescriptor? LastDrawnTextFont { get; private set; }
         internal Color LastDrawnTextColor { get; private set; }
         internal RectangleF LastDrawnTextClip { get; private set; }
         internal string LastMeasuredText { get; private set; } = string.Empty;
@@ -7177,6 +7177,7 @@ public partial class CanonicalLifecycleTests
         {
             if (ActualTextRenderer is { } actual)
             {
+                LastDrawnTextFont = font is null ? null : CanonicalTextFontDescriptor.Capture(font);
                 actual.DrawText(graphics, text, font, bounds, foreColor, backColor, format);
                 return;
             }
@@ -7191,7 +7192,7 @@ public partial class CanonicalLifecycleTests
                 bounds.Width.Should().BeGreaterThan(0);
                 bounds.Height.Should().BeGreaterThan(0);
                 backColor.Should().Be(Color.Empty);
-                TextBoxDraws.Add(new(text, font!, bounds, foreColor, format, graphics.ClipBounds));
+                TextBoxDraws.Add(new(text, CanonicalTextFontDescriptor.Capture(font!), bounds, foreColor, format, graphics.ClipBounds));
             }
             else if (text == "portable")
             {
@@ -7232,7 +7233,7 @@ public partial class CanonicalLifecycleTests
 
             LastTextBounds = bounds;
             LastTextFormat = format;
-            LastDrawnTextFont = font;
+            LastDrawnTextFont = CanonicalTextFontDescriptor.Capture(font!);
             LastDrawnTextColor = foreColor;
             LastDrawnTextClip = graphics.ClipBounds;
             using var marker = new SolidBrush(foreColor);

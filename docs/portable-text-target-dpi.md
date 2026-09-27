@@ -13,20 +13,47 @@ resolution across all control layers; a resolution change repaints all layers.
 Direct and adorner recorders use the same target. No source Font, driver scale,
 font family, native coordinate mapping or input path is rewritten.
 
-Canonical `FontHeight` keeps its cache but invalidates it when the owning target
-DPI changes, including native-handle replacement. Before handle creation it uses
-the declared source screen policy. ListBox row drawing/input geometry and the
-editable ComboBox's real TextBox bounds use that same metric. Context-free
-TextRenderer measurement receives an explicit source-screen Graphics; caller
-Graphics remains authoritative. Default/logical and pixel-font behavior stays
-unchanged. PMv2's existing source Font selection/scaling policy is not changed.
+Canonical font realization is distinct from the surface DPI. Native
+`FontCache.Data.FromFont` converts the source font against `InitialSystemDpi`,
+while PMv2 `Control.GetScaledFont` already scales its public source size by the
+monitor ratio. Portable aware modes therefore capture the initial primary DPI,
+including PMv2. All four TextRenderer draw/measure boundaries borrow an owned
+pixel-font projection with the native rounded em size. They retain exact source
+family/style/charset/vertical metadata without modifying the caller Font.
+Pixel-like units are already pixels, not `SizeInPoints` interpreted at an
+unrelated96-DPI reference. Null fonts retain the existing backend default policy.
+This is an intentional change to the borrowed backend argument, not public Font
+ownership or a new platform callback contract. Retained drawing copies glyph
+arrays and retains the actual TtfFont/scalar size before this projection retires.
 
-Focused source regressions cover pre-handle and live 192-DPI metrics, logical
-96 despite presentation scaling, DPI/handle replacement cache invalidation, and
-caller measurement DPI. Real backend recorded-command tests compare retained
+`FontHeight` uses the original source font's fractional line metric at the initial
+system reference and rounds only the final height, matching native `Font.Height`;
+it does not reuse the TextRenderer em-rounding step. Its existing source-font
+cache invalidation remains authoritative. ListBox rows and real ComboBox editor
+bounds use this metric. A caller Graphics still owns its clip, transform and DPI;
+canonical TextRenderer does not reinterpret source font size using that target.
+Ordinary `Graphics.DrawString`, `MeasureString` and `Font.GetHeight(Graphics)` keep
+their actual-target semantics. SystemAware keeps the initial font reference on a
+monitor change; native desktop virtualization is not emulated by multiplying text.
+
+Focused source regressions cover pre-handle and live192-DPI metrics, logical
+96 despite presentation scaling, font-cache/source updates across DPI/handle
+replacement, and caller measurement DPI. Real backend recorded-command tests compare retained
 frame/layer measurement and glyph sizes at 96 and 192. These are not native
 appearance, installed-package, input or full popup parity qualification. The
 original paired captures remain failure evidence; no new desktop run occurred.
+
+The first PR87 version incorrectly multiplied PMv2 font scaling a second time.
+Nine independent source controls now distinguish the font reference from Graphics
+DPI. The original product with eight controls retained **six failures/two passes**
+in `font-reference-baseline-tests.log` (source-only, no native execution). Literal
+transition expectations are24→12→24px for a9pt source starting on a192-DPI window,
+both when the primary/system reference is192 and when it is96. The public source
+sizes are9→4.5→9pt in the first case and18→9→18pt in the second. Pixel12 remains12;
+9.1pt at initial192 uses25px TextRenderer em but a24.266… fractional em for line
+metrics. A144-DPI raw DrawString9pt records18px, while canonical TextRenderer at
+initial192 records24px. These expectations come from checked-in canonical source,
+not from comparing two paths which derive the same potentially incorrect Font.
 
 ## Local source evidence
 

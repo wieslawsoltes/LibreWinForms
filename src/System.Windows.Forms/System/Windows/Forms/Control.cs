@@ -2195,6 +2195,8 @@ public unsafe partial class Control :
 
     private int GetFontHeightForTarget(Font font)
 #if LIBREWINFORMS_PORTABLE
+        // Unlike FontCache's GDI em-height rounding, canonical Font.Height
+        // rounds only the final GDI+ line metric at the screen reference DPI.
         => (int)Math.Ceiling(font.GetHeight(PortableFontDpi));
 #else
         => font.Height;
@@ -2203,17 +2205,7 @@ public unsafe partial class Control :
 #if LIBREWINFORMS_PORTABLE
     internal int PortableFontHeight => FontHeight;
 
-    private int PortableFontDpi
-    {
-        get
-        {
-            Control root = GetPortableTopLevelControl();
-            return root._window.PortableWindow is not null
-                ? root._window.PortableCoordinateMode == LibreWindowCoordinateMode.DevicePixels
-                    ? LibreWindowCoordinates.ToDeviceDpi(root._window.PortablePresentationScale) : 96
-                : ScaleHelper.PortableScreenDpi;
-        }
-    }
+    private static int PortableFontDpi => ScaleHelper.InitialSystemDpi;
 #endif
 
     /// <summary>

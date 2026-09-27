@@ -43,7 +43,8 @@ public partial class CanonicalLifecycleTests
 
         TextBoxPaintCall call = platform.TextBoxDraws.Should().ContainSingle().Subject;
         call.Text.Should().Be(editor.Text);
-        call.Font.Should().BeSameAs(font);
+        editor.Font.Should().BeSameAs(font);
+        AssertCanonicalProjectedFont(call.Font, font, 19f);
         call.Bounds.Should().Be(editor.ClientRectangle);
         call.ForeColor.Should().Be(Color.Navy);
         call.Format.Should().Be(LibreTextFormat.TextBoxControl | LibreTextFormat.NoPrefix
@@ -210,12 +211,14 @@ public partial class CanonicalLifecycleTests
         editor.IsHandleCreated.Should().BeTrue();
         platform.TextBoxDraws.Clear();
         using Bitmap target = new(editor.Width, editor.Height);
+        Font sourceFont = editor.Font;
 
         editor.DrawToBitmap(target, new Rectangle(Point.Empty, editor.Size));
 
         TextBoxPaintCall call = platform.TextBoxDraws.Should().ContainSingle().Subject;
         call.Text.Should().Be("Alice");
-        call.Font.Should().BeSameAs(editor.Font);
+        editor.Font.Should().BeSameAs(sourceFont);
+        AssertCanonicalProjectedFont(call.Font, sourceFont, MathF.Ceiling(sourceFont.SizeInPoints * 96f / 72f));
         call.Bounds.Should().Be(editor.ClientRectangle);
         editor.Text.Should().Be("Alice");
         grid.IsCurrentCellInEditMode.Should().BeTrue();
@@ -308,7 +311,7 @@ public partial class CanonicalLifecycleTests
     }
 
     private readonly record struct TextBoxPaintCall(
-        string Text, Font Font, Rectangle Bounds, Color ForeColor, LibreTextFormat Format, RectangleF Clip);
+        string Text, CanonicalTextFontDescriptor Font, Rectangle Bounds, Color ForeColor, LibreTextFormat Format, RectangleF Clip);
 
     private sealed class PaintableTextBox : TextBox
     {

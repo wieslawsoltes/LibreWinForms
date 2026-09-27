@@ -145,6 +145,31 @@ public partial class CanonicalLifecycleTests
         control.MetricHeight.Should().Be((int)Math.Ceiling(lineRatio * (9.1f * 192f / 72f)));
     }
 
+    [Fact]
+    public void CanonicalTextFontNullRetainsTheExistingBackendDefaultPolicy()
+    {
+        if (RunDpiCaseInNewProcess()) return;
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        platform.SetMonitors(SystemDpiMonitor(2, 1));
+        Application.SetHighDpiMode(HighDpiMode.SystemAware).Should().BeTrue();
+        platform.ActualTextRenderer = new ProGpuTextRendererService();
+        DrawingContext context = new();
+        DrawingContext direct = new();
+        using Graphics graphics = Graphics.FromProGpuDrawingContext(context, new(0, 0, 1000, 1000), Matrix4x4.Identity, 144f, 144f);
+        using Graphics other = Graphics.FromProGpuDrawingContext(direct, new(0, 0, 1000, 1000), Matrix4x4.Identity, 144f, 144f);
+        const TextFormatFlags flags = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine;
+        const LibreWinForms.Platform.LibreTextFormat format = LibreWinForms.Platform.LibreTextFormat.NoPadding
+            | LibreWinForms.Platform.LibreTextFormat.NoPrefix | LibreWinForms.Platform.LibreTextFormat.SingleLine;
+        TextRenderer.DrawText(graphics, "Alpha", null, new Rectangle(0, 0, 900, 900), Color.Black, flags);
+        platform.LastDrawnTextFont.Should().BeNull();
+        ProGpuTextRendererService renderer = new();
+        renderer.DrawText(other, "Alpha", null, new Rectangle(0, 0, 900, 900), Color.Black, Color.Empty, format);
+        context.Commands.Single(c => c.Type == RenderCommandType.DrawGlyphRun).FontSize.Should()
+            .Be(direct.Commands.Single(c => c.Type == RenderCommandType.DrawGlyphRun).FontSize);
+        TextRenderer.MeasureText(graphics, "Alpha", null, new(900, 900), flags).Should()
+            .Be(renderer.MeasureText(other, "Alpha", null, new(900, 900), format));
+    }
+
     private static void AssertCanonicalRecordedFont(Font source, float targetDpi, float expectedEm)
     {
         float sourceSize = source.Size;
@@ -156,11 +181,18 @@ public partial class CanonicalLifecycleTests
         using Graphics graphics = Graphics.FromProGpuDrawingContext(context, new(0, 0, 1000, 1000), Matrix4x4.Identity, targetDpi, targetDpi);
         const TextFormatFlags flags = TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine;
         TextRenderer.DrawText(graphics, "Alpha", source, new Rectangle(0, 0, 900, 900), Color.Black, flags);
+        HeadlessPlatform platform = (HeadlessPlatform)LibreWinForms.Platform.LibrePlatform.Current.TextRenderer;
+        AssertCanonicalProjectedFont(platform.LastDrawnTextFont!.Value, source, expectedEm);
         RenderCommand command = context.Commands.Single(c => c.Type == RenderCommandType.DrawGlyphRun);
         command.FontSize.Should().Be(expectedEm);
         command.Font.Should().NotBeNull();
         using Font expected = new(source.FontFamily, expectedEm, sourceStyle, GraphicsUnit.Pixel, sourceCharset, sourceVertical);
         ProGpuTextRendererService renderer = new();
+        DrawingContext independentRecording = new();
+        using Graphics independentGraphics = Graphics.FromProGpuDrawingContext(independentRecording, new RectangleF(0, 0, 1000, 1000));
+        renderer.DrawText(independentGraphics, "Alpha", expected, new(0, 0, 900, 900), Color.Black, Color.Empty,
+            LibreWinForms.Platform.LibreTextFormat.NoPadding | LibreWinForms.Platform.LibreTextFormat.NoPrefix | LibreWinForms.Platform.LibreTextFormat.SingleLine);
+        command.Font.Should().BeSameAs(independentRecording.Commands.Single(c => c.Type == RenderCommandType.DrawGlyphRun).Font);
         Size independent = renderer.MeasureText(graphics, "Alpha", expected, new(900, 900),
             LibreWinForms.Platform.LibreTextFormat.NoPadding | LibreWinForms.Platform.LibreTextFormat.NoPrefix | LibreWinForms.Platform.LibreTextFormat.SingleLine);
         TextRenderer.MeasureText(graphics, "Alpha", source, new(900, 900), flags).Should().Be(independent);
@@ -171,5 +203,16 @@ public partial class CanonicalLifecycleTests
         source.Style.Should().Be(sourceStyle);
         source.GdiCharSet.Should().Be(sourceCharset);
         source.GdiVerticalFont.Should().Be(sourceVertical);
+    }
+
+    private static void AssertCanonicalProjectedFont(CanonicalTextFontDescriptor actual, Font source, float em)
+        => actual.Should().Be(new CanonicalTextFontDescriptor(source.FontFamily.Name,
+            em, GraphicsUnit.Pixel, source.Style, source.GdiCharSet, source.GdiVerticalFont));
+
+    private readonly record struct CanonicalTextFontDescriptor(
+        string Family, float Size, GraphicsUnit Unit, FontStyle Style, byte Charset, bool Vertical)
+    {
+        internal static CanonicalTextFontDescriptor Capture(Font font)
+            => new(font.FontFamily.Name, font.Size, font.Unit, font.Style, font.GdiCharSet, font.GdiVerticalFont);
     }
 }

@@ -65,7 +65,7 @@ public partial class CanonicalLifecycleTests
     }
 
     [Fact]
-    public void FontHeightCacheFollowsActualOwnerDpiAndReplacementHandle()
+    public void FontHeightCachePreservesSystemReferenceAcrossOwnerDpiAndHandleChanges()
     {
         if (RunDpiCaseInNewProcess()) return;
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -80,14 +80,18 @@ public partial class CanonicalLifecycleTests
         {
             form.MetricHeight.Should().Be((int)Math.Ceiling(form.Font.GetHeight(192f)));
             platform.SetPresentationScales(3, 1);
-            form.MetricHeight.Should().Be((int)Math.Ceiling(form.Font.GetHeight(288f)));
-            list.GetItemHeight(0).Should().Be((int)Math.Ceiling(list.Font.GetHeight(288f)));
+            form.MetricHeight.Should().Be((int)Math.Ceiling(form.Font.GetHeight(192f)));
+            list.GetItemHeight(0).Should().Be((int)Math.Ceiling(list.Font.GetHeight(192f)));
             platform.SetInitialPresentationScales(1, 1);
             nint old = form.Handle;
             form.ReplaceHandle();
             form.Handle.Should().NotBe(old);
-            form.MetricHeight.Should().Be(form.Font.Height);
-            list.GetItemHeight(0).Should().Be(list.Font.Height);
+            form.MetricHeight.Should().Be((int)Math.Ceiling(form.Font.GetHeight(192f)));
+            list.GetItemHeight(0).Should().Be((int)Math.Ceiling(list.Font.GetHeight(192f)));
+            using Font replacement = new(FontFamily.GenericSansSerif, 18f);
+            form.Font = replacement;
+            form.MetricHeight.Should().Be((int)Math.Ceiling(replacement.GetHeight(192f)));
+            list.GetItemHeight(0).Should().Be((int)Math.Ceiling(replacement.GetHeight(192f)));
         });
     }
 
@@ -108,7 +112,7 @@ public partial class CanonicalLifecycleTests
         {
             child.MetricHeight.Should().Be((int)Math.Ceiling(child.Font.GetHeight(192f)));
             platform.SetPresentationScales(1, 1);
-            child.MetricHeight.Should().Be((int)Math.Ceiling(child.Font.GetHeight(96f)));
+            child.MetricHeight.Should().Be((int)Math.Ceiling(child.Font.GetHeight(192f)));
             platform.SetPresentationScales(2, 1);
             child.MetricHeight.Should().Be((int)Math.Ceiling(child.Font.GetHeight(192f)));
         });

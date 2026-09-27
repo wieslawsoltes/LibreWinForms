@@ -1,10 +1,13 @@
 # Agent Guidance
 
 Portable text uses explicit Drawing target DPI: DevicePixels uses actual window
-resolution, Logical stays96 with presentation scaling. Keep measurement and paint
-in the same units, invalidate FontHeight/retained glyph commands on target DPI
-changes, and preserve source Font identity and caller Graphics authority. Native
-appearance remains a separate gate; see docs/portable-text-target-dpi.md.
+resolution, Logical stays96 with presentation scaling. Canonical TextRenderer
+separately realizes already-scaled source fonts against InitialSystemDpi, as the
+native FontCache does; do not multiply PMv2 font scaling by live target DPI again.
+Pixel fonts remain pixels and FontHeight rounds the fractional line metric only
+at the end, not the GDI em height. Preserve original source Font identity and raw
+Graphics/DrawString semantics. Native appearance remains a separate gate; see
+docs/portable-text-target-dpi.md.
 
 ## LibreWinForms Port Rules
 
