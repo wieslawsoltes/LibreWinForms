@@ -38,7 +38,37 @@ public partial class CanonicalLifecycleTests
         list.IndexFromPoint(first.Left, first.Bottom).Should().Be(2);
         list.IndexFromPoint(-1, first.Top).Should().Be(ListBox.NoMatches);
         list.IndexFromPoint(first.Right, first.Top).Should().Be(ListBox.NoMatches);
-        list.GetItemRectangle(0).Should().Be(Rectangle.Empty);
+        list.GetItemRectangle(0).Should().Be(new Rectangle(inset, inset - font.Height, 150 - 2 * inset, font.Height));
+        list.IsHandleCreated.Should().Be(createHandle);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PortableListBoxOffscreenRectanglesRemainUnclippedAndDoNotBecomeHits(bool createHandle)
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using ListBox list = new() { BorderStyle = BorderStyle.None, IntegralHeight = false };
+        int height = list.Font.Height;
+        list.Size = new Size(120, height * 2);
+        list.Items.AddRange(["one", "two", "three", "four", "five"]);
+        if (createHandle)
+            _ = list.Handle;
+        list.TopIndex = 1;
+
+        list.GetItemRectangle(0).Should().Be(new Rectangle(0, -height, 120, height));
+        list.GetItemRectangle(3).Should().Be(new Rectangle(0, height * 2, 120, height));
+        list.GetItemRectangle(4).Should().Be(new Rectangle(0, height * 3, 120, height));
+        list.IndexFromPoint(1, -1).Should().Be(ListBox.NoMatches);
+        list.IndexFromPoint(1, height * 2).Should().Be(ListBox.NoMatches);
+
+        list.Height += height / 2;
+        list.GetItemRectangle(3).Should().Be(new Rectangle(0, height * 2, 120, height));
+        list.IndexFromPoint(1, height * 2).Should().Be(3);
+        Action negativeIndex = () => list.GetItemRectangle(-1);
+        Action pastEnd = () => list.GetItemRectangle(list.Items.Count);
+        negativeIndex.Should().Throw<ArgumentOutOfRangeException>();
+        pastEnd.Should().Throw<ArgumentOutOfRangeException>();
         list.IsHandleCreated.Should().Be(createHandle);
     }
 
@@ -128,7 +158,7 @@ public partial class CanonicalLifecycleTests
             list.SelectedIndices.Count.Should().Be(1);
             list.SelectedIndices[0].Should().Be(expected);
             list.GetSelected(expected).Should().BeTrue();
-            list.GetItemRectangle(expected).Should().NotBe(Rectangle.Empty);
+            list.GetItemRectangle(expected).IntersectsWith(list.ClientRectangle).Should().BeTrue();
             notifications.Should().Equal("key", $"selection:{expected}");
         });
     }

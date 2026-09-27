@@ -1471,16 +1471,15 @@ public partial class ListBox : ListControl
 
     /// <summary>
     ///  Retrieves a Rectangle object which describes the bounding rectangle
-    ///  around an item in the list. If the item in question is not visible,
-    ///  the rectangle will be empty.
+    ///  around an item in the list, including coordinates outside the visible
+    ///  portion of the control for an item that is not currently visible.
     /// </summary>
     public Rectangle GetItemRectangle(int index)
     {
         CheckIndex(index);
 #if LIBREWINFORMS_PORTABLE
         EnsurePortableListMode();
-        Rectangle row = GetPortableRowRectangle(index);
-        return row.IntersectsWith(GetPortableListViewport()) ? row : Rectangle.Empty;
+        return GetPortableRowRectangle(index);
 #else
         RECT rect = default;
         if (PInvokeCore.SendMessage(this, PInvoke.LB_GETITEMRECT, (uint)index, ref rect) == 0)
