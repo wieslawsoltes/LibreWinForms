@@ -244,6 +244,15 @@ jobs:
           ref: ${{ env.LIBREWINFORMS_CANONICAL_WFI_REF }}
           path: artifacts/checkouts/wpf-canonical
 
+      - name: Install Linux display for SDK initialization
+        shell: bash
+        run: |
+          ./external/ProGPU/eng/progpu-install-linux-packages.sh \
+            xvfb \
+            libglfw3 \
+            libvulkan1 \
+            mesa-vulkan-drivers
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -267,7 +276,7 @@ jobs:
           LIBREWINFORMS_CANONICAL_WFI_SOURCE_ROOT="${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-canonical" \
           LIBREWINFORMS_CANONICAL_WFI_EXPECTED_COMMIT="${canonical_wfi_commit}" \
           LIBREWINFORMS_CANONICAL_WFI_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-canonical/artifacts/packages/CanonicalWinForms" \
-          ./eng/librewinforms-build-canonical-wfi.sh
+          xvfb-run -a ./eng/librewinforms-build-canonical-wfi.sh
           echo "LIBREWINFORMS_CANONICAL_WFI_COMMIT=${canonical_wfi_commit}" >> "${GITHUB_ENV}"
           echo "LIBREWINFORMS_CANONICAL_WFI_PACKAGE_SOURCE=${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-canonical/artifacts/packages/CanonicalWinForms" >> "${GITHUB_ENV}"
 
@@ -285,14 +294,14 @@ jobs:
           set -euo pipefail
           export LIBREWINFORMS_PROGPU_COMMIT="$(git -C external/ProGPU rev-parse HEAD)"
           export LIBREWINFORMS_REQUIRE_CLEAN=1
-          ./eng/librewinforms-pack.sh
+          xvfb-run -a ./eng/librewinforms-pack.sh
 
       - name: Run package-mode SDK smoke
         shell: bash
         run: |
           set -euo pipefail
           export LIBREWINFORMS_BRIDGE_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-bridge/artifacts/packages/Release/NonShipping"
-          ./eng/librewinforms-package-smoke.sh
+          xvfb-run -a ./eng/librewinforms-package-smoke.sh
 
       - name: Upload packages
         uses: actions/upload-artifact@v4

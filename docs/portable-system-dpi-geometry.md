@@ -102,3 +102,14 @@ parent deliberately inherited CI and forced redirected-console colors. The
 source build completed with zero errors and the same 623 warnings. This proves
 the isolated summary contract locally; the new exact-head hosted Build and
 installed package matrix remain required.
+
+The next hosted Build (`36281860166`) passed the corrected source-test phase but
+its separate Package lane failed in `Pack LibreWinForms`: the SDK's SystemAware
+initialization reached `SilkMonitorService.GetMonitors` without a Linux display.
+The source-first lane already used Xvfb; the second lane also invokes SDK source
+consumers while packing and during its explicit package smoke. That lane now
+installs the same display/GLFW/software-adapter dependencies and wraps each
+consumer-bearing WFI, pack and package-smoke command in `xvfb-run -a`. The product
+still rejects unavailable monitor metadata; no fabricated 96-DPI monitor,
+assertion change, skipped consumer or extended deadline was introduced. Original
+failed evidence is retained and a new whole exact-head Build remains required.
