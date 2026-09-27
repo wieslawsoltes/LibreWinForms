@@ -2,7 +2,6 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 using FluentAssertions;
 using LibreWinForms.Platform;
@@ -129,6 +128,7 @@ public partial class CanonicalLifecycleTests
                     platform.SendControlInput(owner, new LibreInputEvent(kind, 1, LibreInputModifiers.None,
                         LibreKey.Unknown, null, new LibrePoint(p.X, p.Y), default, LibrePointerButton.Primary));
             }
+
             combo.DroppedDown.Should().BeTrue();
             SendDropdownKey(platform, owner, LibreKey.Escape);
             combo.DroppedDown.Should().BeFalse();
@@ -425,14 +425,16 @@ public partial class CanonicalLifecycleTests
         graphics.SetClip(new Rectangle(4, 3, 170, 24));
         RectangleF before = graphics.ClipBounds;
         combo.PaintContent(graphics, new Rectangle(6, 5, 150, 20));
-        TextBoxPaintCall call = platform.TextBoxDraws.Should().ContainSingle().Subject;
-        call.Text.Should().Be("A&🙂 אב");
-        call.Font.Should().BeSameAs(font);
-        call.ForeColor.Should().Be(Color.Navy);
-        call.Format.Should().HaveFlag(LibreTextFormat.NoPrefix);
-        call.Format.Should().HaveFlag(LibreTextFormat.SingleLine);
-        if (rtl) call.Format.Should().HaveFlag(LibreTextFormat.RightToLeft);
-        else call.Format.Should().NotHaveFlag(LibreTextFormat.RightToLeft);
+        platform.TextDrawStrings.Should().ContainSingle().Which.Should().Be("A&🙂 אב");
+        platform.LastDrawnTextFont.Should().BeSameAs(font);
+        platform.LastDrawnTextColor.Should().Be(Color.Navy);
+        platform.LastTextFormat.Should().HaveFlag(LibreTextFormat.NoPrefix);
+        platform.LastTextFormat.Should().HaveFlag(LibreTextFormat.SingleLine);
+        if (rtl) platform.LastTextFormat.Should().HaveFlag(LibreTextFormat.RightToLeft);
+        else platform.LastTextFormat.Should().NotHaveFlag(LibreTextFormat.RightToLeft);
+        RectangleF expectedClip = RectangleF.Intersect(before, combo.ClientRectangle);
+        expectedClip.Intersect(new Rectangle(6, 5, 150, 20));
+        platform.LastDrawnTextClip.Should().Be(expectedClip);
         graphics.ClipBounds.Should().Be(before);
         combo.SelectedIndex.Should().Be(0);
         combo.IsHandleCreated.Should().BeFalse();

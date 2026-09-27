@@ -133,7 +133,7 @@ public partial class CanonicalLifecycleTests
         platform.TextDrawStrings.Clear();
         list.PaintContent(graphics, list.ClientRectangle);
         platform.TextDrawStrings.Should().BeEmpty();
-        list.Items.Should().BeEmpty();
+        list.Items.Count.Should().Be(0);
     }
 
     [Theory]
@@ -189,6 +189,7 @@ public partial class CanonicalLifecycleTests
             {
                 Application.RemoveMessageFilter(inputFilter);
             }
+
             list.SelectedIndex.Should().Be(2);
             changes.Should().Be(0);
             keys.Should().Be(filter ? 0 : 1);
@@ -266,7 +267,7 @@ public partial class CanonicalLifecycleTests
             list.SelectedIndexChanged += (_, _) => changes++;
             list.Items.RemoveAt(4);
             list.SelectedIndex.Should().Be(-1);
-            list.SelectedItems.Should().BeEmpty();
+            list.SelectedItems.Count.Should().Be(0);
             changes.Should().Be(1);
             list.TopIndex = int.MaxValue;
             list.TopIndex.Should().Be(list.Items.Count - 3);

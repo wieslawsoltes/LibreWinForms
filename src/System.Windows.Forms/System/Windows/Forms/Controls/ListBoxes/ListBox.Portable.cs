@@ -102,7 +102,7 @@ public partial class ListBox
                 if (!row.IntersectsWith(e.ClipRectangle) || row.Width <= 0 || viewport.Height <= 0)
                     continue;
 
-                string text = GetItemText(Items[index]);
+                string? text = GetItemText(Items[index]);
                 // Formatting can run user code and retire or replace the list.
                 // Do not render old item indices into a changed collection.
                 if (IsDisposed || Disposing || items.Version != version)
@@ -128,7 +128,7 @@ public partial class ListBox
     }
 
     protected override bool IsInputKey(Keys keyData)
-        => (keyData & Keys.Alt) == 0 && (keyData & Keys.KeyCode) is Keys.Up or Keys.Down
+        => ((keyData & Keys.Alt) == 0 && (keyData & Keys.KeyCode) is Keys.Up or Keys.Down)
             || base.IsInputKey(keyData);
 
     internal override void ProcessPortableDefaultKeyMessage(ref Message message)

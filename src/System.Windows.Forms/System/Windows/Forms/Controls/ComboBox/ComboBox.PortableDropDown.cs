@@ -265,15 +265,15 @@ public partial class ComboBox
             }
 
             _combo.ValidatePortableDropDownStyle();
-            _entries = _combo.Items.InnerList.ToArray();
-            _items = _entries.Select(entry => entry.Item).ToArray();
+            _entries = [.. _combo.Items.InnerList];
+            _items = [.. _entries.Select(entry => entry.Item)];
             List.Font = _combo.Font;
             List.ForeColor = _combo.ForeColor;
             List.BackColor = _combo.BackColor;
             List.RightToLeft = _combo.RightToLeft;
             foreach (object item in _items)
             {
-                string text = _combo.GetItemText(item);
+                string text = _combo.GetItemText(item) ?? string.Empty;
                 // Format is a public callback. Never finish an obsolete source
                 // generation or admit stale indices after it changes Items.
                 if (!SourceIsLive)
