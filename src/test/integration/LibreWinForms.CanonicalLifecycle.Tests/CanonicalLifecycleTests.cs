@@ -7263,7 +7263,7 @@ public partial class CanonicalLifecycleTests
             if (text == "j^")
             {
                 graphics.Should().NotBeNull();
-                proposedSize.Should().Be(new Size(short.MaxValue, (int)(font!.Height * 1.25)));
+                proposedSize.Should().Be(new Size(short.MaxValue, (int)(Math.Ceiling(font!.GetHeight(graphics!)) * 1.25)));
                 format.Should().Be(LibreTextFormat.SingleLine);
                 return new Size(12, font.Height);
             }
@@ -7298,15 +7298,17 @@ public partial class CanonicalLifecycleTests
                 return new Size(text.Length * 7, font!.Height);
             }
 
-            if (graphics is null
-                && proposedSize == Size.Empty
+            if (proposedSize == Size.Empty
                 && format.HasFlag(LibreTextFormat.NoPadding)
                 && format.HasFlag(LibreTextFormat.NoPrefix))
             {
                 return new Size(Math.Max(1, text.Length * 7), font!.Height);
             }
 
-            if (graphics is null && text != "headless")
+            // Source screen measurement now has an explicit DPI-bearing Graphics.
+            // Keep the named device-context controls distinct from ordinary text;
+            // nullability is no longer their discriminator.
+            if (text is not ("headless" or "managed"))
             {
                 int availableWidth = proposedSize.Width is > 0 and < int.MaxValue
                     ? proposedSize.Width
@@ -7316,8 +7318,10 @@ public partial class CanonicalLifecycleTests
                 return new Size(width, font!.Height * lineCount);
             }
 
-            if (graphics is null)
+            if (text == "headless")
             {
+                graphics.Should().NotBeNull();
+                graphics!.DpiY.Should().Be(96f);
                 text.Should().Be("headless");
                 proposedSize.Should().Be(new Size(70, 30));
                 format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
@@ -7325,6 +7329,7 @@ public partial class CanonicalLifecycleTests
             }
 
             text.Should().Be("managed");
+            graphics.Should().NotBeNull();
             proposedSize.Should().Be(new Size(80, 40));
             format.Should().Be(LibreTextFormat.WordBreak | LibreTextFormat.LeftAndRightPadding);
             return new Size(37, 19);

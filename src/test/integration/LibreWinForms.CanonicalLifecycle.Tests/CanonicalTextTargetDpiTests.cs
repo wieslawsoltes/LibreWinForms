@@ -28,6 +28,10 @@ public partial class CanonicalLifecycleTests
         form.MetricHeight.Should().Be(expected);
         list.GetItemHeight(0).Should().Be(expected);
         combo.ItemHeight.Should().Be(expected + 2);
+        using DpiMetricControl detached = new() { Font = font };
+        detached.MetricHeight.Should().Be(expected);
+        _ = detached.Handle;
+        detached.MetricHeight.Should().Be(expected, "a logical handle is not an actual 96-DPI native window");
         TextRenderer.MeasureText("target dpi text", font);
         platform.LastMeasuredDpi.Should().Be(192f);
         RunSystemDpiForm(platform, form, () =>
@@ -105,5 +109,10 @@ public partial class CanonicalLifecycleTests
     {
         internal int MetricHeight => FontHeight;
         internal void ReplaceHandle() => RecreateHandle();
+    }
+
+    private sealed class DpiMetricControl : Control
+    {
+        internal int MetricHeight => FontHeight;
     }
 }

@@ -2201,7 +2201,7 @@ public unsafe partial class Control :
         get
         {
             Control root = GetPortableTopLevelControl();
-            return root.IsHandleCreated
+            return root._window.PortableWindow is not null
                 ? root._window.PortableCoordinateMode == LibreWindowCoordinateMode.DevicePixels
                     ? LibreWindowCoordinates.ToDeviceDpi(root._window.PortablePresentationScale) : 96
                 : ScaleHelper.PortableScreenDpi;
