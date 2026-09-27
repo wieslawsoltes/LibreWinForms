@@ -62,11 +62,10 @@ internal static partial class ScaleHelper
     private static void InitializeStatics()
     {
 #if LIBREWINFORMS_PORTABLE
-        // System-aware controls use the primary display's initial DPI, not the
-        // nearest window's later presentation scale. PMv2 retains its existing
-        // per-window initialization before HandleCreated.
+        // All aware modes capture the primary display's initial DPI, matching
+        // GetDpiForSystem. PMv2 scales source fonts relative to this reference.
         s_processPerMonitorAware = s_portableHighDpiMode is HighDpiMode.PerMonitor or HighDpiMode.PerMonitorV2;
-        InitialSystemDpi = s_portableHighDpiMode is HighDpiMode.SystemAware or HighDpiMode.PerMonitor
+        InitialSystemDpi = s_portableHighDpiMode is HighDpiMode.SystemAware or HighDpiMode.PerMonitor or HighDpiMode.PerMonitorV2
             ? GetPortableSystemDpi()
             : OneHundredPercentLogicalDpi;
 #else
@@ -118,6 +117,10 @@ internal static partial class ScaleHelper
     internal static LibreWindowCoordinateMode PortableCoordinateMode
         => s_portableHighDpiMode is HighDpiMode.SystemAware or HighDpiMode.PerMonitor or HighDpiMode.PerMonitorV2
             ? LibreWindowCoordinateMode.DevicePixels : LibreWindowCoordinateMode.Logical;
+
+    // Canonical font realization uses the captured screen reference, not the
+    // current window DPI: PMv2 has already scaled the source Font itself.
+    internal static int PortableScreenDpi => InitialSystemDpi;
 
     internal static IReadOnlyList<LibreMonitor> GetPortableMonitors()
         => LibrePlatform.Current.Monitors.GetMonitors()
@@ -519,7 +522,7 @@ internal static partial class ScaleHelper
             s_portableDpiConfiguring = true;
             try
             {
-                int initialDpi = highDpiMode is HighDpiMode.SystemAware or HighDpiMode.PerMonitor
+                int initialDpi = highDpiMode is HighDpiMode.SystemAware or HighDpiMode.PerMonitor or HighDpiMode.PerMonitorV2
                     ? GetPortableSystemDpi() : OneHundredPercentLogicalDpi;
                 s_portableHighDpiMode = highDpiMode;
                 s_processPerMonitorAware = highDpiMode is HighDpiMode.PerMonitor or HighDpiMode.PerMonitorV2;

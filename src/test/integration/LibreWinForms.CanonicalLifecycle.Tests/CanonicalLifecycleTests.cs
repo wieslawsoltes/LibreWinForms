@@ -5036,15 +5036,16 @@ public partial class CanonicalLifecycleTests
         platform.SetInitialPresentationScales(dpiScale: 2.0, framebufferScale: 2.0);
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2).Should().BeTrue();
 
-        using Form form = new()
-        {
-            AutoScaleMode = AutoScaleMode.Dpi,
-            AutoScaleDimensions = new SizeF(96, 96),
-            StartPosition = FormStartPosition.Manual,
-            Bounds = new Rectangle(10, 20, 400, 300),
-        };
+        using Form form = new();
+        // Designer initialization defers autoscaling until all design bounds exist.
+        form.SuspendLayout();
+        form.AutoScaleMode = AutoScaleMode.Dpi;
+        form.AutoScaleDimensions = new SizeF(96, 96);
+        form.StartPosition = FormStartPosition.Manual;
+        form.Bounds = new Rectangle(10, 20, 400, 300);
         using Control child = new() { Bounds = new Rectangle(20, 30, 100, 40) };
         form.Controls.Add(child);
+        form.ResumeLayout(true);
 
         int initialFormDpi = 0;
         int initialChildDpi = 0;
@@ -5136,13 +5137,14 @@ public partial class CanonicalLifecycleTests
         platform.SetInitialPresentationScales(dpiScale: 2.0, framebufferScale: 1.0);
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2).Should().BeTrue();
 
-        using Form form = new()
-        {
-            AutoScaleMode = AutoScaleMode.Dpi,
-            AutoScaleDimensions = new SizeF(96, 96),
-            StartPosition = FormStartPosition.Manual,
-            Bounds = new Rectangle(10, 20, 400, 300),
-        };
+        using Form form = new();
+        // Match the generated designer transaction at the actual system DPI.
+        form.SuspendLayout();
+        form.AutoScaleMode = AutoScaleMode.Dpi;
+        form.AutoScaleDimensions = new SizeF(96, 96);
+        form.StartPosition = FormStartPosition.Manual;
+        form.Bounds = new Rectangle(10, 20, 400, 300);
+        form.ResumeLayout(true);
         Rectangle initialManagedBounds = default;
         LibreRectangle initialNativeBounds = default;
 
@@ -6283,10 +6285,12 @@ public partial class CanonicalLifecycleTests
         internal int TextMeasureCount { get; private set; }
         internal Rectangle LastTextBounds { get; private set; }
         internal LibreTextFormat LastTextFormat { get; private set; }
-        internal Font? LastDrawnTextFont { get; private set; }
+        internal CanonicalTextFontDescriptor? LastDrawnTextFont { get; private set; }
         internal Color LastDrawnTextColor { get; private set; }
         internal RectangleF LastDrawnTextClip { get; private set; }
         internal string LastMeasuredText { get; private set; } = string.Empty;
+        internal float? LastMeasuredDpi { get; private set; }
+        internal ILibreTextRendererService? ActualTextRenderer { get; set; }
 
         public bool HighContrast => false;
         public Font GetMenuFont(int dpi)
@@ -7173,6 +7177,13 @@ public partial class CanonicalLifecycleTests
             Color backColor,
             LibreTextFormat format)
         {
+            if (ActualTextRenderer is { } actual)
+            {
+                LastDrawnTextFont = font is null ? null : CanonicalTextFontDescriptor.Capture(font);
+                actual.DrawText(graphics, text, font, bounds, foreColor, backColor, format);
+                return;
+            }
+
             TextDrawCount++;
             TextDrawStrings.Add(text);
             font.Should().NotBeNull();
@@ -7183,7 +7194,7 @@ public partial class CanonicalLifecycleTests
                 bounds.Width.Should().BeGreaterThan(0);
                 bounds.Height.Should().BeGreaterThan(0);
                 backColor.Should().Be(Color.Empty);
-                TextBoxDraws.Add(new(text, font!, bounds, foreColor, format, graphics.ClipBounds));
+                TextBoxDraws.Add(new(text, CanonicalTextFontDescriptor.Capture(font!), bounds, foreColor, format, graphics.ClipBounds));
             }
             else if (text == "portable")
             {
@@ -7224,7 +7235,7 @@ public partial class CanonicalLifecycleTests
 
             LastTextBounds = bounds;
             LastTextFormat = format;
-            LastDrawnTextFont = font;
+            LastDrawnTextFont = CanonicalTextFontDescriptor.Capture(font!);
             LastDrawnTextColor = foreColor;
             LastDrawnTextClip = graphics.ClipBounds;
             using var marker = new SolidBrush(foreColor);
@@ -7238,13 +7249,19 @@ public partial class CanonicalLifecycleTests
             Size proposedSize,
             LibreTextFormat format)
         {
+            if (ActualTextRenderer is { } actual)
+            {
+                return actual.MeasureText(graphics, text, font, proposedSize, format);
+            }
+
             TextMeasureCount++;
             font.Should().NotBeNull();
             LastTextFormat = format;
             LastMeasuredText = text;
+            LastMeasuredDpi = graphics?.DpiY;
             if (text == "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
             {
-                graphics.Should().BeNull();
+                graphics.Should().NotBeNull();
                 proposedSize.Should().Be(new Size(int.MaxValue, int.MaxValue));
                 format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
                 return new Size(416, font!.Height);
@@ -7252,7 +7269,7 @@ public partial class CanonicalLifecycleTests
 
             if (text == "0")
             {
-                graphics.Should().BeNull();
+                graphics.Should().NotBeNull();
                 proposedSize.Should().Be(new Size(int.MaxValue, int.MaxValue));
                 format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
                 return new Size(8, font!.Height);
@@ -7260,15 +7277,15 @@ public partial class CanonicalLifecycleTests
 
             if (text == "j^")
             {
-                graphics.Should().BeNull();
-                proposedSize.Should().Be(new Size(short.MaxValue, (int)(font!.Height * 1.25)));
+                graphics.Should().NotBeNull();
+                proposedSize.Should().Be(new Size(short.MaxValue, (int)(Math.Ceiling(font!.GetHeight(graphics!)) * 1.25)));
                 format.Should().Be(LibreTextFormat.SingleLine);
                 return new Size(12, font.Height);
             }
 
             if (DateTime.TryParse(text, CultureInfo.CurrentCulture, DateTimeStyles.None, out _))
             {
-                graphics.Should().BeNull();
+                graphics.Should().NotBeNull();
                 proposedSize.Should().Be(new Size(int.MaxValue, int.MaxValue));
                 format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
                 return new Size(72, font!.Height);
@@ -7276,7 +7293,7 @@ public partial class CanonicalLifecycleTests
 
             if (text is "button" or "check" or "radio")
             {
-                graphics.Should().BeNull();
+                graphics.Should().NotBeNull();
                 format.Should().HaveFlag(LibreTextFormat.TextBoxControl);
                 return new Size(text.Length * 7, font!.Height);
             }
@@ -7296,15 +7313,17 @@ public partial class CanonicalLifecycleTests
                 return new Size(text.Length * 7, font!.Height);
             }
 
-            if (graphics is null
-                && proposedSize == Size.Empty
+            if (proposedSize == Size.Empty
                 && format.HasFlag(LibreTextFormat.NoPadding)
                 && format.HasFlag(LibreTextFormat.NoPrefix))
             {
                 return new Size(Math.Max(1, text.Length * 7), font!.Height);
             }
 
-            if (graphics is null && text != "headless")
+            // Source screen measurement now has an explicit DPI-bearing Graphics.
+            // Keep the named device-context controls distinct from ordinary text;
+            // nullability is no longer their discriminator.
+            if (text is not ("headless" or "managed"))
             {
                 int availableWidth = proposedSize.Width is > 0 and < int.MaxValue
                     ? proposedSize.Width
@@ -7314,8 +7333,10 @@ public partial class CanonicalLifecycleTests
                 return new Size(width, font!.Height * lineCount);
             }
 
-            if (graphics is null)
+            if (text == "headless")
             {
+                graphics.Should().NotBeNull();
+                graphics!.DpiY.Should().Be(96f);
                 text.Should().Be("headless");
                 proposedSize.Should().Be(new Size(70, 30));
                 format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
@@ -7323,6 +7344,7 @@ public partial class CanonicalLifecycleTests
             }
 
             text.Should().Be("managed");
+            graphics.Should().NotBeNull();
             proposedSize.Should().Be(new Size(80, 40));
             format.Should().Be(LibreTextFormat.WordBreak | LibreTextFormat.LeftAndRightPadding);
             return new Size(37, 19);

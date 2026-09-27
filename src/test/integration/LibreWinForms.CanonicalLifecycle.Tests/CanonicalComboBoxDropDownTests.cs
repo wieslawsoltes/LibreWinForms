@@ -435,7 +435,8 @@ public partial class CanonicalLifecycleTests
         RectangleF before = graphics.ClipBounds;
         combo.PaintContent(graphics, new Rectangle(6, 5, 150, 20));
         platform.TextDrawStrings.Should().ContainSingle().Which.Should().Be("A&🙂 אב");
-        platform.LastDrawnTextFont.Should().BeSameAs(font);
+        combo.Font.Should().BeSameAs(font);
+        AssertCanonicalProjectedFont(platform.LastDrawnTextFont!.Value, font, 19f);
         platform.LastDrawnTextColor.Should().Be(Color.Navy);
         platform.LastTextFormat.Should().HaveFlag(LibreTextFormat.NoPrefix);
         platform.LastTextFormat.Should().HaveFlag(LibreTextFormat.SingleLine);

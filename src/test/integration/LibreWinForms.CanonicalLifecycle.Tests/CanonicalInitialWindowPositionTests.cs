@@ -258,16 +258,16 @@ public partial class CanonicalLifecycleTests
         platform.SetInitialPresentationScales(2, 1);
         platform.InitialWindowLocation = new LibrePoint(700, 300);
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2).Should().BeTrue();
-        using Form form = new()
-        {
-            ShowIcon = false,
-            AutoScaleMode = AutoScaleMode.Dpi,
-            AutoScaleDimensions = new SizeF(96, 96),
-            StartPosition = FormStartPosition.Manual,
-            Bounds = new Rectangle(10, 20, 400, 300),
-        };
+        using Form form = new() { ShowIcon = false };
+        // Keep design dimensions and bounds in one generated-designer transaction.
+        form.SuspendLayout();
+        form.AutoScaleMode = AutoScaleMode.Dpi;
+        form.AutoScaleDimensions = new SizeF(96, 96);
+        form.StartPosition = FormStartPosition.Manual;
+        form.Bounds = new Rectangle(10, 20, 400, 300);
         using Control child = new() { Bounds = new Rectangle(20, 30, 100, 40) };
         form.Controls.Add(child);
+        form.ResumeLayout(true);
 
         RunSystemDpiForm(platform, form, () =>
         {

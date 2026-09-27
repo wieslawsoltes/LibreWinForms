@@ -507,19 +507,15 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
                     : ScaleHelper.InitialSystemDpi / 96d;
                 if (ScaleHelper.IsThreadPerMonitorV2Aware)
                 {
-                    // Canonical top-level autoscaling changes size but deliberately keeps
-                    // Location unchanged. Create the native window at those eventual managed
-                    // device bounds so initialization does not visibly reposition it.
-                    LibreRectangle scaledSize = LibreWindowCoordinates.ToManaged(
-                        new LibreRectangle(0, 0, requestedBounds.Width, requestedBounds.Height),
-                        coordinateMode,
-                        initialDpiScale,
-                        initialDpiScale);
+                    // Requested bounds already belong to the source Form's current DPI,
+                    // including any completed designer autoscale. Apply only the remaining
+                    // source-to-monitor ratio, not another target/96 presentation scale.
+                    double sizeScale = (double)LibreWindowCoordinates.ToDeviceDpi(initialDpiScale) / form.DeviceDpiInternal;
                     requestedBounds = new LibreRectangle(
                         requestedBounds.X,
                         requestedBounds.Y,
-                        scaledSize.Width,
-                        scaledSize.Height);
+                        checked((int)Math.Round(requestedBounds.Width * sizeScale, MidpointRounding.AwayFromZero)),
+                        checked((int)Math.Round(requestedBounds.Height * sizeScale, MidpointRounding.AwayFromZero)));
                 }
 
                 bool hasControlBox = _portableStyle.HasFlag(WINDOW_STYLE.WS_SYSMENU);

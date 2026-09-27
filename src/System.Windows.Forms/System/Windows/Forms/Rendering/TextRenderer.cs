@@ -317,10 +317,11 @@ public static class TextRenderer
             return;
 
 #if LIBREWINFORMS_PORTABLE
+        using Font? realizedFont = CreatePortableTextFont(font);
         PortableTextRenderer.DrawText(
             GetPortableGraphics(dc),
             text.ToString(),
-            font,
+            realizedFont,
             bounds,
             foreColor,
             backColor,
@@ -359,10 +360,11 @@ public static class TextRenderer
             return;
         }
 
+        using Font? realizedFont = CreatePortableTextFont(font);
         PortableTextRenderer.DrawText(
             e.GraphicsInternal,
             text,
-            font,
+            realizedFont,
             bounds,
             foreColor,
             backColor,
@@ -560,10 +562,15 @@ public static class TextRenderer
             return Size.Empty;
 
 #if LIBREWINFORMS_PORTABLE
+        using Font? realizedFont = CreatePortableTextFont(font);
+        using Bitmap screen = new(1, 1);
+        int screenDpi = ScaleHelper.PortableScreenDpi;
+        screen.SetResolution(screenDpi, screenDpi);
+        using Graphics graphics = Graphics.FromImage(screen);
         return PortableTextRenderer.MeasureText(
-            graphics: null,
+            graphics,
             text.ToString(),
-            font,
+            realizedFont,
             proposedSize,
             GetPortableTextFormat(flags));
 #else
@@ -587,10 +594,11 @@ public static class TextRenderer
             return Size.Empty;
 
 #if LIBREWINFORMS_PORTABLE
+        using Font? realizedFont = CreatePortableTextFont(font);
         return PortableTextRenderer.MeasureText(
             GetPortableGraphics(dc),
             text.ToString(),
-            font,
+            realizedFont,
             proposedSize,
             GetPortableTextFormat(flags));
 #else
@@ -606,6 +614,26 @@ public static class TextRenderer
     }
 
 #if LIBREWINFORMS_PORTABLE
+    private static Font? CreatePortableTextFont(Font? font)
+    {
+        if (font is null)
+        {
+            // Retain the existing service's default-font policy for a missing
+            // font; there is no caller-owned source font to realize.
+            return null;
+        }
+
+        // FontCache.FromFont realizes canonical GDI text against the initial
+        // system DPI. PMv2 has already scaled Font.Size, so applying the live
+        // Graphics DPI here would scale it twice. Pixel-like units are already
+        // source pixels; ProGPU SizeInPoints uses96 and must not rescale them.
+        float emSize = font.Unit is GraphicsUnit.Pixel or GraphicsUnit.Display or GraphicsUnit.World
+            ? font.Size
+            : ScaleHelper.InitialSystemDpi * font.SizeInPoints / 72f;
+        return new Font(font.FontFamily, MathF.Ceiling(emSize), font.Style,
+            GraphicsUnit.Pixel, font.GdiCharSet, font.GdiVerticalFont);
+    }
+
     private static Graphics GetPortableGraphics(IDeviceContext deviceContext)
         => deviceContext as Graphics
             ?? throw new PlatformNotSupportedException(

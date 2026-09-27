@@ -19,6 +19,7 @@ internal sealed class ProGpuRetainedPaintFrame : ILibreRetainedPaintFrame
     private readonly List<DrawingVisual> _orderedLayers = [];
     private readonly HashSet<LibreHandle> _visited = [];
     private bool _completed;
+    private readonly float _targetDpi;
 
     internal ProGpuRetainedPaintFrame(
         ContainerVisual root,
@@ -28,7 +29,8 @@ internal sealed class ProGpuRetainedPaintFrame : ILibreRetainedPaintFrame
         DrawingVisual reversibleVisual,
         Dictionary<LibreHandle, DrawingVisual> layers,
         LibreRectangle surfaceBounds,
-        LibreRectangle dirtyRectangle)
+        LibreRectangle dirtyRectangle,
+        float targetDpi = 96f)
     {
         _root = root;
         _fallbackVisual = fallbackVisual;
@@ -38,11 +40,13 @@ internal sealed class ProGpuRetainedPaintFrame : ILibreRetainedPaintFrame
         _layers = layers;
         SurfaceBounds = surfaceBounds;
         DirtyRectangle = dirtyRectangle;
+        _targetDpi = targetDpi;
 
         _fallbackVisual.Context.Clear();
         Graphics = Graphics.FromProGpuDrawingContext(
             _fallbackVisual.Context,
-            new RectangleF(0f, 0f, surfaceBounds.Width, surfaceBounds.Height));
+            new RectangleF(0f, 0f, surfaceBounds.Width, surfaceBounds.Height),
+            Matrix4x4.Identity, targetDpi, targetDpi);
     }
 
     public Graphics Graphics { get; }
@@ -91,7 +95,8 @@ internal sealed class ProGpuRetainedPaintFrame : ILibreRetainedPaintFrame
         visual.Context.Clear();
         Graphics graphics = Graphics.FromProGpuDrawingContext(
             visual.Context,
-            new RectangleF(0f, 0f, bounds.Width, bounds.Height));
+            new RectangleF(0f, 0f, bounds.Width, bounds.Height),
+            Matrix4x4.Identity, _targetDpi, _targetDpi);
         graphics.SetClip(new RectangleF(
             clipRectangle.X - bounds.X,
             clipRectangle.Y - bounds.Y,
