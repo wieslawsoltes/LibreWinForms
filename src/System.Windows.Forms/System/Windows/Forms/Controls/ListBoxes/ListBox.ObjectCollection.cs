@@ -397,11 +397,18 @@ public partial class ListBox
 
             // Update InnerArray before calling NativeRemoveAt to ensure that when
             // SelectedIndexChanged is raised (by NativeRemoveAt), InnerArray's state matches wrapped LB state.
+#if LIBREWINFORMS_PORTABLE
+            bool selected = _owner.IsHandleCreated && _owner.SelectedItems.GetSelected(index);
+#endif
             InnerArray.RemoveAt(index);
 
             if (_owner.IsHandleCreated)
             {
                 _owner.NativeRemoveAt(index);
+#if LIBREWINFORMS_PORTABLE
+                if (selected)
+                    _owner.OnSelectedIndexChanged(EventArgs.Empty);
+#endif
             }
 
             _owner.UpdateHorizontalExtent();

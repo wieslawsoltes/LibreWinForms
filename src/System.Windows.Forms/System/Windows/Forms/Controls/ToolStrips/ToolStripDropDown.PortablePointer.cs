@@ -29,6 +29,13 @@ public partial class ToolStripDropDown
                 continue;
             }
 
+            if (source is ComboBox combo && combo.IsPortableDropDownOwner(active)
+                && combo.ClientRectangle.Contains(combo.PointToClient(screenPosition)))
+            {
+                // Its actual source MouseDown owns the close/open toggle.
+                continue;
+            }
+
             active.SetCloseReason(ToolStripDropDownCloseReason.AppClicked);
             active.Visible = false;
             if (GetPortableActiveDropDown() is null)

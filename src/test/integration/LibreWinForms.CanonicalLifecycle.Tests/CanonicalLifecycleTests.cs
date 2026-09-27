@@ -6008,6 +6008,9 @@ public partial class CanonicalLifecycleTests
             TextMeasureCount = 0;
             LastTextBounds = default;
             LastTextFormat = default;
+            LastDrawnTextFont = null;
+            LastDrawnTextColor = default;
+            LastDrawnTextClip = default;
             LastMeasuredText = string.Empty;
             _timerCallback = null;
             _timerGeneration = 0;
@@ -6276,6 +6279,9 @@ public partial class CanonicalLifecycleTests
         internal int TextMeasureCount { get; private set; }
         internal Rectangle LastTextBounds { get; private set; }
         internal LibreTextFormat LastTextFormat { get; private set; }
+        internal Font? LastDrawnTextFont { get; private set; }
+        internal Color LastDrawnTextColor { get; private set; }
+        internal RectangleF LastDrawnTextClip { get; private set; }
         internal string LastMeasuredText { get; private set; } = string.Empty;
 
         public bool HighContrast => false;
@@ -7209,6 +7215,9 @@ public partial class CanonicalLifecycleTests
 
             LastTextBounds = bounds;
             LastTextFormat = format;
+            LastDrawnTextFont = font;
+            LastDrawnTextColor = foreColor;
+            LastDrawnTextClip = graphics.ClipBounds;
             using var marker = new SolidBrush(foreColor);
             graphics.FillRectangle(marker, bounds.X, bounds.Y, 1, 1);
         }
