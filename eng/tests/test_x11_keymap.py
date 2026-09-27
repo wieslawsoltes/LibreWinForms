@@ -33,6 +33,14 @@ class KeymapTests(unittest.TestCase):
         for lock in (0, 16):
             self.assertEqual(KEYMAP.validate_state(*self.fixture(True, lock), owned_shift=True), lock)
 
+    def test_xorg_unpopulated_reply_fields_stay_zero_under_shift(self):
+        for field in ('grabMods', 'compatGrabMods', 'lookupMods', 'compatLookupMods'):
+            fixture = self.fixture(True)
+            self.assertEqual(fixture[0][field], 0)
+            fixture[0][field] = 1
+            with self.subTest(field=field), self.assertRaises(RuntimeError):
+                KEYMAP.validate_state(*fixture, owned_shift=True)
+
     def test_each_unexpected_state_component_rejected(self):
         for name in KEYMAP.FIELDS:
             fixture = self.fixture()

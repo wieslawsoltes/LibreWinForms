@@ -14,8 +14,9 @@ import time
 FIELDS = ('mods', 'baseMods', 'latchedMods', 'lockedMods', 'group', 'lockedGroup',
           'baseGroup', 'latchedGroup', 'compatState', 'grabMods', 'compatGrabMods',
           'lookupMods', 'compatLookupMods', 'ptrBtnState')
-SHIFT_FIELDS = frozenset(('mods', 'baseMods', 'compatState', 'grabMods',
-                         'compatGrabMods', 'lookupMods', 'compatLookupMods'))
+# Xorg ProcXkbGetState zero-initializes grab/lookup reply fields rather than
+# copying the server's derived-state members. Do not invent Shift bits there.
+SHIFT_FIELDS = frozenset(('mods', 'baseMods', 'compatState'))
 NUM_LOCK = 0xFF7F
 MOD2 = 16
 
