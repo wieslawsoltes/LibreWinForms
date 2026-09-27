@@ -14,6 +14,56 @@ namespace LibreWinForms.CanonicalLifecycle.Tests;
 public partial class CanonicalLifecycleTests
 {
     [Fact]
+    public void CanonicalTextFontInitial96To192OwnsMatchingSourceAndNativeBounds()
+    {
+        if (RunDpiCaseInNewProcess()) return;
+        VerifyInitialCanonicalFontAndBounds(1, 2, new Size(400, 300), new Size(800, 600), new Rectangle(40, 60, 200, 80), 24f);
+    }
+
+    [Fact]
+    public void CanonicalTextFontInitial192To96OwnsMatchingSourceAndNativeBounds()
+    {
+        if (RunDpiCaseInNewProcess()) return;
+        VerifyInitialCanonicalFontAndBounds(2, 1, new Size(800, 600), new Size(400, 300), new Rectangle(20, 30, 100, 40), 12f);
+    }
+
+    private static void VerifyInitialCanonicalFontAndBounds(
+        double systemScale, double windowScale, Size before, Size after, Rectangle childAfter, float em)
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        platform.SetMonitors(
+            new LibreWinForms.Platform.LibreMonitor("primary", new(-4000, 0, 2000, 1600), new(-4000, 0, 2000, 1500), systemScale, true)
+            { NativeCoordinateScale = 1 },
+            new LibreWinForms.Platform.LibreMonitor("target", new(0, 0, 2400, 1600), new(0, 0, 2400, 1500), windowScale, false)
+            { NativeCoordinateScale = 1 });
+        platform.SetInitialPresentationScales(windowScale, 1);
+        Application.SetHighDpiMode(HighDpiMode.PerMonitorV2).Should().BeTrue();
+        platform.ActualTextRenderer = new ProGpuTextRendererService();
+        using Font font = new(FontFamily.GenericSansSerif, 9f);
+        using Form form = new() { Font = font, ShowIcon = false };
+        form.SuspendLayout();
+        form.AutoScaleMode = AutoScaleMode.Dpi;
+        form.AutoScaleDimensions = new SizeF(96, 96);
+        form.StartPosition = FormStartPosition.Manual;
+        form.Bounds = new Rectangle(10, 20, 400, 300);
+        using Control child = new() { Bounds = new Rectangle(20, 30, 100, 40) };
+        form.Controls.Add(child);
+        form.ResumeLayout(true);
+        form.DeviceDpi.Should().Be((int)(systemScale * 96));
+        form.Size.Should().Be(before);
+        RunSystemDpiForm(platform, form, () =>
+        {
+            form.DeviceDpi.Should().Be((int)(windowScale * 96));
+            form.Bounds.Should().Be(new Rectangle(new Point(10, 20), after));
+            child.Bounds.Should().Be(childAfter);
+            platform.LastWindowOptions.InitialDpiScale.Should().Be(windowScale);
+            platform.LastWindowOptions.Bounds.Should().Be(new LibreWinForms.Platform.LibreRectangle(10, 20, after.Width, after.Height));
+            platform.LastNativeWindowBounds.Should().Be(new LibreWinForms.Platform.LibreRectangle(10, 20, after.Width, after.Height));
+            AssertCanonicalRecordedFont(form.Font, (float)(windowScale * 96), em);
+        });
+    }
+
+    [Fact]
     public void CanonicalTextFontPrimary192Window192TransitionsUseLiteralEmSizes()
     {
         if (RunDpiCaseInNewProcess()) return;

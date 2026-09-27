@@ -2193,7 +2193,7 @@ public unsafe partial class Control :
         }
     }
 
-    private int GetFontHeightForTarget(Font font)
+    private static int GetFontHeightForTarget(Font font)
 #if LIBREWINFORMS_PORTABLE
         // Unlike FontCache's GDI em-height rounding, canonical Font.Height
         // rounds only the final GDI+ line metric at the screen reference DPI.

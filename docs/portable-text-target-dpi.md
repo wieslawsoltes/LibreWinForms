@@ -83,3 +83,41 @@ The19 context-menu cases and pointer implementation remain byte-identical to
 that parent; all five DPI cases remain included. Evidence is
 `artifacts/text-target-dpi/integrated-557-{build,tests}.log`. Both prerequisite
 whole Builds and the combined exact-head CI remain required before merging.
+
+## Microsoft Windows reference
+
+An independent Microsoft-only ARM64 probe completed three fresh processes using
+SDK/runtime11.0.100-preview.5 /11.0.0-preview.5.26302.115. SystemAware and PMv2
+reported system DPI192; Unaware reported96. No Form/window was created, no input
+or screenshot was taken, and every caller Font descriptor was unchanged.
+For Segoe UI text `AgjyMW 0123456789`, the actual aware results were:
+
+| Font | Font.Height | TextRenderer NoPadding |
+| --- | ---: | ---: |
+|9pt|32|228×32|
+|9.1pt|33|231×35|
+|12px|16|109×15|
+
+TextRenderer results remained identical with caller Graphics at96/144/192 DPI.
+Raw `Font.GetHeight(Graphics)` for9pt instead returned15.9609375/23.941406/
+31.921875. Unaware9pt measured109×15 with Font.Height16; Pixel12 stayed109×15
+and Height16 in all three modes. This independently supports the separate font
+reference and rounding policies, **not** portable pixel equivalence, monitor
+transitions, window behavior or installed-package desktop qualification.
+
+Retained evidence: `librewinforms-font-reference.IWxTwovT/guest-evidence`.
+Receipt SHA256 `39135f93624d5656b58c32474449dfcf37639b179a2b3d09c14d03af5dfed9ce`;
+probe Program.cs `f369631b9539842cbb128a6b20bd199279165eac7f08855d13e8a5e0e0b5ced4`.
+Actually loaded Microsoft Forms DLL SHA256
+`ba7fcd7cb52af40043b57d9c748c74291000b218c2bfc67281990d20b8e2b408`;
+Microsoft Drawing DLL
+`7497e5e79bbee2247895a38eae49bd4b780e43aa322d15911a19f7c72510fded`.
+
+The first corrected full566 run retained563pass/3fail: three older PMv2 fixtures
+set design DPI before Bounds without suspending layout. Their designer-style
+transaction correction preserved every geometry/event assertion. The next full
+run again retained563pass/3fail, now exposing actual native precreation inflation:
+already-scaled source800×600 was multiplied by target/96 into1600×1200. Native
+precreation now uses target DPI/current source Form DPI, without changing X/Y or
+applying framebuffer scaling. Two additional initial96→192 and192→96 cases assert
+source/current/native bounds, child layout and actual recorded font em sizes.
