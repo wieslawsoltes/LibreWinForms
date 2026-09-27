@@ -108,7 +108,38 @@ public partial class CanonicalLifecycleTests
     }
 
     [Fact]
-    public void InitialLocationCallbackDisposalDoesNotPublishHandleCreatedForAReleasedWindow()
+    public void InitialLocationCallbackPreservesCanonicalDisposalDuringCreationRejection()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { ShowIcon = false, StartPosition = FormStartPosition.CenterScreen };
+        int created = 0;
+        LibreHandle retained = default;
+        form.HandleCreated += (_, _) => created++;
+        EventHandler disposeDuringCreation = (_, _) =>
+        {
+            retained = platform.GetWindowHandle(form);
+            form.Dispose();
+        };
+        form.LocationChanged += disposeDuringCreation;
+
+        Action create = () => _ = form.Handle;
+
+        create.Should().Throw<InvalidOperationException>();
+        form.IsDisposed.Should().BeFalse();
+        form.IsHandleCreated.Should().BeTrue();
+        retained.IsNull.Should().BeFalse();
+        platform.Handles.TryGet(retained, out ILibreWindow? _).Should().BeTrue();
+        created.Should().Be(0);
+
+        form.LocationChanged -= disposeDuringCreation;
+        form.Dispose();
+        form.IsDisposed.Should().BeTrue();
+        form.IsHandleCreated.Should().BeFalse();
+        platform.Handles.TryGet(retained, out ILibreWindow? _).Should().BeFalse();
+    }
+
+    [Fact]
+    public void InitialLocationCallbackNativeReleaseDoesNotPublishHandleCreatedForAReleasedWindow()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
         using Form form = new() { ShowIcon = false, StartPosition = FormStartPosition.CenterScreen };
@@ -118,12 +149,12 @@ public partial class CanonicalLifecycleTests
         form.LocationChanged += (_, _) =>
         {
             released = platform.GetWindowHandle(form);
-            form.Dispose();
+            NativeWindow.FromHandle(form.Handle)!.DestroyHandle();
         };
 
         _ = form.Handle;
 
-        form.IsDisposed.Should().BeTrue();
+        form.IsDisposed.Should().BeFalse();
         form.IsHandleCreated.Should().BeFalse();
         released.IsNull.Should().BeFalse();
         platform.Handles.TryGet(released, out ILibreWindow? _).Should().BeFalse();

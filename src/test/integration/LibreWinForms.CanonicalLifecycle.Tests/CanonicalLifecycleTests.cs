@@ -5430,6 +5430,9 @@ public partial class CanonicalLifecycleTests
         child.Controls.Add(descendant);
         form.Controls.Add(child);
         form.Show();
+        Rectangle initialBounds = new(820, 430, 280, 180);
+        form.Bounds.Should().Be(initialBounds, "CenterScreen placement is published during native creation");
+        platform.LastWindowBounds.Should().Be(new LibreRectangle(820, 430, 280, 180));
         platform.SendInput(LibreInputEventKind.FocusGained);
         child.Focus().Should().BeTrue();
 
@@ -5488,7 +5491,7 @@ public partial class CanonicalLifecycleTests
         form.IsHandleCreated.Should().BeTrue();
         form.Created.Should().BeTrue();
         form.Visible.Should().BeTrue();
-        form.Bounds.Should().Be(new Rectangle(20, 30, 280, 180));
+        form.Bounds.Should().Be(initialBounds);
         form.StartPosition.Should().Be(FormStartPosition.CenterScreen);
         child.Handle.Should().Be(recreatedChildHandle);
         descendant.Handle.Should().Be(descendantHandle);

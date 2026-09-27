@@ -40,13 +40,21 @@ input or screenshot capture ran. The attempt is not package, client-geometry or
 UI qualification. Evidence remains under
 `librewinforms-popup-source-macos.KGS978` on the external validation drive.
 
-Thirteen new canonical source cases cover initial manual/center/default placement,
+Fourteen new canonical source cases cover initial manual/center/default placement,
 provider-adjusted position without a move callback, nested conversions, later and
-retired-generation moves, callback reentry/disposal/failure, native popup reuse,
+retired-generation moves, callback reentry/native release/failure, the unchanged
+canonical rejection of disposal during handle creation, native popup reuse,
 SystemAware Windows/Cocoa-declared coordinate units and unchanged PerMonitorV2
-source scaling. The existing full source minimum grows from 479 to 492 without
-changing selectors, skip rejection or deadlines. These cases are authored but
-not compiled or executed yet; no new source-suite or native qualification is
-claimed. Full source/package CI and the unchanged native paired driver remain
-required. Native client geometry must come from an admitted provider contract,
+source scaling. The existing full source minimum grows from 479 to 493 without
+changing selectors, skip rejection or deadlines. The integrated source build
+passed with zero errors (629 existing warnings); the final incremental build had
+zero warnings/errors. All 493 source cases passed with zero skips on macOS ARM64
+using .NET 10.0.5. The first run exposed two fixture assumptions: the centered
+form's accepted position had not previously been asserted, and the canonical
+`Dispose` guard rejects disposal during `CreateHandle`. That guard is unchanged;
+separate rejection and actual native-release cases now retain both contracts.
+Logs are `artifacts/dropdown-keyboard/log/native-position-{final-build,final-tests}.log`.
+This source result is not native UI qualification. Full source/package CI and
+the unchanged native paired driver remain required.
+Native client geometry must come from an admitted provider contract,
 never from subtracting an assumed titlebar from CoreGraphics frame bounds.
