@@ -289,7 +289,8 @@ public partial class CanonicalLifecycleTests
         });
     }
 
-    private static bool RunDpiCaseInNewProcess(bool forceTerminalColors = false, [CallerMemberName] string method = "")
+    private static bool RunDpiCaseInNewProcess(bool forceTerminalColors = false,
+        bool retainedTextLayout = false, [CallerMemberName] string method = "")
     {
         const string marker = "LIBREWINFORMS_DPI_TEST_METHOD";
         string name = $"LibreWinForms.CanonicalLifecycle.Tests.CanonicalLifecycleTests.{method}";
@@ -333,6 +334,11 @@ public partial class CanonicalLifecycleTests
         start.Environment["TERM"] = "dumb";
         start.Environment["DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION"] = "0";
         start.Environment[marker] = name;
+        if (retainedTextLayout)
+        {
+            start.Environment["LIBREWINFORMS_TEST_RETAINED_TEXT"] = "1";
+        }
+
         using Process child = Process.Start(start)!;
         Task<string> stdout = child.StandardOutput.ReadToEndAsync();
         Task<string> stderr = child.StandardError.ReadToEndAsync();

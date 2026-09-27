@@ -6,6 +6,17 @@ namespace System.Windows.Forms;
 
 public abstract partial class TextBoxBase
 {
+    private protected int PortableSelectionActiveEnd
+        => Math.Clamp(_selectionStart + _selectionLength, 0, TextLength);
+
+    private protected void SelectPortableCaret(int position, bool extend)
+    {
+        int length = TextLength;
+        int end = Math.Clamp(position, 0, length);
+        int anchor = extend ? Math.Clamp(_selectionStart, 0, length) : end;
+        SelectInternal(anchor, end - anchor, length);
+    }
+
     // EDIT reports DLGC_WANTCHARS for both single- and multiline controls.
     // Preserve that character admission without changing dialog-key policy:
     // explicit WM_SYSCHAR still takes the canonical mnemonic path first.

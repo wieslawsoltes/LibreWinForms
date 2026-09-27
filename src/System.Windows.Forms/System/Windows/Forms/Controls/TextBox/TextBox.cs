@@ -525,6 +525,9 @@ public partial class TextBox : TextBoxBase
     {
         if (disposing)
         {
+#if LIBREWINFORMS_PORTABLE
+            DisposePortableTextInteraction();
+#endif
             // Reset this just in case, because the SHAutoComplete stuff
             // will subclass this guys wndproc (and nativewindow can't know about it).
             // so this will undo it, but on a dispose we'll be Destroying the window anyway.
@@ -576,6 +579,9 @@ public partial class TextBox : TextBoxBase
 
     protected override void OnFontChanged(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        ReleasePortableTextLayout();
+#endif
         base.OnFontChanged(e);
         if (AutoCompleteMode != AutoCompleteMode.None)
         {
@@ -591,6 +597,7 @@ public partial class TextBox : TextBoxBase
     {
         base.OnGotFocus(e);
 #if LIBREWINFORMS_PORTABLE
+        ResetPortableCaretBlink();
         Invalidate();
 #endif
         if (!_selectionSet)
@@ -656,6 +663,9 @@ public partial class TextBox : TextBoxBase
 
     protected override void OnHandleDestroyed(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        DisposePortableTextInteraction();
+#endif
         _stringSource?.ReleaseAutoComplete();
         _stringSource = null;
 
@@ -675,6 +685,9 @@ public partial class TextBox : TextBoxBase
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
+#if LIBREWINFORMS_PORTABLE
+        ProcessPortableTextMouseDown(e);
+#endif
 
         if (IsHandleCreated && IsAccessibilityObjectCreated)
         {
@@ -734,6 +747,11 @@ public partial class TextBox : TextBoxBase
         // clobber it when we get focus.
         _selectionSet = true;
         base.SelectInternal(start, length, textLen);
+#if LIBREWINFORMS_PORTABLE
+        if (!_portableApplyingCaret) _portableCaretTrailing = false;
+        ResetPortableCaretBlink();
+        Invalidate();
+#endif
     }
 
     /// <summary>

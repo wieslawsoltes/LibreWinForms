@@ -614,6 +614,13 @@ public static class TextRenderer
     }
 
 #if LIBREWINFORMS_PORTABLE
+    internal static ILibreTextLayout CreatePortableTextLayout(ILibreTextLayoutService service,
+        Graphics graphics, string text, Font font, Size size, TextFormatFlags flags)
+    {
+        using Font? realizedFont = CreatePortableTextFont(font);
+        return service.CreateLayout(graphics, text, realizedFont!, size, GetPortableTextFormat(flags));
+    }
+
     private static Font? CreatePortableTextFont(Font? font)
     {
         if (font is null)

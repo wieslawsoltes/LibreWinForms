@@ -14,42 +14,9 @@ public partial class TextBox
         Rectangle bounds = ClientRectangle;
         if (bounds.Width > 0 && bounds.Height > 0)
         {
-            string text = Text;
-            bool placeholder = text.Length == 0 && !Focused;
-            if (placeholder)
-            {
-                text = PlaceholderText;
-            }
-            else if (_useSystemPasswordChar || _passwordChar != '\0')
-            {
-                // Portable display policy only. Keep the actual source text and
-                // UTF-16 selection untouched; never pass secrets to the renderer.
-                char password = _useSystemPasswordChar ? '\u25CF' : _passwordChar;
-                text = new string(password, text.Length);
-            }
-
-            TextFormatFlags flags = TextFormatFlags.TextBoxControl
-                | TextFormatFlags.NoPrefix
-                | TextFormatFlags.NoPadding;
-            if (!Multiline)
-            {
-                flags |= TextFormatFlags.SingleLine;
-            }
-            else if (WordWrap)
-            {
-                flags |= TextFormatFlags.WordBreak;
-            }
-
-            flags |= RtlTranslateHorizontal(TextAlign) switch
-            {
-                HorizontalAlignment.Center => TextFormatFlags.HorizontalCenter,
-                HorizontalAlignment.Right => TextFormatFlags.Right,
-                _ => TextFormatFlags.Left
-            };
-            if (RightToLeft == RightToLeft.Yes)
-            {
-                flags |= TextFormatFlags.RightToLeft;
-            }
+            bool placeholder = TextLength == 0 && !Focused;
+            string text = GetPortableDisplayText(placeholder);
+            TextFormatFlags flags = GetPortableEditorTextFlags();
 
             // Both portable frame paths already carry parent/layer transforms.
             // Intersect instead of replacing that clip, and restore caller state.
@@ -58,10 +25,9 @@ public partial class TextBox
             {
                 e.Graphics.SetClip(bounds, CombineMode.Intersect);
                 e.Graphics.SetClip(e.ClipRectangle, CombineMode.Intersect);
-                TextRenderer.DrawText(
-                    e.Graphics, text, Font, bounds,
-                    !Enabled || placeholder ? SystemColors.GrayText : ForeColor,
-                    flags);
+                Color foreground = !Enabled || placeholder ? SystemColors.GrayText : ForeColor;
+                if (!PaintPortableTextLayout(e, text, placeholder, flags, foreground))
+                    TextRenderer.DrawText(e.Graphics, text, Font, bounds, foreground, flags);
             }
             finally
             {
@@ -74,6 +40,7 @@ public partial class TextBox
 
     protected override void OnTextChanged(EventArgs e)
     {
+        ReleasePortableTextLayout();
         base.OnTextChanged(e);
         Invalidate();
     }
@@ -81,13 +48,42 @@ public partial class TextBox
     protected override void OnEnabledChanged(EventArgs e)
     {
         base.OnEnabledChanged(e);
+        ResetPortableCaretBlink();
         Invalidate();
     }
 
     protected override void OnLostFocus(EventArgs e)
     {
+        _portableCaretTimer?.Stop();
+        if (_portablePointerSelecting && Capture) Capture = false;
+        _portablePointerSelecting = false;
         base.OnLostFocus(e);
         Invalidate();
+    }
+
+    private string GetPortableDisplayText(bool placeholder)
+    {
+        string text = placeholder ? PlaceholderText : Text;
+        if (!placeholder && (_useSystemPasswordChar || _passwordChar != '\0'))
+            return new string(_useSystemPasswordChar ? '\u25CF' : _passwordChar, text.Length);
+        return text;
+    }
+
+    private TextFormatFlags GetPortableEditorTextFlags()
+    {
+        // The source client clip stays fixed while the retained paragraph scrolls.
+        TextFormatFlags flags = TextFormatFlags.TextBoxControl | TextFormatFlags.NoPrefix |
+            TextFormatFlags.NoPadding | TextFormatFlags.NoClipping;
+        if (!Multiline) flags |= TextFormatFlags.SingleLine;
+        else if (WordWrap) flags |= TextFormatFlags.WordBreak;
+        flags |= RtlTranslateHorizontal(TextAlign) switch
+        {
+            HorizontalAlignment.Center => TextFormatFlags.HorizontalCenter,
+            HorizontalAlignment.Right => TextFormatFlags.Right,
+            _ => TextFormatFlags.Left
+        };
+        if (RightToLeft == RightToLeft.Yes) flags |= TextFormatFlags.RightToLeft;
+        return flags;
     }
 }
 #endif

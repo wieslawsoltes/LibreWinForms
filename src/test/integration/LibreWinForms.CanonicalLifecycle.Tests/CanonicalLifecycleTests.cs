@@ -5913,7 +5913,8 @@ public partial class CanonicalLifecycleTests
                 UnsupportedLibreNativeGraphicsInteropService.Instance,
                 this,
                 this,
-                this,
+                Environment.GetEnvironmentVariable("LIBREWINFORMS_TEST_RETAINED_TEXT") == "1"
+                    ? new RetainedTextRendererProbe() : this,
                 this,
                 this,
                 this,
