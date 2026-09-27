@@ -87,7 +87,7 @@ whole Builds and the combined exact-head CI remain required before merging.
 ## Microsoft Windows reference
 
 An independent Microsoft-only ARM64 probe completed three fresh processes using
-SDK/runtime11.0.100-preview.5 /11.0.0-preview.5.26302.115. SystemAware and PMv2
+SDK11.0.100-preview.5.26302.115 / runtime11.0.0-preview.5.26302.115. SystemAware and PMv2
 reported system DPI192; Unaware reported96. No Form/window was created, no input
 or screenshot was taken, and every caller Font descriptor was unchanged.
 For Segoe UI text `AgjyMW 0123456789`, the actual aware results were:
@@ -121,3 +121,18 @@ already-scaled source800×600 was multiplied by target/96 into1600×1200. Native
 precreation now uses target DPI/current source Form DPI, without changing X/Y or
 applying framebuffer scaling. Two additional initial96→192 and192→96 cases assert
 source/current/native bounds, child layout and actual recorded font em sizes.
+
+Final actual source `036c6f2c760ed8f70b0944a440561917e38a7d83` passed the full
+**568/568** canonical suite with zero failures/skips in26.129s on.NET10.0.5 ARM64.
+Build:0errors/630existingwarnings,72.68s. All original cases,19 context-menu cases
+and11 additional independent font/initial-geometry cases are included; the full
+CI gate minimum is568. No native portable UI execution or pixel-parity claim is
+made. The original failed receipts remain retained, not reclassified as passing.
+
+`font-reference-native-bounds-568-tests.log` SHA256:
+`55c2d2053ea0bf5ccd1d26e8b80ca5aaba43c917da56c31939c10297fecdcae3`.
+Actual canonical Forms DLL:
+`1c0b2e2e659d47bef5e85e24026b3c4bbd23d9f987db42c113c9563587941dda`;
+actual test DLL (including unchanged linked ProGpuTextRendererService source):
+`d8c2b1bc9fc3eda57661a69db16cece9d389a64ab8ef921ddf512106a2f1a13c`.
+All files are under the same task tree's `artifacts/text-target-dpi` / `artifacts/bin`.
