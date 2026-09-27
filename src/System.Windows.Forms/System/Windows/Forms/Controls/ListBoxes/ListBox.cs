@@ -1446,7 +1446,7 @@ public partial class ListBox : ListControl
 
 #if LIBREWINFORMS_PORTABLE
         EnsurePortableListMode();
-        return Font.Height;
+        return FontHeight;
 #else
 
         if (_drawMode != DrawMode.OwnerDrawVariable)
@@ -1559,7 +1559,7 @@ public partial class ListBox : ListControl
         if (!viewport.Contains(x, y))
             return NoMatches;
 
-        int index = GetPortableTopIndex() + (y - viewport.Top) / Font.Height;
+        int index = GetPortableTopIndex() + (y - viewport.Top) / FontHeight;
         return index < Items.Count ? index : NoMatches;
 #else
         // NT4 SP6A : SendMessage Fails. So First check whether the point is in Client Co-ordinates and then

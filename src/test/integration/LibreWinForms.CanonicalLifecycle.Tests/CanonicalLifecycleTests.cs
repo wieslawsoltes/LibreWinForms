@@ -6287,6 +6287,7 @@ public partial class CanonicalLifecycleTests
         internal Color LastDrawnTextColor { get; private set; }
         internal RectangleF LastDrawnTextClip { get; private set; }
         internal string LastMeasuredText { get; private set; } = string.Empty;
+        internal float? LastMeasuredDpi { get; private set; }
 
         public bool HighContrast => false;
         public Font GetMenuFont(int dpi)
@@ -7242,9 +7243,10 @@ public partial class CanonicalLifecycleTests
             font.Should().NotBeNull();
             LastTextFormat = format;
             LastMeasuredText = text;
+            LastMeasuredDpi = graphics?.DpiY;
             if (text == "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
             {
-                graphics.Should().BeNull();
+                graphics.Should().NotBeNull();
                 proposedSize.Should().Be(new Size(int.MaxValue, int.MaxValue));
                 format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
                 return new Size(416, font!.Height);
@@ -7252,7 +7254,7 @@ public partial class CanonicalLifecycleTests
 
             if (text == "0")
             {
-                graphics.Should().BeNull();
+                graphics.Should().NotBeNull();
                 proposedSize.Should().Be(new Size(int.MaxValue, int.MaxValue));
                 format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
                 return new Size(8, font!.Height);
@@ -7260,7 +7262,7 @@ public partial class CanonicalLifecycleTests
 
             if (text == "j^")
             {
-                graphics.Should().BeNull();
+                graphics.Should().NotBeNull();
                 proposedSize.Should().Be(new Size(short.MaxValue, (int)(font!.Height * 1.25)));
                 format.Should().Be(LibreTextFormat.SingleLine);
                 return new Size(12, font.Height);
@@ -7268,7 +7270,7 @@ public partial class CanonicalLifecycleTests
 
             if (DateTime.TryParse(text, CultureInfo.CurrentCulture, DateTimeStyles.None, out _))
             {
-                graphics.Should().BeNull();
+                graphics.Should().NotBeNull();
                 proposedSize.Should().Be(new Size(int.MaxValue, int.MaxValue));
                 format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
                 return new Size(72, font!.Height);
@@ -7276,7 +7278,7 @@ public partial class CanonicalLifecycleTests
 
             if (text is "button" or "check" or "radio")
             {
-                graphics.Should().BeNull();
+                graphics.Should().NotBeNull();
                 format.Should().HaveFlag(LibreTextFormat.TextBoxControl);
                 return new Size(text.Length * 7, font!.Height);
             }

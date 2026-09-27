@@ -308,7 +308,7 @@ public partial class ComboBox
         Rectangle text = GetPortableComboBoxTextBounds();
         // TextBox already owns real source font metrics and text rendering.
         // Center its single line without approximating any character widths.
-        int height = Math.Min(Math.Max(0, text.Height), editor.Font.Height);
+        int height = Math.Min(Math.Max(0, text.Height), editor.PortableFontHeight);
         editor.Bounds = new Rectangle(text.X, text.Y + (text.Height - height) / 2, Math.Max(0, text.Width), height);
     }
 }

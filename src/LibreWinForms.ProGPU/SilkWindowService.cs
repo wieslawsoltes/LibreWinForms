@@ -347,6 +347,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
     private volatile WgpuContext? _wgpuContext;
     private Compositor? _compositor;
     private bool _paintQueued;
+    private float _lastPaintDpi = 96f;
     private bool _presentationQueued;
     private LibreRectangle? _dirtyRectangle;
     private LibreHandle _owner;
@@ -943,9 +944,11 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         LibreRectangle windowBounds = Bounds;
         if (windowBounds.Width > 0 && windowBounds.Height > 0 && operations.Count > 0)
         {
+            float dpi = DrawingDpi;
             using Graphics graphics = Graphics.FromProGpuDrawingContext(
                 _reversiblePaintVisual.Context,
-                new RectangleF(0f, 0f, windowBounds.Width, windowBounds.Height));
+                new RectangleF(0f, 0f, windowBounds.Width, windowBounds.Height),
+                Matrix4x4.Identity, dpi, dpi);
             graphics.SetClip(new RectangleF(0f, 0f, windowBounds.Width, windowBounds.Height));
 
             foreach (ProGpuReversibleDrawingOperation operation in operations)
@@ -1045,6 +1048,9 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         }
     }
 
+    private float DrawingDpi => _coordinateMode == LibreWindowCoordinateMode.DevicePixels
+        ? LibreWindowCoordinates.ToDeviceDpi(DpiScale) : 96f;
+
     internal Graphics CreateGraphics(
         LibrePoint origin,
         LibreRectangle clipRectangle)
@@ -1054,10 +1060,12 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
             ?? throw new InvalidOperationException("The ProGPU window drawing context is not initialized.");
         DrawingContext recording = new();
         int infrastructureCommandCount = 0;
+        float dpi = DrawingDpi;
         Graphics graphics = Graphics.FromProGpuDrawingContext(
             recording,
             ToDrawingRectangle(clipRectangle),
             Matrix4x4.CreateTranslation(origin.X, origin.Y, 0f),
+            dpi, dpi,
             targetContext,
             intention => FlushGraphics(recording, infrastructureCommandCount, intention),
             () => CompleteGraphics(recording, infrastructureCommandCount));
@@ -1086,12 +1094,14 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         WgpuContext targetContext = _wgpuContext
             ?? throw new InvalidOperationException("The ProGPU window drawing context is not initialized.");
         DrawingContext recording = new();
+        float dpi = DrawingDpi;
         Graphics graphics = Graphics.FromProGpuDrawingContext(
             recording,
             new RectangleF(0f, 0f, bounds.Width, bounds.Height),
             Matrix4x4.Identity,
+            dpi, dpi,
             targetContext,
-            () => CompleteAdornerGraphics(adorner, bounds, clipRectangle, recording));
+            completed: () => CompleteAdornerGraphics(adorner, bounds, clipRectangle, recording));
         graphics.SetClip(new RectangleF(
             clipRectangle.X - bounds.X,
             clipRectangle.Y - bounds.Y,
@@ -1641,13 +1651,17 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
             return;
         }
 
-        bool repaint = _paintQueued;
+        float targetDpi = DrawingDpi;
+        bool dpiChanged = _lastPaintDpi != targetDpi;
+        bool repaint = _paintQueued || dpiChanged;
         _paintQueued = false;
         _presentationQueued = false;
         LibreRectangle surfaceBounds = GetSurfaceBounds();
         if (repaint)
         {
-            LibreRectangle dirty = _dirtyRectangle ?? surfaceBounds;
+            // A retained command contains its converted glyph size. A different
+            // target resolution invalidates every layer, even on a partial paint.
+            LibreRectangle dirty = dpiChanged ? surfaceBounds : _dirtyRectangle ?? surfaceBounds;
             _dirtyRectangle = null;
             _transientPaintVisual.Context.Clear();
             using (WgpuContext.PushCurrent(_wgpuContext))
@@ -1660,7 +1674,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
                     _reversiblePaintVisual,
                     _paintLayers,
                     surfaceBounds,
-                    dirty);
+                    dirty,
+                    targetDpi);
                 try
                 {
                     _events.PaintRequested(frame);
@@ -1669,6 +1684,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
                 {
                     frame.Complete();
                 }
+                _lastPaintDpi = targetDpi;
             }
         }
 

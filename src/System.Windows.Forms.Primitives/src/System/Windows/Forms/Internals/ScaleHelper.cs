@@ -119,6 +119,13 @@ internal static partial class ScaleHelper
         => s_portableHighDpiMode is HighDpiMode.SystemAware or HighDpiMode.PerMonitor or HighDpiMode.PerMonitorV2
             ? LibreWindowCoordinateMode.DevicePixels : LibreWindowCoordinateMode.Logical;
 
+    // Context-free TextRenderer uses a screen target; unlike a live control it
+    // has no per-window monitor. Preserve captured SystemAware policy and use
+    // the actual primary monitor for PerMonitorV2's initially unscaled source.
+    internal static int PortableScreenDpi => PortableCoordinateMode == LibreWindowCoordinateMode.Logical
+        ? OneHundredPercentLogicalDpi
+        : IsThreadPerMonitorV2Aware ? GetPortableSystemDpi() : InitialSystemDpi;
+
     internal static IReadOnlyList<LibreMonitor> GetPortableMonitors()
         => LibrePlatform.Current.Monitors.GetMonitors()
             .Select(monitor => LibreMonitorCoordinates.ToManaged(monitor, PortableCoordinateMode)).ToArray();

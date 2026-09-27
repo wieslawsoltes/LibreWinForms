@@ -214,6 +214,9 @@ public unsafe partial class Control :
     private static readonly int s_namePropertyProperty = PropertyStore.CreateKey();
     private static readonly int s_backBrushProperty = PropertyStore.CreateKey();
     private static readonly int s_fontHeightProperty = PropertyStore.CreateKey();
+#if LIBREWINFORMS_PORTABLE
+    private static readonly int s_fontHeightDpiProperty = PropertyStore.CreateKey();
+#endif
     private static readonly int s_currentAmbientFontProperty = PropertyStore.CreateKey();
 
     private static readonly int s_backColorProperty = PropertyStore.CreateKey();
@@ -2026,7 +2029,7 @@ public unsafe partial class Control :
 
             if (Properties.ContainsKey(s_fontHeightProperty))
             {
-                Properties.AddValue(s_fontHeightProperty, (value is null) ? -1 : value.Height);
+                Properties.AddValue(s_fontHeightProperty, (value is null) ? -1 : GetFontHeightForTarget(value));
             }
 
             // Font is an ambient property. We need to layout our parent because Font may
@@ -2139,6 +2142,14 @@ public unsafe partial class Control :
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            int dpi = PortableFontDpi;
+            if (Properties.GetValueOrDefault<int>(s_fontHeightDpiProperty) != dpi)
+            {
+                Properties.AddValue(s_fontHeightDpiProperty, dpi);
+                Properties.AddValue(s_fontHeightProperty, -1);
+            }
+#endif
             if (Properties.TryGetValue(s_fontHeightProperty, out int fontHeight) && fontHeight != -1)
             {
                 return fontHeight;
@@ -2146,7 +2157,7 @@ public unsafe partial class Control :
 
             if (TryGetExplicitlySetFont(out Font? font))
             {
-                return Properties.AddValue(s_fontHeightProperty, font.Height);
+                return Properties.AddValue(s_fontHeightProperty, GetFontHeightForTarget(font));
             }
 
             // Ask the parent if it has the font height.
@@ -2160,14 +2171,43 @@ public unsafe partial class Control :
             // If we still have a bad value, then get the actual font height.
             if (localFontHeight == -1)
             {
-                localFontHeight = Font.Height;
+                localFontHeight = GetFontHeightForTarget(Font);
                 Properties.AddValue(s_fontHeightProperty, localFontHeight);
             }
 
             return localFontHeight;
         }
-        set => Properties.AddValue(s_fontHeightProperty, value);
+        set
+        {
+#if LIBREWINFORMS_PORTABLE
+            Properties.AddValue(s_fontHeightDpiProperty, PortableFontDpi);
+#endif
+            Properties.AddValue(s_fontHeightProperty, value);
+        }
     }
+
+    private int GetFontHeightForTarget(Font font)
+#if LIBREWINFORMS_PORTABLE
+        => (int)Math.Ceiling(font.GetHeight(PortableFontDpi));
+#else
+        => font.Height;
+#endif
+
+#if LIBREWINFORMS_PORTABLE
+    internal int PortableFontHeight => FontHeight;
+
+    private int PortableFontDpi
+    {
+        get
+        {
+            Control root = GetPortableTopLevelControl();
+            return root.IsHandleCreated
+                ? root._window.PortableCoordinateMode == LibreWindowCoordinateMode.DevicePixels
+                    ? LibreWindowCoordinates.ToDeviceDpi(root._window.PortablePresentationScale) : 96
+                : ScaleHelper.PortableScreenDpi;
+        }
+    }
+#endif
 
     /// <summary>
     ///  The foreground color of the control.
@@ -3123,7 +3163,7 @@ public unsafe partial class Control :
             _scaledControlFont = value;
             if (Properties.ContainsKey(s_fontHeightProperty))
             {
-                Properties.AddValue(s_fontHeightProperty, (value is null) ? -1 : value.Height);
+                Properties.AddValue(s_fontHeightProperty, (value is null) ? -1 : GetFontHeightForTarget(value));
             }
         }
     }
@@ -11504,7 +11544,7 @@ public unsafe partial class Control :
 
         if (Properties.ContainsKey(s_fontHeightProperty))
         {
-            Properties.AddValue(s_fontHeightProperty, scaledFont.Height);
+            Properties.AddValue(s_fontHeightProperty, GetFontHeightForTarget(scaledFont));
         }
 
         if (!raiseOnFontChangedEvent)

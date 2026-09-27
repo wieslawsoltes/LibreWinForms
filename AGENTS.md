@@ -1,5 +1,11 @@
 # Agent Guidance
 
+Portable text uses explicit Drawing target DPI: DevicePixels uses actual window
+resolution, Logical stays96 with presentation scaling. Keep measurement and paint
+in the same units, invalidate FontHeight/retained glyph commands on target DPI
+changes, and preserve source Font identity and caller Graphics authority. Native
+appearance remains a separate gate; see docs/portable-text-target-dpi.md.
+
 ## LibreWinForms Port Rules
 
 LibreWinForms follows the same source-reuse and reflection-free rules as LibreWPF. Reuse upstream WinForms managed code wherever possible, and modify it only where a portable platform seam, ProGPU/Silk.NET backend, or Win32 abstraction is required.

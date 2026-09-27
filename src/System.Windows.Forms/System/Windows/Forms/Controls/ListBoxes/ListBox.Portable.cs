@@ -39,7 +39,7 @@ public partial class ListBox
     }
 
     private int GetPortableVisibleRowCount()
-        => Math.Max(1, GetPortableListViewport().Height / Font.Height);
+        => Math.Max(1, GetPortableListViewport().Height / FontHeight);
 
     private int GetPortableTopIndex()
         => Math.Clamp(_topIndex, 0, Math.Max(0, Items.Count - GetPortableVisibleRowCount()));
@@ -57,7 +57,7 @@ public partial class ListBox
     private Rectangle GetPortableRowRectangle(int index)
     {
         Rectangle viewport = GetPortableListViewport();
-        int height = Font.Height;
+        int height = FontHeight;
         return new Rectangle(viewport.X,
             checked(viewport.Y + (index - GetPortableTopIndex()) * height), viewport.Width, height);
     }

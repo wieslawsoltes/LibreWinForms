@@ -560,8 +560,12 @@ public static class TextRenderer
             return Size.Empty;
 
 #if LIBREWINFORMS_PORTABLE
+        using Bitmap screen = new(1, 1);
+        int screenDpi = ScaleHelper.PortableScreenDpi;
+        screen.SetResolution(screenDpi, screenDpi);
+        using Graphics graphics = Graphics.FromImage(screen);
         return PortableTextRenderer.MeasureText(
-            graphics: null,
+            graphics,
             text.ToString(),
             font,
             proposedSize,
