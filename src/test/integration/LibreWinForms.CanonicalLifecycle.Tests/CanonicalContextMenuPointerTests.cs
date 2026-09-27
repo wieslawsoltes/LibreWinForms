@@ -227,6 +227,7 @@ public partial class CanonicalLifecycleTests
         {
             opening++;
             e.Cancel = true;
+            target.Capture = false;
             SendContextPointer(platform, owner, replacement, LibreInputEventKind.PointerDown, LibrePointerButton.Primary);
         };
         replacement.Click += (_, _) => clicks++;
