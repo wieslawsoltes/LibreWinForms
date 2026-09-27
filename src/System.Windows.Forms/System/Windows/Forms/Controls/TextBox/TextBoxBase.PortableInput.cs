@@ -106,14 +106,18 @@ public abstract partial class TextBoxBase
         string text = WindowText;
         if (length == 0)
         {
+            // Treat a source CRLF as one adjacent break, just as a surrogate
+            // pair is one adjacent scalar. Explicit UTF-16 selections stay exact.
             if (backwards && start > 0)
             {
-                length = start > 1 && char.IsSurrogatePair(text, start - 2) ? 2 : 1;
+                length = start > 1 && (char.IsSurrogatePair(text, start - 2)
+                    || (text[start - 2] == '\r' && text[start - 1] == '\n')) ? 2 : 1;
                 start -= length;
             }
             else if (!backwards && start < text.Length)
             {
-                length = char.IsSurrogatePair(text, start) ? 2 : 1;
+                length = char.IsSurrogatePair(text, start)
+                    || (text[start] == '\r' && start + 1 < text.Length && text[start + 1] == '\n') ? 2 : 1;
             }
             else
             {
