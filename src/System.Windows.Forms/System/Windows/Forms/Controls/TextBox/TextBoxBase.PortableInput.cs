@@ -155,6 +155,7 @@ public abstract partial class TextBoxBase
         if (updated == text)
         {
             SelectInternal(start + replacement.Length, 0, text.Length);
+            if (!modified) Modified = false;
             return;
         }
 

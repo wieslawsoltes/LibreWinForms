@@ -182,6 +182,128 @@ public partial class CanonicalLifecycleTests
         masked.Text.Should().Be("123");
     }
 
+    [Theory]
+    [InlineData("clear")]
+    [InlineData("text")]
+    [InlineData("selection")]
+    [InlineData("dispose")]
+    public void PortableUndoDoesNotRestoreHistoryRetiredByPublicCallbacks(string operation)
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using TextBox editor = new() { Text = "before" };
+        editor.SelectAll();
+        Clipboard.SetText("after");
+        editor.Paste();
+        editor.CanUndo.Should().BeTrue();
+        bool observed = false;
+        editor.TextChanged += (_, _) =>
+        {
+            if (observed) return;
+            observed = true;
+            switch (operation)
+            {
+                case "clear": editor.ClearUndo(); break;
+                case "text": editor.Text = "replacement"; break;
+                case "selection": editor.SelectedText = "replacement"; break;
+                case "dispose": editor.Dispose(); break;
+            }
+        };
+        editor.Undo();
+        observed.Should().BeTrue();
+        editor.CanUndo.Should().BeFalse();
+    }
+
+    [Fact]
+    public void PortableUndoProgrammaticIdenticalReplacementClearsHistoryAndModifiedFlag()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using TextBox editor = new() { Text = "before" };
+        editor.SelectAll();
+        Clipboard.SetText("after");
+        editor.Paste();
+        editor.Modified.Should().BeTrue();
+        editor.CanUndo.Should().BeTrue();
+        int changes = 0;
+        editor.TextChanged += (_, _) => changes++;
+        editor.SelectAll();
+        editor.SelectedText = "after";
+        editor.CanUndo.Should().BeFalse();
+        editor.Modified.Should().BeFalse();
+        changes.Should().Be(0);
+    }
+
+    [Fact]
+    public void PortableUndoPublicApisRetainVirtualWindowMessageDispatch()
+    {
+        UseHeadlessPlatform(autoCloseWindows: false);
+        using UndoMessageProbe editor = new();
+        editor.CanUndo.Should().BeFalse();
+        editor.ClearUndo();
+        editor.Messages.Should().Be(0);
+        editor.Undo();
+        editor.IsHandleCreated.Should().BeTrue();
+        editor.Messages.Should().Be(1);
+        editor.CanUndo.Should().BeTrue("the application's WM handler remains authoritative");
+        editor.ClearUndo();
+        editor.Messages.Should().Be(3);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PortableUndoAltBackspacePreservesParentCommandPrecedence(bool handleCommand)
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using UndoCommandForm owner = new() { ShowIcon = false, HandleUndo = handleCommand };
+        using TextBox editor = new() { Text = "before" };
+        owner.Controls.Add(editor);
+        owner.Show();
+        platform.SendInput(LibreInputEventKind.FocusGained);
+        editor.Focus().Should().BeTrue();
+        editor.SelectAll();
+        Clipboard.SetText("after");
+        editor.Paste();
+        platform.SendInput(LibreInputEventKind.KeyDown, key: LibreKey.Backspace, modifiers: LibreInputModifiers.Alt);
+        platform.SendInput(LibreInputEventKind.KeyUp, key: LibreKey.Backspace, modifiers: LibreInputModifiers.Alt);
+        owner.UndoCommands.Should().Be(1);
+        editor.Text.Should().Be(handleCommand ? "after" : "before");
+    }
+
+    private sealed class UndoCommandForm : Form
+    {
+        internal bool HandleUndo { get; init; }
+        internal int UndoCommands { get; private set; }
+
+        protected override bool ProcessCmdKey(ref Message message, Keys keyData)
+        {
+            if (keyData == (Keys.Alt | Keys.Back))
+            {
+                UndoCommands++;
+                if (HandleUndo) return true;
+            }
+
+            return base.ProcessCmdKey(ref message, keyData);
+        }
+    }
+
+    private sealed class UndoMessageProbe : TextBox
+    {
+        internal int Messages { get; private set; }
+
+        protected override void WndProc(ref Message message)
+        {
+            // EM_CANUNDO, EM_UNDO and EM_EMPTYUNDOBUFFER respectively.
+            if (message.Msg is 0x00c6 or 0x00c7 or 0x00cd)
+            {
+                Messages++;
+                message.Result = 1;
+                return;
+            }
+
+            base.WndProc(ref message);
+        }
+    }
+
     private sealed class UndoEditor : TextBox
     {
         internal void Recreate() => RecreateHandle();
