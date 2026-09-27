@@ -304,7 +304,7 @@ public unsafe partial class Control
             // so it must not leave key-cycle suppression on the owner forever.
             _portableCanceledTextInputVersion = textVersion;
             if (inputVersion == _portableMenuInputVersion
-                && (message.MsgInternal is PInvokeCore.WM_KEYDOWN or PInvokeCore.WM_KEYUP
+                && (message.MsgInternal == PInvokeCore.WM_KEYDOWN || message.MsgInternal == PInvokeCore.WM_KEYUP
                     || s_portableKeysDown is { Count: > 0 }))
                 _portableSuppressKeyPress = true;
         }

@@ -24,6 +24,8 @@ Hosted dropdown controls borrow source logical focus from their live Form owner,
 
 Editable portable ComboBox uses an actual canonical TextBox child and the canonical ListBox popup. Its source editor remains the Form focus owner, admitted by a distinct exact-generation keyboard target rather than a fabricated ToolStripControlHost lease. Preserve user-edit notifications separately from programmatic matching-item policy, public UTF-16 selection, original filters and composite focus callbacks. Only admitted list keys forward to ListBox defaults; edit Home/End and modifiers remain edit input. Retire obsolete handles/targets before reentrant work, and do not count source selection or content painting as caret, native theme or desktop qualification. See docs/portable-combobox-dropdown.md.
 
+Portable text-packet retirement cancels its obsolete suffix independently of physical key-cycle suppression. Standalone text callbacks have no required future KeyUp; an outer callback cannot suppress a nested input generation. Preserve held-key suppression until its release and bind editable focus completion to the same live source/editor/Form handles.
+
 SharpDevelop is the initial integration driver. Prefer porting the real WinForms API/designer/resource code from this repository over expanding LibreWPF-local compatibility shims.
 
 Portable plain-text clipboard editing uses canonical Clipboard conversion and

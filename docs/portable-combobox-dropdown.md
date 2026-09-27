@@ -116,12 +116,26 @@ font, color, direction and intersected clip; the product was not changed to emit
 TextBox flags. Initial compile/analyzer failures and the failed test run remain
 beside the final logs under `artifacts/dropdown-keyboard/log/combobox-*`.
 
-The additive editable implementation and its **28 authored source cases** are
-not yet executed in this branch. They cover the actual editor, composite focus,
+The integrated editable implementation has **32 source cases**, covering the
+actual editor, composite focus,
 input filter/event ordering, UTF-16 selection, user/programmatic text policies,
 plain versus edit-navigation keys, real row/arrow pointer input, cancellation,
 callback replacement/exception and lifetime retirement. The existing three
 unsupported-style cases remain three explicit owner-draw rejection cases.
+Four additional shared input cases keep standalone text-packet retirement
+separate from held-key suppression, including nested input ownership. The first
+integrated run passed 519 of 521 and exposed two real bugs: source recreation
+kept the ComboBox focus identity but did not focus its replacement editor, and
+retirement during a standalone character callback could suppress later text
+forever without a matching key-up. Exact-generation focus completion now routes
+to the actual replacement editor; obsolete text suffixes and physical key cycles
+retain separate cancellation ownership. Neither failure was removed or relaxed.
+
+The final integrated source build passed with zero errors; all **529 source
+cases passed with zero skips** on macOS ARM64/.NET 10.0.5, including the 493-case
+initial-position prerequisite and 36 additional editable/input cases. Logs are
+`artifacts/dropdown-keyboard/log/combobox-edit-input-fixed-build.log` and
+`combobox-edit-input-tests.log`. Earlier failed runs remain alongside them.
 The 479-case result above predates these changes and is not their qualification.
 
 Full exact-head CI and installed native desktop interaction remain required.
