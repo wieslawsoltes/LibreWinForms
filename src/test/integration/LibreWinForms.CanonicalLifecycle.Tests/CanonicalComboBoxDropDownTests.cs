@@ -399,7 +399,7 @@ public partial class CanonicalLifecycleTests
     }
 
     [Theory]
-    [InlineData(ComboBoxStyle.DropDown, DrawMode.Normal)]
+    [InlineData(ComboBoxStyle.DropDown, DrawMode.OwnerDrawFixed)]
     [InlineData(ComboBoxStyle.DropDownList, DrawMode.OwnerDrawFixed)]
     [InlineData(ComboBoxStyle.DropDownList, DrawMode.OwnerDrawVariable)]
     public void ComboBoxUnsupportedSurfaceStylesFailBeforePublishingVisibility(ComboBoxStyle style, DrawMode mode)
