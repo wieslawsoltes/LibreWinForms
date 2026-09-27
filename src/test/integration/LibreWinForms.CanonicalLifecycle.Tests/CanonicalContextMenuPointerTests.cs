@@ -161,6 +161,55 @@ public partial class CanonicalLifecycleTests
         menu.Visible.Should().BeFalse();
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CanonicalContextPointerRetiresCanceledValidationAfterRelease(bool throwOpening)
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form owner = new() { ShowIcon = false, AutoValidate = AutoValidate.EnablePreventFocusChange };
+        using Control target = new() { Bounds = new(20, 20, 100, 60) };
+        using ContextMenuStrip menu = new();
+        menu.Items.Add("Open");
+        target.ContextMenuStrip = menu;
+        owner.Controls.Add(target);
+        target.Validating += (_, e) => e.Cancel = true;
+        int clicks = 0, released = 0;
+        target.Click += (_, _) => clicks++;
+        target.MouseUp += (_, _) => released++;
+        InvalidOperationException failure = new("canceled validation context failure");
+        bool firstOpening = true;
+        menu.Opening += (_, e) =>
+        {
+            e.Cancel = true;
+            if (firstOpening && throwOpening)
+            {
+                firstOpening = false;
+                throw failure;
+            }
+        };
+        owner.Show();
+        target.Focus().Should().BeTrue();
+        owner.ActiveControl.Should().BeSameAs(target);
+        owner.Validate().Should().BeFalse("the actual canonical validation path sets its canceled state");
+        SendContextPointer(platform, owner, target, LibreInputEventKind.PointerDown);
+        Action release = () => SendContextPointer(platform, owner, target, LibreInputEventKind.PointerUp);
+        if (throwOpening)
+            release.Should().Throw<InvalidOperationException>().Which.Should().BeSameAs(failure);
+        else
+            release();
+        clicks.Should().Be(0);
+        target.Capture.Should().BeFalse();
+
+        // Right-button input does not transfer focus or rerun validation.
+        // The next press must not inherit the completed release's canceled bit.
+        SendContextPointer(platform, owner, target, LibreInputEventKind.PointerDown);
+        release();
+        clicks.Should().Be(1);
+        released.Should().Be(throwOpening ? 1 : 2);
+        target.Capture.Should().BeFalse();
+    }
+
     [Fact]
     public void CanonicalContextPointerOutsideClientDoesNotOpenTheCapturedControlsMenu()
     {
