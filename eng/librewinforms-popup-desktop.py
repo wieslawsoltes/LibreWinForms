@@ -122,6 +122,10 @@ class WindowsDesktop:
     def foreground(self, pid):
         require(self.pid(self.user.GetForegroundWindow()) == pid, "Foreground belongs to another process; no input permitted")
 
+    def activate(self, window):
+        # Only called with the freshly launched application's PID/title-verified window.
+        self.user.SetForegroundWindow(window["hwnd"])
+
     def windows(self, pid):
         result = []
 
@@ -310,7 +314,7 @@ def scenario(session):
     windows = session.wait(lambda s: s["form"]["visible"] and s["counts"].get("form-paint", 0) > 0)
     main = next(w for w in windows if w["title"] == session.state["title"])
     # Activate only this freshly launched, PID-verified application.
-    session.desktop.user.SetForegroundWindow(main["hwnd"])
+    session.desktop.activate(main)
     session.capture("01-baseline", lambda s: s["form"]["active"])
     session.point(session.state["contextTarget"], "right")
     session.capture("02-context", opened("context"))

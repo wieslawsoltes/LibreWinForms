@@ -116,6 +116,11 @@ fidelity remain separate cases; this Windows driver must not fabricate them.
 
 ## Implementation validation and sources
 
+The [X11/XWayland driver](popup-x11-interaction.md) reuses this same source and
+fourteen-phase scenario for the portable Linux application. It is not a Linux
+Microsoft reference, and its offline implementation checks do not qualify native
+input or usable compositor capture.
+
 The historical `net10.0-windows` Microsoft project/source at `4ee4336ba` cross-compiled on macOS with
 .NET SDK `11.0.100-preview.5.26302.115`, Microsoft's `10.0.8` WindowsDesktop reference
 pack and a `win-arm64` framework-dependent apphost: **0 warnings, 0 errors**, 4.80 s.
