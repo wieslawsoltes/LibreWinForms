@@ -35,6 +35,8 @@ Editable portable ComboBox uses an actual canonical TextBox child and the canoni
 
 Portable text-packet retirement cancels its obsolete suffix independently of physical key-cycle suppression. Standalone text callbacks have no required future KeyUp; an outer callback cannot suppress a nested input generation. Preserve held-key suppression until its release and bind editable focus completion to the same live source/editor/Form handles.
 
+Plain TextBox boundary navigation uses original UTF-16 endpoints and the cached signed selection anchor, not ordered public SelectionStart. Preserve filtered/managed key precedence and read-only selection without edit notifications. Multiline visual-line Home/End still needs retained layout; never infer wrapped positions from newline scans. Keep MaskedTextBox/RichTextBox semantics separate. See docs/portable-text-boundary-navigation.md.
+
 SharpDevelop is the initial integration driver. Prefer porting the real WinForms API/designer/resource code from this repository over expanding LibreWPF-local compatibility shims.
 
 Portable plain-text clipboard editing uses canonical Clipboard conversion and
