@@ -113,11 +113,13 @@ public partial class ComboBox
             if (!base.Focused)
                 return true;
         }
+
         if (Focused && !_canFireLostFocus)
         {
             _canFireLostFocus = true;
             base.OnGotFocus(e);
         }
+
         return true;
     }
 
@@ -130,6 +132,7 @@ public partial class ComboBox
             _canFireLostFocus = false;
             base.OnLostFocus(e);
         }
+
         return true;
     }
 
