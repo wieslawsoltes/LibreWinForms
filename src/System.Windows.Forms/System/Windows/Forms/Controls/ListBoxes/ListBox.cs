@@ -119,6 +119,9 @@ public partial class ListBox : ListControl
     public ListBox() : base()
     {
         SetStyle(ControlStyles.UserPaint | ControlStyles.StandardClick | ControlStyles.UseTextForAccessibility, false);
+#if LIBREWINFORMS_PORTABLE
+        SetStyle(ControlStyles.UserPaint | ControlStyles.StandardClick | ControlStyles.ResizeRedraw, true);
+#endif
 
         // This class overrides GetPreferredSizeCore, let Control automatically cache the result.
         SetExtendedState(ExtendedStates.UserPreferredSizeCache, true);
@@ -418,7 +421,12 @@ public partial class ListBox : ListControl
         }
     }
 
-    internal int FocusedIndex => IsHandleCreated ? (int)PInvokeCore.SendMessage(this, PInvoke.LB_GETCARETINDEX) : -1;
+    internal int FocusedIndex =>
+#if LIBREWINFORMS_PORTABLE
+        IsHandleCreated ? SelectedIndex : -1;
+#else
+        IsHandleCreated ? (int)PInvokeCore.SendMessage(this, PInvoke.LB_GETCARETINDEX) : -1;
+#endif
 
     // The scroll bars don't display properly when the IntegralHeight == false
     // and the control is resized before the font size is change and the new font size causes
@@ -592,6 +600,9 @@ public partial class ListBox : ListControl
                 _itemHeight = value;
                 if (_drawMode == DrawMode.OwnerDrawFixed && IsHandleCreated)
                 {
+#if LIBREWINFORMS_PORTABLE
+                    EnsurePortableListMode();
+#else
                     BeginUpdate();
                     PInvokeCore.SendMessage(this, PInvoke.LB_SETITEMHEIGHT, 0, value);
 
@@ -604,6 +615,7 @@ public partial class ListBox : ListControl
                     }
 
                     EndUpdate();
+#endif
                 }
             }
         }
@@ -1118,6 +1130,18 @@ public partial class ListBox : ListControl
     [SRDescription(nameof(SR.ListBoxTopIndexDescr))]
     public int TopIndex
     {
+#if LIBREWINFORMS_PORTABLE
+        get
+        {
+            EnsurePortableListMode();
+            return GetPortableTopIndex();
+        }
+        set
+        {
+            EnsurePortableListMode();
+            SetPortableTopIndex(value);
+        }
+#else
         get => IsHandleCreated ? (int)PInvokeCore.SendMessage(this, PInvoke.LB_GETTOPINDEX) : _topIndex;
         set
         {
@@ -1130,6 +1154,7 @@ public partial class ListBox : ListControl
                 _topIndex = value;
             }
         }
+#endif
     }
 
     /// <summary>
@@ -1419,6 +1444,11 @@ public partial class ListBox : ListControl
         // Note: index == 0 is OK even if the ListBox currently has no items.
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, Math.Max(1, itemCount));
 
+#if LIBREWINFORMS_PORTABLE
+        EnsurePortableListMode();
+        return Font.Height;
+#else
+
         if (_drawMode != DrawMode.OwnerDrawVariable)
         {
             index = 0;
@@ -1436,6 +1466,7 @@ public partial class ListBox : ListControl
         }
 
         return _itemHeight;
+#endif
     }
 
     /// <summary>
@@ -1446,6 +1477,11 @@ public partial class ListBox : ListControl
     public Rectangle GetItemRectangle(int index)
     {
         CheckIndex(index);
+#if LIBREWINFORMS_PORTABLE
+        EnsurePortableListMode();
+        Rectangle row = GetPortableRowRectangle(index);
+        return row.IntersectsWith(GetPortableListViewport()) ? row : Rectangle.Empty;
+#else
         RECT rect = default;
         if (PInvokeCore.SendMessage(this, PInvoke.LB_GETITEMRECT, (uint)index, ref rect) == 0)
         {
@@ -1453,6 +1489,7 @@ public partial class ListBox : ListControl
         }
 
         return rect;
+#endif
     }
 
     /// <summary>
@@ -1479,6 +1516,9 @@ public partial class ListBox : ListControl
 
     private bool GetSelectedInternal(int index)
     {
+#if LIBREWINFORMS_PORTABLE
+        return _itemsCollection is not null && SelectedItems.GetSelected(index);
+#else
         if (IsHandleCreated)
         {
             int selection = (int)PInvokeCore.SendMessage(this, PInvoke.LB_GETSEL, (WPARAM)index);
@@ -1498,6 +1538,7 @@ public partial class ListBox : ListControl
 
             return false;
         }
+#endif
     }
 
     /// <summary>
@@ -1513,6 +1554,15 @@ public partial class ListBox : ListControl
     /// </summary>
     public int IndexFromPoint(int x, int y)
     {
+#if LIBREWINFORMS_PORTABLE
+        EnsurePortableListMode();
+        Rectangle viewport = GetPortableListViewport();
+        if (!viewport.Contains(x, y))
+            return NoMatches;
+
+        int index = GetPortableTopIndex() + (y - viewport.Top) / Font.Height;
+        return index < Items.Count ? index : NoMatches;
+#else
         // NT4 SP6A : SendMessage Fails. So First check whether the point is in Client Co-ordinates and then
         // call SendMessage.
         PInvokeCore.GetClientRect(this, out RECT r);
@@ -1527,6 +1577,7 @@ public partial class ListBox : ListControl
         }
 
         return NoMatches;
+#endif
     }
 
     /// <summary>
@@ -1875,6 +1926,9 @@ public partial class ListBox : ListControl
     protected override void OnResize(EventArgs e)
     {
         base.OnResize(e);
+#if LIBREWINFORMS_PORTABLE
+        Invalidate();
+#endif
 
         // There are some repainting issues for RightToLeft - so invalidate when we resize.
         if (RightToLeft == RightToLeft.Yes || HorizontalScrollbar)
@@ -1892,6 +1946,13 @@ public partial class ListBox : ListControl
     /// </summary>
     protected override void OnSelectedIndexChanged(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        // Keep the source-owned row visible before publishing the canonical
+        // selection notifications. No second backend selection is maintained.
+        if (_drawMode == DrawMode.Normal && !_multiColumn && _selectionMode == SelectionMode.One)
+            EnsurePortableSelectedRowVisible();
+        Invalidate();
+#endif
         if (IsHandleCreated && IsAccessibilityObjectCreated)
         {
             if (Focused && FocusedItemIsChanged())
@@ -2177,6 +2238,16 @@ public partial class ListBox : ListControl
             throw new InvalidOperationException(SR.ListBoxInvalidSelectionMode);
         }
 
+#if LIBREWINFORMS_PORTABLE
+        // LISTBOX clears the old selection for LB_SETCURSEL; keep the same
+        // invariant in the source collection when there is no native LB state.
+        if (_selectionMode == SelectionMode.One && value)
+        {
+            int previous = SelectedIndex;
+            if (previous >= 0 && previous != index)
+                SelectedItems.SetSelected(previous, false);
+        }
+#endif
         SelectedItems.SetSelected(index, value);
         if (IsHandleCreated)
         {
@@ -2272,6 +2343,12 @@ public partial class ListBox : ListControl
 
     private void UpdateHorizontalExtent()
     {
+#if LIBREWINFORMS_PORTABLE
+        // Collection add/replace/remove/clear and font updates all reach this
+        // existing notification point, including batched updates.
+        _topIndex = GetPortableTopIndex();
+        Invalidate();
+#endif
         if (!_multiColumn && _horizontalScrollbar && IsHandleCreated)
         {
             int width = _horizontalExtent;
@@ -2332,6 +2409,10 @@ public partial class ListBox : ListControl
 
     private unsafe void UpdateCustomTabOffsets()
     {
+#if LIBREWINFORMS_PORTABLE
+        if (IsHandleCreated && UseCustomTabOffsets)
+            EnsurePortableListMode();
+#else
         if (IsHandleCreated && UseCustomTabOffsets && CustomTabOffsets is not null)
         {
             int wpar = CustomTabOffsets.Count;
@@ -2344,6 +2425,7 @@ public partial class ListBox : ListControl
 
             Invalidate();
         }
+#endif
     }
 
     private void WmPrint(ref Message m)
