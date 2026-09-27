@@ -29,7 +29,8 @@ public partial class TextBox
     {
         if (message.MsgInternal == PInvokeCore.WM_KEYDOWN
             && (TryMovePortableTextBoundary((Keys)(int)message.WParamInternal | ModifierKeys)
-                || TryMovePortableLayoutCaret((Keys)(int)message.WParamInternal | ModifierKeys)))
+                || TryMovePortableLayoutCaret((Keys)(int)message.WParamInternal | ModifierKeys)
+                || TryMovePortableRowCaret((Keys)(int)message.WParamInternal | ModifierKeys)))
         {
             return;
         }

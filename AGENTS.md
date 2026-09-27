@@ -19,7 +19,7 @@ font realization and target DPI in the cache contract. Source owns the fixed
 viewport clip while glyphs, selection and caret scroll together. Retire layouts
 and blink timers on real control/handle lifetime boundaries, recheck public
 callback disposal, and never expose password source to the shaping provider.
-Source cases do not qualify empty hard rows, complete editor navigation, IME or
+Source cases do not qualify complete editor navigation, IME or
 native desktop appearance. See docs/portable-retained-text-interaction.md.
 
 Portable text uses explicit Drawing target DPI: DevicePixels uses actual window
@@ -57,7 +57,7 @@ Editable portable ComboBox uses an actual canonical TextBox child and the canoni
 
 Portable text-packet retirement cancels its obsolete suffix independently of physical key-cycle suppression. Standalone text callbacks have no required future KeyUp; an outer callback cannot suppress a nested input generation. Preserve held-key suppression until its release and bind editable focus completion to the same live source/editor/Form handles.
 
-Plain TextBox boundary navigation uses original UTF-16 endpoints and the cached signed selection anchor, not ordered public SelectionStart. Preserve filtered/managed key precedence and read-only selection without edit notifications. Multiline visual-line Home/End still needs retained layout; never infer wrapped positions from newline scans. Keep MaskedTextBox/RichTextBox semantics separate. See docs/portable-text-boundary-navigation.md.
+Plain TextBox navigation uses original UTF-16 endpoints and the cached signed selection anchor, not ordered public SelectionStart. Preserve filtered/managed key precedence and read-only selection without edit notifications. Multiline Home/End and Up/Down require the optional retained row-navigation capability; never infer wrapped positions from newline scans. Retain preferred X through vertical movement, reset it on nonvertical selection or layout replacement, and keep MaskedTextBox/RichTextBox semantics separate. See docs/portable-text-row-navigation.md.
 
 SharpDevelop is the initial integration driver. Prefer porting the real WinForms API/designer/resource code from this repository over expanding LibreWPF-local compatibility shims.
 

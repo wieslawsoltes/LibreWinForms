@@ -348,7 +348,7 @@ public partial class CanonicalLifecycleTests
         internal void Drag(Point point) => OnMouseMove(new(MouseButtons.Left, 0, point.X, point.Y, 0));
     }
 
-    private sealed class RetainedTextRendererProbe : ILibreTextRendererService, ILibreTextLayoutService
+    private sealed class RetainedTextRendererProbe : ILibreTextRendererService, ILibreTextRowNavigationService
     {
         private readonly ProGpuTextRendererService _renderer = new();
         internal List<RetainedLayoutProbe> Layouts { get; } = [];
@@ -372,7 +372,7 @@ public partial class CanonicalLifecycleTests
             => _renderer.MeasureText(graphics, text, font, size, format);
     }
 
-    private sealed class RetainedLayoutProbe(ILibreTextLayout layout) : ILibreTextLayout
+    private sealed class RetainedLayoutProbe(ILibreTextLayout layout) : ILibreTextLayout, ILibreTextRowNavigation
     {
         internal bool Disposed { get; private set; }
         internal PointF LastOrigin { get; private set; }
@@ -380,6 +380,10 @@ public partial class CanonicalLifecycleTests
         public SizeF ContentSize => layout.ContentSize;
         public LibreTextCaret GetCaret(int position, bool trailing = false) => layout.GetCaret(position, trailing);
         public LibreTextCaret MoveCaret(int position, bool trailing, int direction) => layout.MoveCaret(position, trailing, direction);
+        public LibreTextCaret GetRowBoundary(int position, bool trailing, bool end)
+            => ((ILibreTextRowNavigation)layout).GetRowBoundary(position, trailing, end);
+        public LibreTextCaret MoveCaretVertically(int position, bool trailing, int direction, float preferredX)
+            => ((ILibreTextRowNavigation)layout).MoveCaretVertically(position, trailing, direction, preferredX);
         public LibreTextHit HitTest(PointF point) => layout.HitTest(point);
         public ReadOnlyMemory<RectangleF> GetSelectionRectangles(int start, int length) => layout.GetSelectionRectangles(start, length);
         public void Draw(Graphics graphics, PointF origin, Color color)
