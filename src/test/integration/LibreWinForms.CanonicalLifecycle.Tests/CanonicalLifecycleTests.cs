@@ -5036,15 +5036,16 @@ public partial class CanonicalLifecycleTests
         platform.SetInitialPresentationScales(dpiScale: 2.0, framebufferScale: 2.0);
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2).Should().BeTrue();
 
-        using Form form = new()
-        {
-            AutoScaleMode = AutoScaleMode.Dpi,
-            AutoScaleDimensions = new SizeF(96, 96),
-            StartPosition = FormStartPosition.Manual,
-            Bounds = new Rectangle(10, 20, 400, 300),
-        };
+        using Form form = new();
+        // Designer initialization defers autoscaling until all design bounds exist.
+        form.SuspendLayout();
+        form.AutoScaleMode = AutoScaleMode.Dpi;
+        form.AutoScaleDimensions = new SizeF(96, 96);
+        form.StartPosition = FormStartPosition.Manual;
+        form.Bounds = new Rectangle(10, 20, 400, 300);
         using Control child = new() { Bounds = new Rectangle(20, 30, 100, 40) };
         form.Controls.Add(child);
+        form.ResumeLayout(true);
 
         int initialFormDpi = 0;
         int initialChildDpi = 0;
@@ -5136,13 +5137,14 @@ public partial class CanonicalLifecycleTests
         platform.SetInitialPresentationScales(dpiScale: 2.0, framebufferScale: 1.0);
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2).Should().BeTrue();
 
-        using Form form = new()
-        {
-            AutoScaleMode = AutoScaleMode.Dpi,
-            AutoScaleDimensions = new SizeF(96, 96),
-            StartPosition = FormStartPosition.Manual,
-            Bounds = new Rectangle(10, 20, 400, 300),
-        };
+        using Form form = new();
+        // Match the generated designer transaction at the actual system DPI.
+        form.SuspendLayout();
+        form.AutoScaleMode = AutoScaleMode.Dpi;
+        form.AutoScaleDimensions = new SizeF(96, 96);
+        form.StartPosition = FormStartPosition.Manual;
+        form.Bounds = new Rectangle(10, 20, 400, 300);
+        form.ResumeLayout(true);
         Rectangle initialManagedBounds = default;
         LibreRectangle initialNativeBounds = default;
 
