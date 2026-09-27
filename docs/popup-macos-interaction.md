@@ -49,6 +49,15 @@ An absent permission/provider fails before launching the app and leaves a fresh
 `driver-failure.json` with `appNotLaunched: true`. Authorize only through the
 user's normal trusted workflow before a separately approved desktop run.
 
+The existing macOS AppKit CI job also compiles this helper explicitly for both
+`arm64-apple-macosx15.2` and `x86_64-apple-macosx15.2`. Each run owns a fresh
+`RUNNER_TEMP` output, temporary directory and per-architecture module cache.
+Compiler/SDK identities, source/output hashes and Mach-O deployment metadata are
+logged. The job never executes either helper: no permissions, desktop inventory,
+screen capture or input are exercised. Its original AppKit adapter tests and
+30-minute deadline remain unchanged. This gate checks compiler/API compatibility
+only, not native execution on either architecture or older product-supported OSes.
+
 ```sh
 python3 eng/librewinforms-popup-macos.py \
   --prepared-root /path/to/task/prepared \
@@ -136,11 +145,12 @@ qualification questions, not conclusions from these offline controls.
 
 ## Evidence and primary contracts
 
-Twenty offline controls pass without loading AppKit/ScreenCaptureKit, launching
+Twenty-one offline controls pass without loading AppKit/ScreenCaptureKit, launching
 an app/helper, accessing a desktop or sending input. They cover typed identity
 and geometry rejection, explicit policy mapping, private-client absence,
 input/request boundaries, deadline/error retention, actual capture metadata,
-opt-in restoration and unchanged shared scenario delegation. All 17 existing
+opt-in restoration, unchanged shared scenario delegation and the actual CI shell
+syntax/dual-target compile-only contract. All 17 existing
 preparation/desktop, 22 X11 and 25 native-geometry controls also passed, with
 ResourceWarning treated as an error; actionlint and diff checks passed.
 

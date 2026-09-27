@@ -253,6 +253,26 @@ class MacPopupContracts(unittest.TestCase):
         self.assertEqual(DRIVER.SHARED.scenario.__code__.co_filename,
                          str(ROOT / "eng/librewinforms-popup-desktop.py"))
 
+    def test_appkit_ci_compiles_both_architectures_without_running_helper(self):
+        workflow = (ROOT / ".github/workflows/librewinforms-ci.yml").read_text()
+        job = workflow.split("  appkit-adapter:\n", 1)[1].split("\n  packages:\n", 1)[0]
+        step = job.split("      - name: Compile macOS popup native helper without desktop execution\n", 1)[1]
+        body = step.split("        run: |\n", 1)[1].split("\n      - name:", 1)[0]
+        script = "\n".join(line[10:] for line in body.splitlines())
+        syntax = subprocess.run(["bash", "-n"], input=script, text=True, capture_output=True, check=False)
+        self.assertEqual(syntax.returncode, 0, syntax.stderr)
+        self.assertIn("timeout-minutes: 30", job)
+        self.assertIn('mktemp -d "$RUNNER_TEMP/popup-macos-helper.XXXXXXXX"', script)
+        self.assertIn("for target_arch in arm64 x86_64; do", script)
+        self.assertIn('-target "$target_arch-apple-macosx15.2"', script)
+        self.assertIn('-module-cache-path "$popup_helper_build/module-cache-$target_arch"', script)
+        self.assertIn("Build and test typed AppKit file-dialog adapter", job)
+        self.assertIn("--minimum-expected-tests 6", job)
+        for line in script.splitlines():
+            if '"$popup_helper_build/PopupDesktopNative-' in line:
+                self.assertTrue(line.strip().startswith(("eng/PopupDesktopNative.swift -o ", "shasum -a 256 ", "xcrun vtool -show-build ")),
+                                "CI must only compile/hash/inspect the binary, never execute it")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -211,6 +211,27 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Compile macOS popup native helper without desktop execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          popup_helper_build=$(mktemp -d "$RUNNER_TEMP/popup-macos-helper.XXXXXXXX")
+          mkdir "$popup_helper_build/tmp"
+          export TMPDIR="$popup_helper_build/tmp"
+          xcrun swiftc --version
+          xcrun --show-sdk-version
+          shasum -a 256 eng/PopupDesktopNative.swift
+          for target_arch in arm64 x86_64; do
+            xcrun swiftc -parse-as-library -O \
+              -target "$target_arch-apple-macosx15.2" \
+              -module-cache-path "$popup_helper_build/module-cache-$target_arch" \
+              -framework AppKit -framework ApplicationServices -framework CoreGraphics \
+              -framework ScreenCaptureKit -framework ImageIO -framework UniformTypeIdentifiers \
+              eng/PopupDesktopNative.swift -o "$popup_helper_build/PopupDesktopNative-$target_arch"
+            shasum -a 256 "$popup_helper_build/PopupDesktopNative-$target_arch"
+            xcrun vtool -show-build "$popup_helper_build/PopupDesktopNative-$target_arch"
+          done
+
       - name: Setup .NET 10 for ProGPU
         uses: actions/setup-dotnet@v4
         with:
