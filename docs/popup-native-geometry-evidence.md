@@ -35,8 +35,10 @@ same-PID native windows remain explicit unmatched inventory. A desktop driver
 must still bind captures to its own live child, maintain the original deadline,
 verify foreground/point ownership, and collect real interaction/pixel evidence.
 
-The 22 offline reader cases pass, covering stale/malformed snapshots, independent
+The 25 offline reader cases pass, covering stale/malformed snapshots, independent
 identity/frame mismatch, unavailable and logical handles, alias rejection,
 explicit coordinate policies, nonfinite/overflowed values, bounded input and
-unmatched native surfaces. The original shared/X11 suites also pass (13/22).
+unmatched native surfaces. Duplicate JSON identities, non-integer/out-of-range
+wire identities and missing titles fail explicitly. The shared/X11 suites also
+pass (17/22), including the optional observer preparation controls.
 Observer, service and actual application/package qualification remain separate.

@@ -153,6 +153,26 @@ class NativeGeometryContracts(unittest.TestCase):
         values[2][0]["title"] = "another window"
         with self.assertRaisesRegex(ValueError, "title identity"): validate(values)
 
+    def test_missing_empty_or_nontext_title_cannot_match_as_equal_missing_values(self):
+        for title in (None, "", 24):
+            with self.subTest(title=title):
+                values = fixture()
+                values[0]["title"] = title
+                values[2][0]["title"] = title
+                with self.assertRaisesRegex(ValueError, "main title"): validate(values)
+
+    def test_wire_identities_require_the_exact_native_integer_ranges(self):
+        for action in ("pid-float", "display-bool", "handle-overflow", "view-overflow", "number-overflow"):
+            with self.subTest(action=action):
+                values = fixture()
+                entry = values[1]["windows"][0]
+                if action == "pid-float": values[2][0]["pid"] = 24.0
+                elif action == "display-bool": entry["geometry"]["window"]["display"] = False
+                elif action == "handle-overflow": entry["sourceHandle"]["value"] = 2 ** 80
+                elif action == "view-overflow": entry["geometry"]["contentView"] = 2 ** 80
+                else: values[2][0]["windowNumber"] = 2 ** 32
+                with self.assertRaises(ValueError): validate(values)
+
     def test_content_cannot_be_replaced_by_frame_or_adjusted_to_source(self):
         values = fixture()
         values[1]["windows"][0]["geometry"]["contentBounds"] = copy.deepcopy(values[2][0]["frameBounds"])
@@ -164,7 +184,8 @@ class NativeGeometryContracts(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Source/native client mismatch"): validate(values)
 
     def test_nonfinite_negative_boolean_and_overflowed_rectangles_reject(self):
-        for key, value in (("x", float("inf")), ("y", True), ("width", -1), ("height", 0), ("x", 2 ** 40)):
+        for key, value in (("x", float("inf")), ("y", True), ("width", -1), ("height", 0),
+                           ("x", 2 ** 40), ("x", 10 ** 1000)):
             with self.subTest(key=key):
                 values = fixture()
                 values[1]["windows"][0]["geometry"]["contentBounds"][key] = value
@@ -207,6 +228,15 @@ class NativeGeometryContracts(unittest.TestCase):
             value, digest = READER.read_bounded(path)
             self.assertEqual(value, {"ok": True})
             self.assertEqual(len(digest), 64)
+
+    def test_duplicate_json_members_are_rejected_at_every_depth(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "evidence.json"
+            for contents in ('{"pid":99,"pid":24}', '{"window":{"handle":0,"handle":100}}'):
+                with self.subTest(contents=contents):
+                    path.write_text(contents)
+                    with self.assertRaisesRegex(ValueError, "Duplicate JSON member"):
+                        READER.read_bounded(path)
 
 
 if __name__ == "__main__":

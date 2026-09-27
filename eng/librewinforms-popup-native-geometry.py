@@ -21,20 +21,30 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def integer(value, name, nonzero=False):
-    require(type(value) is int and (not nonzero or value != 0), f"Invalid {name}")
+def integer(value, name, nonzero=False, minimum=-(2 ** 63), maximum=2 ** 63 - 1):
+    require(type(value) is int and minimum <= value <= maximum and (not nonzero or value != 0),
+            f"Invalid {name}")
     return value
 
 
+def finite(value):
+    if type(value) not in (int, float):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
 def scale(value, name):
-    require(type(value) in (int, float) and math.isfinite(value) and 0 < value <= 8,
+    require(finite(value) and 0 < value <= 8,
             f"Invalid {name}")
     return value
 
 
 def rectangle(value, name):
     require(isinstance(value, dict) and set(value) == {"x", "y", "width", "height"}, f"Invalid {name}")
-    require(all(type(v) in (int, float) and math.isfinite(v) for v in value.values()), f"Nonfinite {name}")
+    require(all(finite(v) for v in value.values()), f"Nonfinite {name}")
     require(value["width"] > 0 and value["height"] > 0
             and math.isfinite(value["x"] + value["width"])
             and math.isfinite(value["y"] + value["height"]), f"Empty/overflowed {name}")
@@ -57,14 +67,16 @@ def managed_rectangle(native, mode, dpi, framebuffer):
 
 
 def validate_cocoa_geometry(snapshot, sidecar, native_windows, expected_pid):
-    integer(expected_pid, "expected PID", nonzero=True)
+    integer(expected_pid, "expected PID", minimum=1, maximum=2 ** 31 - 1)
     require(isinstance(snapshot, dict) and isinstance(sidecar, dict), "Invalid source/native document")
     require(expected_pid > 0 and type(snapshot.get("schema")) is int and snapshot["schema"] == 1,
             "Invalid source identity/schema")
     require(integer(snapshot.get("pid"), "source PID") == expected_pid
             and integer(sidecar.get("pid"), "native PID") == expected_pid, "PID mismatch")
     sequence = integer(snapshot.get("sequence"), "source sequence", nonzero=True)
-    require(sequence > 0 and integer(sidecar.get("sequence"), "native sequence") == sequence, "Sequence mismatch")
+    require(0 < sequence <= 650 and integer(sidecar.get("sequence"), "native sequence") == sequence, "Sequence mismatch")
+    require(isinstance(snapshot.get("title"), str) and 0 < len(snapshot["title"]) <= 4095,
+            "Missing/invalid main title")
     require(sidecar.get("schema") == "popup-native-geometry-v1"
             and sidecar.get("coordinateSpace") == "native-desktop-top-left-points", "Unknown native geometry schema/units")
     require(isinstance(snapshot.get("popups"), dict)
@@ -76,9 +88,10 @@ def validate_cocoa_geometry(snapshot, sidecar, native_windows, expected_pid):
             and all(isinstance(entry, dict) for entry in entries), "Invalid native window entries")
     require({entry.get("name") for entry in entries} == NAMES, "Duplicate/missing native window names")
     require(isinstance(native_windows, list) and len(native_windows) <= 32, "Invalid CG inventory budget")
-    require(all(isinstance(window, dict) and window.get("pid") == expected_pid for window in native_windows),
+    require(all(isinstance(window, dict) and integer(window.get("pid"), "CG PID") == expected_pid for window in native_windows),
             "Foreign CG inventory PID")
-    cg_numbers = [integer(window.get("windowNumber"), "CG window number", nonzero=True) for window in native_windows]
+    cg_numbers = [integer(window.get("windowNumber"), "CG window number", minimum=1, maximum=2 ** 32 - 1)
+                  for window in native_windows]
     require(all(number > 0 for number in cg_numbers) and len(set(cg_numbers)) == len(cg_numbers),
             "Invalid/duplicate CG window identity")
     for window in native_windows:
@@ -101,7 +114,8 @@ def validate_cocoa_geometry(snapshot, sidecar, native_windows, expected_pid):
         geometry = entry.get("geometry")
         require(isinstance(geometry, dict), f"Missing geometry: {name}")
         native = geometry.get("window")
-        require(isinstance(native, dict) and native.get("kind") == "Cocoa" and native.get("display") == 0,
+        require(isinstance(native, dict) and native.get("kind") == "Cocoa"
+                and integer(native.get("display"), "native display") == 0,
                 f"Not an owned Cocoa window: {name}")
         native_handle = integer(native.get("handle"), "native window handle", nonzero=True)
         view = integer(geometry.get("contentView"), "native content view", nonzero=True)
@@ -143,7 +157,17 @@ def read_bounded(path):
     require(len(raw) <= LIMIT, "Evidence exceeds 256 KiB")
     def reject_constant(value):
         raise ValueError(f"Nonfinite JSON value: {value}")
-    return json.loads(raw, parse_constant=reject_constant), hashlib.sha256(raw).hexdigest()
+    def unique_members(pairs):
+        result = {}
+        for key, value in pairs:
+            require(key not in result, f"Duplicate JSON member: {key}")
+            result[key] = value
+        return result
+    try:
+        value = json.loads(raw, parse_constant=reject_constant, object_pairs_hook=unique_members)
+    except RecursionError as error:
+        raise ValueError("JSON nesting exceeds the parser budget") from error
+    return value, hashlib.sha256(raw).hexdigest()
 
 
 def main():
