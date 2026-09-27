@@ -92,6 +92,29 @@ public partial class CanonicalLifecycleTests
     }
 
     [Fact]
+    public void PerMonitorFontHeightUsesCurrentCanonicalFontAfterTargetTransition()
+    {
+        if (RunDpiCaseInNewProcess()) return;
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        platform.SetMonitors(SystemDpiMonitor(2, 1));
+        platform.SetInitialPresentationScales(2, 1);
+        Application.SetHighDpiMode(HighDpiMode.PerMonitorV2).Should().BeTrue();
+        using Font font = new(FontFamily.GenericSansSerif, 9f);
+        using DpiMetricForm form = new() { Font = font, AutoScaleMode = AutoScaleMode.None };
+        using DpiMetricControl child = new() { Font = font };
+        form.Controls.Add(child);
+        _ = child.MetricHeight;
+        RunSystemDpiForm(platform, form, () =>
+        {
+            child.MetricHeight.Should().Be((int)Math.Ceiling(child.Font.GetHeight(192f)));
+            platform.SetPresentationScales(1, 1);
+            child.MetricHeight.Should().Be((int)Math.Ceiling(child.Font.GetHeight(96f)));
+            platform.SetPresentationScales(2, 1);
+            child.MetricHeight.Should().Be((int)Math.Ceiling(child.Font.GetHeight(192f)));
+        });
+    }
+
+    [Fact]
     public void ExplicitMeasurementGraphicsOverridesScreenDpi()
     {
         if (RunDpiCaseInNewProcess()) return;

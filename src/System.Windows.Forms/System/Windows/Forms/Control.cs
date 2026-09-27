@@ -2155,6 +2155,13 @@ public unsafe partial class Control :
                 return fontHeight;
             }
 
+#if LIBREWINFORMS_PORTABLE
+            if (ScaledControlFont is { } scaledFont)
+            {
+                return Properties.AddValue(s_fontHeightProperty, GetFontHeightForTarget(scaledFont));
+            }
+#endif
+
             if (TryGetExplicitlySetFont(out Font? font))
             {
                 return Properties.AddValue(s_fontHeightProperty, GetFontHeightForTarget(font));
