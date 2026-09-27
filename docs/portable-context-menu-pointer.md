@@ -17,7 +17,9 @@ injection, or Windows-native branch change.
 Release cleanup owns a captured press generation. Opening/click callbacks may
 dispose or recreate the receiving source, throw, or start a replacement press.
 Old continuations do not deliver callbacks to a new handle or clear the new
-press's capture; an original callback exception survives cursor cleanup failure.
+press's capture or validation state; an original callback exception survives
+cursor cleanup failure. The completed release resets its canonical validation
+cancellation bit only while its original source handle and press are current.
 Left/middle buttons and releases outside the captured control's client area
 remain negative controls.
 
@@ -37,15 +39,34 @@ skips. The tests cover Button/Panel/TextBox, parent forwarding, virtual message
 consumption, canonical event order, cancellation, original exception identity,
 source/owner disposal and owner recreation, replacement capture, and an actual
 DataGridView cell menu. The full canonical gate retains its original 533 cases
-and raises the minimum to 549; deadlines and skip policy are unchanged.
+and adds three public-source validation-lifetime cases, raising the minimum to
+552. Existing gates are unchanged; an additional focused no-build check requires
+all 19 context cases with zero skips and a 10-minute limit, following the existing
+strict tooltip check. The validation cases use actual
+`Focus`/`Validate` with a canceling `Validating` handler, not reflection or private
+state injection. Before the final reset correction, all three failed while the
+original 16 context cases still passed. They cover normal/throwing context
+opening and a nested same-control press whose newly canceled state must survive
+the old release.
 
 Before/fixed logs are retained under
 `/Volumes/1TB-macOS/librewinforms-dropdown-keyboard.gZduNA/artifacts/context-menu-pointer/logs`.
-The corrected source build completed with zero errors (630 existing warnings),
+The initial corrected source build completed with zero errors (630 existing warnings),
 then all 16 focused tests and all 549 canonical tests passed with zero skips on
 .NET 10.0.5 ARM64. The whole source run took 14.936 seconds under the unchanged
 10-minute gate. The initial test-only build's naming-analyzer error is retained;
 its fixture counter was corrected to a property without disabling the analyzer.
+After the final validation reset, the source build again completed with zero
+errors (630 existing warnings), all 19 focused cases passed, and the full
+552-case run passed with zero skips in 15.011 seconds. An early validation
+fixture omitted the typed native `FocusGained` event; its failed attempt and the
+corrected public-focus reproduction are retained, as is an invalid test-filter
+attempt. No observed failure was overwritten or accepted as a passing result.
+
+Final source-built `System.Windows.Forms.dll` SHA256 is
+`db3157566b47192b162854c1da562f142401942c5e29f727eb0489651afbdd95`;
+the test DLL is
+`70231137a30262ede67f6abfdca0af66ba9913bf888bece7debe29a893e0fed8`.
 No native desktop rerun, package producer, keyboard context-menu entry, default
 native EDIT menu, or complete popup parity is claimed here. Actual installed
 Windows/macOS/Linux acceptance remains independent.
