@@ -64,6 +64,9 @@ jobs:
       - name: Validate native popup geometry evidence contracts
         run: python3 eng/tests/test_popup_native_geometry.py
 
+      - name: Validate macOS popup driver offline contracts
+        run: python3 eng/tests/test_popup_macos_harness.py
+
       - name: Install Linux display and software WebGPU adapter
         shell: bash
         run: |
