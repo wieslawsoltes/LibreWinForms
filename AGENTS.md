@@ -1,5 +1,11 @@
 # Agent Guidance
 
+Portable collapsed-caret Backspace/Delete removes an adjacent source CRLF pair
+as one break. Keep explicit UTF-16 selections exact, standalone CR/LF and
+surrogate-pair behavior intact, and existing key suppression/read-only/event
+ordering. This edit policy does not normalize stored source or infer native
+desktop qualification. See docs/portable-newline-deletion.md.
+
 Portable plain multiline TextBox Enter uses the existing translated KeyPress
 and exact key-cycle suppression path. Preserve read-only/public-handler
 precedence, duplicate host-character suppression and the following text packet;
