@@ -36,7 +36,7 @@ public partial class CanonicalLifecycleTests
 
             editor.Select(4, 0);
             DrawingContext selected = editor.Record();
-            RenderCommand caretInk = selected.Commands.Single(c => c.Type == RenderCommandType.DrawRectangle);
+            RenderCommand caretInk = selected.Commands.Single(c => c.Type == RenderCommandType.DrawRect);
             caretInk.Rect.Y.Should().Be(2 * height);
             caretInk.Rect.Height.Should().Be(height);
         });

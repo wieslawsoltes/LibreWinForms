@@ -19,6 +19,14 @@ Against the unchanged parent, the empty-row/glyph and physical Enter cases fail;
 the pointer source-index case is a passing control. Full source and exact-head
 CI results remain required before merge.
 
+The complete canonical source suite passes all 593 cases on macOS ARM64 with
+zero failures/skips against ProGPU `d4e6e08c14bf5a013f73f4c160afeaa9aa37bcc0`.
+The new cases include the actual recorded trailing-row caret rectangle,
+read-only KeyPress behavior, duplicate Enter callbacks, public suppression and
+the following ordinary text packet. All original 590 cases remain unchanged.
+Baseline and final logs are retained under `artifacts/text-interaction`; local
+source success does not qualify the native desktop or replace required PR CI.
+
 This does not qualify native desktop rendering, popup editors, IME, visual-line
 Home/End, up/down or word navigation. Those remaining editor/platform contracts
 are still required before release.
