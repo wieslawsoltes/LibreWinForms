@@ -491,6 +491,8 @@ public unsafe partial class Control
             // Retire only this release's state, never its replacement.
             if (_portablePointerPressVersion == pressVersion)
             {
+                if (IsCurrentRelease())
+                    target.SetState(States.ValidationCancelled, false);
                 _portablePressedControl = null;
                 _portablePressedButton = MouseButtons.None;
                 if (ReferenceEquals(_portableCapturedControl, captured))
