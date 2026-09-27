@@ -41,6 +41,20 @@ def windows(mode="Logical", dpi=2, framebuffer=2):
     return DRIVER.combine_windows(*FIXTURE.fixture(mode, dpi, framebuffer), 24)
 
 
+def occlusion(native, foreign_alpha=None, foreign_first=True):
+    entries = [dict(pid=w["pid"], windowNumber=w["windowNumber"], zIndex=i, layer=0,
+                    alpha=1, frameBounds=copy.deepcopy(w["bounds"])) for i, w in enumerate(native)]
+    if foreign_alpha is not None:
+        foreign = dict(pid=77, windowNumber=900, zIndex=0, layer=100,
+                       alpha=foreign_alpha, frameBounds=copy.deepcopy(native[0]["bounds"]))
+        entries.insert(0 if foreign_first else len(entries), foreign)
+    for i, entry in enumerate(entries):
+        entry["zIndex"] = i
+    return dict(policy="foreign-window-frame-intersection-v1", coordinateSpace="native-desktop-top-left-points",
+                samples=[dict(phase=phase, observedUptimeSeconds=10 + i, systemWindowCount=len(entries),
+                              windows=copy.deepcopy(entries)) for i, phase in enumerate(("before", "after"))])
+
+
 class MacPopupContracts(unittest.TestCase):
     def test_native_frame_and_typed_client_stay_distinct(self):
         values = FIXTURE.fixture()
@@ -191,7 +205,8 @@ class MacPopupContracts(unittest.TestCase):
                              struct.pack("<IiiHHIIiiII", 40, width, height, 1, 32, 0, len(data), 0, 0, 0, 0) + data)
             image = dict(captureProvider="ScreenCaptureKit.captureImage(in:)", encoding="ImageIO BMP, no resizing",
                          sourceRect=native[0]["bounds"], width=width, height=height,
-                         returnedPixelsPerPointX=2, returnedPixelsPerPointY=2, encodedBytes=path.stat().st_size)
+                         returnedPixelsPerPointX=2, returnedPixelsPerPointY=2, encodedBytes=path.stat().st_size,
+                         captureOcclusion=occlusion(native))
             result = DRIVER.check_capture(image, path, native)
             self.assertEqual((result["width"], result["height"]), (840, 576))
             self.assertFalse(result["qualified"])
@@ -241,7 +256,7 @@ class MacPopupContracts(unittest.TestCase):
                          "CGEventSource.keyState(.hidSystemState", "try hitOwner(point, pid)",
                          "NSEvent.pressedMouseButtons == 0", "for button in [CGMouseButton.left, .right, .center]",
                          "SCScreenshotManager.captureImage(in: rectangle)", ".withoutOverwriting",
-                         "try inventory(pid) == before", "NSWorkspace.shared.frontmostApplication"):
+                         "try inventory(pid, entries: afterEntries) == before", "NSWorkspace.shared.frontmostApplication"):
             self.assertIn(required, source)
         self.assertNotIn("CGMouseButton(rawValue:", source)
 
@@ -272,6 +287,130 @@ class MacPopupContracts(unittest.TestCase):
             if '"$popup_helper_build/PopupDesktopNative-' in line:
                 self.assertTrue(line.strip().startswith(("eng/PopupDesktopNative.swift -o ", "shasum -a 256 ", "xcrun vtool -show-build ")),
                                 "CI must only compile/hash/inspect the binary, never execute it")
+
+
+class CaptureObstructionContracts(unittest.TestCase):
+    def test_owned_nested_windows_can_overlap(self):
+        native = windows()
+        native.append(dict(native[0], windowNumber=301))
+        value = occlusion(native)
+        original = copy.deepcopy(value)
+        DRIVER.check_capture_occlusion(value, native)
+        self.assertEqual(value, original)
+
+    def test_foreign_in_front_rejects_even_with_tiny_nonzero_alpha(self):
+        for alpha in (1, 0.5, 1e-12):
+            with self.subTest(alpha=alpha), self.assertRaisesRegex(RuntimeError, "occludes.*before"):
+                DRIVER.check_capture_occlusion(occlusion(windows(), alpha), windows())
+
+    def test_foreign_behind_uses_native_order_not_layer(self):
+        # The foreign window has a higher recorded layer but is behind in the
+        # authoritative CG list. Never manufacture stacking from layer values.
+        DRIVER.check_capture_occlusion(occlusion(windows(), 1, foreign_first=False), windows())
+
+    def test_only_exact_zero_alpha_exempts_intersecting_foreign_window(self):
+        DRIVER.check_capture_occlusion(occlusion(windows(), 0), windows())
+        for alpha in (-1, 2, float("nan"), float("inf"), True, "0"):
+            value = occlusion(windows(), alpha)
+            with self.subTest(alpha=alpha), self.assertRaises((RuntimeError, ValueError)):
+                DRIVER.check_capture_occlusion(value, windows())
+
+    def test_edge_contact_and_negative_native_origins_are_not_rescaled(self):
+        frame = dict(x=-200, y=-100, width=80, height=50)
+        self.assertFalse(DRIVER.overlaps(frame, dict(x=-120, y=-100, width=20, height=50)))
+        self.assertFalse(DRIVER.overlaps(frame, dict(x=-200, y=-50, width=80, height=20)))
+        self.assertTrue(DRIVER.overlaps(frame, dict(x=-120.001, y=-100, width=20, height=50)))
+        native = [dict(pid=24, windowNumber=300, bounds=frame)]
+        DRIVER.check_capture_occlusion(occlusion(native), native)
+
+    def test_obstruction_appearing_after_capture_rejects(self):
+        native = windows()
+        value = occlusion(native)
+        value["samples"][1] = occlusion(native, 1)["samples"][1]
+        with self.assertRaisesRegex(RuntimeError, "occludes.*after"):
+            DRIVER.check_capture_occlusion(value, native)
+
+    def test_missing_and_stale_owned_identity_reject(self):
+        for key, replacement in (("pid", 99), ("windowNumber", 123),
+                                 ("frameBounds", dict(x=0, y=0, width=10, height=10))):
+            value = occlusion(windows())
+            value["samples"][1]["windows"][0][key] = replacement
+            with self.subTest(key=key), self.assertRaises((RuntimeError, ValueError)):
+                DRIVER.check_capture_occlusion(value, windows())
+        value = occlusion(windows())
+        value["samples"][1]["windows"] = []
+        with self.assertRaises(RuntimeError): DRIVER.check_capture_occlusion(value, windows())
+
+    def test_missing_malformed_duplicate_and_reordered_metadata_reject(self):
+        original = occlusion(windows(), 1, foreign_first=False)
+        for field in ("pid", "windowNumber", "zIndex", "layer", "alpha", "frameBounds"):
+            value = copy.deepcopy(original)
+            del value["samples"][0]["windows"][1][field]
+            with self.subTest(missing=field), self.assertRaises(RuntimeError):
+                DRIVER.check_capture_occlusion(value, windows())
+        for field, replacement in (("pid", True), ("windowNumber", 300), ("zIndex", 0), ("zIndex", 2),
+                                   ("layer", 0.5), ("frameBounds", dict(x=0, y=0, width=-1, height=2))):
+            value = copy.deepcopy(original)
+            value["samples"][0]["windows"][1][field] = replacement
+            with self.subTest(field=field, replacement=replacement), self.assertRaises((RuntimeError, ValueError)):
+                DRIVER.check_capture_occlusion(value, windows())
+        original["samples"][0]["windows"].reverse()
+        with self.assertRaises(RuntimeError): DRIVER.check_capture_occlusion(original, windows())
+
+    def test_unknown_missing_phase_time_and_overbudget_receipts_reject(self):
+        for value in (None, {}, dict(occlusion(windows()), policy="clear"),
+                      dict(occlusion(windows()), coordinateSpace="pixels")):
+            with self.subTest(value=value), self.assertRaises(RuntimeError):
+                DRIVER.check_capture_occlusion(value, windows())
+        for field, replacement in (("phase", "before"), ("observedUptimeSeconds", 9),
+                                   ("observedUptimeSeconds", True), ("systemWindowCount", 4097),
+                                   ("windows", [occlusion(windows())["samples"][0]["windows"][0]] * 65)):
+            value = occlusion(windows())
+            value["samples"][1][field] = replacement
+            with self.subTest(field=field), self.assertRaises((RuntimeError, ValueError)):
+                DRIVER.check_capture_occlusion(value, windows())
+        value = occlusion(windows())
+        value["samples"].pop()
+        with self.assertRaises(RuntimeError): DRIVER.check_capture_occlusion(value, windows())
+
+    def test_old_helper_capture_rejected_before_reading_image(self):
+        destination = mock.Mock()
+        image = dict(captureProvider="ScreenCaptureKit.captureImage(in:)", encoding="ImageIO BMP, no resizing")
+        with self.assertRaisesRegex(RuntimeError, "obstruction policy"):
+            DRIVER.check_capture(image, destination, windows())
+        destination.is_file.assert_not_called()
+
+    def test_failed_native_capture_retains_structured_obstruction_without_foreign_title(self):
+        value = occlusion(windows(), 1)
+        value["samples"].pop()
+        with tempfile.TemporaryDirectory() as temporary:
+            target = desktop(Path(temporary))
+            failure = dict(schema="popup-macos-native-v1", success=False, qualified=False,
+                           error="Foreign CG window 900 PID 77 potentially occludes owned window 300 (before)",
+                           captureOcclusion=value)
+            with mock.patch.object(DRIVER.subprocess, "run", return_value=NS(returncode=1, stderr=b"",
+                       stdout=json.dumps(failure).encode())):
+                with self.assertRaisesRegex(RuntimeError, "occludes"): target.call("capture", pid=24)
+            self.assertEqual(json.loads((target.root / "native-call-0001.stdout.json").read_text()), failure)
+            self.assertNotIn("title", json.dumps(failure))
+
+    def test_swift_capture_checks_both_samples_before_publishing_original_image(self):
+        source = (ROOT / "eng/PopupDesktopNative.swift").read_text()
+        capture = source.split("private func capture(_ request:", 1)[1].split("@main", 1)[0]
+        first = capture.index("try requireUnobstructed(samples, pid)")
+        screenshot = capture.index("SCScreenshotManager.captureImage(in: rectangle)")
+        second = capture.index("try requireUnobstructed(samples, pid)", first + 1)
+        write = capture.index("options: .withoutOverwriting")
+        self.assertLess(first, screenshot)
+        self.assertLess(screenshot, second)
+        self.assertLess(second, write)
+        for required in ("foreign.zIndex < owned.zIndex", "foreign.alpha > 0", "foreign.pid != pid",
+                         "windows.count <= 64", "entries.count <= 4096", "identities.insert(number.uint32Value).inserted",
+                         "rect.size.width >= 0 && rect.size.height >= 0",
+                         "captureOcclusion: CaptureOcclusion(samples: samples)", "CFGetTypeID(alpha) != CFBooleanGetTypeID()"):
+            self.assertIn(required, source)
+        for forbidden in ("CGWindowOwnerName", "foreign.layer", "foreign.title"):
+            self.assertNotIn(forbidden, source)
 
 
 if __name__ == "__main__":
