@@ -43,6 +43,13 @@ wire identities and missing titles fail explicitly. The shared/X11 suites also
 pass (17/22), including the optional observer preparation controls.
 Observer, service and actual application/package qualification remain separate.
 
+The actual shared Program and optional observer also compiled together on macOS
+ARM64 against the real canonical Forms and newly source-built geometry service
+assemblies, with zero warnings/errors. That source composition retained the
+unaltered SDK-generated configuration/bootstrap and actual Forms analyzers.
+It did not launch an application and does not qualify an installed package;
+the independent Package build below must still pass.
+
 The existing source-first pack-and-consume job now also invokes
 `eng/librewinforms-popup-observer-package.py` unconditionally. It prepares the
 unchanged shared `Program.cs` with the portable-only observer, restores a fresh
@@ -61,7 +68,8 @@ deadlines remain unchanged. Each new restore/build command has a 300-second
 bound. Fresh receipts and command logs are retained by an always-upload artifact
 named `popup-observer-package-build`; failures are not retried.
 
-The added offline verifier controls use synthetic files only. An actual successful
-Package build still requires the qualified ProGPU native-geometry API dependency
-to be pinned and packed; absent APIs must produce compiler errors, not a stub,
-conditional CI opt-out, or a native UI qualification claim.
+The added offline verifier controls use synthetic files only. The ProGPU
+native-geometry dependency is pinned to merged PR198 after its complete CI passed.
+An actual successful Package build must now compile against the newly packed
+dependency; absent APIs must produce compiler errors, not a stub, conditional CI
+opt-out, or a native UI qualification claim.

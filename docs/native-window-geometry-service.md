@@ -34,13 +34,13 @@ held source handle cannot be invented or matched by this API.
 
 ## Dependency and validation
 
-This source requires the additive ProGPU geometry API from PR198, whose proposed
-head is `7bfef896c57d9f338e53db48f381a55d76edce47`. The Forms submodule pin is
-intentionally unchanged until that whole upstream Build and separate checks are
-green and merged. The current pin alone cannot compile the new API call. A local
-source-composition build can explicitly use
-`LibreWinFormsProGpuSourceRoot=/Volumes/1TB-macOS/progpu-window-geometry.nsgUYGQa/`;
-that is not installed-package qualification or permission to change the pin early.
+The ProGPU submodule pins merged PR198 at
+`741b1c62b3710bbebe6b188909a58369e877c755`, with the same source tree as tested
+head `7bfef896c57d9f338e53db48f381a55d76edce47`. Its complete
+[Build 36283722397](https://github.com/wieslawsoltes/ProGPU/actions/runs/36283722397)
+passed all 43 jobs, and the separate Docs, CAD, Android and SVG checks passed
+before the guarded-head merge. This qualifies the upstream dependency only;
+the Forms source, package and real-application gates remain independent.
 
 Ten authored headless admission cases cover null/missing, non-window, unrelated,
 released, foreign-registry and externally registered handles, with no native
