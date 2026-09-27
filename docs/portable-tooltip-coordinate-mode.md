@@ -41,7 +41,28 @@ source screen coordinates and existing cursor input, and inspect the actual type
 request. The source gate retains its entire suites, raises minima by eight/four,
 and adds strict ten-case popup service and four-case source selections.
 
-These new cases are authored but not yet executed. Exact-head compilation, original
-whole CI and actual native desktop reruns remain required. Failed native inventory
-is retained at
+## Source validation
+
+Exact clean Forms `fba043b34a74094ff0ac5bb4423e444e41eca0af` was compiled on macOS
+ARM64 with SDK `11.0.100-preview.5.26302.115`, targeting net10.0. The explicit ProGPU
+source root was a fresh detached checkout of
+`7bfef896c57d9f338e53db48f381a55d76edce47`, using its normal project bin/obj outputs.
+The original native-qualified geometry checkout and its outputs were untouched.
+The canonical graph built with zero errors and 630 warnings; the backend graph
+built with zero errors/warnings. On the existing .NET 10.0.5 host:
+
+- All **533/533 canonical source cases** passed with zero skips (14.772 seconds).
+- The **four new source cases** separately passed with zero skips (3.465 seconds).
+- All **10 popup backend cases** passed with zero skips (132 ms).
+- The **whole backend assembly** passed: 139 total, 131 passed, zero failed,
+  eight existing Linux/Wayland platform skips (3.996 seconds).
+
+The first setup attempt used isolated `ArtifactsPath` output. It stopped before
+tests because the existing source Drawing guard requires the engine's normal
+`src/System.Drawing.Common/bin/Release/net10.0` output. That failed build is retained;
+the fresh detached source checkout restored the required output contract without
+changing guards, copying stale assemblies, or weakening a test. Build/test logs and
+binlogs remain in the warm integration tree's `artifacts/tooltip-coordinates/logs`.
+This work ran no GUI, VM, native producer or package publication. Original whole CI
+and actual native desktop reruns remain required. Failed native inventory is retained at
 `/Volumes/1TB-macOS/librewinforms-popup-windows-current.Jb9uulU4/native-inventory/receipt.json`.
