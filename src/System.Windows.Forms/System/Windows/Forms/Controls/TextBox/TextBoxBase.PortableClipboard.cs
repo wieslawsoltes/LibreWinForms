@@ -31,6 +31,11 @@ public abstract partial class TextBoxBase
 
         switch (keyData)
         {
+            case Keys.Control | Keys.Z:
+            case Keys.Alt | Keys.Back:
+                if (!SupportsPortableTextUndo) return false;
+                if (!ReadOnly) Undo();
+                return true;
             case Keys.Control | Keys.C:
                 Copy();
                 return true;

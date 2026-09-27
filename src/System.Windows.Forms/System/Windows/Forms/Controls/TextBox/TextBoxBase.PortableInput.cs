@@ -53,11 +53,11 @@ public abstract partial class TextBoxBase
             }
             else if (character == '\r' && Multiline)
             {
-                ReplacePortableSelection("\r\n", userInput: true, modified: true);
+                ReplacePortableSelection("\r\n", userInput: true, modified: true, PortableEditKind.Typing);
             }
             else if (!char.IsControl(character) || (character == '\t' && Multiline && AcceptsTab))
             {
-                ReplacePortableSelection(GetPortableInputText(character), userInput: true, modified: true);
+                ReplacePortableSelection(GetPortableInputText(character), userInput: true, modified: true, PortableEditKind.Typing);
             }
 
             return;
@@ -104,8 +104,10 @@ public abstract partial class TextBoxBase
     {
         GetSelectionStartAndLength(out int start, out int length);
         string text = WindowText;
+        PortableEditKind kind = PortableEditKind.Replacement;
         if (length == 0)
         {
+            kind = backwards ? PortableEditKind.Backspace : PortableEditKind.Delete;
             // Treat a source CRLF as one adjacent break, just as a surrogate
             // pair is one adjacent scalar. Explicit UTF-16 selections stay exact.
             if (backwards && start > 0)
@@ -124,16 +126,20 @@ public abstract partial class TextBoxBase
                 return;
             }
 
+            bool coalesce = _portableUndoCanCoalesce;
             SelectInternal(start, length, text.Length);
+            _portableUndoCanCoalesce = coalesce;
         }
 
-        ReplacePortableSelection(string.Empty, userInput: true, modified: true);
+        ReplacePortableSelection(string.Empty, userInput: true, modified: true, kind);
     }
 
     // Use the same source-owned UTF-16 text/selection as the public WinForms
     // properties. No backend copy, layout approximation or composition state.
-    private void ReplacePortableSelection(string replacement, bool userInput, bool modified)
+    private void ReplacePortableSelection(string replacement, bool userInput, bool modified,
+        PortableEditKind kind = PortableEditKind.Replacement)
     {
+        if (!modified) ClearPortableUndo();
         GetSelectionStartAndLength(out int start, out int length);
         string text = WindowText;
         if (userInput && MaxLength > 0)
@@ -152,8 +158,13 @@ public abstract partial class TextBoxBase
             return;
         }
 
+        PortableUndoEdit? undo = modified && SupportsPortableTextUndo
+            ? CreatePortableUndoEdit(start, text.Substring(start, length), replacement, kind)
+            : null;
         WindowText = updated;
         SelectInternal(start + replacement.Length, 0, updated.Length);
+        _portableUndoEdit = undo;
+        _portableUndoCanCoalesce = undo is not null && kind != PortableEditKind.Replacement;
         Modified = modified;
         OnTextChanged(EventArgs.Empty);
         Invalidate();
