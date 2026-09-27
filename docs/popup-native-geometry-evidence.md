@@ -42,3 +42,34 @@ unmatched native surfaces. Duplicate JSON identities, non-integer/out-of-range
 wire identities and missing titles fail explicitly. The shared/X11 suites also
 pass (17/22), including the optional observer preparation controls.
 Observer, service and actual application/package qualification remain separate.
+
+The actual shared Program and optional observer also compiled together on macOS
+ARM64 against the real canonical Forms and newly source-built geometry service
+assemblies, with zero warnings/errors. That source composition retained the
+unaltered SDK-generated configuration/bootstrap and actual Forms analyzers.
+It did not launch an application and does not qualify an installed package;
+the independent Package build below must still pass.
+
+The existing source-first pack-and-consume job now also invokes
+`eng/librewinforms-popup-observer-package.py` unconditionally. It prepares the
+unchanged shared `Program.cs` with the portable-only observer, restores a fresh
+Package-mode cache from the exact newly produced archives, and builds only the
+Portable project. MSBuild post-Build item queries must include the observer and
+the actual SDK-generated `ApplicationConfiguration` and canonical bootstrap;
+merely staging an optional partial method does not satisfy this check. Source
+project references, changed shared bytes, wrong package versions, or restored
+archive/output DLL hash mismatches fail the gate.
+
+This additive consumer never starts an application, requests native geometry,
+injects input, or captures the desktop. Its receipt always records
+`guiExecuted=false` and `qualified=false`, even after compilation succeeds.
+Existing SDK Project/Package smokes, desktop scenario, offline cases, and
+deadlines remain unchanged. Each new restore/build command has a 300-second
+bound. Fresh receipts and command logs are retained by an always-upload artifact
+named `popup-observer-package-build`; failures are not retried.
+
+The added offline verifier controls use synthetic files only. The ProGPU
+native-geometry dependency is pinned to merged PR198 after its complete CI passed.
+An actual successful Package build must now compile against the newly packed
+dependency; absent APIs must produce compiler errors, not a stub, conditional CI
+opt-out, or a native UI qualification claim.

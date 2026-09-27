@@ -34,23 +34,57 @@ held source handle cannot be invented or matched by this API.
 
 ## Dependency and validation
 
-This source requires the additive ProGPU geometry API from PR198, whose proposed
-head is `7bfef896c57d9f338e53db48f381a55d76edce47`. The Forms submodule pin is
-intentionally unchanged until that whole upstream Build and separate checks are
-green and merged. The current pin alone cannot compile the new API call. A local
-source-composition build can explicitly use
-`LibreWinFormsProGpuSourceRoot=/Volumes/1TB-macOS/progpu-window-geometry.nsgUYGQa/`;
-that is not installed-package qualification or permission to change the pin early.
+The ProGPU submodule pins merged PR198 at
+`741b1c62b3710bbebe6b188909a58369e877c755`, with the same source tree as tested
+head `7bfef896c57d9f338e53db48f381a55d76edce47`. Its complete
+[Build 36283722397](https://github.com/wieslawsoltes/ProGPU/actions/runs/36283722397)
+passed all 43 jobs, and the separate Docs, CAD, Android and SVG checks passed
+before the guarded-head merge. This qualifies the upstream dependency only;
+the Forms source, package and real-application gates remain independent.
 
 Ten authored headless admission cases cover null/missing, non-window, unrelated,
 released, foreign-registry and externally registered handles, with no native
 creation. The unchanged unfiltered backend gate is retained (minimum 97 to 107),
 with an additional strict ten-case, zero-skip gate over the same built assembly.
-These cases are not yet compiled or executed. They do not claim live service-window success or owner-thread/lifetime
-qualification; those require an actual registered window. The delegated ProGPU
+These cases test negative handle admission, not live service-window success or
+owner-thread/lifetime qualification; those require an actual registered window. The delegated ProGPU
 controller has separate 42-case policy evidence and a narrow live Cocoa ARM64
 initial/move/resize/closing/disposal diagnostic. That evidence does not qualify
 this new Forms composition, Intel Cocoa, native popup UI, pixels or packages.
 
-No GUI, VM or heavy/full source build was performed while authoring this seam.
-The original source/backend suites and all package/native gates remain required.
+### Scoped source validation
+
+On macOS ARM64, exact Forms `19cc2cc3d` and ProGPU
+`7bfef896c57d9f338e53db48f381a55d76edce47` were built using the actual backend test
+project and its complete thirteen-project managed reference graph. The graph
+contains no CMake/native producer or CAD submodule edge. SDK
+`11.0.100-preview.5.26302.115` built the graph in 16.61 seconds with **zero warnings
+and errors**, using task-owned external outputs/cache and an existing NuGet cache
+as read-only fallback. No old engine output was substituted or overwritten.
+
+Execution on the existing .NET 10.0.5 ARM64 host passed:
+
+- Strict geometry gate: **10/10**, zero failures/skips, 132 ms.
+- Unfiltered backend assembly: **123 passed, zero failed, eight existing Linux /
+  Wayland skips**, 131 total, 3.423 seconds.
+
+The actual build used `LibreWinFormsProGpuSourceRoot` set to the geometry checkout,
+`NetCurrent=net10.0`, `MicrosoftNETCoreAppRefPackageVersion=`,
+`LibreWinFormsUseProGpuSystemDrawing=true`, `LibreWinFormsReferenceMode=Project`,
+`UseArtifactsOutput=true` and an isolated `ArtifactsPath`, with `-m:1`,
+`-nodeReuse:false` and `UseSharedCompilation=false`. Evaluated output paths, build
+binlog/log, exact commands and test logs remain under the task's
+`artifacts/native-geometry/` directory. ProGPU outputs use its isolated
+`build/bin/<project>/release` paths; Forms outputs use this worktree's own
+`artifacts/bin/<project>/Release` paths.
+
+Two setup-only failures remain recorded: invoking the isolated SDK11 executable
+from the ProGPU directory could not satisfy that repository's SDK10 global.json;
+invoking the net10 test DLL with the SDK11-only runtime host found no net10
+runtime. The real graph was built from the Forms entry project with SDK11 and
+executed using the already installed matching .NET10 host, without changing
+global.json, runtime policy, dependencies or test assertions.
+
+No GUI, VM, native producer or canonical Forms/Design source build ran in this
+scope. The original canonical source suite and all package/native gates remain
+required; source compilation does not qualify the new Forms native observer.
