@@ -23,7 +23,7 @@ internal static class Program
     }
 }
 
-internal sealed class InteractionForm : Form
+internal sealed partial class InteractionForm : Form
 {
     private readonly string _directory;
     private readonly Stopwatch _clock = Stopwatch.StartNew();
@@ -145,12 +145,16 @@ internal sealed class InteractionForm : Form
                     ? RectangleRecord(new Rectangle(owner.PointToScreen(pair.Value.Bounds.Location), pair.Value.Bounds.Size)) : null
             })
         };
+        RecordNativeGeometry(_sequence);
         string pending = Path.Combine(_directory, "snapshot.pending");
         File.WriteAllText(pending, JsonSerializer.Serialize(state));
         // Publish immutable snapshots: replacing a file concurrently open by a
         // Windows reader can fail even though its contents are read-only.
         File.Move(pending, Path.Combine(_directory, $"snapshot-{_sequence:D8}.json"));
     }
+
+    // Optional portable-only observation; the Microsoft build erases this call.
+    partial void RecordNativeGeometry(long sequence);
 
     protected override void Dispose(bool disposing)
     {

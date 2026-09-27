@@ -13,4 +13,7 @@
     <LibreWinFormsProGpuBackendPackageVersion>0.1.0-source-first-backend</LibreWinFormsProGpuBackendPackageVersion>
   </PropertyGroup>
   <ItemGroup><Compile Include="Program.cs" /></ItemGroup>
+  <ItemGroup Condition="'$(PopupNativeGeometryDiagnostics)' == 'true'">
+    <Compile Include="PortableNativeGeometryObserver.cs" />
+  </ItemGroup>
 </Project>

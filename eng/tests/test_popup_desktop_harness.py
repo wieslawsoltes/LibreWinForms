@@ -80,6 +80,9 @@ class PopupDesktopContracts(unittest.TestCase):
             staged = root / "staged"
             receipt = PREPARE.prepare(staged, root, "1.2.3", "1.2.3", "1.2.3", "11.0.100-preview.5.26302.115")
             self.assertFalse(receipt["qualified"])
+            self.assertFalse(receipt["nativeGeometry"]["enabled"])
+            self.assertIsNone(receipt["nativeGeometry"]["sourceSha256"])
+            self.assertFalse((staged / "Portable/PortableNativeGeometryObserver.cs").exists())
             for mode in ("Microsoft", "Portable"):
                 self.assertEqual((staged / mode / "Program.cs").read_bytes(), (PREPARE.SOURCE / "Program.cs").read_bytes())
             self.assertIn("LibreWinForms.Sdk/1.2.3", (staged / "Portable/PopupInteractionApp.csproj").read_text())
@@ -89,6 +92,91 @@ class PopupDesktopContracts(unittest.TestCase):
                 self.assertEqual(project.findtext("PropertyGroup/TargetFramework"), tfm)
             with self.assertRaisesRegex(ValueError, "must be new"):
                 PREPARE.prepare(staged, root, "1.2.3", "1.2.3", "1.2.3", "11.0.100")
+
+    def test_native_geometry_is_explicit_portable_only_with_exact_source_receipt(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for name in ("LibreWinForms.Sdk", "LibreWinForms.System.Windows.Forms", "LibreWinForms.ProGPU"):
+                with zipfile.ZipFile(root / f"{name}.1.2.3.nupkg", "w") as archive:
+                    archive.writestr(f"{name}.nuspec", f"<package><metadata><id>{name}</id><version>1.2.3</version></metadata></package>")
+            staged = root / "staged"
+            receipt = PREPARE.prepare(staged, root, "1.2.3", "1.2.3", "1.2.3", "11.0.100", native_geometry=True)
+            observer = receipt["nativeGeometry"]
+            self.assertTrue(observer["enabled"])
+            self.assertEqual(observer["environmentVariable"], "LIBREWINFORMS_POPUP_NATIVE_GEOMETRY")
+            self.assertEqual(observer["sourcePath"], "Portable/PortableNativeGeometryObserver.cs")
+            self.assertEqual(observer["sourceSha256"], PREPARE.sha256(PREPARE.SOURCE / "PortableNativeGeometryObserver.cs"))
+            self.assertEqual(observer["sourceSha256"], PREPARE.sha256(staged / observer["sourcePath"]))
+            self.assertFalse((staged / "Microsoft/PortableNativeGeometryObserver.cs").exists())
+            for mode in ("Microsoft", "Portable"):
+                self.assertEqual((staged / mode / "Program.cs").read_bytes(), (PREPARE.SOURCE / "Program.cs").read_bytes())
+                project = ET.parse(staged / mode / "PopupInteractionApp.csproj")
+                self.assertEqual(project.findtext("PropertyGroup/PopupNativeGeometryDiagnostics"),
+                                 "true" if mode == "Portable" else None)
+            self.assertFalse(receipt["qualified"])
+            self.assertEqual(len(receipt["packages"]), 3)
+
+    def test_native_observer_copy_corruption_is_not_published_as_preparation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for name in ("LibreWinForms.Sdk", "LibreWinForms.System.Windows.Forms", "LibreWinForms.ProGPU"):
+                with zipfile.ZipFile(root / f"{name}.1.2.3.nupkg", "w") as archive:
+                    archive.writestr(f"{name}.nuspec", f"<package><metadata><id>{name}</id><version>1.2.3</version></metadata></package>")
+            staged = root / "staged"
+            copy = PREPARE.shutil.copyfile
+            def corrupt_observer(source, target):
+                copy(source, target)
+                if source.name == "PortableNativeGeometryObserver.cs":
+                    target.write_bytes(b"changed observer fixture")
+            with mock.patch.object(PREPARE.shutil, "copyfile", side_effect=corrupt_observer):
+                with self.assertRaisesRegex(ValueError, "observer copy changed"):
+                    PREPARE.prepare(staged, root, "1.2.3", "1.2.3", "1.2.3", "11.0.100", native_geometry=True)
+            self.assertFalse((staged / "preparation.json").exists())
+
+    def test_native_observer_is_read_only_optional_and_precedes_same_sequence_publication(self):
+        shared = (PREPARE.SOURCE / "Program.cs").read_text()
+        observer = (PREPARE.SOURCE / "PortableNativeGeometryObserver.cs").read_text()
+        self.assertIn("internal sealed partial class InteractionForm", shared)
+        self.assertIn("partial void RecordNativeGeometry(long sequence);", shared)
+        self.assertEqual(shared.count("RecordNativeGeometry(_sequence);"), 1)
+        self.assertLess(shared.index("RecordNativeGeometry(_sequence);"), shared.index('File.Move(pending, Path.Combine(_directory, $"snapshot-'))
+        self.assertIn('Environment.GetEnvironmentVariable("LIBREWINFORMS_POPUP_NATIVE_GEOMETRY") != "1"', observer)
+        self.assertIn('FileMode.CreateNew', observer)
+        self.assertIn('native-geometry-{sequence:D8}.json', observer)
+        self.assertIn('sequence is < 1 or > 650', observer)
+        self.assertIn('bytes.Length > 32 * 1024', observer)
+        for name in ("main", "context", "context-child", "menu", "menu-child"):
+            self.assertIn(f'ObserveNativeGeometry("{name}",', observer)
+        for forbidden in (".Focus(", ".Show(", ".Hide(", ".Activate(", "new Timer", "Thread.Sleep",
+                          "BeginInvoke", "GetType(", "GetMethod(", "CreateHandle(", "_combo", "_tip",
+                          ".PointToScreen(", ".Apply(", ".Attach("):
+            self.assertNotIn(forbidden, observer)
+        project = ET.parse(PREPARE.SOURCE / "Portable.csproj")
+        entries = [group for group in project.findall("ItemGroup")
+                   if group.find("Compile[@Include='PortableNativeGeometryObserver.cs']") is not None]
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0].get("Condition"), "'$(PopupNativeGeometryDiagnostics)' == 'true'")
+        self.assertNotIn("PortableNativeGeometryObserver", (PREPARE.SOURCE / "Microsoft.csproj").read_text())
+
+    def test_native_observer_keeps_raw_geometry_and_checks_exact_typed_policy_identity(self):
+        observer = (PREPARE.SOURCE / "PortableNativeGeometryObserver.cs").read_text()
+        self.assertLess(observer.index("if (!handleCreated || control.IsDisposed || control.Disposing)"),
+                        observer.index("nint handle = control.Handle;"))
+        for contract in ("platform.Windows is not SilkWindowService service",
+                         "platform.Handles.TryGet(token, out ILibreWindow? window)",
+                         "service.TryGetNativeGeometrySnapshot(token, out NativeWindowGeometrySnapshot snapshot)",
+                         "control.Handle != handle", "!ReferenceEquals(current, window)",
+                         "current.Handle != token", "currentMode != mode",
+                         "currentDpi != dpi", "currentFramebuffer != framebuffer",
+                         "snapshot.Window.Kind == NativeWindowKind.Cocoa && snapshot.BackingScale == framebuffer",
+                         "contentBounds = NativeBounds(snapshot.ContentBounds)",
+                         "frameBounds = NativeBounds(snapshot.FrameBounds)",
+                         "backingScale = snapshot.BackingScale",
+                         "new { x = bounds.X, y = bounds.Y, width = bounds.Width, height = bounds.Height }"):
+            self.assertIn(contract, observer)
+        self.assertNotIn("Math.Round", observer)
+        self.assertNotIn(" / framebuffer", observer)
+        self.assertNotIn(" * framebuffer", observer)
 
     def test_driver_accepts_only_current_consumer_framework_output_paths(self):
         with tempfile.TemporaryDirectory() as temporary:
