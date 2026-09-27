@@ -55,6 +55,18 @@ public interface ILibreTextLayoutService
         Size layoutSize, LibreTextFormat format);
 }
 
+/// <summary>Optional capability whose owned layouts implement <see cref="ILibreTextRowNavigation"/>.</summary>
+public interface ILibreTextRowNavigationService : ILibreTextLayoutService
+{
+}
+
+/// <summary>Navigation over actual retained horizontal rows, including wrapping and empty rows.</summary>
+public interface ILibreTextRowNavigation
+{
+    LibreTextCaret GetRowBoundary(int textPosition, bool trailing, bool end);
+    LibreTextCaret MoveCaretVertically(int textPosition, bool trailing, int direction, float preferredX);
+}
+
 public readonly record struct LibreTextCaret(int TextPosition, bool IsTrailing,
     PointF Position, float Height, sbyte BidiLevel);
 

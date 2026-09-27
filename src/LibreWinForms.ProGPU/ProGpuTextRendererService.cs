@@ -9,7 +9,7 @@ using LibreWinForms.Platform;
 namespace LibreWinForms.ProGPU;
 
 /// <summary>Implements canonical WinForms text rendering through managed ProGPU System.Drawing.</summary>
-public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibreTextLayoutService
+public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibreTextRowNavigationService
 {
     public ILibreTextLayout CreateLayout(Graphics graphics, string text, Font font,
         Size layoutSize, LibreTextFormat format)
@@ -32,7 +32,7 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
             graphics, text, font, layoutSize, selected));
     }
 
-    private sealed class RetainedLayout(global::ProGPU.SystemDrawing.DrawingTextLayout layout) : ILibreTextLayout
+    private sealed class RetainedLayout(global::ProGPU.SystemDrawing.DrawingTextLayout layout) : ILibreTextLayout, ILibreTextRowNavigation
     {
         private global::ProGPU.SystemDrawing.DrawingTextLayout? _layout = layout;
         private int _selectionStart = -1;
@@ -46,6 +46,10 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
             => Convert(Layout.GetCaretStop(textPosition, trailing));
         public LibreTextCaret MoveCaret(int textPosition, bool trailing, int visualDirection)
             => Convert(Layout.MoveCaretVisually(textPosition, trailing, visualDirection));
+        public LibreTextCaret GetRowBoundary(int textPosition, bool trailing, bool end)
+            => Convert(Layout.GetRowBoundary(textPosition, trailing, end));
+        public LibreTextCaret MoveCaretVertically(int textPosition, bool trailing, int direction, float preferredX)
+            => Convert(Layout.MoveCaretVertically(textPosition, trailing, direction, preferredX));
         public LibreTextHit HitTest(PointF point)
         {
             var hit = Layout.HitTestPoint(point);

@@ -23,6 +23,7 @@ public partial class TextBox
     private bool _portableCaretVisible = true;
     private Timer? _portableCaretTimer;
     private RectangleF _portableCaretBounds;
+    private float? _portablePreferredCaretX;
 
     private ILibreTextLayout? GetPortableTextLayout(Graphics graphics, string text, TextFormatFlags flags)
     {
@@ -52,6 +53,7 @@ public partial class TextBox
         _portableLayoutDpiX = graphics.DpiX;
         _portableLayoutDpiY = graphics.DpiY;
         _portableEnsureCaretVisible = true;
+        _portablePreferredCaretX = null;
         return next;
     }
 
@@ -62,6 +64,7 @@ public partial class TextBox
         _portableLayoutService = null;
         _portableLayoutFont = null;
         _portableLayoutText = null;
+        _portablePreferredCaretX = null;
         _portableCaretTimer?.Stop();
         _portableEnsureCaretVisible = true;
     }
@@ -176,8 +179,9 @@ public partial class TextBox
         return GetPortableTextLayout(graphics, text, flags);
     }
 
-    private void ApplyPortableLayoutCaret(int position, bool trailing, bool extend)
+    private void ApplyPortableLayoutCaret(int position, bool trailing, bool extend, bool vertical = false)
     {
+        if (!vertical) _portablePreferredCaretX = null;
         _portableCaretTrailing = trailing;
         _portableApplyingCaret = true;
         try { SelectPortableCaret(position, extend); }
@@ -203,6 +207,30 @@ public partial class TextBox
         }
         else next = layout.MoveCaret(PortableSelectionActiveEnd, _portableCaretTrailing, key == Keys.Left ? -1 : 1);
         ApplyPortableLayoutCaret(next.TextPosition, next.IsTrailing, extend);
+        return true;
+    }
+
+    private bool TryMovePortableRowCaret(Keys keyData)
+    {
+        Keys key = keyData & Keys.KeyCode;
+        if (!Multiline || key is not (Keys.Up or Keys.Down or Keys.Home or Keys.End) ||
+            (keyData & Keys.Modifiers & ~Keys.Shift) != Keys.None ||
+            LibrePlatform.Current.TextRenderer is not ILibreTextRowNavigationService)
+            return false;
+        ILibreTextLayout? layout = GetPortableInputLayout();
+        if (layout is null) return false;
+        if (layout is not ILibreTextRowNavigation rows)
+            throw new InvalidOperationException("The text provider declared row navigation but returned a layout without that capability.");
+        bool vertical = key is Keys.Up or Keys.Down;
+        LibreTextCaret next;
+        if (vertical)
+        {
+            _portablePreferredCaretX ??= layout.GetCaret(PortableSelectionActiveEnd, _portableCaretTrailing).Position.X;
+            next = rows.MoveCaretVertically(PortableSelectionActiveEnd, _portableCaretTrailing,
+                key == Keys.Up ? -1 : 1, _portablePreferredCaretX.Value);
+        }
+        else next = rows.GetRowBoundary(PortableSelectionActiveEnd, _portableCaretTrailing, key == Keys.End);
+        ApplyPortableLayoutCaret(next.TextPosition, next.IsTrailing, (keyData & Keys.Shift) != Keys.None, vertical);
         return true;
     }
 

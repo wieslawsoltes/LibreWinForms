@@ -556,6 +556,13 @@ public partial class TextBox : TextBoxBase
         {
             return true;
         }
+
+        if (Multiline && (keyData & Keys.KeyCode) is Keys.Up or Keys.Down
+            && (keyData & Keys.Modifiers & ~Keys.Shift) == Keys.None
+            && LibreWinForms.Platform.LibrePlatform.Current.TextRenderer is LibreWinForms.Platform.ILibreTextRowNavigationService)
+        {
+            return true;
+        }
 #endif
         if (Multiline && (keyData & Keys.Alt) == 0)
         {
@@ -759,7 +766,12 @@ public partial class TextBox : TextBoxBase
         _selectionSet = true;
         base.SelectInternal(start, length, textLen);
 #if LIBREWINFORMS_PORTABLE
-        if (!_portableApplyingCaret) _portableCaretTrailing = false;
+        if (!_portableApplyingCaret)
+        {
+            _portableCaretTrailing = false;
+            _portablePreferredCaretX = null;
+        }
+
         ResetPortableCaretBlink();
         Invalidate();
 #endif
