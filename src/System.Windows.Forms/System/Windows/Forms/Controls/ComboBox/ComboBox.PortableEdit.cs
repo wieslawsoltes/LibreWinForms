@@ -100,6 +100,40 @@ public partial class ComboBox
         return editor is { Focused: false, Visible: true, Enabled: true } && editor.Focus();
     }
 
+    private protected override bool FocusInternal()
+    {
+        if (DropDownStyle != ComboBoxStyle.DropDown)
+            return base.FocusInternal();
+
+        nint handle = IsHandleCreated ? Handle : 0;
+        TextBox? editor = GetLivePortableEditor();
+        nint editorHandle = editor is { IsHandleCreated: true } ? editor.Handle : 0;
+        Form? owner = FindForm();
+        nint ownerHandle = owner is { IsHandleCreated: true } ? owner.Handle : 0;
+        bool focused = base.FocusInternal();
+
+        // RecreateHandle can retain the ComboBox as the already-notified Form
+        // focus target while replacing its editor. Such a Focus call has no
+        // GotFocus notification through which to redirect to the new child.
+        // Complete only this request's still-owned live source generation;
+        // base focus callbacks may have moved focus or replaced either window.
+        if (focused && handle != 0 && editorHandle != 0 && ownerHandle != 0
+            && IsHandleCreated && Handle == handle && !IsDisposed && !Disposing
+            && base.Focused && ReferenceEquals(owner, FindForm())
+            && owner is { IsHandleCreated: true, IsDisposed: false, Disposing: false, IsPortableActivationOwner: true }
+            && owner.Handle == ownerHandle && ReferenceEquals(owner.PortableFocusedControl, this)
+            && ReferenceEquals(editor, GetLivePortableEditor())
+            && editor is { IsHandleCreated: true, IsDisposed: false, Disposing: false, Visible: true, Enabled: true }
+            && editor.Handle == editorHandle)
+        {
+            editor.Focus();
+        }
+
+        // Child GotFocus is another public callback. Never restore this source
+        // after it chooses a different target, replaces the handle or throws.
+        return Focused;
+    }
+
     private bool HandlePortableEditorGotFocus(EventArgs e)
     {
         if (DropDownStyle != ComboBoxStyle.DropDown)
