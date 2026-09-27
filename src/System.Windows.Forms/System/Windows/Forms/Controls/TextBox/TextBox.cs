@@ -525,6 +525,9 @@ public partial class TextBox : TextBoxBase
     {
         if (disposing)
         {
+#if LIBREWINFORMS_PORTABLE
+            DisposePortableTextInteraction();
+#endif
             // Reset this just in case, because the SHAutoComplete stuff
             // will subclass this guys wndproc (and nativewindow can't know about it).
             // so this will undo it, but on a dispose we'll be Destroying the window anyway.
@@ -543,6 +546,17 @@ public partial class TextBox : TextBoxBase
     /// </summary>
     protected override bool IsInputKey(Keys keyData)
     {
+#if LIBREWINFORMS_PORTABLE
+        // The native EDIT procedure normally supplies DLGC_WANTARROWS. Admit
+        // only implemented directions; command filters and public key events
+        // still precede the optional portable layout's default navigation.
+        if ((keyData & Keys.KeyCode) is Keys.Left or Keys.Right
+            && (keyData & Keys.Modifiers & ~Keys.Shift) == Keys.None
+            && LibreWinForms.Platform.LibrePlatform.Current.TextRenderer is LibreWinForms.Platform.ILibreTextLayoutService)
+        {
+            return true;
+        }
+#endif
         if (Multiline && (keyData & Keys.Alt) == 0)
         {
             switch (keyData & Keys.KeyCode)
@@ -576,6 +590,9 @@ public partial class TextBox : TextBoxBase
 
     protected override void OnFontChanged(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        ReleasePortableTextLayout();
+#endif
         base.OnFontChanged(e);
         if (AutoCompleteMode != AutoCompleteMode.None)
         {
@@ -591,6 +608,7 @@ public partial class TextBox : TextBoxBase
     {
         base.OnGotFocus(e);
 #if LIBREWINFORMS_PORTABLE
+        ResetPortableCaretBlink();
         Invalidate();
 #endif
         if (!_selectionSet)
@@ -656,6 +674,9 @@ public partial class TextBox : TextBoxBase
 
     protected override void OnHandleDestroyed(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        DisposePortableTextInteraction();
+#endif
         _stringSource?.ReleaseAutoComplete();
         _stringSource = null;
 
@@ -675,6 +696,9 @@ public partial class TextBox : TextBoxBase
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
+#if LIBREWINFORMS_PORTABLE
+        ProcessPortableTextMouseDown(e);
+#endif
 
         if (IsHandleCreated && IsAccessibilityObjectCreated)
         {
@@ -734,6 +758,11 @@ public partial class TextBox : TextBoxBase
         // clobber it when we get focus.
         _selectionSet = true;
         base.SelectInternal(start, length, textLen);
+#if LIBREWINFORMS_PORTABLE
+        if (!_portableApplyingCaret) _portableCaretTrailing = false;
+        ResetPortableCaretBlink();
+        Invalidate();
+#endif
     }
 
     /// <summary>

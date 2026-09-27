@@ -9,7 +9,8 @@ public partial class TextBox
     internal override void ProcessPortableDefaultKeyMessage(ref Message message)
     {
         if (message.MsgInternal == PInvokeCore.WM_KEYDOWN
-            && TryMovePortableTextBoundary((Keys)(int)message.WParamInternal | ModifierKeys))
+            && (TryMovePortableTextBoundary((Keys)(int)message.WParamInternal | ModifierKeys)
+                || TryMovePortableLayoutCaret((Keys)(int)message.WParamInternal | ModifierKeys)))
         {
             return;
         }

@@ -1,5 +1,14 @@
 # Agent Guidance
 
+Portable TextBox painting and horizontal interaction share one owned optional
+text-layout generation. Keep original UTF-16 selection anchors, exact source
+font realization and target DPI in the cache contract. Source owns the fixed
+viewport clip while glyphs, selection and caret scroll together. Retire layouts
+and blink timers on real control/handle lifetime boundaries, recheck public
+callback disposal, and never expose password source to the shaping provider.
+Source cases do not qualify empty hard rows, complete editor navigation, IME or
+native desktop appearance. See docs/portable-retained-text-interaction.md.
+
 Portable text uses explicit Drawing target DPI: DevicePixels uses actual window
 resolution, Logical stays96 with presentation scaling. Canonical TextRenderer
 separately realizes already-scaled source fonts against InitialSystemDpi, as the

@@ -9,8 +9,85 @@ using LibreWinForms.Platform;
 namespace LibreWinForms.ProGPU;
 
 /// <summary>Implements canonical WinForms text rendering through managed ProGPU System.Drawing.</summary>
-public sealed class ProGpuTextRendererService : ILibreTextRendererService
+public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibreTextLayoutService
 {
+    public ILibreTextLayout CreateLayout(Graphics graphics, string text, Font font,
+        Size layoutSize, LibreTextFormat format)
+    {
+        ArgumentNullException.ThrowIfNull(graphics);
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentNullException.ThrowIfNull(font);
+        ValidateFormat(format);
+        // Editor offsets must retain every original UTF-16 source position.
+        // Padding belongs to the source client rectangle, not a second layout.
+        if (!format.HasFlag(LibreTextFormat.NoPrefix) ||
+            !format.HasFlag(LibreTextFormat.NoPadding) ||
+            (format & (LibreTextFormat.EndEllipsis | LibreTextFormat.PathEllipsis |
+                LibreTextFormat.WordEllipsis | LibreTextFormat.LeftAndRightPadding)) != 0)
+            throw new NotSupportedException("Retained editor layout requires untrimmed, unprefixed text without renderer padding.");
+        using StringFormat selected = CreateStringFormat(format);
+        selected.FormatFlags &= ~StringFormatFlags.LineLimit;
+        selected.SetDigitSubstitution(0, StringDigitSubstitute.None);
+        return new RetainedLayout(global::ProGPU.SystemDrawing.DrawingTextLayout.Create(
+            graphics, text, font, layoutSize, selected));
+    }
+
+    private sealed class RetainedLayout(global::ProGPU.SystemDrawing.DrawingTextLayout layout) : ILibreTextLayout
+    {
+        private global::ProGPU.SystemDrawing.DrawingTextLayout? _layout = layout;
+        private int _selectionStart = -1;
+        private int _selectionLength = -1;
+        private RectangleF[] _selection = [];
+        private global::ProGPU.SystemDrawing.DrawingTextLayout Layout
+            => _layout ?? throw new ObjectDisposedException(nameof(RetainedLayout));
+
+        public SizeF ContentSize => Layout.ContentSize;
+        public LibreTextCaret GetCaret(int textPosition, bool trailing = false)
+            => Convert(Layout.GetCaretStop(textPosition, trailing));
+        public LibreTextCaret MoveCaret(int textPosition, bool trailing, int visualDirection)
+            => Convert(Layout.MoveCaretVisually(textPosition, trailing, visualDirection));
+        public LibreTextHit HitTest(PointF point)
+        {
+            var hit = Layout.HitTestPoint(point);
+            return new(hit.TextPosition, hit.IsTrailingHit, hit.IsInside,
+                new RectangleF(hit.Bounds.X, hit.Bounds.Y, hit.Bounds.Width, hit.Bounds.Height), hit.BidiLevel);
+        }
+
+        public ReadOnlyMemory<RectangleF> GetSelectionRectangles(int start, int length)
+        {
+            var current = Layout;
+            if (_selectionStart != start || _selectionLength != length)
+            {
+                var bounds = current.GetSelectionRectangles(start, length);
+                var rectangles = new RectangleF[bounds.Count];
+                for (int i = 0; i < rectangles.Length; i++)
+                    rectangles[i] = new RectangleF(bounds[i].X, bounds[i].Y, bounds[i].Width, bounds[i].Height);
+                _selection = rectangles;
+                _selectionStart = start;
+                _selectionLength = length;
+            }
+
+            return _selection;
+        }
+
+        public void Draw(Graphics graphics, PointF origin, Color color)
+        {
+            var current = Layout;
+            using var brush = new SolidBrush(color);
+            current.Draw(graphics, brush, origin);
+        }
+
+        public void Dispose()
+        {
+            _layout = null;
+            _selection = [];
+        }
+
+        private static LibreTextCaret Convert(global::ProGPU.Text.TextCaretStop caret)
+            => new(caret.TextPosition, caret.IsTrailing, new PointF(caret.Position.X, caret.Position.Y),
+                caret.Height, caret.BidiLevel);
+    }
+
     public void DrawText(
         Graphics graphics,
         string text,
