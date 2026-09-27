@@ -5962,6 +5962,7 @@ public partial class CanonicalLifecycleTests
             PopupShowFailure = null;
             PopupOwnerAssigned = null;
             WindowCreating = null;
+            InitialWindowLocation = null;
             LastWindowBounds = default;
             LastNativeWindowBounds = default;
             LastDirtyRectangle = default;
@@ -6801,6 +6802,8 @@ public partial class CanonicalLifecycleTests
 
         internal Action<ILibreWindowEvents>? WindowCreating { get; set; }
 
+        internal LibrePoint? InitialWindowLocation { get; set; }
+
         internal ILibreWindowEvents GetWindowEvents(Control control)
         {
             Handles.TryGet(GetWindowHandle(control), out HeadlessWindow? window).Should().BeTrue();
@@ -7357,12 +7360,18 @@ public partial class CanonicalLifecycleTests
                 _scaleOnDpiChange = options.ScaleOnDpiChange;
                 _dpiScale = platform._initialDpiScale ?? options.InitialDpiScale;
                 _framebufferScale = platform._initialFramebufferScale ?? options.InitialDpiScale;
+                LibreRectangle initialBounds = options.Bounds;
+                if (platform.InitialWindowLocation is { } location)
+                {
+                    initialBounds = new LibreRectangle(location.X, location.Y, initialBounds.Width, initialBounds.Height);
+                }
+
                 _nativeBounds = LibreWindowCoordinates.ToNative(
-                    options.Bounds,
+                    initialBounds,
                     _coordinateMode,
                     _dpiScale,
                     _framebufferScale);
-                _platform.LastWindowBounds = options.Bounds;
+                _platform.LastWindowBounds = initialBounds;
                 _platform.LastNativeWindowBounds = _nativeBounds;
                 Title = options.Title;
                 _state = options.InitialState;
