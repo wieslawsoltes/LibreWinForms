@@ -71,7 +71,21 @@ unsupported surfaces and source paint transport. Its helper observes the real
 keyboard recipient via the ordinary message filter; it does not scan private
 fields or fabricate a ComboBox-shaped object.
 
-The initial implementation and tests are authored but not yet compiled or run.
-They require the canonical ListBox prerequisite and the existing ComboBox hook
-wiring in the integration branch. No macOS native input, screenshot or successful
-14-phase application result is claimed by this change.
+The integrated source build completed with zero errors and 629 warnings (the
+existing 623 plus six portable protected-override API declarations). All **479
+source cases passed, zero failures/skips**, including all 406 prior cases, 33
+ListBox cases, nine closed ComboBox observation cases and 31 popup cases. The
+unchanged ten-minute deadline and fail-on-skip policy remain in the source gate.
+
+The first complete run retained 476 passes and three failures: disposal had
+retired its native handle without reporting closure, and two paint assertions
+incorrectly observed a TextBox-only fixture collection. Disposal now reports
+closure from actual handle retirement, once, with the reentrant source guard
+still held. Painting is observed through the shared text service, including
+font, color, direction and intersected clip; the product was not changed to emit
+TextBox flags. Initial compile/analyzer failures and the failed test run remain
+beside the final logs under `artifacts/dropdown-keyboard/log/combobox-*`.
+
+Full exact-head CI and installed native desktop interaction remain required.
+No macOS native input, screenshot or successful fourteen-phase application
+result is claimed by these source tests.

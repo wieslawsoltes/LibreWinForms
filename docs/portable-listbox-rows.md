@@ -68,6 +68,9 @@ that distinction; its paint/input paths still reject outside-viewport points.
 geometry and borders, changed fonts, clipped/RTL source paint, formatting
 reentrancy, typed pointer/key/wheel routing, handled input, live selection
 collections/removal, empty lists, host acceptance-key preservation, disposal and
-explicit unsupported-mode rejection. These new cases have not yet been built or
-executed at this commit. Root-owned combined validation follows integration;
-source tests alone do not qualify a native desktop ComboBox or rendered pixels.
+explicit unsupported-mode rejection. All 33 now pass within the integrated
+**479/479 source run, zero failures/skips**. The build has zero errors; its six
+new portable protected overrides are reported by the existing public-API
+declaration analyzer as warnings. The original independent cases and deadline
+remain unchanged. Source tests alone do not qualify a native desktop ComboBox
+or rendered pixels; full hosted CI and exact-package desktop checks remain.

@@ -33,3 +33,10 @@ all six focus/no-handle regressions; the three created-control dropdown queries
 still fail at their unchanged `USER32` call. This is not a passing dropdown gate.
 The baseline and corrected builds each report 623 existing warnings and zero
 errors; both complete test logs retain their failed cases without exclusions.
+
+The [owned ListBox popup integration](portable-combobox-dropdown.md) removes the
+remaining created-control state-query escape and retains the actual hosted-list
+focus owner. All nine observation cases and the combined **479/479 source
+cases** now pass with zero skips. That does not retroactively qualify the failed
+macOS package run: a new exact successful producer and actual desktop rerun are
+still required.
