@@ -47,3 +47,12 @@ Graphics nullability to classify the literal `managed`/`headless` sentinel text.
 It now asserts explicit Graphics while retaining those text, flags and sizes;
 the intervening corrected537/537 result is retained too. Two strict formatting
 build failures were corrected; no analyzer, case, timeout or assertion was waived.
+
+The final combined source `74707f9e9` incorporates exact context-menu PR86
+`cd94646ddd7744d686725ce5684634c65c03849c` and pins ProGPU
+`aad4a98c4e9b1f3589eafbacd068111c5595c578`. Its complete **557/557** canonical
+suite passed with zero skips in18.419s (build0errors/630existingwarnings).
+The19 context-menu cases and pointer implementation remain byte-identical to
+that parent; all five DPI cases remain included. Evidence is
+`artifacts/text-target-dpi/integrated-557-{build,tests}.log`. Both prerequisite
+whole Builds and the combined exact-head CI remain required before merging.
