@@ -30,6 +30,11 @@ boundary). Against the unchanged implementation, the four device-DPI
 cases fail and the logical/pixel controls pass. The full source gate retains
 every prior case and increases its minimum from 675 to 681.
 
+Local macOS ARM64 validation passes all six focused cases and the complete
+681-case suite with zero skips (61.450 seconds). The canonical rebuild has
+632 existing warnings and zero errors; the final test-project rebuild has zero
+warnings and errors. Documentation and shell/whitespace checks pass.
+
 Fresh exact-head CI and an updated native package run remain required. This
 change does not qualify all sample dimensions, explicit grid row/column sizes,
 native chrome, masked editors or rendering parity. The original sample's Enter
