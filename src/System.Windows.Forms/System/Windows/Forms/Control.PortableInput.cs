@@ -28,6 +28,7 @@ public unsafe partial class Control
     private Control? _portableCapturedControl;
     private Control? _portablePressedControl;
     private MouseButtons _portablePressedButton;
+    private uint _portablePointerPressVersion;
     private bool _portableWindowFocused;
     private bool _portableControlFocusNotified;
     private uint _portableWindowFocusVersion;
@@ -113,6 +114,7 @@ public unsafe partial class Control
     {
         Control root = GetPortableTopLevelControl();
         Control? captured = root._portableCapturedControl;
+        root._portablePointerPressVersion++;
         root._portableCapturedControl = null;
         root._portablePressedControl = null;
         root._portablePressedButton = MouseButtons.None;
@@ -420,30 +422,90 @@ public unsafe partial class Control
                 _portableCapturedControl = target;
                 _portablePressedControl = target;
                 _portablePressedButton = button;
+                _portablePointerPressVersion++;
                 target.OnMouseDown(new MouseEventArgs(button, 1, location.X, location.Y, 0));
                 break;
             case LibreInputEventKind.PointerUp:
-                s_portableMouseButtons &= ~button;
-                bool fireClick = target == _portablePressedControl
-                    && button == _portablePressedButton
-                    && hit == target
-                    && target.GetStyle(ControlStyles.StandardClick);
-                if (fireClick)
-                {
-                    MouseEventArgs clickEvent = new(button, 1, location.X, location.Y, 0);
-                    target.OnClick(clickEvent);
-                    target.OnMouseClick(clickEvent);
-                }
-
-                target.OnMouseUp(new MouseEventArgs(button, 1, location.X, location.Y, 0));
-                _portableCapturedControl = null;
-                _portablePressedControl = null;
-                _portablePressedButton = MouseButtons.None;
-                RefreshPortableCursor();
+                DispatchPortableMouseUp(target, hit, button, location);
                 break;
             case LibreInputEventKind.PointerWheel:
                 DispatchPortableMouseWheel(target, s_portableMousePosition, inputEvent.Delta.Y);
                 break;
+        }
+    }
+
+    private void DispatchPortableMouseUp(Control target, Control? hit, MouseButtons button, Point location)
+    {
+        LibreHandle receivingHandle = _window.PortableHandle;
+        nint targetHandle = target.Handle;
+        uint pressVersion = _portablePointerPressVersion;
+        Control? captured = _portableCapturedControl;
+        Exception? callbackError = null;
+        s_portableMouseButtons &= ~button;
+
+        bool IsCurrentRelease() => _portablePointerPressVersion == pressVersion
+            && !IsDisposed && !Disposing && IsHandleCreated && _window.PortableHandle == receivingHandle
+            && !target.IsDisposed && !target.Disposing && target.IsHandleCreated && target.Handle == targetHandle;
+
+        try
+        {
+            if (button == MouseButtons.Right)
+            {
+                // WmMouseUp's native default processing sends WM_CONTEXTMENU
+                // before Click/MouseClick/MouseUp. Enter the actual source
+                // procedure so TextBox/DataGridView/custom control policy and
+                // parent default processing remain authoritative.
+                Message context = Message.Create(targetHandle, (int)PInvokeCore.WM_CONTEXTMENU,
+                    targetHandle, (nint)(LPARAM)s_portableMousePosition);
+                target.WndProc(ref context);
+            }
+
+            if (!IsCurrentRelease())
+                return;
+
+            bool fireClick = target == _portablePressedControl
+                && button == _portablePressedButton
+                && hit == target
+                && target.GetStyle(ControlStyles.StandardClick)
+                && !target.ValidationCancelled;
+            if (fireClick)
+            {
+                MouseEventArgs clickEvent = new(button, 1, location.X, location.Y, 0);
+                target.OnClick(clickEvent);
+                if (!IsCurrentRelease())
+                    return;
+                target.OnMouseClick(clickEvent);
+            }
+
+            if (IsCurrentRelease())
+                target.OnMouseUp(new MouseEventArgs(button, 1, location.X, location.Y, 0));
+        }
+        catch (Exception error)
+        {
+            callbackError = error;
+            throw;
+        }
+        finally
+        {
+            // A callback can start another press, even on the same control.
+            // Retire only this release's state, never its replacement.
+            if (_portablePointerPressVersion == pressVersion)
+            {
+                _portablePressedControl = null;
+                _portablePressedButton = MouseButtons.None;
+                if (ReferenceEquals(_portableCapturedControl, captured))
+                    _portableCapturedControl = null;
+
+                try
+                {
+                    if (!IsDisposed && !Disposing && IsHandleCreated && _window.PortableHandle == receivingHandle)
+                        RefreshPortableCursor();
+                }
+                catch (Exception cleanupError) when (callbackError is not null)
+                {
+                    callbackError.Data["PortableMouseUpCleanupError"] = cleanupError;
+                }
+            }
         }
     }
 

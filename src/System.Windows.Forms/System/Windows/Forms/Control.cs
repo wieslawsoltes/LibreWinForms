@@ -4962,7 +4962,22 @@ public unsafe partial class Control :
     ///  Sends the specified message to the default window procedure.
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Advanced)]
-    protected virtual void DefWndProc(ref Message m) => _window.DefWndProc(ref m);
+    protected virtual void DefWndProc(ref Message m)
+    {
+#if LIBREWINFORMS_PORTABLE
+        // DefWindowProc forwards unhandled context-menu messages to the parent.
+        // Logical portable children have no native default window procedure;
+        // retain the original source WndProc/virtual WmContextMenu policy.
+        if (m.Msg == PInvokeCore.WM_CONTEXTMENU && ParentInternal is { IsDisposed: false, Disposing: false } parent)
+        {
+            Message forwarded = Message.Create(parent.Handle, m.Msg, m.WParam, m.LParam);
+            parent.WndProc(ref forwarded);
+            m.Result = forwarded.Result;
+            return;
+        }
+#endif
+        _window.DefWndProc(ref m);
+    }
 
     /// <summary>
     ///  Destroys the handle associated with this control. Inheriting classes should
