@@ -189,6 +189,7 @@ public partial class CanonicalLifecycleTests
             }
         };
         owner.Show();
+        platform.SendFormInput(owner, LibreInputEventKind.FocusGained);
         target.Focus().Should().BeTrue();
         owner.ActiveControl.Should().BeSameAs(target);
         owner.Validate().Should().BeFalse("the actual canonical validation path sets its canceled state");
@@ -208,6 +209,42 @@ public partial class CanonicalLifecycleTests
         clicks.Should().Be(1);
         released.Should().Be(throwOpening ? 1 : 2);
         target.Capture.Should().BeFalse();
+    }
+
+    [Fact]
+    public void CanonicalContextPointerDoesNotClearANestedPressValidation()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form owner = new() { ShowIcon = false, AutoValidate = AutoValidate.EnablePreventFocusChange };
+        using Control target = new() { Bounds = new(20, 20, 100, 60) };
+        using ContextMenuStrip menu = new();
+        menu.Items.Add("Open");
+        target.ContextMenuStrip = menu;
+        owner.Controls.Add(target);
+        target.Validating += (_, e) => e.Cancel = true;
+        int clicks = 0, opening = 0;
+        target.Click += (_, _) => clicks++;
+        menu.Opening += (_, e) =>
+        {
+            e.Cancel = true;
+            if (++opening == 1)
+            {
+                SendContextPointer(platform, owner, target, LibreInputEventKind.PointerDown);
+                owner.Validate().Should().BeFalse();
+            }
+        };
+        owner.Show();
+        platform.SendFormInput(owner, LibreInputEventKind.FocusGained);
+        target.Focus().Should().BeTrue();
+        SendContextPointer(platform, owner, target, LibreInputEventKind.PointerDown);
+        SendContextPointer(platform, owner, target, LibreInputEventKind.PointerUp);
+        target.Capture.Should().BeTrue("the callback owns a new press on the same source control");
+        SendContextPointer(platform, owner, target, LibreInputEventKind.PointerUp);
+        clicks.Should().Be(0, "the old release must not clear the nested press's canceled validation");
+        target.Capture.Should().BeFalse();
+        SendContextPointer(platform, owner, target, LibreInputEventKind.PointerDown);
+        SendContextPointer(platform, owner, target, LibreInputEventKind.PointerUp);
+        clicks.Should().Be(1, "the nested release retires its own canceled validation");
     }
 
     [Fact]
