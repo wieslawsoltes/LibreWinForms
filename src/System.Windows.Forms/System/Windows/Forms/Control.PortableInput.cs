@@ -264,7 +264,7 @@ public unsafe partial class Control
         nint menuHandle = menu?.Handle ?? 0;
         if (menu is not null)
         {
-            target = menu is ToolStripDropDown dropDown ? dropDown.GetPortableHostedKeyboardTarget() : menu;
+            target = menu is ToolStripDropDown dropDown ? dropDown.GetPortableKeyboardInputTarget() : menu;
             message.HWnd = target.Handle;
             if (message.MsgInternal == PInvokeCore.WM_KEYDOWN || message.MsgInternal == PInvokeCore.WM_KEYUP)
                 target._portableSuppressKeyPress = false;
@@ -280,7 +280,7 @@ public unsafe partial class Control
             && (menu is null || (ReferenceEquals(ToolStripDropDown.GetPortableKeyboardTarget(this), menu)
                 && menu.IsHandleCreated && menu.Handle == menuHandle
                 && target.IsHandleCreated && target.Handle == handle
-                && (menu is not ToolStripDropDown currentDropDown || ReferenceEquals(currentDropDown.GetPortableHostedKeyboardTarget(), target)))))
+                && (menu is not ToolStripDropDown currentDropDown || ReferenceEquals(currentDropDown.GetPortableKeyboardInputTarget(), target)))))
         {
             handled = target.ProcessPortableKeyMessage(ref message);
         }
@@ -289,7 +289,7 @@ public unsafe partial class Control
             || (processed && message.MsgInternal == PInvokeCore.WM_KEYDOWN)
             || !ReferenceEquals(ToolStripDropDown.GetPortableKeyboardTarget(this), menu)
             || !menu.IsHandleCreated || menu.Handle != menuHandle
-            || (menu is ToolStripDropDown hostedMenu && !ReferenceEquals(hostedMenu.GetPortableHostedKeyboardTarget(), target))
+            || (menu is ToolStripDropDown hostedMenu && !ReferenceEquals(hostedMenu.GetPortableKeyboardInputTarget(), target))
             || !target.IsHandleCreated || target.Handle != handle))
         {
             // Typed backends may deliver a translated character after a

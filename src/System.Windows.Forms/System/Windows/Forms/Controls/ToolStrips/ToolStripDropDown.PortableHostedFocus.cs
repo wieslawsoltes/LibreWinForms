@@ -15,6 +15,13 @@ public partial class ToolStripDropDown
         => _portableHostedFocus is { IsLive: true } focus
             && ReferenceEquals(focus.Owner.PortableFocusedControl, focus.Target) ? focus.Target : this;
 
+    // A composite owner may retain its actual editor in the Form while showing
+    // a nonactivating list. This input target is distinct from a hosted focus
+    // lease: overrides must validate their source/owner generations and actual
+    // Form focus. Ordinary menus retain the original hosted-membership checks.
+    internal virtual Control GetPortableKeyboardInputTarget()
+        => GetPortableHostedKeyboardTarget();
+
     internal bool FocusPortableHostedControl(Control target)
     {
         if (!Visible || !IsHandleCreated || IsDisposed || Disposing
