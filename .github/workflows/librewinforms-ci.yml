@@ -61,6 +61,9 @@ jobs:
       - name: Validate X11 popup driver offline contracts
         run: python3 eng/tests/test_popup_x11_harness.py
 
+      - name: Validate read-only X11 keymap admission
+        run: python3 -B eng/tests/test_x11_keymap.py
+
       - name: Validate native popup geometry evidence contracts
         run: python3 eng/tests/test_popup_native_geometry.py
 
