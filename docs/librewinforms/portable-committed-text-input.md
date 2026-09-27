@@ -81,6 +81,20 @@ input and disposal during a text batch. It never starts editing by calling
 The ordinary source-first and packaged/native application gates remain required;
 passing these contracts alone is not full official sample or platform qualification.
 
+`CanonicalGridPointerEditingTests.cs` additionally starts with a different
+focused control, selects the actual grid cell through typed window pointer input,
+enters its default editor by a second click or F2, clicks the live editor, and
+commits typed text with Enter. All four combinations of an existing row and the
+new-row placeholder pass on the aligned source graph (Forms `bc14ecc3`, ProGPU
+`32334efa`). They do not subscribe to `CellValidating` or `RowValidating`, because
+those subscriptions cause additional canonical focus correction and previously
+changed the behavior of an instrumented native application run. This evidence
+does not reproduce or fix that application's intermittent failure. No runtime
+behavior is changed; the full source-first floor increases from 671 to 675, and
+the unchanged original application still needs exact-package native validation.
+The combined local suite passes all 675 cases with zero skips in 57.756 seconds;
+the test-project build has zero warnings and zero errors.
+
 Initial local source validation on macOS ARM64/.NET 10.0.5 passes all 13 new cases
 with zero skips. The source test build has zero warnings/errors; the isolated
 canonical Forms build has zero errors and 615 existing portable warnings. The test
