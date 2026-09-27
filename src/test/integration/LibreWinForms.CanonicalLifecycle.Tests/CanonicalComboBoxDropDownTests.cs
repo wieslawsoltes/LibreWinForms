@@ -221,7 +221,13 @@ public partial class CanonicalLifecycleTests
             ListBox list = GetComboListThroughOwnerInput(platform, owner);
             Control popup = list.Parent!;
             int closed = 0;
-            combo.DropDownClosed += (_, _) => { combo.DroppedDown.Should().BeFalse(); closed++; };
+            combo.DropDownClosed += (_, _) =>
+            {
+                combo.DroppedDown.Should().BeFalse();
+                if (transition == "dispose")
+                    popup.IsHandleCreated.Should().BeFalse("disposal closes the owned native surface before notifying");
+                closed++;
+            };
             if (transition == "hide") combo.Hide();
             else if (transition == "disable") combo.Enabled = false;
             else if (transition == "unparent") owner.Controls.Remove(combo);
@@ -231,6 +237,9 @@ public partial class CanonicalLifecycleTests
             popup.IsDisposed.Should().BeTrue();
             popup.IsHandleCreated.Should().BeFalse();
             closed.Should().Be(1);
+            combo.Dispose();
+            popup.Dispose();
+            closed.Should().Be(1, "retirement and repeated disposal must not duplicate the close notification");
         });
     }
 

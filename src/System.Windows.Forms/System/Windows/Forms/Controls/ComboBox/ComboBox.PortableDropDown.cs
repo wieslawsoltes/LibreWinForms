@@ -443,7 +443,10 @@ public partial class ComboBox
                     CompletePortableDropDownStage(DestroyHandle, ref failure);
                 CompletePortableDropDownStage(_host.Dispose, ref failure);
                 CompletePortableDropDownStage(() => base.Dispose(true), ref failure);
-                if (!Visible)
+                // Control.Dispose can leave its source-local Visible bit set.
+                // The owned native surface, not that bit, determines whether
+                // a previously opened dropdown has completed retirement.
+                if (!IsHandleCreated)
                     CompletePortableDropDownStage(NotifyClosed, ref failure);
             }
             finally { _disposingPopup = false; }
