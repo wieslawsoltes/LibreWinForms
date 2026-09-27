@@ -46,7 +46,7 @@ public sealed class ProGpuDrawingDpiTests
             frame.Complete();
         }
         Assert.True(measured.Height > 0);
-        Assert.Equal(9f * dpi / 72f, Assert.Single(layers[handle].Context.Commands.Where(c => c.Type == RenderCommandType.DrawGlyphRun)).FontSize);
+        Assert.Equal(9f * dpi / 72f, Assert.Single(layers[handle].Context.Commands, c => c.Type == RenderCommandType.DrawGlyphRun).FontSize);
         Assert.Equal(9f, font.Size);
     }
 }

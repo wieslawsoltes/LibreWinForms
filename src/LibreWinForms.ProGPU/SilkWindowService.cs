@@ -1684,6 +1684,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
                 {
                     frame.Complete();
                 }
+
                 _lastPaintDpi = targetDpi;
             }
         }
