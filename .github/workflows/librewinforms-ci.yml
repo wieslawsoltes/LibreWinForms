@@ -70,6 +70,9 @@ jobs:
       - name: Validate popup observer Package verifier contracts
         run: python3 eng/tests/test_popup_observer_package.py
 
+      - name: Validate original grid designer metadata preparation
+        run: python3 eng/tests/test_grid_designer_metadata.py
+
       - name: Install Linux display and software WebGPU adapter
         shell: bash
         run: |
