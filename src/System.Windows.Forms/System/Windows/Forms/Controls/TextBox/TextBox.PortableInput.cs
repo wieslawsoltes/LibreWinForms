@@ -6,6 +6,17 @@ namespace System.Windows.Forms;
 
 public partial class TextBox
 {
+    internal override void ProcessPortableDefaultKeyMessage(ref Message message)
+    {
+        if (message.MsgInternal == PInvokeCore.WM_KEYDOWN
+            && TryMovePortableTextBoundary((Keys)(int)message.WParamInternal | ModifierKeys))
+        {
+            return;
+        }
+
+        base.ProcessPortableDefaultKeyMessage(ref message);
+    }
+
     internal override string GetPortableClipboardText(string text)
         => CharacterCasing switch
         {

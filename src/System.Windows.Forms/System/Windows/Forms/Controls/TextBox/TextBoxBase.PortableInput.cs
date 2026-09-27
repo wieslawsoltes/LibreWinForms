@@ -65,6 +65,30 @@ public abstract partial class TextBoxBase
 
     internal virtual string GetPortableInputText(char character) => character.ToString();
 
+    private protected bool TryMovePortableTextBoundary(Keys keyData)
+    {
+        Keys key = keyData & Keys.KeyCode;
+        if (key is not (Keys.Home or Keys.End)
+            || (keyData & Keys.Modifiers & ~(Keys.Control | Keys.Shift)) != Keys.None
+            || (Multiline && (keyData & Keys.Control) == Keys.None))
+        {
+            // Multiline visual-line boundaries need retained layout, not a
+            // source newline scan or an approximation of wrapped glyphs.
+            return false;
+        }
+
+        int textLength = TextLength;
+        int end = key == Keys.Home ? 0 : textLength;
+        // Public SelectionStart is ordered. Preserve the actual cached anchor
+        // so Shift can reverse direction without losing the original endpoint.
+        int anchor = (keyData & Keys.Shift) != Keys.None
+            ? Math.Clamp(_selectionStart, 0, textLength)
+            : end;
+        SelectInternal(anchor, end - anchor, textLength);
+        Invalidate();
+        return true;
+    }
+
     private void DeletePortableSelection(bool backwards)
     {
         GetSelectionStartAndLength(out int start, out int length);
