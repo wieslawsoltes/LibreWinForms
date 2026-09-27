@@ -274,7 +274,7 @@ public partial class CanonicalLifecycleTests
 
     private sealed class ContextMessagePanel : Panel
     {
-        internal int ContextMessages;
+        internal int ContextMessages { get; private set; }
 
         protected override void WndProc(ref Message message)
         {
