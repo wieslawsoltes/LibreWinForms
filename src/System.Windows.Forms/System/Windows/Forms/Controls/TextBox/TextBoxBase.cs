@@ -395,7 +395,12 @@ public abstract partial class TextBoxBase : Control
     [Browsable(false)]
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     [SRDescription(nameof(SR.TextBoxCanUndoDescr))]
-    public bool CanUndo => IsHandleCreated && (int)PInvokeCore.SendMessage(this, PInvokeCore.EM_CANUNDO) != 0;
+    public bool CanUndo => IsHandleCreated &&
+#if LIBREWINFORMS_PORTABLE
+        SendPortableUndoMessage(PInvokeCore.EM_CANUNDO) != 0;
+#else
+        (int)PInvokeCore.SendMessage(this, PInvokeCore.EM_CANUNDO) != 0;
+#endif
 
     /// <summary>
     ///  Returns the parameters needed to create the handle. Inheriting classes
@@ -1149,6 +1154,9 @@ public abstract partial class TextBoxBase : Control
 
             if (!WindowText.Equals(value))
             {
+#if LIBREWINFORMS_PORTABLE
+                ClearPortableUndo();
+#endif
                 _textBoxFlags[s_codeUpdateText] = true;
                 try
                 {
@@ -1314,7 +1322,11 @@ public abstract partial class TextBoxBase : Control
     {
         if (IsHandleCreated)
         {
+#if LIBREWINFORMS_PORTABLE
+            SendPortableUndoMessage(PInvokeCore.EM_EMPTYUNDOBUFFER);
+#else
             PInvokeCore.SendMessage(this, PInvokeCore.EM_EMPTYUNDOBUFFER);
+#endif
         }
     }
 
@@ -1453,6 +1465,9 @@ public abstract partial class TextBoxBase : Control
 
     protected override void OnHandleDestroyed(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        ClearPortableUndo();
+#endif
         _textBoxFlags[s_modified] = Modified;
         _textBoxFlags[s_setSelectionOnHandleCreated] = true;
         // Update text selection cached values to be restored when recreating the handle.
@@ -1808,6 +1823,7 @@ public abstract partial class TextBoxBase : Control
     private protected virtual void SelectInternal(int selectionStart, int selectionLength, int textLength)
     {
 #if LIBREWINFORMS_PORTABLE
+        _portableUndoCanCoalesce = false;
         AdjustSelectionStartAndEnd(selectionStart, selectionLength, out int start, out int end, textLength);
         _selectionStart = start;
         _selectionLength = end - start;
@@ -2064,7 +2080,12 @@ public abstract partial class TextBoxBase : Control
     /// <summary>
     ///  Undoes the last edit operation in the text box.
     /// </summary>
-    public void Undo() => PInvokeCore.SendMessage(this, PInvokeCore.EM_UNDO);
+    public void Undo() =>
+#if LIBREWINFORMS_PORTABLE
+        SendPortableUndoMessage(PInvokeCore.EM_UNDO);
+#else
+        PInvokeCore.SendMessage(this, PInvokeCore.EM_UNDO);
+#endif
 
     internal virtual void UpdateMaxLength()
     {
@@ -2166,6 +2187,19 @@ public abstract partial class TextBoxBase : Control
         switch (m.MsgInternal)
         {
 #if LIBREWINFORMS_PORTABLE
+            case PInvokeCore.EM_CANUNDO:
+                m.Result = SupportsPortableTextUndo && _portableUndoEdit is not null ? 1 : 0;
+                break;
+            case PInvokeCore.EM_EMPTYUNDOBUFFER:
+                ClearPortableUndo();
+                break;
+            case PInvokeCore.EM_UNDO:
+                bool undone = UndoPortableEdit();
+                m.Result = undone || !Multiline ? 1 : 0;
+                break;
+            case PInvokeCore.WM_UNDO:
+                m.Result = UndoPortableEdit() ? 1 : 0;
+                break;
             case PInvokeCore.WM_COPY when SupportsPortableTextClipboard:
                 CopyPortableSelection();
                 break;

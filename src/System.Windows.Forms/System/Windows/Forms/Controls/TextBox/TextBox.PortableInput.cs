@@ -6,6 +6,8 @@ namespace System.Windows.Forms;
 
 public partial class TextBox
 {
+    private protected override bool SupportsPortableTextUndo => true;
+
     internal override void ProcessPortableTranslatedKey(ref Message message)
     {
         if (message.MsgInternal == PInvokeCore.WM_KEYDOWN
