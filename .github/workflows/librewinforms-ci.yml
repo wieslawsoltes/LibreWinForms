@@ -61,6 +61,9 @@ jobs:
       - name: Validate X11 popup driver offline contracts
         run: python3 eng/tests/test_popup_x11_harness.py
 
+      - name: Validate native popup geometry evidence contracts
+        run: python3 eng/tests/test_popup_native_geometry.py
+
       - name: Install Linux display and software WebGPU adapter
         shell: bash
         run: |
