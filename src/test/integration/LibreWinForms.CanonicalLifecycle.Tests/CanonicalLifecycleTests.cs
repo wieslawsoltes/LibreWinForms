@@ -6793,6 +6793,9 @@ public partial class CanonicalLifecycleTests
 
         internal LibreWindowCreateOptions LastWindowOptions { get; private set; }
 
+        internal Control? LastWindowControl
+            => _lastWindow is { } window ? Control.FromHandle(window.Handle.Value) : null;
+
         internal bool RejectPopupCreation { get; set; }
 
         internal Exception? PopupShowFailure { get; set; }

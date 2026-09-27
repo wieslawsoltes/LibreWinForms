@@ -196,6 +196,7 @@ public partial class ComboBox
         private nint _sourceHandle;
         private nint _sourceOwnerHandle;
         private nint _editorHandle;
+        private nint _popupHandle;
         private Form? _sourceOwner;
         private bool _canceled;
         private bool _opened;
@@ -205,6 +206,7 @@ public partial class ComboBox
         private bool _syncingSelection;
         private bool _listPointerPressed;
         private int _originalIndex;
+        private string _originalSelectionText = string.Empty;
         private string _originalEditText = string.Empty;
         private int _originalEditStart;
         private int _originalEditLength;
@@ -267,7 +269,7 @@ public partial class ComboBox
         {
             // An editable combo's input owner is a real child of the Form,
             // distinct from the dropdown's ToolStripControlHost focus lease.
-            if (SourceIsLive && Visible && IsHandleCreated && !IsDisposed && !Disposing
+            if (SourceIsLive && Visible && IsHandleCreated && Handle == _popupHandle && !IsDisposed && !Disposing
                 && _combo.GetLivePortableEditor() is { Visible: true, Enabled: true, IsHandleCreated: true, Focused: true } editor
                 && editor.Handle == _editorHandle && ReferenceEquals(_sourceOwner!.PortableFocusedControl, editor))
                 return editor;
@@ -300,7 +302,7 @@ public partial class ComboBox
 
             _combo.ValidatePortableDropDownStyle();
             _combo.EnsurePortableEditor();
-            _editorHandle = _combo.GetLivePortableEditor() is { IsHandleCreated: true } editor ? editor.Handle : 0;
+            _editorHandle = _combo.GetLivePortableEditor() is { } editor ? editor.Handle : 0;
             _entries = [.. _combo.Items.InnerList];
             _items = [.. _entries.Select(entry => entry.Item)];
             List.Font = _combo.Font;
@@ -320,6 +322,7 @@ public partial class ComboBox
             }
 
             _originalIndex = _combo.SelectedIndex;
+            _originalSelectionText = _originalIndex < 0 ? string.Empty : (string)List.Items[_originalIndex];
             _originalEditText = _combo.WindowText;
             _originalEditStart = _combo.GetPortableEditSelectionStart();
             _originalEditLength = _combo.GetPortableEditSelectionLength();
@@ -345,6 +348,7 @@ public partial class ComboBox
         protected override void OnOpened(EventArgs e)
         {
             _opened = true;
+            _popupHandle = Handle;
             base.OnOpened(e);
             if (!SourceIsLive)
                 RequestClose();
@@ -448,7 +452,8 @@ public partial class ComboBox
             _combo.SelectedIndex = _originalIndex;
             if (SourceIsLive && _combo.DropDownStyle == ComboBoxStyle.DropDown
                 && _combo.SelectedIndex == _originalIndex
-                && (!selectionChanged || _combo.WindowText == (_originalIndex < 0 ? string.Empty : _combo.GetItemText(_items[_originalIndex]))))
+                && HasCurrentItems()
+                && (!selectionChanged || _combo.WindowText == _originalSelectionText))
                 _combo.RestorePortableEditorText(_originalEditText, _originalEditStart, _originalEditLength);
             if (ReferenceEquals(_combo._portableDropDown, this) && !IsDisposed)
                 Close(ToolStripDropDownCloseReason.Keyboard);
