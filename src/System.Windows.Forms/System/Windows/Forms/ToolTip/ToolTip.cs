@@ -1543,7 +1543,10 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
             popupBounds,
             dpi / (double)ScaleHelper.OneHundredPercentLogicalDpi,
             InputTransparent: true,
-            LibrePopupDismissalPolicy.Explicit);
+            LibrePopupDismissalPolicy.Explicit)
+        {
+            CoordinateMode = root.PortableWindowCoordinateMode
+        };
         using Graphics graphics = LibrePlatform.Current.Popups.CreateGraphics(request);
         Rectangle bounds = new(Point.Empty, popupSize);
         if (OwnerDraw && !IsBalloon)

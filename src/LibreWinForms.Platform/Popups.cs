@@ -30,7 +30,15 @@ public readonly record struct LibrePopupSurfaceRequest(
     LibreRectangle ScreenBounds,
     double DpiScale,
     bool InputTransparent,
-    LibrePopupDismissalPolicy DismissalPolicy);
+    LibrePopupDismissalPolicy DismissalPolicy)
+{
+    /// <summary>
+    /// Coordinate space of ScreenBounds and the local drawing recorder. Match
+    /// the canonical owner's actual window policy; DpiScale does not identify
+    /// whether the source has already arranged device-pixel coordinates.
+    /// </summary>
+    public LibreWindowCoordinateMode CoordinateMode { get; init; } = LibreWindowCoordinateMode.Logical;
+}
 
 /// <summary>
 /// Records non-activating content that may extend beyond an owner window without
