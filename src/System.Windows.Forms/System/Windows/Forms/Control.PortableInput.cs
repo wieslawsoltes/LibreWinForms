@@ -32,6 +32,8 @@ public unsafe partial class Control
     private bool _portableControlFocusNotified;
     private uint _portableWindowFocusVersion;
     private bool _portableSuppressKeyPress;
+    private uint _portableTextInputVersion;
+    private uint _portableCanceledTextInputVersion;
     private LibreCursorShape? _portableAppliedCursorShape;
 
     internal void DispatchPortableInput(in LibreInputEvent inputEvent)
@@ -253,6 +255,8 @@ public unsafe partial class Control
 
     private bool DispatchPortableKeyboardMessage(Control target, ref Message message)
     {
+        uint inputVersion = _portableMenuInputVersion;
+        uint textVersion = _portableTextInputVersion;
         if (Application.FilterMessage(ref message))
         {
             return true;
@@ -295,7 +299,14 @@ public unsafe partial class Control
             // Typed backends may deliver a translated character after a
             // consumed key or a mnemonic that closed the menu. It must not
             // leak into the still-focused owner editor in the same key cycle.
-            _portableSuppressKeyPress = true;
+            // Retiring a recipient cancels the current text packet as well.
+            // A standalone character callback has no future KeyUp, however,
+            // so it must not leave key-cycle suppression on the owner forever.
+            _portableCanceledTextInputVersion = textVersion;
+            if (inputVersion == _portableMenuInputVersion
+                && (message.MsgInternal is PInvokeCore.WM_KEYDOWN or PInvokeCore.WM_KEYUP
+                    || s_portableKeysDown is { Count: > 0 }))
+                _portableSuppressKeyPress = true;
         }
 
         return processed || handled;
@@ -309,9 +320,11 @@ public unsafe partial class Control
         }
 
         Control target = _portableFocusedControl ?? this;
+        uint textVersion = ++_portableTextInputVersion;
         foreach (char character in text)
         {
-            if (target.IsDisposed || target.Disposing || _portableSuppressKeyPress)
+            if (target.IsDisposed || target.Disposing || _portableSuppressKeyPress
+                || textVersion != _portableTextInputVersion || textVersion == _portableCanceledTextInputVersion)
             {
                 break;
             }

@@ -149,6 +149,7 @@ public partial class CanonicalLifecycleTests
                     message.HWnd.Should().Be(edit.Handle);
                     order.Add("filter");
                 }
+
                 return false;
             });
             combo.KeyDown += (_, e) => { order.Add("key"); e.SuppressKeyPress = true; };
@@ -449,11 +450,12 @@ public partial class CanonicalLifecycleTests
             int changed = 0;
             combo.TextUpdate += (_, _) => combo.Dispose();
             combo.TextChanged += (_, _) => changed++;
-            SendDropdownText(platform, owner, "x");
+            SendDropdownText(platform, owner, "xobsolete");
             combo.IsDisposed.Should().BeTrue();
             edit.IsDisposed.Should().BeTrue();
             combo.DroppedDown.Should().BeFalse();
             changed.Should().Be(0);
+            other.Text.Should().BeEmpty();
             other.Focus().Should().BeTrue();
             SendDropdownText(platform, owner, "after");
             other.Text.Should().Be("after");
