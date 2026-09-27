@@ -80,3 +80,25 @@ before the generated SystemAware call. Current source DLLs were hash-verified
 in new consumer output directories; original installed package artifacts were
 not replaced. See [SDK DPI evidence](sdk-application-high-dpi-mode.md) for this
 source/package distinction and the still-required full installed matrix.
+
+## Deterministic isolated test output
+
+Exact-head CI run `36280437796` retained twelve parent-test failures: each child
+had actually reported one pass and no failures/skips, but inherited terminal
+color escapes prevented exact summary-line matching. A local run with the CI
+environment and redirected-console color setting reproduced the same failure.
+No product assertion, case count or deadline was relaxed.
+
+The owned test child now requests the runner's supported `--no-ansi` option and
+sets only its own `NO_COLOR`, `TERM` and redirected-console-color environment to
+plain output. The runner option alone did not neutralize an inherited runtime
+setting explicitly permitting redirected Console colors. A new fresh-process
+case supplies that hostile color environment before normalization. The source
+gate retains all 405 existing cases and now requires at least 406; exact one-case
+success, zero failures/skips, original child identity and timeouts remain checks.
+
+The corrected full source run passed **406/406, zero failures/skips**, while the
+parent deliberately inherited CI and forced redirected-console colors. The
+source build completed with zero errors and the same 623 warnings. This proves
+the isolated summary contract locally; the new exact-head hosted Build and
+installed package matrix remain required.

@@ -14,6 +14,15 @@ namespace LibreWinForms.CanonicalLifecycle.Tests;
 public partial class CanonicalLifecycleTests
 {
     [Fact]
+    public void DpiChildResultIsIndependentOfForcedTerminalColors()
+    {
+        if (!RunDpiCaseInNewProcess(forceTerminalColors: true))
+        {
+            VerifySystemAwareDesktopUnits(1);
+        }
+    }
+
+    [Fact]
     public void SystemAwareUsesDeclaredWindowsDesktopUnitsForCenteringAndNativeBounds()
     {
         if (!RunDpiCaseInNewProcess())
@@ -280,7 +289,7 @@ public partial class CanonicalLifecycleTests
         });
     }
 
-    private static bool RunDpiCaseInNewProcess([CallerMemberName] string method = "")
+    private static bool RunDpiCaseInNewProcess(bool forceTerminalColors = false, [CallerMemberName] string method = "")
     {
         const string marker = "LIBREWINFORMS_DPI_TEST_METHOD";
         string name = $"LibreWinForms.CanonicalLifecycle.Tests.CanonicalLifecycleTests.{method}";
@@ -302,11 +311,27 @@ public partial class CanonicalLifecycleTests
             start.ArgumentList.Add(typeof(CanonicalLifecycleTests).Assembly.Location);
         }
 
-        foreach (string argument in new[] { "--filter-method", name, "--minimum-expected-tests", "1", "--fail-skips", "on", "--timeout", "30s", "--no-progress" })
+        foreach (string argument in new[] { "--filter-method", name, "--minimum-expected-tests", "1", "--fail-skips", "on", "--timeout", "30s", "--no-progress", "--no-ansi" })
         {
             start.ArgumentList.Add(argument);
         }
 
+        if (forceTerminalColors)
+        {
+            // Reproduce the hosted CI environment only inside this owned child.
+            start.Environment["GITHUB_ACTIONS"] = "true";
+            start.Environment["CI"] = "true";
+            start.Environment["TERM"] = "xterm-256color";
+            start.Environment["DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION"] = "1";
+            start.Environment.Remove("NO_COLOR");
+        }
+
+        // The exact one-case summary is a machine contract, not terminal output.
+        // --no-ansi alone cannot prevent Console color writes when the inherited
+        // runtime explicitly permits ANSI on redirected streams.
+        start.Environment["NO_COLOR"] = "1";
+        start.Environment["TERM"] = "dumb";
+        start.Environment["DOTNET_SYSTEM_CONSOLE_ALLOW_ANSI_COLOR_REDIRECTION"] = "0";
         start.Environment[marker] = name;
         using Process child = Process.Start(start)!;
         Task<string> stdout = child.StandardOutput.ReadToEndAsync();
