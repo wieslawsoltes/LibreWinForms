@@ -113,9 +113,68 @@ def combine_windows(source, sidecar, inventory, pid):
     return sorted(result, key=lambda window: window["windowNumber"])
 
 
+def overlaps(lhs, rhs):
+    return (max(lhs["x"], rhs["x"]) < min(lhs["x"] + lhs["width"], rhs["x"] + rhs["width"]) and
+            max(lhs["y"], rhs["y"]) < min(lhs["y"] + lhs["height"], rhs["y"] + rhs["height"]))
+
+
+def check_capture_occlusion(value, windows):
+    """Independently check both bounded native observations, not pixel visibility."""
+    require(isinstance(value, dict) and value.get("policy") == "foreign-window-frame-intersection-v1"
+            and value.get("coordinateSpace") == "native-desktop-top-left-points",
+            "Missing/unknown native capture obstruction policy")
+    require(isinstance(windows, list) and 0 < len(windows) <= 32, "Invalid owned capture windows")
+    pid = GEOMETRY.integer(windows[0].get("pid"), "owned capture PID", minimum=1, maximum=2 ** 31 - 1)
+    expected = {}
+    for window in windows:
+        require(type(window.get("pid")) is int and window["pid"] == pid, "Foreign owned capture PID")
+        number = GEOMETRY.integer(window.get("windowNumber"), "owned capture number", minimum=1, maximum=2 ** 32 - 1)
+        require(number not in expected, "Duplicate owned capture identity")
+        expected[number] = GEOMETRY.rectangle(window.get("bounds"), "owned capture frame")
+    samples = value.get("samples")
+    require(isinstance(samples, list) and len(samples) == 2, "Capture needs before/after obstruction observations")
+    previous_time = -1
+    for phase, sample in zip(("before", "after"), samples):
+        require(isinstance(sample, dict) and sample.get("phase") == phase, "Capture observation phase mismatch")
+        observed = sample.get("observedUptimeSeconds")
+        require(GEOMETRY.finite(observed) and observed >= 0 and observed >= previous_time,
+                "Invalid/nonmonotonic capture observation time")
+        previous_time = observed
+        total = GEOMETRY.integer(sample.get("systemWindowCount"), "CG inventory count", minimum=1, maximum=4096)
+        entries = sample.get("windows")
+        require(isinstance(entries, list) and 0 < len(entries) <= min(64, total), "Capture observation budget exceeded")
+        seen, own, previous_z = set(), {}, -1
+        for entry in entries:
+            require(isinstance(entry, dict) and set(entry) ==
+                    {"pid", "windowNumber", "zIndex", "layer", "alpha", "frameBounds"},
+                    "Missing/unexpected capture window metadata")
+            owner = GEOMETRY.integer(entry["pid"], "CG owner PID", minimum=0, maximum=2 ** 31 - 1)
+            number = GEOMETRY.integer(entry["windowNumber"], "CG window number", minimum=1, maximum=2 ** 32 - 1)
+            z_index = GEOMETRY.integer(entry["zIndex"], "CG z-index", minimum=0, maximum=total - 1)
+            GEOMETRY.integer(entry["layer"], "CG layer", minimum=-(2 ** 31), maximum=2 ** 31 - 1)
+            require(number not in seen and z_index > previous_z, "Duplicate/reordered CG obstruction identity")
+            seen.add(number)
+            previous_z = z_index
+            require(GEOMETRY.finite(entry["alpha"]) and 0 <= entry["alpha"] <= 1, "Invalid CG window alpha")
+            frame = GEOMETRY.rectangle(entry["frameBounds"], "CG obstruction frame")
+            require(any(overlaps(frame, bounds) for bounds in expected.values()), "Unrelated capture window metadata")
+            if owner == pid:
+                require(number in expected and frame == expected[number], "Owned capture identity/frame changed")
+                own[number] = entry
+        require(set(own) == set(expected), "Missing owned capture identity")
+        for foreign in entries:
+            if foreign["pid"] == pid or foreign["alpha"] == 0:
+                continue
+            for owned in own.values():
+                require(not (foreign["zIndex"] < owned["zIndex"] and
+                             overlaps(foreign["frameBounds"], owned["frameBounds"])),
+                        f"Foreign window potentially occludes owned capture ({phase})")
+
+
 def check_capture(image, destination, windows):
     require(isinstance(image, dict) and image.get("captureProvider") == "ScreenCaptureKit.captureImage(in:)"
             and image.get("encoding") == "ImageIO BMP, no resizing", "Unknown native capture provider/encoding")
+    check_capture_occlusion(image.get("captureOcclusion"), windows)
     rectangles = [window["bounds"] for window in windows]
     expected = dict(x=min(r["x"] for r in rectangles), y=min(r["y"] for r in rectangles))
     expected["width"] = max(r["x"] + r["width"] for r in rectangles) - expected["x"]
