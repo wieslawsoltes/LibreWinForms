@@ -81,6 +81,47 @@ public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindo
         }
     }
 
+    /// <summary>
+    /// Reads actual native geometry for an existing window owned by this service,
+    /// on that window's creating dispatcher thread. Does not create, attach,
+    /// activate or change a window. Unsupported, foreign or retired handles return
+    /// false with a default snapshot. Native desktop points and backing scale are
+    /// returned unchanged; they are not converted to managed source coordinates.
+    /// </summary>
+    public bool TryGetNativeGeometrySnapshot(LibreHandle handle, out NativeWindowGeometrySnapshot snapshot)
+    {
+        snapshot = default;
+        if (handle.IsNull || handle.Kind != LibreHandleKind.Window
+            || !_handles.TryGet(handle, out SilkLibreWindow? window))
+        {
+            return false;
+        }
+
+        lock (_windowSync)
+        {
+            if (!_windows.Contains(window))
+                return false;
+        }
+
+        // Do not hold the inventory lock while calling native code, and do not
+        // dispatch a foreign-thread request to another window's message pump.
+        if (!window.TryGetNativeGeometrySnapshot(this, handle, out NativeWindowGeometrySnapshot current)
+            || !_handles.TryGet(handle, out SilkLibreWindow? registered)
+            || !ReferenceEquals(registered, window))
+        {
+            return false;
+        }
+
+        lock (_windowSync)
+        {
+            if (!_windows.Contains(window))
+                return false;
+        }
+
+        snapshot = current;
+        return true;
+    }
+
     internal void ToggleReversibleDrawing(ProGpuReversibleDrawingOperation operation)
     {
         SilkLibreWindow[] windows;
@@ -430,6 +471,31 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
     internal ProGpuDispatcher Dispatcher => _dispatcher;
 
     internal bool IsDisposed => _disposed;
+
+    internal bool TryGetNativeGeometrySnapshot(
+        SilkWindowService service,
+        LibreHandle handle,
+        out NativeWindowGeometrySnapshot snapshot)
+    {
+        snapshot = default;
+        if (!CanReadNativeGeometry(service, handle)
+            || !_controller.TryGetGeometrySnapshot(out NativeWindowGeometrySnapshot current)
+            || !CanReadNativeGeometry(service, handle))
+        {
+            return false;
+        }
+
+        snapshot = current;
+        return true;
+    }
+
+    private bool CanReadNativeGeometry(SilkWindowService service, LibreHandle handle)
+        => ReferenceEquals(_service, service)
+            && Handle == handle
+            && _dispatcher.CheckAccess()
+            && !_initializing
+            && !_disposed
+            && !_closed;
 
     public LibreWindowCoordinateMode CoordinateMode => _coordinateMode;
 
