@@ -27,8 +27,18 @@ providing retained editor interaction.
 
 Nine fresh-process canonical source cases exercise the actual ProGPU adapter,
 not fabricated control objects. The full source-first gate retains its original
-581 cases and raises its minimum to 590. Local results and exact dependency CI
-must pass before this change is merged.
+581 cases and raises its minimum to 590. The complete canonical graph builds with
+zero errors (632 analyzer/API warnings). The complete macOS ARM64 source run
+passes all 590 tests with zero failures/skips against ProGPU
+`6b78259ff9292eee1918bfbd9792c62dc4ee94e8`.
+
+The tests exposed missing portable arrow-key admission and coincident affinity
+stops in shared text navigation; both were corrected without changing original
+key-handler precedence. An initial full run also rejected a changed format flag
+for paint-only providers. The final implementation confines that flag to the
+owned layout and preserves all original provider assertions. Logs, including
+these initial failures, remain in `artifacts/text-interaction`. Exact dependency
+CI and all required PR checks must pass before merge.
 
 This is not full editor or native desktop qualification. Empty hard-break rows,
 vertical/visual-line navigation, word movement, double-click word selection,

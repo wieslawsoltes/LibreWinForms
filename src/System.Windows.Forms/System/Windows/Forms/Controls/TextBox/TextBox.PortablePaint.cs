@@ -71,9 +71,7 @@ public partial class TextBox
 
     private TextFormatFlags GetPortableEditorTextFlags()
     {
-        // The source client clip stays fixed while the retained paragraph scrolls.
-        TextFormatFlags flags = TextFormatFlags.TextBoxControl | TextFormatFlags.NoPrefix |
-            TextFormatFlags.NoPadding | TextFormatFlags.NoClipping;
+        TextFormatFlags flags = TextFormatFlags.TextBoxControl | TextFormatFlags.NoPrefix | TextFormatFlags.NoPadding;
         if (!Multiline) flags |= TextFormatFlags.SingleLine;
         else if (WordWrap) flags |= TextFormatFlags.WordBreak;
         flags |= RtlTranslateHorizontal(TextAlign) switch

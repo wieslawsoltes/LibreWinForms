@@ -38,7 +38,10 @@ public partial class TextBox
             _portableLayoutDpiX == graphics.DpiX && _portableLayoutDpiY == graphics.DpiY)
             return _portableTextLayout;
 
-        ILibreTextLayout next = TextRenderer.CreatePortableTextLayout(service, graphics, text, Font, ClientSize, flags);
+        // The source clip stays fixed while this owned paragraph scrolls. The
+        // ordinary non-layout renderer retains its original format contract.
+        ILibreTextLayout next = TextRenderer.CreatePortableTextLayout(service, graphics, text, Font, ClientSize,
+            flags | TextFormatFlags.NoClipping);
         _portableTextLayout?.Dispose();
         _portableTextLayout = next;
         _portableLayoutService = service;

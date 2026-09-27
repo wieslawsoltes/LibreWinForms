@@ -185,10 +185,18 @@ public partial class CanonicalLifecycleTests
             layout.LastOrigin.X.Should().BeLessThan(0);
             float caretX = layout.GetCaret(editor.TextLength).Position.X + layout.LastOrigin.X;
             caretX.Should().BeInRange(0, editor.ClientSize.Width - 1);
-            RenderCommand[] clips = context.Commands.Where(c => c.Type == RenderCommandType.PushClip).ToArray();
+            context.Commands.Should().NotContain(c => c.Type == RenderCommandType.PushClip,
+                "the scrolling paragraph must not add a translated layout rectangle clip");
+            RenderCommand[] clips = context.Commands.Where(c => c.Type == RenderCommandType.PushGeometryClip).ToArray();
             clips.Should().NotBeEmpty();
-            clips.Should().OnlyContain(c => c.Rect.X >= 0 && c.Rect.Y >= 0,
-                "the paragraph offset must not translate or shrink the source viewport");
+            foreach (RenderCommand clip in clips)
+            {
+                clip.Path.Should().NotBeNull();
+                clip.Path!.TryGetBounds(out Vector2 min, out Vector2 max).Should().BeTrue();
+                min.Should().Be(Vector2.Zero);
+                max.Should().Be(new Vector2(editor.ClientSize.Width, editor.ClientSize.Height),
+                    "the paragraph offset must not translate or shrink the source viewport");
+            }
         });
     }
 
