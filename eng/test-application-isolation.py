@@ -44,13 +44,15 @@ def main():
     parser.add_argument("--package-version", default="0.1.0-source-first")
     parser.add_argument("--sdk-version", default="0.1.0-source-first")
     parser.add_argument("--progpu-version", default="0.1.0-source-first")
+    parser.add_argument("--window", action="store_true", help="Run the independent visible-window contract instead of the fifteen protocol cases")
+    parser.add_argument("--build-only", action="store_true", help="Compile and verify payloads without launching a host or child; does not qualify execution")
     args = parser.parse_args()
     repo = Path(__file__).resolve().parents[1]
     dotnet = str(Path(shutil.which(args.dotnet) or args.dotnet).resolve(strict=True))
     feed = args.package_feed.resolve(strict=True)
     artifact_parent = repo / "artifacts/application-isolation"
     artifact_parent.mkdir(parents=True, exist_ok=True)
-    root = Path(tempfile.mkdtemp(prefix="package-contract-", dir=artifact_parent))
+    root = Path(tempfile.mkdtemp(prefix="window-contract-" if args.window else "package-contract-", dir=artifact_parent))
     print(f"Retained application isolation evidence: {root}", flush=True)
     environment = dict(os.environ, NUGET_PACKAGES=str(root / "packages"),
                        NUGET_HTTP_CACHE_PATH=str(root / "http-cache"),
@@ -64,7 +66,7 @@ def main():
         if any(element.tag.rsplit("}", 1)[-1] == "dependency" for element in nuspec.iter()):
             raise RuntimeError("The BCL-only isolation package gained a package dependency.")
     source = repo / "samples/LibreWinForms.IsolatedApplication"
-    for kind in ("sample", "contracts"):
+    for kind in (("window",) if args.window else ("sample", "contracts")):
         destination = root / kind
         shutil.copytree(source, destination)
         (destination / "global.json").write_text(json.dumps({"msbuild-sdks": {"LibreWinForms.Sdk": args.sdk_version}}))
@@ -77,13 +79,17 @@ def main():
         if kind == "contracts":
             shutil.copyfile(repo / "eng/fixtures/application-isolation/Host.cs", destination / "Host/Program.cs")
             shutil.copyfile(repo / "eng/fixtures/application-isolation/Child.cs", destination / "PortableApp/Program.cs")
+        elif kind == "window":
+            shutil.copyfile(repo / "eng/fixtures/application-isolation/WindowHost.cs", destination / "Host/Program.cs")
+            shutil.copyfile(repo / "eng/fixtures/application-isolation/WindowChild.cs", destination / "PortableApp/Program.cs")
         for app in ("Host", "PortableApp"):
             run([dotnet, "build", str(destination / app / f"{app}.csproj"), "-c", "Release", "-m:1",
                  "-nodeReuse:false", "-p:UseSharedCompilation=false", f"-p:IsolationPackageVersion={args.package_version}"],
                 destination, environment, root / f"{kind}-{app}-build.log")
 
-    host_output = root / "contracts/Host/bin/Release/net11.0"
-    child_output = root / "contracts/PortableApp/bin/Release/net11.0"
+    selected = "window" if args.window else "contracts"
+    host_output = root / selected / "Host/bin/Release/net11.0"
+    child_output = root / selected / "PortableApp/bin/Release/net11.0"
     with zipfile.ZipFile(feed / f"ProGPU.System.Drawing.Common.{args.progpu_version}.nupkg") as archive:
         canonical_drawing = archive.read("lib/net10.0/System.Drawing.Common.dll")
     if (child_output / "System.Drawing.Common.dll").read_bytes() != canonical_drawing:
@@ -100,11 +106,14 @@ def main():
         raise RuntimeError("Canonical UI/Drawing dependencies leaked into the Microsoft host.")
     if any(name.startswith("System.Drawing.Common/") for name in child_libraries):
         raise RuntimeError("Microsoft Drawing leaked into the canonical child package closure.")
-    run([dotnet, str(host_output / "Host.dll"), str(child_output / "PortableApp.dll"), dotnet],
-        root, environment, root / "microsoft-first-contracts.log", timeout=120)
-    receipt = {"success": True, "hostDrawingSha256": sha256(microsoft.read_bytes()),
+    if not args.build_only:
+        run([dotnet, str(host_output / "Host.dll"), str(child_output / "PortableApp.dll"), dotnet],
+            root, environment, root / "microsoft-first-contracts.log", timeout=180 if args.window else 120)
+    receipt = {"success": not args.build_only, "hostDrawingSha256": sha256(microsoft.read_bytes()),
                "childDrawingSha256": sha256(canonical_drawing), "isolationSha256": sha256(isolation_bytes),
-               "contracts": 15, "guiExecuted": False, "sampleCompiled": True}
+               "contracts": 0 if args.build_only else 1 if args.window else 15,
+               "guiExecuted": args.window and not args.build_only, "sampleCompiled": not args.window,
+               "buildOnly": args.build_only, "pixelQualified": False}
     with (root / "receipt.json").open("x", encoding="utf-8") as stream:
         json.dump(receipt, stream, indent=2)
     print(json.dumps(receipt), flush=True)

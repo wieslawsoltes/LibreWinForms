@@ -72,3 +72,36 @@ follow-up adds only that exact package to the shared inventory; missing and
 unexpected package checks remain intact. The complete replacement Build still
 must pass before merge. The new package is not published to NuGet by this PR;
 source-first feed consumption is explicit.
+
+## Independent visible-window contract
+
+The three existing visible installed-package CI jobs additionally run
+`eng/test-application-isolation.py --window` against the same exact producer
+feed. This is a separate case; it does not replace or skip any of the fifteen
+protocol/lifetime cases. The Microsoft-first host starts one canonical child,
+which obtains DefaultFont, MenuFont and MessageBoxFont, assigns them to real
+Labels, and owns a Bitmap displayed by a PictureBox. Source paint must occur
+for the Form, all three Labels and the PictureBox before queued normal closure.
+Only after Application.Run exits and the child disposes its UI/platform does
+it publish the primitive result. The host rechecks its original Drawing identity.
+
+The runner byte-compares both Drawing DLLs and the isolation launcher with their
+selected packages, rejects canonical dependencies in the host and Microsoft
+Drawing in the child, and retains logs/results on success or failure. Linux uses
+the existing Xvfb/software-device setup; macOS and Windows use their existing
+visible-runner environment. The child retains the existing visible-smoke budget
+(60 seconds, or 120 on Windows); normal success never terminates a process.
+
+`--build-only` permits isolated compilation/payload inspection without launching
+either application. Its receipt explicitly has success=false, contracts=0 and
+guiExecuted=false. It cannot qualify the window or replace the CI command above.
+Visible lifecycle/source paint is not pixel, native input, host embedding or
+clipboard qualification. Those independent desktop cases remain required.
+
+Initial build-only validation used the exact successful PR74 source-first feed
+(Build 36276743597, canonical artifact 10916489916) on macOS ARM64 with SDK
+11.0.100-preview.5.26302.115. Both host and child compiled with zero warnings and
+errors; package-byte and dependency-isolation checks passed. The retained receipt
+correctly records no executed contract and no GUI qualification. No VM or native
+window was started for this compile-only check. Actual three-platform execution
+is required from the independent window step before claiming this gate passed.

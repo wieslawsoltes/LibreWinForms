@@ -58,6 +58,9 @@ jobs:
       - name: Validate offline popup desktop harness contracts
         run: python3 eng/tests/test_popup_desktop_harness.py
 
+      - name: Validate X11 popup driver offline contracts
+        run: python3 eng/tests/test_popup_x11_harness.py
+
       - name: Install Linux display and software WebGPU adapter
         shell: bash
         run: |
@@ -156,6 +159,27 @@ jobs:
         env:
           LIBREWINFORMS_VISIBLE_DOTNET: dotnet
         run: ./eng/librewinforms-source-first-visible-smoke.sh
+
+      - name: Run Microsoft-first isolated window contract
+        shell: bash
+        run: |
+          command=(python3 eng/test-application-isolation.py --dotnet dotnet --package-feed artifacts/packages/source-first --window)
+          if [[ "${RUNNER_OS}" == "Linux" ]]; then
+            xvfb-run -a "${command[@]}"
+          else
+            "${command[@]}"
+          fi
+
+      - name: Retain isolated window evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: isolated-window-${{ matrix.os }}
+          path: |
+            artifacts/application-isolation/**/receipt.json
+            artifacts/application-isolation/**/*.log
+            artifacts/application-isolation/**/result.json
+          if-no-files-found: error
 
   appkit-adapter:
     name: AppKit adapter lane
