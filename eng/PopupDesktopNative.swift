@@ -40,6 +40,35 @@ private struct Window: Codable, Equatable {
     let frameBounds: Bounds
 }
 
+// CG's on-screen list is front-to-back. Keep that order separately from the
+// stable, window-number-sorted owned inventory. Foreign titles are not retained.
+private struct CaptureWindow: Encodable {
+    let pid: Int32
+    let windowNumber: UInt32
+    let zIndex: Int
+    let layer: Int32
+    let alpha: Double
+    let frameBounds: Bounds
+}
+
+private struct CaptureObservation: Encodable {
+    let phase: String
+    let observedUptimeSeconds: Double
+    let systemWindowCount: Int
+    let windows: [CaptureWindow]
+}
+
+private struct CaptureOcclusion: Encodable {
+    let policy = "foreign-window-frame-intersection-v1"
+    let coordinateSpace = "native-desktop-top-left-points"
+    let samples: [CaptureObservation]
+}
+
+private struct CaptureRejected: Error, CustomStringConvertible {
+    let description: String
+    let captureOcclusion: CaptureOcclusion
+}
+
 private struct Request: Decodable {
     let action: String
     let pid: Int32?
@@ -56,14 +85,19 @@ private func object<T: Encodable>(_ value: T) throws -> Any {
 }
 
 @MainActor
-private func inventory(_ pid: Int32) throws -> [Window] {
-    try require(pid > 0 && NSRunningApplication(processIdentifier: pid)?.isTerminated == false,
-                "Owned process is unavailable")
+private func screenEntries() throws -> [[String: Any]] {
     guard let entries = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
                                                   kCGNullWindowID) as? [[String: Any]] else {
         throw Rejected(description: "Independent CG inventory unavailable")
     }
     try require(entries.count <= 4096, "CG inventory budget exceeded")
+    return entries
+}
+
+@MainActor
+private func inventory(_ pid: Int32, entries: [[String: Any]]) throws -> [Window] {
+    try require(pid > 0 && NSRunningApplication(processIdentifier: pid)?.isTerminated == false,
+                "Owned process is unavailable")
     var result: [Window] = []
     for entry in entries {
         guard (entry[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid else { continue }
@@ -81,6 +115,72 @@ private func inventory(_ pid: Int32) throws -> [Window] {
     try require(result.count <= 32 && Set(result.map { $0.windowNumber }).count == result.count,
                 "CG owned window identity/count budget exceeded")
     return result.sorted { $0.windowNumber < $1.windowNumber }
+}
+
+@MainActor
+private func inventory(_ pid: Int32) throws -> [Window] {
+    try inventory(pid, entries: screenEntries())
+}
+
+private func overlaps(_ lhs: Bounds, _ rhs: Bounds) -> Bool {
+    max(lhs.x, rhs.x) < min(lhs.x + lhs.width, rhs.x + rhs.width)
+        && max(lhs.y, rhs.y) < min(lhs.y + lhs.height, rhs.y + rhs.height)
+}
+
+private func cgInteger(_ value: NSNumber, minimum: Int64, maximum: Int64) -> Bool {
+    CFGetTypeID(value) != CFBooleanGetTypeID() && value.doubleValue.isFinite
+        && value.int64Value >= minimum && value.int64Value <= maximum
+        && value.doubleValue == Double(value.int64Value)
+}
+
+private func captureObservation(_ entries: [[String: Any]], _ owned: [Window],
+                                phase: String) throws -> CaptureObservation {
+    var windows: [CaptureWindow] = []
+    var identities = Set<UInt32>()
+    for (index, entry) in entries.enumerated() {
+        guard let pid = entry[kCGWindowOwnerPID as String] as? NSNumber,
+              let number = entry[kCGWindowNumber as String] as? NSNumber,
+              let layer = entry[kCGWindowLayer as String] as? NSNumber,
+              let alpha = entry[kCGWindowAlpha as String] as? NSNumber,
+              let raw = entry[kCGWindowBounds as String] as? NSDictionary,
+              let rect = CGRect(dictionaryRepresentation: raw as CFDictionary) else {
+            throw Rejected(description: "CG obstruction inventory lacks required metadata")
+        }
+        let bounds = Bounds(rect)
+        try require(cgInteger(pid, minimum: 0, maximum: Int64(Int32.max))
+                    && cgInteger(number, minimum: 1, maximum: Int64(UInt32.max))
+                    && cgInteger(layer, minimum: Int64(Int32.min), maximum: Int64(Int32.max))
+                    && CFGetTypeID(alpha) != CFBooleanGetTypeID()
+                    && alpha.doubleValue.isFinite && (0...1).contains(alpha.doubleValue)
+                    && [bounds.x, bounds.y, bounds.width, bounds.height,
+                        bounds.x + bounds.width, bounds.y + bounds.height].allSatisfy { $0.isFinite }
+                    && rect.size.width >= 0 && rect.size.height >= 0
+                    && identities.insert(number.uint32Value).inserted,
+                    "Invalid/duplicate CG obstruction inventory metadata")
+        // Inspect every system entry, but retain only actual positive-area
+        // intersections. Empty/nonintersecting foreign frames cannot cover an
+        // owned frame. More evidence than the bounded receipt permits rejects.
+        guard owned.contains(where: { overlaps($0.frameBounds, bounds) }) else { continue }
+        windows.append(CaptureWindow(pid: pid.int32Value, windowNumber: number.uint32Value,
+                                     zIndex: index, layer: layer.int32Value,
+                                     alpha: alpha.doubleValue, frameBounds: bounds))
+        try require(windows.count <= 64, "CG obstruction evidence budget exceeded")
+    }
+    return CaptureObservation(phase: phase, observedUptimeSeconds: ProcessInfo.processInfo.systemUptime,
+                              systemWindowCount: entries.count, windows: windows)
+}
+
+private func requireUnobstructed(_ samples: [CaptureObservation], _ pid: Int32) throws {
+    let sample = samples[samples.count - 1]
+    for owned in sample.windows where owned.pid == pid {
+        for foreign in sample.windows where foreign.pid != pid && foreign.alpha > 0 {
+            if foreign.zIndex < owned.zIndex && overlaps(foreign.frameBounds, owned.frameBounds) {
+                throw CaptureRejected(
+                    description: "Foreign CG window \(foreign.windowNumber) PID \(foreign.pid) potentially occludes owned window \(owned.windowNumber) (\(sample.phase))",
+                    captureOcclusion: CaptureOcclusion(samples: samples))
+            }
+        }
+    }
 }
 
 @MainActor
@@ -204,7 +304,8 @@ private func capture(_ request: Request, _ pid: Int32) async throws -> [String: 
         throw Rejected(description: "ScreenCaptureKit rectangle capture requires macOS 15.2+")
     }
     try foreground(pid)
-    let before = try inventory(pid)
+    let beforeEntries = try screenEntries()
+    let before = try inventory(pid, entries: beforeEntries)
     try require(!before.isEmpty && request.windows == before, "Capture native ownership/geometry changed")
     guard let output = request.output, output.hasSuffix(".bmp"),
           !FileManager.default.fileExists(atPath: output) else {
@@ -214,11 +315,16 @@ private func capture(_ request: Request, _ pid: Int32) async throws -> [String: 
     for window in before.dropFirst() { rectangle = rectangle.union(window.frameBounds.rect) }
     try require(rectangle.width <= 4096 && rectangle.height <= 4096
                 && rectangle.width * rectangle.height <= 4_194_304, "Native capture extent exceeds budget")
+    var samples = [try captureObservation(beforeEntries, before, phase: "before")]
+    try requireUnobstructed(samples, pid)
     // ScreenCaptureKit determines returned resolution. No width/height override,
     // fitted scale, drawing context, window compositing, or image resizing.
     let image = try await SCScreenshotManager.captureImage(in: rectangle)
     try foreground(pid)
-    try require(try inventory(pid) == before, "Native window state changed during capture")
+    let afterEntries = try screenEntries()
+    try require(try inventory(pid, entries: afterEntries) == before, "Native window state changed during capture")
+    samples.append(try captureObservation(afterEntries, before, phase: "after"))
+    try requireUnobstructed(samples, pid)
     try require(image.width > 0 && image.width <= 4096 && image.height > 0 && image.height <= 4096
                 && image.width * image.height <= 4_194_304 && image.bitsPerPixel <= 32,
                 "Actual returned native image exceeds shared pixel budget")
@@ -238,6 +344,7 @@ private func capture(_ request: Request, _ pid: Int32) async throws -> [String: 
             "returnedPixelsPerPointX": Double(image.width) / rectangle.width,
             "returnedPixelsPerPointY": Double(image.height) / rectangle.height,
             "encodedBytes": encoded.length, "encoding": "ImageIO BMP, no resizing",
+            "captureOcclusion": try object(CaptureOcclusion(samples: samples)),
             "qualified": false, "usableWindowPixelsVerified": false]
 }
 
@@ -278,9 +385,12 @@ private struct PopupDesktopNative {
             try require(data.count <= 65536, "Native reply budget exceeded")
             FileHandle.standardOutput.write(data)
         } catch {
-            let reply: [String: Any] = ["schema": "popup-macos-native-v1", "success": false,
+            var reply: [String: Any] = ["schema": "popup-macos-native-v1", "success": false,
                                        "qualified": false, "error": String(describing: error).prefix(2048).description]
-            if let data = try? JSONSerialization.data(withJSONObject: reply, options: [.sortedKeys]) {
+            if let rejected = error as? CaptureRejected {
+                reply["captureOcclusion"] = try? object(rejected.captureOcclusion)
+            }
+            if let data = try? JSONSerialization.data(withJSONObject: reply, options: [.sortedKeys]), data.count <= 65536 {
                 FileHandle.standardOutput.write(data)
             }
             exit(1)

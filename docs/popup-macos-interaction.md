@@ -135,6 +135,49 @@ native state after capture. Actual images remain bounded to 4,096 pixels/edge,
 16 MiB/image and the existing 128 MiB aggregate limit. Unsupported formats,
 oversized images or encoding failure remain failures.
 
+### Conservative obstruction admission
+
+A real first-phase capture exposed a gap: a foreign OS crash dialog covered part
+of the owned application even though the owned frames were unchanged and AX
+accepted the separate, unobscured pointer target. Frontmost PID and a single
+input-point hit do not prove that an entire captured window is unobstructed.
+
+Capture now uses the complete bounded CG on-screen inventory in its documented
+front-to-back order **before** ScreenCaptureKit and immediately **after** its
+async result. Each observation supplies both the original owned inventory and
+the obstruction check; it does not combine identities from different queries.
+A foreign-PID window with nonzero alpha, ahead of an owned window and with a
+positive-area intersection of their actual native frames rejects the capture.
+Layer numbers do not replace the returned stacking order. There are no title,
+application, dialog or system-window allowlists. Exact zero alpha and edge-only
+contact do not count as overlap; owned nested popup windows may overlap normally.
+Missing/invalid required metadata, duplicate native identities, an unavailable
+inventory or changed owned identity/geometry fail closed. No OS window is
+hidden, moved, dismissed, filtered from the image, or otherwise modified.
+
+The `captureOcclusion` receipt identifies policy
+`foreign-window-frame-intersection-v1` and retains before/after phases, monotonic
+observation times, system record counts, and relevant windows' PID, CG number,
+original z-index, layer, alpha and unscaled native frame. Every system record is
+inspected; only positive-area intersections with owned frames are retained, at
+most 64 per observation, within the existing 4,096-record/32-owned-window and
+64 KiB reply bounds. Exceeding a bound rejects rather than truncates admission.
+Foreign titles are never retained. Failed obstruction checks include their
+observations in the existing separately saved helper failure JSON. The BMP is
+published only after both checks pass; a rejected capture never becomes an
+accepted phase image. Python independently checks both observations, every owned
+identity/frame and the same obstruction predicate before accepting the BMP.
+Old helper replies without this evidence fail closed. The existing five-second
+capture subprocess bound and 60-second scenario deadline remain unchanged.
+
+This is deliberately a **potential obstruction** check, not pixel visibility:
+rectangular bounds can conservatively reject transparent holes or a window
+covered by an owned popup. Shadows extending beyond reported frames, background
+between owned windows, and an overlay appearing and disappearing entirely
+between the two observations are not proven absent. The inventory and screenshot
+are not an atomic transaction. There is no inferred shadow padding, pixel-alpha
+test, image cropping workaround or parity claim. Keep inspecting the raw images.
+
 The crop retains native chrome geometry, but `usableWindowPixelsVerified` and
 `qualified` remain false. Inspect every retained image and compare against the
 unchanged Microsoft reference before claiming desktop parity. A crop may contain
@@ -144,6 +187,21 @@ policy, private popup geometry and native theme/selection/caret remain actual
 qualification questions, not conclusions from these offline controls.
 
 ## Evidence and primary contracts
+
+The obstruction change adds 12 offline receipt/source controls; all 33 macOS
+harness controls pass with `ResourceWarning` treated as an error. They exercise
+owned nesting, foreign front/behind order independently of layer, exact-zero and
+partial alpha, negative origins/edge contact, after-capture obstruction, stale
+identity, missing/malformed/reordered metadata, bounded receipts, old-helper
+rejection before image access, and structured failure retention. These are
+offline checks, not an executed native obstruction or desktop qualification.
+The modified helper also passes isolated Swift 6.3.1 typechecking for both
+`arm64-apple-macosx15.2` and `x86_64-apple-macosx15.2` with no diagnostics. It was
+not executed for this change. The 17 shared desktop/preparation and 25 native
+geometry controls, documentation verifier and diff checks also pass.
+
+The following compilation and desktop-control counts are retained historical
+evidence for the original adapter, not qualification of the modified helper:
 
 Twenty-one offline controls pass without loading AppKit/ScreenCaptureKit, launching
 an app/helper, accessing a desktop or sending input. They cover typed identity
@@ -187,3 +245,7 @@ Primary API contracts were checked against the installed Apple SDK declarations
 - [ScreenCaptureKit rectangle capture](https://developer.apple.com/documentation/screencapturekit/scscreenshotmanager/captureimage(in:completionhandler:)) specifies native screen points and returns the actual CGImage.
 - [CGImageDestinationCreateWithData](https://developer.apple.com/documentation/imageio/cgimagedestinationcreatewithdata(_:_:_:_:)) supplies the native ImageIO encoding boundary.
 - [NSRunningApplication activation](https://developer.apple.com/documentation/appkit/nsrunningapplication/activate(options:)) supplies ordinary owned-application activation, not a source focus override.
+- [CG on-screen window ordering](https://developer.apple.com/documentation/coregraphics/cgwindowlistoption/optiononscreenonly) supplies front-to-back order independently of layer numbers.
+- [Required CG window metadata](https://developer.apple.com/documentation/coregraphics/required-window-list-keys) includes identity, bounds, layer, owner PID and alpha.
+- [CG window alpha](https://developer.apple.com/documentation/coregraphics/kcgwindowalpha) defines exact zero as fully transparent; nonzero alpha is not a visible-pixel shape mask.
+- [System-wide AX point hit-testing](https://developer.apple.com/documentation/applicationservices/1462077-axuielementcopyelementatposition) identifies the topmost accessible element at one point, not visibility of a whole frame.
