@@ -10,7 +10,9 @@ using System.Text;
 using System.Windows.Forms.Layout;
 using Windows.Win32.System.Variant;
 using Windows.Win32.UI.Accessibility;
+#if !LIBREWINFORMS_PORTABLE
 using Windows.Win32.UI.Controls.RichEdit;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -1724,6 +1726,12 @@ public abstract partial class TextBoxBase : Control
             return;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        // Preserve the real virtual message route (including MaskedTextBox's
+        // refusal of scrolling), without querying USER32 for a portable handle.
+        Message message = Message.Create(Handle, (int)PInvokeCore.EM_SCROLLCARET, 0, 0);
+        WndProc(ref message);
+#else
         using ComScope<IRichEditOle> richEdit = new(null);
 
         if (PInvokeCore.SendMessage(this, PInvokeCore.EM_GETOLEINTERFACE, 0, (void**)richEdit) == 0)
@@ -1773,6 +1781,7 @@ public abstract partial class TextBoxBase : Control
         }
 
         PInvokeCore.SendMessage(this, PInvokeCore.EM_SCROLLCARET);
+#endif
     }
 
     /// <summary>
@@ -2187,6 +2196,14 @@ public abstract partial class TextBoxBase : Control
         switch (m.MsgInternal)
         {
 #if LIBREWINFORMS_PORTABLE
+            case PInvokeCore.EM_SCROLLCARET:
+                if (Focused && IsHandleCreated && !IsDisposed)
+                {
+                    ScrollPortableTextCaretIntoView();
+                }
+
+                m.Result = 0;
+                break;
             case PInvokeCore.EM_CANUNDO:
                 m.Result = SupportsPortableTextUndo && _portableUndoEdit is not null ? 1 : 0;
                 break;

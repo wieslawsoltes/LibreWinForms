@@ -6,6 +6,10 @@ namespace System.Windows.Forms;
 
 public abstract partial class TextBoxBase
 {
+    // Rich controls require their document's own retained viewport capability.
+    private protected virtual void ScrollPortableTextCaretIntoView()
+        => throw new PlatformNotSupportedException("This text control does not provide retained caret scrolling.");
+
     private protected int PortableSelectionActiveEnd
         => Math.Clamp(_selectionStart + _selectionLength, 0, TextLength);
 
