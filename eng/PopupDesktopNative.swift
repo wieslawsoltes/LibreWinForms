@@ -154,7 +154,7 @@ private func captureObservation(_ entries: [[String: Any]], _ owned: [Window],
                     && alpha.doubleValue.isFinite && (0...1).contains(alpha.doubleValue)
                     && [bounds.x, bounds.y, bounds.width, bounds.height,
                         bounds.x + bounds.width, bounds.y + bounds.height].allSatisfy { $0.isFinite }
-                    && bounds.width >= 0 && bounds.height >= 0
+                    && rect.size.width >= 0 && rect.size.height >= 0
                     && identities.insert(number.uint32Value).inserted,
                     "Invalid/duplicate CG obstruction inventory metadata")
         // Inspect every system entry, but retain only actual positive-area

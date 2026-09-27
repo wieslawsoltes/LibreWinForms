@@ -406,6 +406,7 @@ class CaptureObstructionContracts(unittest.TestCase):
         self.assertLess(second, write)
         for required in ("foreign.zIndex < owned.zIndex", "foreign.alpha > 0", "foreign.pid != pid",
                          "windows.count <= 64", "entries.count <= 4096", "identities.insert(number.uint32Value).inserted",
+                         "rect.size.width >= 0 && rect.size.height >= 0",
                          "captureOcclusion: CaptureOcclusion(samples: samples)", "CFGetTypeID(alpha) != CFBooleanGetTypeID()"):
             self.assertIn(required, source)
         for forbidden in ("CGWindowOwnerName", "foreign.layer", "foreign.title"):
