@@ -1,5 +1,12 @@
 # Agent Guidance
 
+Portable plain multiline TextBox Enter uses the existing translated KeyPress
+and exact key-cycle suppression path. Preserve read-only/public-handler
+precedence, duplicate host-character suppression and the following text packet;
+do not replace rich/masked or native Windows semantics. Blank/trailing row carets
+come from retained ProGPU row metadata, never painted placeholder glyphs or
+newline scans in the source control. See docs/portable-editor-hard-breaks.md.
+
 Portable TextBox painting and horizontal interaction share one owned optional
 text-layout generation. Keep original UTF-16 selection anchors, exact source
 font realization and target DPI in the cache contract. Source owns the fixed
