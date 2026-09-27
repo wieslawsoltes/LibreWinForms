@@ -6288,6 +6288,7 @@ public partial class CanonicalLifecycleTests
         internal RectangleF LastDrawnTextClip { get; private set; }
         internal string LastMeasuredText { get; private set; } = string.Empty;
         internal float? LastMeasuredDpi { get; private set; }
+        internal ILibreTextRendererService? ActualTextRenderer { get; set; }
 
         public bool HighContrast => false;
         public Font GetMenuFont(int dpi)
@@ -7174,6 +7175,12 @@ public partial class CanonicalLifecycleTests
             Color backColor,
             LibreTextFormat format)
         {
+            if (ActualTextRenderer is { } actual)
+            {
+                actual.DrawText(graphics, text, font, bounds, foreColor, backColor, format);
+                return;
+            }
+
             TextDrawCount++;
             TextDrawStrings.Add(text);
             font.Should().NotBeNull();
@@ -7239,6 +7246,11 @@ public partial class CanonicalLifecycleTests
             Size proposedSize,
             LibreTextFormat format)
         {
+            if (ActualTextRenderer is { } actual)
+            {
+                return actual.MeasureText(graphics, text, font, proposedSize, format);
+            }
+
             TextMeasureCount++;
             font.Should().NotBeNull();
             LastTextFormat = format;
