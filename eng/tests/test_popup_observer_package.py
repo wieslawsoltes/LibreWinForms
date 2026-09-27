@@ -34,6 +34,7 @@ class ObserverPackageContracts(unittest.TestCase):
                 "LibreWinForms.ProGPU.ProGpuPlatform.Register()"]):
             self.write(path, content)
         self.write(self.stage / "Microsoft/Program.cs", self.sources[0].read_text())
+        GATE.isolate_consumer(self.stage)
         self.preparation = dict(sourceSha256=GATE.PREPARE.sha256(self.sources[0]), packages=[],
                                 nativeGeometry=dict(enabled=True, sourceSha256=GATE.PREPARE.sha256(self.sources[1])))
         for name in ["LibreWinForms.Sdk", "LibreWinForms.System.Windows.Forms", "LibreWinForms.ProGPU"]:
@@ -67,6 +68,33 @@ class ObserverPackageContracts(unittest.TestCase):
         proof = self.verify()
         self.assertEqual(len(proof["compiledInputs"]), 4)
         self.assertEqual(proof["payloadSha256"], self.payloads)
+
+    def test_all_three_boundaries_stop_hostile_ancestor_search_without_source_changes(self):
+        original = {path: path.read_bytes() for path in self.sources}
+        for name in GATE.ISOLATION_FILES:
+            self.write(self.root / name, '<Project><Import Project="hostile-ancestor" /></Project>')
+            self.assertEqual((self.stage / name).read_text(), "<Project />\n")
+        self.assertEqual(set(self.verify()["isolationSha256"]), set(GATE.ISOLATION_FILES))
+        self.assertEqual({path: path.read_bytes() for path in self.sources}, original)
+
+    def test_changed_or_missing_isolation_boundary_fails(self):
+        for name in GATE.ISOLATION_FILES:
+            with self.subTest(name=name):
+                path = self.stage / name
+                path.write_text('<Project><Import Project="hostile" /></Project>')
+                with self.assertRaisesRegex(ValueError, "isolation boundary"):
+                    self.verify()
+                path.unlink()
+                with self.assertRaises(FileNotFoundError):
+                    self.verify()
+                path.write_text(GATE.ISOLATION_CONTENT)
+
+    def test_isolation_never_overwrites_existing_caller_file(self):
+        sentinel = self.stage / GATE.ISOLATION_FILES[0]
+        sentinel.write_text("caller-owned")
+        with self.assertRaises(FileExistsError):
+            GATE.isolate_consumer(self.stage)
+        self.assertEqual(sentinel.read_text(), "caller-owned")
 
     def test_omitted_or_duplicated_required_compile_input_fails(self):
         for index in range(4):
@@ -172,6 +200,12 @@ class ObserverPackageContracts(unittest.TestCase):
             self.assertIn(gate, pack)
         workflow = (ROOT / ".github/workflows/librewinforms-ci.yml").read_text()
         self.assertIn("name: Retain popup observer compile-only package evidence\n        if: always()", workflow)
+        packages = workflow.split("  packages:\n", 1)[1]
+        self.assertIn("name: Retain full Package lane popup observer compile evidence\n        if: always()", packages)
+        self.assertIn("name: popup-observer-full-package-build\n", packages)
+        for retained in ("artifacts/popup-observer-package/*/*.json", "artifacts/popup-observer-package/*/*.log"):
+            self.assertIn(retained, packages)
+        self.assertIn("name: popup-observer-package-build\n", workflow.split("  packages:\n", 1)[0])
 
 
 if __name__ == "__main__":
