@@ -1,5 +1,10 @@
 # Agent Guidance
 
+Portable DataGridView default rows use the shared screen-reference font height
+for Control.DefaultFont plus the original nine pixels. Preserve the process
+cache, minimum height, cloning and explicit row/template sizes; a different grid
+font does not implicitly enable row autosizing. See docs/portable-grid-default-row-dpi.md.
+
 Portable font autoscaling measures both dimensions at the canonical screen
 reference DPI. Reuse the selected font's shared target-height calculation,
 not parameterless Font.Height, a derived control's FontHeight override or the
