@@ -906,6 +906,8 @@ public unsafe partial class NativeWindow : MarshalByRefObject, IWin32Window, IHa
 
     internal LibreRectangle PortableBounds => _portableWindow?.Bounds ?? default;
 
+    internal ILibreWindow? PortableWindow => _portableWindow;
+
     internal WINDOW_STYLE PortableStyle
     {
         get => _portableStyle;
