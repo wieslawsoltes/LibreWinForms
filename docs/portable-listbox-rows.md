@@ -15,6 +15,9 @@ need a replacement list-shaped widget or a separate selection model.
   `IndexFromPoint`, page movement and `TopIndex`. The viewport uses the existing
   canonical border painter. Row drawing intersects both caller and control clips
   and restores the caller graphics state before the public Paint event.
+  `GetItemRectangle` retains the full valid row rectangle above/below the visible
+  viewport, including negative Y; visibility clips painting and input, not the
+  public geometry result.
 - Typed left-pointer down changes selection before MouseDown; the subsequent
   canonical MouseUp stays available to a hosting ComboBox for acceptance. A
   selection callback that disposes or recreates the source handle cannot receive
@@ -55,8 +58,13 @@ Implementation reuses this repository's original `ListBox.cs`,
 [IndexFromPoint](https://learn.microsoft.com/en-us/dotnet/api/system.windows.forms.listbox.indexfrompoint?view=windowsdesktop-10.0),
 [TopIndex](https://learn.microsoft.com/en-us/dotnet/api/system.windows.forms.listbox.topindex?view=windowsdesktop-10.0),
 and [GetItemRectangle](https://learn.microsoft.com/en-us/dotnet/api/system.windows.forms.listbox.getitemrectangle?view=windowsdesktop-10.0).
+The latter explicitly retains offscreen rectangles, unlike the older source XML
+comment. The original native implementation forwards the returned RECT without
+viewport clipping; [LB_GETITEMRECT](https://learn.microsoft.com/en-us/windows/win32/controls/lb-getitemrect)
+defines that rectangle in list client coordinates. The portable query follows
+that distinction; its paint/input paths still reject outside-viewport points.
 
-`CanonicalListBoxPortableTests.cs` adds 31 source cases: before/after-handle row
+`CanonicalListBoxPortableTests.cs` adds 33 source cases: before/after-handle row
 geometry and borders, changed fonts, clipped/RTL source paint, formatting
 reentrancy, typed pointer/key/wheel routing, handled input, live selection
 collections/removal, empty lists, host acceptance-key preservation, disposal and
