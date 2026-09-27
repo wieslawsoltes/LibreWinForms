@@ -1,5 +1,11 @@
 # Agent Guidance
 
+Portable font autoscaling measures both dimensions at the canonical screen
+reference DPI. Reuse the selected font's shared target-height calculation,
+not parameterless Font.Height, a derived control's FontHeight override or the
+measurement string's ink bounds. Preserve width rounding, pixel-font units and
+the native Windows branch. See docs/portable-font-autoscale-dpi.md.
+
 Portable collapsed-caret Backspace/Delete removes an adjacent source CRLF pair
 as one break. Keep explicit UTF-16 selections exact, standalone CR/LF and
 surrogate-pair behavior intact, and existing key suppression/read-only/event
