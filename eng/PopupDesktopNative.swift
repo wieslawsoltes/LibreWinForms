@@ -98,15 +98,16 @@ private func permissions() throws {
     try require(CGPreflightScreenCaptureAccess(), "Screen capture permission is unavailable")
 }
 
+@MainActor
 private func held(_ key: CGKeyCode? = nil) throws {
     var keys: Set<CGKeyCode> = [54, 55, 56, 60, 58, 61, 59, 62]
     if let key { keys.insert(key) }
     try require(!keys.contains { CGEventSource.keyState(.hidSystemState, key: $0) },
                 "Requested physical key/modifier held; refusing an injected release")
-    for raw in UInt32(0)...4 {
-        guard let button = CGMouseButton(rawValue: raw) else {
-            throw Rejected(description: "Unknown native mouse button")
-        }
+    // NSEvent exposes the complete current button bitmask, including additional
+    // buttons that are not cases of the three-value CGMouseButton enum.
+    try require(NSEvent.pressedMouseButtons == 0, "A mouse button is already held")
+    for button in [CGMouseButton.left, .right, .center] {
         try require(!CGEventSource.buttonState(.hidSystemState, button: button),
                     "Physical mouse button held; refusing pointer input")
     }

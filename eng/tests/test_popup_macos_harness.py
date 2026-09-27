@@ -239,9 +239,11 @@ class MacPopupContracts(unittest.TestCase):
             self.assertNotIn(forbidden, source)
         for required in ("AXUIElementCreateSystemWide()", "AXUIElementSetMessagingTimeout(system, 0.25)",
                          "CGEventSource.keyState(.hidSystemState", "try hitOwner(point, pid)",
+                         "NSEvent.pressedMouseButtons == 0", "for button in [CGMouseButton.left, .right, .center]",
                          "SCScreenshotManager.captureImage(in: rectangle)", ".withoutOverwriting",
                          "try inventory(pid) == before", "NSWorkspace.shared.frontmostApplication"):
             self.assertIn(required, source)
+        self.assertNotIn("CGMouseButton(rawValue:", source)
 
     def test_adapter_reuses_shared_scenario_and_child_cleanup_unchanged(self):
         source = (ROOT / "eng/librewinforms-popup-macos.py").read_text()

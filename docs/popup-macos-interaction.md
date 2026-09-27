@@ -82,7 +82,9 @@ does not claim exact private-surface client placement or source/native pairing.
 
 Initial activation is a normal `NSRunningApplication.activate` request for the
 owned, PID/title/geometry-verified main window. Every input checks the actual
-frontmost PID and physical modifiers/requested key/buttons. A pointer target
+frontmost PID and physical modifiers/requested key/buttons. The documented
+`NSEvent.pressedMouseButtons` bitmask also rejects additional held mouse buttons;
+the CoreGraphics typed enum is used only for its left/right/center cases. A pointer target
 must also pass **system-wide** AX hit testing before movement and before its
 click; app-restricted AX hit testing would miss covering windows and is not used.
 AX messaging has a 250 ms bound. `AXError.cannotComplete` (including the earlier
@@ -147,14 +149,22 @@ and SDK 26.4, first at the host default deployment target, then explicitly for
 `arm64-apple-macosx15.2`. The latter Mach-O declares minimum macOS 15.2. It has
 **not been executed**, including preflight, permission checks, window queries or
 input. Source SHA-256 is
-`4551b21a581a1a57cc8b94d2e85b600378bc64791e663f7fd3c34f92a940e089`;
+`620ecbff9a7b1944166cdab721be72b1b7d426a09e156ad7e342988b41f28e55`;
 the explicit-target binary SHA-256 is
-`a50f42a6b66408ae6e87f748ddaf7ad8ff33d57a6d018df22f89b258beb46117`.
+`2d075ee00c78993c20e99fcbbd5281e16fd8bdb9bbf1274678075628d5574696`.
 Original compiler logs, binaries and metadata remain in the task-owned
 `librewinforms-popup-macos-compile.4LRC33mG` evidence directory. The subprocess
 reply allocation trusts this reviewed helper, whose source caps its own reply
 at 64 KiB; substituting an arbitrary executable is not a sandboxed operation.
 Retain the exact compiled helper identity for every actual run.
+
+Final source review caught that raw button indices 3/4 are not members of Swift's
+three-case `CGMouseButton`; a failable conversion could reject every input.
+The helper now uses the public complete button-state bitmask rather than casting
+unknown native enum values. Its final exact source compiled again with zero
+warnings/errors for macOS 15.2; prior binaries/logs remain historical only.
+After integrating the reviewed observer package gate, all 13 additional package
+verifier controls also passed. Shared application/scenario bytes remain unchanged.
 
 The successful complete package producer, real desktop
 fourteen-phase execution, capture inspection and paired reference comparison
