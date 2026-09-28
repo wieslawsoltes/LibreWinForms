@@ -188,13 +188,13 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         using StringFormat stringFormat = CreateStringFormat(format);
         (int left, int right) = GetTextMargins(graphics, font, format);
         // DrawTextEx measures in the space remaining after both margins. Its
-        // minimum content width/height is one, not an unconstrained paragraph.
+        // minimum content width is one, not an unconstrained paragraph.
         float width = proposedSize.Width == int.MaxValue
             ? float.MaxValue
             : Math.Max(1L, (long)proposedSize.Width - left - right);
-        float height = proposedSize.Height == int.MaxValue
+        float height = proposedSize.Height is <= 0 or int.MaxValue
             ? float.MaxValue
-            : Math.Max(1, proposedSize.Height);
+            : proposedSize.Height;
         SizeF measured = graphics.MeasureString(text, font, new SizeF(width, height), stringFormat);
         int measuredWidth = Math.Max(0, (int)MathF.Ceiling(measured.Width));
         int measuredHeight = Math.Max(0, (int)MathF.Ceiling(measured.Height));
