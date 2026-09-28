@@ -289,6 +289,65 @@ class PopupDesktopContracts(unittest.TestCase):
         after["counts"]["command"] = 1
         self.assertNotEqual(DRIVER.stable_state(before), DRIVER.stable_state(after))
 
+    def test_startup_hover_uses_fresh_active_editor_before_baseline_without_click(self):
+        session = mock.Mock()
+        session.deadline = 123.5
+        main = dict(hwnd=11, title="popup")
+        old_editor = dict(x=1, y=2, width=3, height=4)
+        active_editor = dict(x=10, y=20, width=30, height=40)
+        initial = dict(title="popup", form=dict(visible=True, active=False),
+                       counts={"form-paint": 1}, editor=dict(client=old_editor))
+        active = dict(initial, form=dict(visible=True, active=True), editor=dict(client=active_editor))
+        session.state = initial
+        events = []
+
+        def wait(predicate):
+            if not events:
+                self.assertTrue(predicate(initial))
+                events.append("painted")
+            else:
+                self.assertFalse(predicate(initial))
+                self.assertTrue(predicate(active))
+                session.state = active
+                events.append("active")
+            return [main]
+
+        def point(rectangle, button=None):
+            self.assertIs(rectangle, active_editor)
+            self.assertIsNone(button, "startup must not click, focus or edit the control")
+            self.assertEqual(session.phase, "startup")
+            events.append("hover")
+
+        def capture(phase, predicate):
+            self.assertEqual(phase, "01-baseline")
+            self.assertFalse(predicate(initial))
+            self.assertTrue(predicate(active))
+            events.append("baseline")
+            raise RuntimeError("baseline reached")
+
+        session.wait.side_effect = wait
+        session.desktop.activate.side_effect = lambda window: events.append("activate")
+        session.point.side_effect = point
+        session.capture.side_effect = capture
+        with self.assertRaisesRegex(RuntimeError, "baseline reached"):
+            DRIVER.scenario(session)
+        self.assertEqual(events, ["painted", "activate", "active", "hover", "baseline"])
+        session.desktop.activate.assert_called_once_with(main)
+        session.point.assert_called_once_with(active_editor)
+        session.key.assert_not_called()
+        self.assertEqual(session.deadline, 123.5)
+
+    def test_startup_activation_rejection_never_moves_pointer_or_captures(self):
+        session = mock.Mock()
+        session.state = dict(title="popup")
+        session.wait.side_effect = [[dict(hwnd=11, title="popup")], RuntimeError("owner not active")]
+        with self.assertRaisesRegex(RuntimeError, "owner not active"):
+            DRIVER.scenario(session)
+        session.point.assert_not_called()
+        session.capture.assert_not_called()
+        session.key.assert_not_called()
+        self.assertEqual(session.wait.call_count, 2)
+
     def test_tooltip_requires_a_fresh_popup_and_new_owned_window_not_an_old_event_or_shadow(self):
         session = mock.Mock()
         session.state = dict(title="popup", contextTarget=None, tooltipTarget=None,

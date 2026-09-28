@@ -330,6 +330,10 @@ def scenario(session):
     main = next(w for w in windows if w["title"] == session.state["title"])
     # Activate only this freshly launched, PID-verified application.
     session.desktop.activate(main)
+    session.wait(lambda s: s["form"]["active"])
+    # A previous case can leave the cursor over this case's tooltip target.
+    # Hover the fresh, geometry-verified editor without clicking or changing focus.
+    session.point(session.state["editor"]["client"])
     session.capture("01-baseline", lambda s: s["form"]["active"])
     session.point(session.state["contextTarget"], "right")
     session.capture("02-context", opened("context"))

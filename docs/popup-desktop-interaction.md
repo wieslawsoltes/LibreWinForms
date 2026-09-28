@@ -87,6 +87,23 @@ foreground, covered target, failed native call, changed geometry, missing popup,
 wrong event or expired deadline fails and retains earlier evidence. No retry with
 invented coordinates, OS input to unrelated windows or alternate renderer exists.
 
+Before the baseline, the shared scenario waits for the activated owner's fresh
+geometry-verified snapshot and hovers its existing editor without clicking.
+This moves an ambient cursor off the tooltip target through the same PID,
+foreground, held-input, geometry and deadline guards as subsequent pointer input.
+It adds no source callback, focus mutation, fixed desktop coordinate, settle
+delay or retry. Windows, X11 and macOS share this precondition; the fourteen
+capture phases and their original input subsequence remain unchanged.
+
+The motivating Windows reference from the exact Forms `7b8f1a8f` package run
+failed its first capture because native window state changed. Its journal
+recorded `tooltip-popup` at 1,000 ms, and the baseline image showed the tooltip
+button hovered. The exact native before/after difference was not retained, so
+this does not conclusively attribute every changed-window failure to a tooltip.
+That original paired run stays failed despite its portable case completing all
+fourteen phases. The startup precondition requires a new independently recorded
+paired run; it does not relax either native/source screenshot stability check.
+
 A stable source/native geometry mismatch also retains the already-read source
 snapshot and native window rectangles, exact process identity and failed phase
 in the incomplete receipt's `failureState` (256 KiB maximum). This performs no
