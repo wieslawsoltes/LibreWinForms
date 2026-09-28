@@ -587,7 +587,9 @@ public unsafe partial class Control
             for (int index = 0; index < children.Count; index++)
             {
                 Control child = children[index];
-                Control? hit = child.PortableHitTest(new Point(position.X - child._x, position.Y - child._y));
+                Padding insets = child.PortableNonClientInsets;
+                Control? hit = child.PortableHitTest(new Point(
+                    position.X - child._x - insets.Left, position.Y - child._y - insets.Top));
                 if (hit is not null)
                 {
                     return hit;
@@ -604,8 +606,9 @@ public unsafe partial class Control
         int y = 0;
         for (Control? current = this; current is not null; current = current.ParentInternal)
         {
-            x = checked(x + current._x);
-            y = checked(y + current._y);
+            Padding insets = current.PortableNonClientInsets;
+            x = checked(x + current._x + insets.Left);
+            y = checked(y + current._y + insets.Top);
         }
 
         return new Point(x, y);

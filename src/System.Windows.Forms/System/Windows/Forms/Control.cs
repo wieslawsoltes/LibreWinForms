@@ -417,8 +417,9 @@ public unsafe partial class Control :
         if (_width != 0 && _height != 0)
         {
 #if LIBREWINFORMS_PORTABLE
-            _clientWidth = _width;
-            _clientHeight = _height;
+            Padding insets = PortableNonClientInsets;
+            _clientWidth = Math.Max(0, _width - insets.Horizontal);
+            _clientHeight = Math.Max(0, _height - insets.Vertical);
 #else
             RECT rect = default;
 
@@ -4772,12 +4773,14 @@ public unsafe partial class Control :
 #if LIBREWINFORMS_PORTABLE
         _ = Handle;
         Control root = this;
-        int originX = 0;
-        int originY = 0;
+        Padding ownInsets = PortableNonClientInsets;
+        int originX = ownInsets.Left;
+        int originY = ownInsets.Top;
         while (root.ParentInternal is { } parent)
         {
-            originX = checked(originX + root._x);
-            originY = checked(originY + root._y);
+            Padding parentInsets = parent.PortableNonClientInsets;
+            originX = checked(originX + root._x + parentInsets.Left);
+            originY = checked(originY + root._y + parentInsets.Top);
             root = parent;
         }
 
@@ -4788,8 +4791,9 @@ public unsafe partial class Control :
         int ancestorOriginY = originY;
         while (descendant.ParentInternal is { } ancestor)
         {
-            ancestorOriginX = checked(ancestorOriginX - descendant._x);
-            ancestorOriginY = checked(ancestorOriginY - descendant._y);
+            Padding descendantInsets = descendant.PortableNonClientInsets;
+            ancestorOriginX = checked(ancestorOriginX - descendant._x - descendantInsets.Left);
+            ancestorOriginY = checked(ancestorOriginY - descendant._y - descendantInsets.Top);
             visibleClip = Rectangle.Intersect(
                 visibleClip,
                 new Rectangle(
@@ -6886,13 +6890,18 @@ public unsafe partial class Control :
         AdjustWindowRectExForDpi(ref rect, style, bMenu, exStyle, DeviceDpiInternal);
     }
 
+#if LIBREWINFORMS_PORTABLE
+    private void AdjustWindowRectExForDpi(ref RECT rect, WINDOW_STYLE style, bool bMenu, WINDOW_EX_STYLE exStyle, int dpi)
+#else
     private static void AdjustWindowRectExForDpi(ref RECT rect, WINDOW_STYLE style, bool bMenu, WINDOW_EX_STYLE exStyle, int dpi)
+#endif
     {
 #if LIBREWINFORMS_PORTABLE
-        // Portable ILibreWindow bounds currently describe the drawable client surface.
-        // Native decoration insets belong to the window backend, so there is no Win32
-        // non-client rectangle to add here.
-        return;
+        Padding insets = PortableNonClientInsets;
+        rect.left -= insets.Left;
+        rect.top -= insets.Top;
+        rect.right += insets.Right;
+        rect.bottom += insets.Bottom;
 #else
         if ((ScaleHelper.IsThreadPerMonitorV2Aware || ScaleHelper.IsScalingRequired) && OsVersion.IsWindows10_1703OrGreater())
         {
@@ -10837,7 +10846,9 @@ public unsafe partial class Control :
                 _window.SetPortableBounds(new LibreRectangle(x, y, width, height));
             }
 
-            UpdateBounds(x, y, width, height, width, height);
+            Padding insets = PortableNonClientInsets;
+            UpdateBounds(x, y, width, height,
+                Math.Max(0, width - insets.Horizontal), Math.Max(0, height - insets.Vertical));
 #else
             if (!IsHandleCreated)
             {
@@ -10913,10 +10924,15 @@ public unsafe partial class Control :
 
     internal Size SizeFromClientSizeInternal(Size size)
     {
+#if LIBREWINFORMS_PORTABLE
+        Padding insets = PortableNonClientInsets;
+        return size + new Size(insets.Horizontal, insets.Vertical);
+#else
         RECT rect = new(size);
         CreateParams cp = CreateParams;
         AdjustWindowRectExForControlDpi(ref rect, (WINDOW_STYLE)cp.Style, false, (WINDOW_EX_STYLE)cp.ExStyle);
         return rect.Size;
+#endif
     }
 
     private void SetHandle(IntPtr value)
@@ -11660,12 +11676,14 @@ public unsafe partial class Control :
     private void InvalidatePortable(Rectangle dirtyRectangle)
     {
         Control root = this;
-        int offsetX = 0;
-        int offsetY = 0;
+        Padding insets = PortableNonClientInsets;
+        int offsetX = insets.Left;
+        int offsetY = insets.Top;
         while (root.ParentInternal is { } parent)
         {
-            offsetX = checked(offsetX + root._x);
-            offsetY = checked(offsetY + root._y);
+            Padding parentInsets = parent.PortableNonClientInsets;
+            offsetX = checked(offsetX + root._x + parentInsets.Left);
+            offsetY = checked(offsetY + root._y + parentInsets.Top);
             root = parent;
         }
 
@@ -11737,13 +11755,7 @@ public unsafe partial class Control :
         {
             if (layer.Graphics is { } graphics)
             {
-                using PaintEventArgs paintEvent = new(
-                    graphics,
-                    localClip,
-                    DrawingEventFlags.SaveState | DrawingEventFlags.GraphicsStateUnclean);
-                PaintWithErrorHandling(paintEvent, PaintLayerBackground);
-                paintEvent.ResetGraphics();
-                PaintWithErrorHandling(paintEvent, PaintLayerForeground);
+                PaintPortableClientAndFrame(graphics, localClip);
             }
         }
 
@@ -11752,6 +11764,9 @@ public unsafe partial class Control :
             return;
         }
 
+        Rectangle client = PortableClientBoundsInWindow;
+        client.Offset(absoluteLocation);
+        Rectangle childClip = Rectangle.Intersect(absoluteClip, client);
         // WinForms index zero is the top of z-order, so retain back-to-front.
         for (int index = children.Count - 1; index >= 0; index--)
         {
@@ -11759,9 +11774,9 @@ public unsafe partial class Control :
             child.PaintPortableRetainedControlTree(
                 frame,
                 new Point(
-                    checked(absoluteLocation.X + child._x),
-                    checked(absoluteLocation.Y + child._y)),
-                absoluteClip);
+                    checked(client.X + child._x),
+                    checked(client.Y + child._y)),
+                childClip);
         }
     }
 
@@ -11789,13 +11804,7 @@ public unsafe partial class Control :
         {
             graphics.TranslateTransform(absoluteLocation.X, absoluteLocation.Y);
             graphics.SetClip(localClip, System.Drawing.Drawing2D.CombineMode.Intersect);
-            using PaintEventArgs paintEvent = new(
-                graphics,
-                localClip,
-                DrawingEventFlags.SaveState | DrawingEventFlags.GraphicsStateUnclean);
-            PaintWithErrorHandling(paintEvent, PaintLayerBackground);
-            paintEvent.ResetGraphics();
-            PaintWithErrorHandling(paintEvent, PaintLayerForeground);
+            PaintPortableClientAndFrame(graphics, localClip);
         }
         finally
         {
@@ -11807,6 +11816,9 @@ public unsafe partial class Control :
             return;
         }
 
+        Rectangle client = PortableClientBoundsInWindow;
+        client.Offset(absoluteLocation);
+        Rectangle childClip = Rectangle.Intersect(absoluteClip, client);
         // WinForms index zero is the top of z-order, so record back-to-front.
         for (int index = children.Count - 1; index >= 0; index--)
         {
@@ -11814,9 +11826,9 @@ public unsafe partial class Control :
             child.PaintPortableControlTree(
                 graphics,
                 new Point(
-                    checked(absoluteLocation.X + child._x),
-                    checked(absoluteLocation.Y + child._y)),
-                absoluteClip);
+                    checked(client.X + child._x),
+                    checked(client.Y + child._y)),
+                childClip);
         }
     }
 
@@ -11875,6 +11887,11 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected void UpdateBounds(int x, int y, int width, int height)
     {
+#if LIBREWINFORMS_PORTABLE
+        Padding insets = PortableNonClientInsets;
+        UpdateBounds(x, y, width, height,
+            Math.Max(0, width - insets.Horizontal), Math.Max(0, height - insets.Vertical));
+#else
         // reverse-engineer the AdjustWindowRectEx call to figure out the appropriate clientWidth and clientHeight
         RECT rect = default;
         CreateParams cp = CreateParams;
@@ -11883,6 +11900,7 @@ public unsafe partial class Control :
         int clientWidth = width - rect.Width;
         int clientHeight = height - rect.Height;
         UpdateBounds(x, y, width, height, clientWidth, clientHeight);
+#endif
     }
 
     /// <summary>
@@ -12075,6 +12093,11 @@ public unsafe partial class Control :
 
     internal virtual void UpdateStylesCore()
     {
+#if LIBREWINFORMS_PORTABLE
+        // Publish logical client geometry before handle recreation and its
+        // callbacks, just as the native style update applies the frame first.
+        UpdateBounds(_x, _y, _width, _height);
+#endif
         if (!IsHandleCreated)
         {
             return;

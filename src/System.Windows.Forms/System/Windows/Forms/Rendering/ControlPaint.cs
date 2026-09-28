@@ -1250,29 +1250,33 @@ public static unsafe partial class ControlPaint
 
         int right = bounds.Right - 1;
         int bottom = bounds.Bottom - 1;
+        using var topLeftBrush = topLeft.Color.GetCachedSolidBrushScope();
+        using var bottomRightBrush = bottomRight.Color.GetCachedSolidBrushScope();
+        // DrawEdge owns integer pixel bands. Centered geometry strokes have
+        // half-pixel coverage and can drop a zero-length corner on this backend.
         if ((sides & Border3DSide.Top) != 0)
         {
-            graphics.DrawLine(topLeft, bounds.Left, bounds.Top, right, bounds.Top);
+            graphics.FillRectangle(topLeftBrush, bounds.Left, bounds.Top, bounds.Width, 1);
             bounds.Y++;
             bounds.Height--;
         }
 
         if ((sides & Border3DSide.Left) != 0)
         {
-            graphics.DrawLine(topLeft, bounds.Left, bounds.Top, bounds.Left, bottom);
+            graphics.FillRectangle(topLeftBrush, bounds.Left, bounds.Top, 1, Math.Max(0, bottom - bounds.Top + 1));
             bounds.X++;
             bounds.Width--;
         }
 
         if ((sides & Border3DSide.Right) != 0)
         {
-            graphics.DrawLine(bottomRight, right, bounds.Top, right, bottom);
+            graphics.FillRectangle(bottomRightBrush, right, bounds.Top, 1, Math.Max(0, bottom - bounds.Top + 1));
             bounds.Width--;
         }
 
         if ((sides & Border3DSide.Bottom) != 0)
         {
-            graphics.DrawLine(bottomRight, bounds.Left, bottom, right, bottom);
+            graphics.FillRectangle(bottomRightBrush, bounds.Left, bottom, Math.Max(0, right - bounds.Left + 1), 1);
             bounds.Height--;
         }
     }
