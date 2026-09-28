@@ -5,6 +5,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <LibreWinFormsUseCanonicalRuntime>true</LibreWinFormsUseCanonicalRuntime>
     <LibreWinFormsReferenceMode>Package</LibreWinFormsReferenceMode>

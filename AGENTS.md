@@ -1,5 +1,12 @@
 # Agent Guidance
 
+Popup renderer initialization waits for the actual typed owner when a hidden
+handle is precreated. Reuse only a live same-service/dispatcher owner's device
+through ProGPU's shared lifetime; keep surfaces, compositors and atlases separate.
+Explicit pre-owner Graphics remains standalone. Never substitute another device
+after initialization or weaken native ownership/nonactivation admission. See
+docs/portable-popup-render-device.md; device reuse is not popup UI qualification.
+
 Portable TextRenderer measurement extends the native CALCRECT rectangle through
 the final line; proposed height is not a fitting or trimming viewport. Preserve
 the width constraint, font realization, padding and independent drawing clip.

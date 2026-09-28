@@ -346,6 +346,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
     private GlfwCharacterInput? _characterInput;
     private volatile WgpuContext? _wgpuContext;
     private Compositor? _compositor;
+    private bool _initializingRenderer;
     private bool _paintQueued;
     private float _lastPaintDpi = 96f;
     private bool _presentationQueued;
@@ -856,6 +857,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
 
     unsafe void INativePopupAdmissionHost.ShowWithoutActivation()
     {
+        EnsureRenderer();
         // Use the existing host's GLFW visibility path without its default focus
         // transfer. NativePopupWindow separately admits the platform owner and
         // nonactivation contract; this is not an alternative ownership path.
@@ -1055,7 +1057,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         LibrePoint origin,
         LibreRectangle clipRectangle)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        EnsureRenderer();
         WgpuContext targetContext = _wgpuContext
             ?? throw new InvalidOperationException("The ProGPU window drawing context is not initialized.");
         DrawingContext recording = new();
@@ -1091,6 +1093,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
             throw new ArgumentOutOfRangeException(nameof(bounds), "Adorner dimensions cannot be negative.");
         }
 
+        EnsureRenderer();
         WgpuContext targetContext = _wgpuContext
             ?? throw new InvalidOperationException("The ProGPU window drawing context is not initialized.");
         DrawingContext recording = new();
@@ -1579,16 +1582,11 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
     {
         _controller.Attach();
         ApplyInputTransparency();
-        _wgpuContext = new WgpuContext();
-        _wgpuContext.Initialize(_window);
-        _compositor = new Compositor(
-            _wgpuContext,
-            _wgpuContext.SwapChainFormat,
-            CompositorOptions.Default with
-            {
-                EnableGpuHitTesting = false,
-                PrimarySampleCount = 1,
-            });
+        // A source dropdown can precreate its hidden native handle before
+        // assigning its live owner. Defer only its renderer, not native/input
+        // setup, so normal display can acquire the owner's device-domain cache.
+        if (_popupAdmission is null)
+            EnsureRenderer();
         _input = _window.CreateInput();
         nint characterWindow = _window.Native?.Glfw ?? 0;
         if (characterWindow == 0)
@@ -1609,6 +1607,61 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
             mouse.MouseUp += OnMouseUp;
             mouse.MouseMove += OnMouseMove;
             mouse.Scroll += OnMouseScroll;
+        }
+    }
+
+    private void EnsureRenderer()
+    {
+        VerifyAccess();
+        if (_wgpuContext is not null)
+            return;
+        if (_initializingRenderer)
+            throw new InvalidOperationException("Window rendering cannot initialize reentrantly.");
+
+        _initializingRenderer = true;
+        WgpuContext? context = null;
+        Compositor? compositor = null;
+        try
+        {
+            context = new WgpuContext();
+            // Native ownership and render-device ownership are distinct. Only
+            // borrow an actual live same-service, same-dispatcher Silk owner;
+            // external native registrations do not expose a rendering device.
+            if (_popupAdmission is not null && !Owner.IsNull
+                && _handles.TryGet(Owner, out SilkLibreWindow? owner))
+            {
+                if (!ReferenceEquals(owner._service, _service)
+                    || !ReferenceEquals(owner._dispatcher, _dispatcher))
+                    throw new InvalidOperationException("A popup render owner must belong to this service and dispatcher.");
+                owner.VerifyAccess();
+                WgpuContext ownerContext = owner._wgpuContext
+                    ?? throw new InvalidOperationException("The popup owner's renderer is not initialized.");
+                context.InitializeSharedDevice(_window, ownerContext);
+            }
+            else
+            {
+                // Preserve standalone rendering for an explicit pre-owner
+                // Graphics request or an admitted external native owner.
+                context.Initialize(_window);
+            }
+
+            compositor = new Compositor(context, context.SwapChainFormat,
+                CompositorOptions.Default with { EnableGpuHitTesting = false, PrimarySampleCount = 1 });
+            VerifyAccess();
+            _compositor = compositor;
+            _wgpuContext = context;
+        }
+        catch (Exception failure)
+        {
+            try { compositor?.Dispose(); }
+            catch (Exception cleanupFailure) { failure.Data["CompositorCleanup"] = cleanupFailure; }
+            try { context?.Dispose(); }
+            catch (Exception cleanupFailure) { failure.Data["ContextCleanup"] = cleanupFailure; }
+            throw;
+        }
+        finally
+        {
+            _initializingRenderer = false;
         }
     }
 
@@ -1646,10 +1699,14 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
     private unsafe void OnRender(double delta)
     {
         _ = delta;
-        if ((!_paintQueued && !_presentationQueued) || _wgpuContext is null || _compositor is null)
+        if (!_paintQueued && !_presentationQueued)
         {
             return;
         }
+
+        EnsureRenderer();
+        WgpuContext context = _wgpuContext!;
+        Compositor compositor = _compositor!;
 
         float targetDpi = DrawingDpi;
         bool dpiChanged = _lastPaintDpi != targetDpi;
@@ -1664,7 +1721,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
             LibreRectangle dirty = dpiChanged ? surfaceBounds : _dirtyRectangle ?? surfaceBounds;
             _dirtyRectangle = null;
             _transientPaintVisual.Context.Clear();
-            using (WgpuContext.PushCurrent(_wgpuContext))
+            using (WgpuContext.PushCurrent(context))
             {
                 ProGpuRetainedPaintFrame frame = new(
                     _paintRoot,
@@ -1692,7 +1749,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         _paintRoot.Size = new Vector2(surfaceBounds.Width, surfaceBounds.Height);
         _adornerRoot.Size = new Vector2(surfaceBounds.Width, surfaceBounds.Height);
         _paintRoot.Invalidate();
-        PresentFrame(_wgpuContext, _compositor, surfaceBounds);
+        PresentFrame(context, compositor, surfaceBounds);
     }
 
     private unsafe void PresentFrame(
