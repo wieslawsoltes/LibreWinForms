@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Drawing.Text;
 using LibreWinForms.Platform;
@@ -115,16 +116,42 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
             return;
         }
 
-        Rectangle textBounds = GetTextBounds(bounds, format);
+        Font selectedFont = font ?? SystemFonts.DefaultFont;
+        (int left, int right) = GetTextMargins(graphics, selectedFont, format);
         if (!backColor.IsEmpty && backColor != Color.Transparent && bounds.Width > 0 && bounds.Height > 0)
         {
             using var background = new SolidBrush(backColor);
             graphics.FillRectangle(background, bounds);
         }
 
+        // A nonpositive DrawString rectangle means an unbounded point draw.
+        // Exhausting the text viewport must not turn padding into overflowing ink.
+        if (bounds.Width <= left + right || bounds.Height <= 0)
+        {
+            return;
+        }
+
+        Rectangle textBounds = new(checked(bounds.X + left), bounds.Y,
+            bounds.Width - left - right, bounds.Height);
         using StringFormat stringFormat = CreateStringFormat(format);
         using var foreground = new SolidBrush(foreColor);
-        graphics.DrawString(text, font ?? SystemFonts.DefaultFont, foreground, textBounds, stringFormat);
+        // Margins constrain alignment/wrapping, not glyph overhang. Clip at the
+        // original caller rectangle so italic ink can use its reserved padding.
+        GraphicsState state = graphics.Save();
+        try
+        {
+            if (!format.HasFlag(LibreTextFormat.NoClipping))
+            {
+                graphics.SetClip(bounds, CombineMode.Intersect);
+            }
+
+            stringFormat.FormatFlags |= StringFormatFlags.NoClip;
+            graphics.DrawString(text, selectedFont, foreground, textBounds, stringFormat);
+        }
+        finally
+        {
+            graphics.Restore(state);
+        }
     }
 
     public Size MeasureText(
@@ -159,26 +186,25 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         LibreTextFormat format)
     {
         using StringFormat stringFormat = CreateStringFormat(format);
-        float width = proposedSize.Width is <= 0 or int.MaxValue
+        (int left, int right) = GetTextMargins(graphics, font, format);
+        // DrawTextEx measures in the space remaining after both margins. Its
+        // minimum content width is one, not an unconstrained paragraph.
+        float width = proposedSize.Width == int.MaxValue
             ? float.MaxValue
-            : proposedSize.Width;
+            : Math.Max(1L, (long)proposedSize.Width - left - right);
         float height = proposedSize.Height is <= 0 or int.MaxValue
             ? float.MaxValue
             : proposedSize.Height;
         SizeF measured = graphics.MeasureString(text, font, new SizeF(width, height), stringFormat);
         int measuredWidth = Math.Max(0, (int)MathF.Ceiling(measured.Width));
         int measuredHeight = Math.Max(0, (int)MathF.Ceiling(measured.Height));
-        if (format.HasFlag(LibreTextFormat.LeftAndRightPadding))
-        {
-            measuredWidth = checked(measuredWidth + 2);
-        }
-
-        return new Size(measuredWidth, measuredHeight);
+        return new Size(checked(measuredWidth + left + right), measuredHeight);
     }
 
     private static StringFormat CreateStringFormat(LibreTextFormat format)
     {
         var stringFormat = format.HasFlag(LibreTextFormat.NoPadding)
+            && !format.HasFlag(LibreTextFormat.LeftAndRightPadding)
             ? new StringFormat(StringFormat.GenericTypographic)
             : new StringFormat();
         stringFormat.Alignment = format.HasFlag(LibreTextFormat.Right)
@@ -221,15 +247,19 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         return stringFormat;
     }
 
-    private static Rectangle GetTextBounds(Rectangle bounds, LibreTextFormat format)
+    private static (int Left, int Right) GetTextMargins(Graphics graphics, Font font, LibreTextFormat format)
     {
-        Rectangle textBounds = bounds;
-        if (format.HasFlag(LibreTextFormat.LeftAndRightPadding) && textBounds.Width > 2)
+        bool noPadding = format.HasFlag(LibreTextFormat.NoPadding);
+        bool leftAndRightPadding = format.HasFlag(LibreTextFormat.LeftAndRightPadding);
+        if (noPadding && !leftAndRightPadding)
         {
-            textBounds.Inflate(-1, 0);
+            return default;
         }
 
-        return textBounds;
+        // Canonical TextRenderer has already realized the source font to pixels.
+        // Direct service callers retain their actual Drawing target-DPI semantics.
+        int height = checked((int)MathF.Ceiling(font.GetHeight(graphics)));
+        return TextRendererMargins.Get(height, noPadding, leftAndRightPadding);
     }
 
     private static void ValidateFormat(LibreTextFormat format)

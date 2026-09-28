@@ -8,10 +8,6 @@ namespace System.Windows.Forms;
 
 internal static class TextExtensions
 {
-    // The value of the ItalicPaddingFactor comes from several tests using different fonts & drawing
-    // flags and some benchmarking with GDI+.
-    private const float ItalicPaddingFactor = 1 / 2f;
-
     // Used to clear TextRenderer specific flags from TextFormatFlags
     internal const int GdiUnsupportedFlagMask = unchecked((int)0xFF000000);
 
@@ -107,30 +103,9 @@ internal static class TextExtensions
         // DrawText(Ex) adds a small space at the beginning of the text bounding box but not at the end,
         // this is more noticeable when the font has the italic style. We compensate with this factor.
 
-        int leftMargin = 0;
-        int rightMargin = 0;
-        float overhangPadding;
-
-        switch (padding)
-        {
-            case TextPaddingOptions.GlyphOverhangPadding:
-                // [overhang padding][Text][overhang padding][italic padding]
-                overhangPadding = font.Data.Height / 6f;
-                leftMargin = (int)Math.Ceiling(overhangPadding);
-                rightMargin = (int)Math.Ceiling(overhangPadding * (1 + ItalicPaddingFactor));
-                break;
-
-            case TextPaddingOptions.LeftAndRightPadding:
-                // [2 * overhang padding][Text][2 * overhang padding][italic padding]
-                overhangPadding = font.Data.Height / 6f;
-                leftMargin = (int)Math.Ceiling(2 * overhangPadding);
-                rightMargin = (int)Math.Ceiling(overhangPadding * (2 + ItalicPaddingFactor));
-                break;
-
-            case TextPaddingOptions.NoPadding:
-            default:
-                break;
-        }
+        (int leftMargin, int rightMargin) = padding is TextPaddingOptions.GlyphOverhangPadding or TextPaddingOptions.LeftAndRightPadding
+            ? LibreWinForms.TextRendererMargins.Get(font.Data.Height, noPadding: false, padding == TextPaddingOptions.LeftAndRightPadding)
+            : default;
 
         return new DRAWTEXTPARAMS
         {
