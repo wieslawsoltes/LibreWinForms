@@ -1,7 +1,8 @@
 # Portable application pipeline startup
 
-The source graph now pins ProGPU
-`9e471863b351770ad59a23bdfe79579bb3c3a9f2`. It includes the original
+The pipeline integration used ProGPU
+`9e471863b351770ad59a23bdfe79579bb3c3a9f2`. The current source pin retains it
+and adds the [drawing clip fixes](portable-drawing-clip-parity.md). It includes the original
 operation-zero all-line raster specialization (ProGPU #218), opt-in pipeline
 creation diagnostics (#217), and exact single-sample pipeline reuse (#219).
 The managed and both native path providers retain their full curve/Boolean
