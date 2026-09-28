@@ -37,7 +37,7 @@ public partial class CanonicalLifecycleTests
             editor.Select(4, 0);
             DrawingContext selected = editor.Record();
             RenderCommand caretInk = selected.Commands.Single(c => c.Type == RenderCommandType.DrawRect);
-            caretInk.Rect.Y.Should().Be(2 * height);
+            caretInk.Rect.Y.Should().Be(1 + 2 * height);
             caretInk.Rect.Height.Should().Be(height);
         });
     }
@@ -52,10 +52,10 @@ public partial class CanonicalLifecycleTests
             editor.Select(0, 0);
             editor.Record();
             float height = probe.Layouts.Last().GetCaret(0).Height;
-            editor.Press(new Point(100, (int)(height * 1.5f)));
+            editor.Press(new Point(101, 1 + (int)(height * 1.5f)));
             editor.SelectionStart.Should().Be(3);
             editor.SelectionLength.Should().Be(0);
-            editor.Drag(new Point(0, (int)(height * .5f)));
+            editor.Drag(new Point(1, 1 + (int)(height * .5f)));
             editor.SelectionStart.Should().Be(0);
             editor.SelectionLength.Should().Be(3);
             editor.Text.Should().Be("a\r\n\r\nb");
@@ -228,6 +228,8 @@ public partial class CanonicalLifecycleTests
             RetainedLayoutProbe layout = probe.Layouts.Last();
             Point start = Point.Round(layout.GetCaret(2).Position);
             Point end = Point.Round(layout.GetCaret(6).Position);
+            start.Offset(1, 1);
+            end.Offset(1, 1);
             editor.Press(start);
             editor.SelectionStart.Should().Be(2);
             editor.Capture.Should().BeTrue();
@@ -270,7 +272,7 @@ public partial class CanonicalLifecycleTests
             RetainedLayoutProbe layout = probe.Layouts.Last();
             layout.LastOrigin.X.Should().BeLessThan(0);
             float caretX = layout.GetCaret(editor.TextLength).Position.X + layout.LastOrigin.X;
-            caretX.Should().BeInRange(0, editor.ClientSize.Width - 1);
+            caretX.Should().BeInRange(1, editor.ClientSize.Width - 2);
             context.Commands.Should().NotContain(c => c.Type == RenderCommandType.PushClip,
                 "the scrolling paragraph must not add a translated layout rectangle clip");
             RenderCommand[] clips = context.Commands.Where(c => c.Type == RenderCommandType.PushGeometryClip).ToArray();
@@ -279,8 +281,8 @@ public partial class CanonicalLifecycleTests
             {
                 clip.Path.Should().NotBeNull();
                 clip.Path!.TryGetBounds(out Vector2 min, out Vector2 max).Should().BeTrue();
-                min.Should().Be(Vector2.Zero);
-                max.Should().Be(new Vector2(editor.ClientSize.Width, editor.ClientSize.Height),
+                min.Should().Be(Vector2.One);
+                max.Should().Be(new Vector2(editor.ClientSize.Width - 1, editor.ClientSize.Height - 1),
                     "the paragraph offset must not translate or shrink the source viewport");
             }
         });
@@ -315,6 +317,10 @@ public partial class CanonicalLifecycleTests
     private static void RunRetainedEditor(Action<HeadlessPlatform, Form, RetainedEditor, RetainedTextRendererProbe> action)
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        // Original Microsoft EDIT uses one-pixel formatting insets inside a
+        // Fixed3D client. Keep bordered coverage with the measured native metric;
+        // asymmetric synthetic system metrics have their own frame fixtures.
+        platform.BorderSizeValue = new(1, 1);
         var probe = (RetainedTextRendererProbe)platform.Services.TextRenderer;
         using Form owner = new() { ShowIcon = false, AutoScaleMode = AutoScaleMode.None };
         using RetainedEditor editor = new() { Multiline = true, Bounds = new(8, 8, 240, 80) };

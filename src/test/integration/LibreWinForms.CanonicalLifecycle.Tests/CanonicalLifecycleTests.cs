@@ -2955,7 +2955,9 @@ public partial class CanonicalLifecycleTests
         panel.Controls.Add(editor);
         panel.Controls.SetChildIndex(editor, 0);
 
-        editor.Bounds.Should().Be(new Rectangle(60, 60, 180, editor.PreferredHeight));
+        // Native scaling excludes and restores the two-pixel source frame:
+        // (120 - 4) * 1.5 + 4 = 178, without moving the scrolled origin.
+        editor.Bounds.Should().Be(new Rectangle(60, 60, 178, editor.PreferredHeight));
         panel.Controls[0].Should().BeSameAs(editor);
     }
 
@@ -3407,7 +3409,7 @@ public partial class CanonicalLifecycleTests
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
 
-        SystemInformation.GetBorderSizeForDpi(192).Should().Be(new Size(22, 26));
+        SystemInformation.GetBorderSizeForDpi(192).Should().Be(new Size(11, 13));
         SystemInformation.ScreenOrientation.Should().Be(ScreenOrientation.Angle270);
         SystemInformation.SizingBorderWidth.Should().Be(7);
         SystemInformation.SmallCaptionButtonSize.Should().Be(new Size(31, 33));
@@ -5973,6 +5975,7 @@ public partial class CanonicalLifecycleTests
             LastWindowBounds = default;
             LastNativeWindowBounds = default;
             LastDirtyRectangle = default;
+            BorderSizeValue = new(11, 13);
             PresentCount = 0;
             PresentationInvalidationCount = 0;
             LastPresentationScale = 1.0;
@@ -6298,7 +6301,8 @@ public partial class CanonicalLifecycleTests
         public bool HighContrast => false;
         public Font GetMenuFont(int dpi)
             => new(FontFamily.GenericMonospace, dpi == 0 ? 11f : 17f);
-        public LibreSize BorderSize => new(11, 13);
+        internal LibreSize BorderSizeValue { get; set; } = new(11, 13);
+        public LibreSize BorderSize => BorderSizeValue;
         public LibreSize FixedFrameBorderSize => new(3, 3);
         public LibreSize Border3DSize => new(2, 2);
         public int VerticalScrollBarWidth => 17;

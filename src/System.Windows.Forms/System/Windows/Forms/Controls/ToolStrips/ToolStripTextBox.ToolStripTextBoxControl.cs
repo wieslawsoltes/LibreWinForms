@@ -116,7 +116,8 @@ public partial class ToolStripTextBox
             }
 
 #if LIBREWINFORMS_PORTABLE
-            Invalidate();
+            Padding insets = PortableNonClientInsets;
+            Invalidate(new Rectangle(-insets.Left, -insets.Top, Width, Height));
 #else
             var absoluteClientRectangle = AbsoluteClientRECT;
 
@@ -266,6 +267,29 @@ public partial class ToolStripTextBox
             // Don't set the clipping region based on the WParam
             // - windows seems to take out the two pixels intended for the non-client border.
 
+            using Graphics g = hdc.CreateGraphics();
+            PaintPopupBorder(g, AbsoluteClientRectangle);
+
+            // We've handled WM_NCPAINT.
+            m.ResultInternal = (LRESULT)0;
+        }
+
+#if LIBREWINFORMS_PORTABLE
+        internal override void PaintPortableNonClient(PaintEventArgs e)
+        {
+            if (!IsPopupTextBox)
+            {
+                base.PaintPortableNonClient(e);
+                return;
+            }
+
+            Padding insets = PortableNonClientInsets;
+            PaintPopupBorder(e.Graphics, new Rectangle(insets.Left, insets.Top, ClientSize.Width, ClientSize.Height));
+        }
+#endif
+
+        private void PaintPopupBorder(Graphics g, Rectangle clientRect)
+        {
             bool focused = MouseIsOver || Focused;
             Color outerBorderColor = focused ? ColorTable.TextBoxBorder : BackColor;
             Color innerBorderColor = SystemInformation.HighContrast && !focused ? ColorTable.MenuBorder : BackColor;
@@ -275,9 +299,6 @@ public partial class ToolStripTextBox
                 outerBorderColor = SystemColors.ControlDark;
                 innerBorderColor = SystemColors.Control;
             }
-
-            using Graphics g = hdc.CreateGraphics();
-            Rectangle clientRect = AbsoluteClientRectangle;
 
             // Could have set up a clip and fill-rectangled, thought this would be faster.
             using var brush = innerBorderColor.GetCachedSolidBrushScope();
@@ -289,9 +310,6 @@ public partial class ToolStripTextBox
             // Paint the outside rect.
             using var pen = outerBorderColor.GetCachedPenScope();
             g.DrawRectangle(pen, 0, 0, Width - 1, Height - 1);
-
-            // We've handled WM_NCPAINT.
-            m.ResultInternal = (LRESULT)0;
         }
 
         protected override void WndProc(ref Message m)

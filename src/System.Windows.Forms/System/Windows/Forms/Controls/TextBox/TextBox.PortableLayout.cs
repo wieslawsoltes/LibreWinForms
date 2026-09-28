@@ -35,20 +35,20 @@ public partial class TextBox
 
         if (_portableTextLayout is not null && ReferenceEquals(service, _portableLayoutService) &&
             ReferenceEquals(Font, _portableLayoutFont) && _portableLayoutText == text &&
-            _portableLayoutSize == ClientSize && _portableLayoutFlags == flags &&
+            _portableLayoutSize == PortableTextViewport.Size && _portableLayoutFlags == flags &&
             _portableLayoutDpiX == graphics.DpiX && _portableLayoutDpiY == graphics.DpiY)
             return _portableTextLayout;
 
         // The source clip stays fixed while this owned paragraph scrolls. The
         // ordinary non-layout renderer retains its original format contract.
-        ILibreTextLayout next = TextRenderer.CreatePortableTextLayout(service, graphics, text, Font, ClientSize,
+        ILibreTextLayout next = TextRenderer.CreatePortableTextLayout(service, graphics, text, Font, PortableTextViewport.Size,
             flags | TextFormatFlags.NoClipping);
         _portableTextLayout?.Dispose();
         _portableTextLayout = next;
         _portableLayoutService = service;
         _portableLayoutFont = Font;
         _portableLayoutText = text;
-        _portableLayoutSize = ClientSize;
+        _portableLayoutSize = PortableTextViewport.Size;
         _portableLayoutFlags = flags;
         _portableLayoutDpiX = graphics.DpiX;
         _portableLayoutDpiY = graphics.DpiY;
@@ -121,7 +121,8 @@ public partial class TextBox
         }
 
         if (placeholder) _portableTextScroll = PointF.Empty;
-        var origin = new PointF(-_portableTextScroll.X, -_portableTextScroll.Y);
+        Rectangle viewport = PortableTextViewport;
+        var origin = new PointF(viewport.X - _portableTextScroll.X, viewport.Y - _portableTextScroll.Y);
         ReadOnlyMemory<RectangleF> selected = !placeholder && (Focused || !HideSelection)
             ? layout.GetSelectionRectangles(SelectionStart, SelectionLength) : default;
         using Region? selectionClip = selected.IsEmpty ? null : new Region();
@@ -168,16 +169,16 @@ public partial class TextBox
         // layout frame. A zero-clamped offset cannot reveal those real carets.
         // Keep the current viewport whenever the complete caret already fits.
         _portableTextScroll.X = Math.Clamp(_portableTextScroll.X,
-            caret.Position.X + Math.Min(caretWidth, ClientSize.Width) - ClientSize.Width, caret.Position.X);
+            caret.Position.X + Math.Min(caretWidth, PortableTextViewport.Width) - PortableTextViewport.Width, caret.Position.X);
         _portableTextScroll.Y = Math.Clamp(_portableTextScroll.Y,
-            caret.Position.Y + Math.Min(caret.Height, ClientSize.Height) - ClientSize.Height, caret.Position.Y);
+            caret.Position.Y + Math.Min(caret.Height, PortableTextViewport.Height) - PortableTextViewport.Height, caret.Position.Y);
         _portableEnsureCaretVisible = false;
         return _portableTextScroll != previous;
     }
 
     private protected override void ScrollPortableTextCaretIntoView()
     {
-        if (ClientSize.Width <= 0 || ClientSize.Height <= 0)
+        if (PortableTextViewport.Width <= 0 || PortableTextViewport.Height <= 0)
         {
             return;
         }
@@ -200,7 +201,7 @@ public partial class TextBox
         string text = GetPortableDisplayText(placeholder: false);
         TextFormatFlags flags = GetPortableEditorTextFlags();
         if (_portableTextLayout is not null && _portableLayoutText == text &&
-            ReferenceEquals(_portableLayoutFont, Font) && _portableLayoutSize == ClientSize &&
+            ReferenceEquals(_portableLayoutFont, Font) && _portableLayoutSize == PortableTextViewport.Size &&
             _portableLayoutFlags == flags && ReferenceEquals(_portableLayoutService, LibrePlatform.Current.TextRenderer))
             return _portableTextLayout;
         using Graphics graphics = CreateGraphicsInternal();
@@ -269,7 +270,9 @@ public partial class TextBox
         if (IsDisposed || !IsHandleCreated) return;
         ILibreTextLayout? layout = GetPortableInputLayout();
         if (layout is null) return;
-        LibreTextHit hit = layout.HitTest(new PointF(e.X + _portableTextScroll.X, e.Y + _portableTextScroll.Y));
+        Rectangle viewport = PortableTextViewport;
+        LibreTextHit hit = layout.HitTest(new PointF(e.X - viewport.X + _portableTextScroll.X,
+            e.Y - viewport.Y + _portableTextScroll.Y));
         ApplyPortableLayoutCaret(hit.TextPosition, hit.IsTrailing, (ModifierKeys & Keys.Shift) != 0);
         if (IsDisposed || !IsHandleCreated) return;
         _portablePointerSelecting = true;
@@ -282,7 +285,9 @@ public partial class TextBox
         if (!_portablePointerSelecting || !Capture || IsDisposed || (e.Button & MouseButtons.Left) == 0) return;
         ILibreTextLayout? layout = GetPortableInputLayout();
         if (layout is null) return;
-        LibreTextHit hit = layout.HitTest(new PointF(e.X + _portableTextScroll.X, e.Y + _portableTextScroll.Y));
+        Rectangle viewport = PortableTextViewport;
+        LibreTextHit hit = layout.HitTest(new PointF(e.X - viewport.X + _portableTextScroll.X,
+            e.Y - viewport.Y + _portableTextScroll.Y));
         ApplyPortableLayoutCaret(hit.TextPosition, hit.IsTrailing, extend: true);
     }
 

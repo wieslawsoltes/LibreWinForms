@@ -75,7 +75,8 @@ public partial class CanonicalLifecycleTests
             editor.Text = "aa aa aa";
             editor.Record();
             float rowWidth = probe.Layouts.Last().GetCaret(3).Position.X;
-            editor.ClientSize = new Size((int)MathF.Ceiling(rowWidth) + 1, 100);
+            // Two native formatting-inset pixels are outside the shaped row.
+            editor.ClientSize = new Size((int)MathF.Ceiling(rowWidth) + 3, 100);
             editor.Select(4, 0);
             SendRetainedKey(platform, owner, LibreKey.Home, LibreInputModifiers.None);
             editor.SelectionStart.Should().Be(3);

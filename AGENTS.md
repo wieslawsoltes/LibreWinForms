@@ -1,5 +1,19 @@
 # Agent Guidance
 
+Portable plain TextBox frames distinguish source window-adjustment estimates
+from actual client geometry: native EDIT's FixedSingle border is client content;
+Fixed3D owns non-client insets. Keep pre-handle/source scaling and live sizing
+contracts distinct, including cached ClientSize versus actual client extent.
+Painting, child clips, screen/input/CreateGraphics/invalidation use the actual
+frame; retained text, caret and pointer mapping share native formatting insets.
+Non-client borders block click-through without invented client mouse events.
+Native top-level decorations and other controls do not acquire inferred insets.
+ToolStripTextBox reuses its original professional border colors/state. Integer
+DrawEdge bands are not centered antialiased strokes; preserve color/corner order.
+Preserve native invariant border metrics at requested DPIs. Source/API/offscreen
+checks do not qualify OS themes or complete native non-client input.
+See docs/portable-textbox-frame.md.
+
 Portable native-style focus painting reads per-handle window UI state, not the
 managed properties that lazily broadcast hidden cues. Reuse canonical cache/
 notification handling, preserve Tab versus Alt/F10 masks, and inherit state on

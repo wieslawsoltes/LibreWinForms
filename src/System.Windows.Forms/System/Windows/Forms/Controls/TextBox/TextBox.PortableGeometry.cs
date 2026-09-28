@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 #if LIBREWINFORMS_PORTABLE
+using System.Drawing;
 using LibreWinForms.Platform;
 
 namespace System.Windows.Forms;
@@ -19,7 +20,7 @@ public partial class TextBox
         }
 
         Point point = new(PARAM.SignedLOWORD(lParam), PARAM.SignedHIWORD(lParam));
-        if (message == PInvokeCore.EM_CHARFROMPOS && !ClientRectangle.Contains(point))
+        if (message == PInvokeCore.EM_CHARFROMPOS && !PortableClientRectangle.Contains(point))
         {
             return -1;
         }
@@ -70,11 +71,15 @@ public partial class TextBox
             case PInvokeCore.EM_POSFROMCHAR:
                 if ((uint)index >= (uint)length) return -1;
                 PointF position = source.GetSourcePositionPoint(index);
-                Point client = Point.Truncate(new PointF(position.X - _portableTextScroll.X, position.Y - _portableTextScroll.Y));
+                Rectangle viewport = PortableTextViewport;
+                Point client = Point.Truncate(new PointF(position.X + viewport.X - _portableTextScroll.X,
+                    Multiline ? position.Y + viewport.Y - _portableTextScroll.Y : 0));
                 return PARAM.FromPoint(client);
 
             case PInvokeCore.EM_CHARFROMPOS:
-                LibreTextHit hit = layout.HitTest(new PointF(point.X + _portableTextScroll.X, point.Y + _portableTextScroll.Y));
+                Rectangle inputViewport = PortableTextViewport;
+                LibreTextHit hit = layout.HitTest(new PointF(point.X - inputViewport.X + _portableTextScroll.X,
+                    point.Y - inputViewport.Y + _portableTextScroll.Y));
                 int row = Multiline ? source.GetCaretRowIndex(hit.TextPosition, hit.IsTrailing) : 0;
                 // Keep the native EDIT message's packed 16-bit character/line
                 // result; the existing public API retains its own last-char clamp.

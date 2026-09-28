@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 #if LIBREWINFORMS_PORTABLE
+using System.Drawing;
 using LibreWinForms.Platform;
 
 namespace System.Windows.Forms;
@@ -391,10 +392,11 @@ public unsafe partial class Control
         }
 
         Control? hit = PortableHitTest(rootPosition);
-        UpdatePortableHover(hit);
+        bool clientHit = hit is not null && hit.PortableClientRectangle.Contains(hit.PointToClient(s_portableMousePosition));
+        UpdatePortableHover(clientHit ? hit : null);
         Control? target = _portableCapturedControl ?? hit;
         RefreshPortableCursor();
-        if (target is null)
+        if (target is null || (_portableCapturedControl is null && !clientHit))
         {
             return;
         }
@@ -577,17 +579,25 @@ public unsafe partial class Control
 
     private Control? PortableHitTest(Point position)
     {
-        if (!Visible || !Enabled || !ClientRectangle.Contains(position))
+        Padding ownInsets = PortableNonClientInsets;
+        Rectangle window = new(-ownInsets.Left, -ownInsets.Top, Width, Height);
+        if (!Visible || !Enabled || !window.Contains(position))
         {
             return null;
         }
+
+        // A source border blocks underlying controls but is not a client mouse
+        // event. Only an existing capture continues receiving outside-client input.
+        if (!PortableClientRectangle.Contains(position)) return this;
 
         if (ChildControls is { } children)
         {
             for (int index = 0; index < children.Count; index++)
             {
                 Control child = children[index];
-                Control? hit = child.PortableHitTest(new Point(position.X - child._x, position.Y - child._y));
+                Padding insets = child.PortableNonClientInsets;
+                Control? hit = child.PortableHitTest(new Point(
+                    position.X - child._x - insets.Left, position.Y - child._y - insets.Top));
                 if (hit is not null)
                 {
                     return hit;
@@ -604,8 +614,9 @@ public unsafe partial class Control
         int y = 0;
         for (Control? current = this; current is not null; current = current.ParentInternal)
         {
-            x = checked(x + current._x);
-            y = checked(y + current._y);
+            Padding insets = current.PortableNonClientInsets;
+            x = checked(x + current._x + insets.Left);
+            y = checked(y + current._y + insets.Top);
         }
 
         return new Point(x, y);
