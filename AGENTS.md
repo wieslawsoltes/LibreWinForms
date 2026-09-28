@@ -1,5 +1,15 @@
 # Agent Guidance
 
+Portable plain TextBox frames use source-owned non-client insets, not Padding or
+a border over editable client content. Keep flat/retained painting, child clips,
+screen/input/CreateGraphics/invalidation coordinates and source scaling on the
+same client frame. Publish style-driven geometry before handle callbacks. Native
+top-level decorations and other source controls do not acquire inferred insets.
+ToolStripTextBox reuses its original professional border colors/state. Integer
+DrawEdge bands are not centered antialiased strokes; preserve color/corner order.
+Source/offscreen checks do not qualify OS themes or native non-client input.
+See docs/portable-textbox-frame.md.
+
 Portable native-style focus painting reads per-handle window UI state, not the
 managed properties that lazily broadcast hidden cues. Reuse canonical cache/
 notification handling, preserve Tab versus Alt/F10 masks, and inherit state on
