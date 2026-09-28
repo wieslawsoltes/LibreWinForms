@@ -1,6 +1,6 @@
 # Native glyph raster sharing integration
 
-The source graph pins ProGPU `60e1f7bab521e377b2109af411f0443856046bd3`
+The source graph pins ProGPU `2f47c475cf9143e1943452b40885c37c2de3e849`
 from ProGPU PR #222. It shares exact native glyph coverage within rebuilt batches,
 including equal outlines located at different segment offsets. Source outline
 indices and every positioned draw remain separate; all original validation,
@@ -9,6 +9,12 @@ compiler/adapter defaults and compute/raster/SIMD/scalar execution paths remain.
 This retains the complete Forms popup stack and owned startup-hover precondition.
 It changes no Forms control, input, theme or managed glyph implementation.
 LibreWPF must select this same ProGPU revision with this Forms source graph.
+
+The pin includes the atlas-growth fixture correction after ProGPU Build
+`36459867439` failed: distinct unused control-point bytes now require separate
+raster jobs without changing coverage. All original growth/retention assertions
+remain, with an additional exact job-count assertion. Local five-mode success
+does not qualify the producer or this package graph.
 
 The previous Forms popup Build `36453578175` passed on product commit `05a9aadcf`;
 the preceding native integration Build `36451582979` also passed. Neither result
