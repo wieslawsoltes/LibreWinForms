@@ -28,7 +28,7 @@ public partial class Control
             return true;
         }
 
-        if (message.MsgInternal is not PInvokeCore.WM_CHANGEUISTATE and not PInvokeCore.WM_UPDATEUISTATE)
+        if ((uint)message.Msg is not PInvokeCore.WM_CHANGEUISTATE and not PInvokeCore.WM_UPDATEUISTATE)
         {
             return false;
         }

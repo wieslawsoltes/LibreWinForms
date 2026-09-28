@@ -1,5 +1,12 @@
 # Agent Guidance
 
+Portable native-style focus painting reads per-handle window UI state, not the
+managed properties that lazily broadcast hidden cues. Reuse canonical cache/
+notification handling, preserve Tab versus Alt/F10 masks, and inherit state on
+actual handle creation. Revalidate snapshotted child handles after callbacks;
+never update a replacement generation or infer global last input for INITIALIZE.
+Source/offscreen evidence is not desktop parity. See docs/portable-window-ui-cues.md.
+
 Shared desktop popup scenarios hover the active source editor before baseline
 capture, using its fresh native-verified client rectangle and ordinary pointer
 guards. Never click to normalize focus, invent neutral desktop coordinates,
