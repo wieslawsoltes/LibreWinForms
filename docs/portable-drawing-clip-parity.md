@@ -1,11 +1,13 @@
 # Portable drawing clip integration
 
-The source graph pins ProGPU `3dc02026028c4ba42ddeef9f2a4232f660c51a9e`,
+The drawing-clip integration selected ProGPU `3dc02026028c4ba42ddeef9f2a4232f660c51a9e`,
 retaining the earlier pipeline-startup changes and adding the captured drawing
 clip coordinate-frame and exact atlas/device pixel-mapping fixes from ProGPU
 #220. Native and managed paths retain the existing source shapes, clip frames,
 curve/Boolean semantics, alpha and fractional-mapping behavior. Renderer,
 compiler, adapter defaults and application deadlines are unchanged.
+The subsequent source-pin advance is recorded in
+[native compute trace integration](portable-native-compute-trace.md).
 
 The whole upstream [Build 36436941579](https://github.com/wieslawsoltes/ProGPU/actions/runs/36436941579)
 completed successfully: all 49 jobs, including both Windows drawing references
