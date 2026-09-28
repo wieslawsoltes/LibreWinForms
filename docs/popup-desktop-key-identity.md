@@ -6,8 +6,10 @@ extended-key flag. The source scenario selected File after F10 but never opened
 its dropdown after Down; source-level F10/Down regressions already pass. This is
 evidence to inspect native input encoding, not proof of a source menu defect.
 
-Resolve the requested key with MAPVK_VK_TO_VSC_EX and retain its low scan byte and
-E0 extended flag on both press and release. Preserve virtual-key mode; reject an
+Resolve the requested key with MAPVK_VK_TO_VSC_EX and retain its low scan byte.
+Explicitly retain the dedicated navigation cluster's E0 identity even when that
+reverse mapping chooses an unprefixed keypad alias. Preserve other returned E0
+prefixes, virtual-key mode and identical press/release identity; reject an
 unmapped or unsupported prefix before injection. The original foreground/PID,
 held-key/modifier, complete-pair and partial-pair cleanup guards are unchanged.
 The same 14 phases, 60-second deadline, observer, screenshots and assertions run
@@ -52,3 +54,29 @@ renderer payload. Therefore corrected key encoding alone does not fix the
 portable failure, and neither keyboard nor visual parity is established. Trace
 actual backend/source key delivery before changing product routing; preserve the
 failed receipts and unchanged acceptance requirements.
+
+## Delivered-key diagnosis
+
+A private copy of the same application added a passive `IMessageFilter` that
+always returns false. No source input or focus was synthesized. The paired
+original scenario again completed all 14 Microsoft phases and stopped at
+portable phase 10. Its source trace records F10 (`121`) followed by NumPad2
+(`98`), not Down (`40`). Microsoft received Down, but its raw message lacked the
+extended-key bit. These observations explain why virtual-key-based Microsoft
+processing passed while the physical-key callback identified a keypad key.
+
+A separate read-only native probe in that Windows ARM64 guest, layout
+`0x4090409`, returned `0x50` for both VK_DOWN and VK_NUMPAD2 in mapping modes 0
+and 4. All ten dedicated navigation virtual keys likewise returned unprefixed
+scan codes. This is actual native evidence, not the former mock assumption that
+mode 4 necessarily returns E0 for those virtual keys. Raw paired traces and
+receipts are retained under `popup-key-route.YbAJiBh1`; original SDK/application
+and overlay hashes remained unchanged and both owned processes exited.
+
+The driver now explicitly supplies E0 for Home/End, Page Up/Down, the four arrows
+and Insert/Delete, matching the dedicated keys in Microsoft's scan-code table.
+It does not change product mapping or turn NumPad2 into Down. Regressions cover
+all ten observed unprefixed aliases, ordinary/keypad controls and the existing
+prefixed, rejected and partial-pair cases. The ten alias cases fail before this
+change; ordinary/keypad controls already pass. Native application validation
+remains separate from these offline contracts.

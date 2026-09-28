@@ -99,6 +99,34 @@ class PopupDesktopContracts(unittest.TestCase):
                     desktop.key(24, 0x28)
                 self.assertEqual(desktop.user.mutations, [])
 
+    def test_navigation_cluster_remains_extended_when_windows_returns_a_keypad_scan_alias(self):
+        # Observed MAPVK_VK_TO_VSC_EX results on the Windows ARM64 guest's US
+        # layout omit E0 for all ten dedicated navigation virtual keys.
+        cases = ((0x21, 0x49), (0x22, 0x51), (0x23, 0x4F), (0x24, 0x47),
+                 (0x25, 0x4B), (0x26, 0x48), (0x27, 0x4D), (0x28, 0x50),
+                 (0x2D, 0x52), (0x2E, 0x53))
+        for key, scan in cases:
+            with self.subTest(key=key):
+                desktop = self.desktop_with_held_key(None)
+                desktop.user.MapVirtualKeyW = mock.Mock(return_value=scan)
+                desktop.send_pair = mock.Mock()
+                desktop.key(24, key)
+                pair = desktop.send_pair.call_args.args[0]
+                self.assertEqual([(p.value.key.key, p.value.key.scan, p.value.key.flags) for p in pair],
+                                 [(key, scan, 1), (key, scan, 3)])
+
+    def test_ordinary_and_keypad_keys_do_not_inherit_navigation_cluster_flags(self):
+        for key, scan in ((0x62, 0x50), (0x68, 0x48), (0x0D, 0x1C), (0x12, 0x38),
+                          (0x79, 0x44), (0x1B, 0x01), (0x41, 0x1E)):
+            with self.subTest(key=key):
+                desktop = self.desktop_with_held_key(None)
+                desktop.user.MapVirtualKeyW = mock.Mock(return_value=scan)
+                desktop.send_pair = mock.Mock()
+                desktop.key(24, key)
+                pair = desktop.send_pair.call_args.args[0]
+                self.assertEqual([(p.value.key.key, p.value.key.scan, p.value.key.flags) for p in pair],
+                                 [(key, scan, 0), (key, scan, 2)])
+
     def test_partial_extended_pair_releases_only_the_same_injected_key(self):
         desktop = self.desktop_with_held_key(None)
         desktop.user.MapVirtualKeyW = mock.Mock(return_value=0xE050)

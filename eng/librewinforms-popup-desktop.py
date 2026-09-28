@@ -158,7 +158,11 @@ class WindowsDesktop:
         # Keep the requested virtual key, source scenario and paired release.
         scan = self.user.MapVirtualKeyW(key, 4)  # MAPVK_VK_TO_VSC_EX
         require(scan & 0xFF and scan >> 8 in (0, 0xE0), "Missing or unsupported keyboard scan code")
-        flags = 1 if scan >> 8 == 0xE0 else 0  # KEYEVENTF_EXTENDEDKEY
+        # MapVirtualKey can choose an unprefixed keypad alias even in EX mode.
+        # This scenario requests the dedicated navigation cluster, whose E0
+        # identity must not depend on that ambiguous virtual-key reverse map.
+        navigation = key in (0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x2D, 0x2E)
+        flags = 1 if navigation or scan >> 8 == 0xE0 else 0  # KEYEVENTF_EXTENDEDKEY
         inputs = (Input * 2)(Input(1, InputUnion(key=KeyInput(key, scan & 0xFF, flags, 0, 0))),
                              Input(1, InputUnion(key=KeyInput(key, scan & 0xFF, flags | 2, 0, 0))))
         self.send_pair(inputs)
