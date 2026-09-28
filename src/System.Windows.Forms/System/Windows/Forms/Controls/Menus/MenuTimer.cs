@@ -167,7 +167,7 @@ internal class MenuTimer
         EndTransition(forceClose: false);
         if (CurrentItem is not null && !CurrentItem.IsDisposed && CurrentItem.Selected && CurrentItem.Enabled
 #if LIBREWINFORMS_PORTABLE
-            && ToolStripDropDown.IsPortableAutoExpandTarget(CurrentItem.ParentInternal)
+            && ToolStripDropDown.IsPortableMenuInputAncestor(CurrentItem.ParentInternal)
 #else
             && ToolStripManager.ModalMenuFilter.InMenuMode
 #endif

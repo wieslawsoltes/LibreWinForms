@@ -19,7 +19,7 @@ public partial class ToolStripDropDown
         return null;
     }
 
-    internal static bool IsPortableAutoExpandTarget(ToolStrip? parent)
+    internal static bool IsPortableMenuInputAncestor(ToolStrip? parent)
     {
         if (parent is not { Visible: true, IsHandleCreated: true, IsDisposed: false, Disposing: false })
             return false;

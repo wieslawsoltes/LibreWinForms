@@ -1,5 +1,12 @@
 # Agent Guidance
 
+Submenu ItemClicked dismissal shares canonical ancestor rollup and SourceControl
+retention through command delivery. Keep leaf/ancestor cancellation and persistent
+menus distinct from forced native teardown. Capture the original menu continuation
+before callbacks; old closure and post-click keyboard cleanup must not deactivate
+a replacement input chain, including one on the same menu bar. See
+docs/portable-submenu-command-dismissal.md.
+
 Portable menu hover expansion uses the actual live source menu/keyboard chain,
 not Win32 ModalMenuFilter state or another owner's menu. Retain ancestor/sibling
 transitions, source timer delays and existing selected/enabled checks; hidden or
