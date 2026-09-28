@@ -119,7 +119,7 @@ run_test_project \
   --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" \
   -p:LibreWinFormsUseProGpuSystemDrawing=true -p:LibreWinFormsReferenceMode=Project -- \
   --filter-method '*PortableTextBoxFrame*' \
-  --minimum-expected-tests 16 --fail-skips on --timeout 2m
+  --minimum-expected-tests 37 --fail-skips on --timeout 2m
 "${repo_root}/eng/common/dotnet.sh" run \
   --project "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
   --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" \
