@@ -64,6 +64,11 @@ run_test_project \
 "${repo_root}/eng/common/dotnet.sh" run \
   --project "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
   --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" -- \
+  --filter-class '*ProGpuTextMarginTests*' \
+  --minimum-expected-tests 17 --fail-skips on --timeout 10m
+"${repo_root}/eng/common/dotnet.sh" run \
+  --project "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
+  --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" -- \
   --filter-class '*ProGpuPopupSurfaceServiceTests*' \
   --minimum-expected-tests 10 --fail-skips on --timeout 10m
 "${repo_root}/eng/common/dotnet.sh" run \

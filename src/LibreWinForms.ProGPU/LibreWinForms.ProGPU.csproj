@@ -14,6 +14,7 @@
 
   <ItemGroup>
     <Compile Remove="tests\**\*.cs" />
+    <Compile Include="..\Common\src\TextRendererMargins.cs" Link="Common\TextRendererMargins.cs" />
     <None Remove="tests\**\*" />
     <ProjectReference Include="..\LibreWinForms.Platform\LibreWinForms.Platform.csproj" />
     <ProjectReference Include="$(LibreWinFormsProGpuSourceRoot)src\System.Drawing.Common\System.Drawing.Common.csproj" />

@@ -1,5 +1,11 @@
 # Agent Guidance
 
+Portable TextRenderer margins share the original native rounding policy. Use
+the realized font metric, preserve LeftAndRightPadding precedence and NoPadding
+editor layout, subtract margins before wrapping, and clip at the outer caller
+rectangle so overhang can use the padding. Restore Graphics state; do not claim
+all GDI metrics or native theme parity. See docs/portable-text-margins.md.
+
 Portable PropertyGrid row/help/command metrics use the shared screen-reference
 font height, preserving padding, rounding, cached invalidation and canonical
 resize-driven pane arrangement. Non-Windows link settings reuse the existing

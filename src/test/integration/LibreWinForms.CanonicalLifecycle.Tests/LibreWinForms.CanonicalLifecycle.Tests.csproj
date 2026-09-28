@@ -16,6 +16,7 @@
   <ItemGroup>
     <Compile Include="../../../../packaging/LibreWinForms.Sdk.SourceFirstSmoke/CanonicalApiContracts.cs" Link="CanonicalApiContracts.cs" />
     <Compile Include="../../../LibreWinForms.ProGPU/ProGpuTextRendererService.cs" Link="ProGpuTextRendererService.cs" />
+    <Compile Include="../../../Common/src/TextRendererMargins.cs" Link="TextRendererMargins.cs" />
     <PackageReference Include="AwesomeAssertions" />
     <PackageReference Include="Microsoft.DotNet.XUnitV3Extensions" />
     <ProjectReference Include="..\..\..\LibreWinForms.Platform\LibreWinForms.Platform.csproj" />

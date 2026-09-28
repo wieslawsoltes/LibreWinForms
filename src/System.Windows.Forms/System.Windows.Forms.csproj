@@ -58,6 +58,7 @@
   <ItemGroup>
     <Compile Include="..\Common\src\Obsoletions.cs" Link="Common\Obsoletions.cs" />
     <Compile Include="..\Common\src\RTLAwareMessageBox.cs" Link="Common\RTLAwareMessageBox.cs" />
+    <Compile Include="..\Common\src\TextRendererMargins.cs" Link="Common\TextRendererMargins.cs" />
   </ItemGroup>
 
   <ItemGroup>
