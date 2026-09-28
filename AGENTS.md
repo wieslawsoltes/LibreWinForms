@@ -1,5 +1,11 @@
 # Agent Guidance
 
+Portable menu hover expansion uses the actual live source menu/keyboard chain,
+not Win32 ModalMenuFilter state or another owner's menu. Retain ancestor/sibling
+transitions, source timer delays and existing selected/enabled checks; hidden or
+retired parents and unadmitted persistent menus cannot expand implicitly. Keep
+the native Windows branch unchanged. See docs/portable-menu-hover.md.
+
 Popup renderer initialization waits for the actual typed owner when a hidden
 handle is precreated. Reuse only a live same-service/dispatcher owner's device
 through ProGPU's shared lifetime; keep surfaces, compositors and atlases separate.
