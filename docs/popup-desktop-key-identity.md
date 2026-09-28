@@ -80,3 +80,25 @@ all ten observed unprefixed aliases, ordinary/keypad controls and the existing
 prefixed, rejected and partial-pair cases. The ten alias cases fail before this
 change; ordinary/keypad controls already pass. Native application validation
 remains separate from these offline contracts.
+
+The corrected driver (`eb09e17773318534de3628c726aedef919e3c166`, SHA-256
+`145a08b23d4fc3613f0fb978735d99dbd487bb5e9643adf87d1da5329b1aec9e`)
+then ran against the original unmodified application payloads. Both captured all
+14 phases under the original 60-second deadline. Portable File now opens after
+F10/Down; Escape, bare Alt and ComboBox Down/Enter complete with Beta committed.
+The original and diagnostic payload hashes remained unchanged. Evidence is under
+`popup-navigation-keys.VnzvZlF7`, with both owned child processes confirmed gone.
+
+Image inspection still rejects visual parity: the old portable renderer omits
+the More menu label, uses different control styling and has no visible tooltip
+in its final capture. That tooltip capture exposed a second harness defect: its
+Popup count was already one at 31,812 ms, before the final hover at about 38 s,
+and the other visible owned window was the main window's shadow. Therefore this
+14-capture result proves the keyboard progression, not a successful tooltip.
+
+The final hover now requires both a newly raised Popup event and a newly visible
+owned window relative to the pre-hover snapshot. Existing owner shadows or old
+events cannot satisfy it. The same pointer/key sequence, application, screenshot
+inspection and original deadline remain required; no delay or retry is added.
+A regression exercises stale-event, existing-shadow and fresh-popup/window
+combinations. A subsequent native run must establish the stronger outcome.

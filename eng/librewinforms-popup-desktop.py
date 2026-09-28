@@ -360,8 +360,12 @@ def scenario(session):
     session.key(0x28)
     session.key(0x0D)
     session.capture("13-combo-committed", lambda s: not s["combo"]["droppedDown"] and s["combo"]["selectedIndex"] == 1 and s["counts"].get("combo-committed") == 1)
+    tooltip_count = session.state["counts"].get("tooltip-popup", 0)
+    session.input_ready()
+    existing_windows = {window["hwnd"] for window in session.desktop.windows(session.process.pid)}
     session.point(session.state["tooltipTarget"])
-    session.capture("14-tooltip", lambda s: s["counts"].get("tooltip-popup", 0) > 0 and len(session.desktop.windows(session.process.pid)) > 1)
+    session.capture("14-tooltip", lambda s: s["counts"].get("tooltip-popup", 0) > tooltip_count
+                    and any(window["hwnd"] not in existing_windows for window in session.desktop.windows(session.process.pid)))
 
 
 def run_case(desktop, executable, root, label, run):

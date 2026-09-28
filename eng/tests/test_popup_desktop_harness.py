@@ -289,6 +289,25 @@ class PopupDesktopContracts(unittest.TestCase):
         after["counts"]["command"] = 1
         self.assertNotEqual(DRIVER.stable_state(before), DRIVER.stable_state(after))
 
+    def test_tooltip_requires_a_fresh_popup_and_new_owned_window_not_an_old_event_or_shadow(self):
+        session = mock.Mock()
+        session.state = dict(title="popup", contextTarget=None, tooltipTarget=None,
+            editor=dict(client=None), combo=dict(client=None), counts={"tooltip-popup": 3},
+            items={name: dict(client=None) for name in
+                   ("context-more", "context-command", "menu-file", "menu-more", "menu-command")})
+        initial = [dict(hwnd=11, title="popup"), dict(hwnd=12, title="")]
+        session.wait.return_value = initial
+        session.desktop.windows.return_value = initial
+        DRIVER.scenario(session)
+        label, predicate = session.capture.call_args.args
+        self.assertEqual(label, "14-tooltip")
+        session.desktop.windows.return_value = initial + [dict(hwnd=13, title="")]
+        self.assertFalse(predicate(dict(counts={"tooltip-popup": 3})), "an old Popup event is not this hover")
+        session.desktop.windows.return_value = initial
+        self.assertFalse(predicate(dict(counts={"tooltip-popup": 4})), "the preexisting owner shadow is not a tooltip")
+        session.desktop.windows.return_value = initial + [dict(hwnd=13, title="")]
+        self.assertTrue(predicate(dict(counts={"tooltip-popup": 4})))
+
     def test_wrong_pid_snapshot_fails_before_native_calls(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
