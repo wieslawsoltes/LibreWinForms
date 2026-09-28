@@ -24,9 +24,34 @@ gates. Its whole successful Build and exact package/application checks are still
 required before qualification. An upstream successful Build permits staging;
 it does not qualify a downstream source pin or all popup appearance.
 
-The preceding Windows popup candidate passes all fourteen input phases and
-shows full tooltip text after the Forms tooltip-margin fix. Its old renderer
-still omits the More menu label. That old screenshot is not evidence about the
-new clipping payload: compare the original app again with verified new packages.
+## Windows popup comparison
+
+The paired Windows run in `popup-qualified-clips.KeB5vjsy` completed all fourteen
+input phases for both the Microsoft reference and portable application. Visual
+inspection of the portable menu capture now shows the previously missing
+`More` label. The tooltip capture retains the complete `Popup interaction tooltip`
+text after the Forms tooltip-margin fix. The original application, input sequence,
+60-second per-case deadline and renderer/compiler/adapter defaults were unchanged.
+
+This diagnostic copied ten managed ProGPU DLLs from the successful producer's
+verified packages into a private copy of the preceding tooltip-fixed candidate.
+Each package's repository commit, ID/version, dependency graph and original
+application/SDK/payload hashes were checked. The original `.deps.json` was not
+rewritten; this is **not** qualification of a newly restored Forms package graph.
+No native C++ runtime was inserted. Runner exit zero means phase capture completed;
+the application exit code one records harness-owned termination, not normal exit.
+
+The receipt records `diagnosticOnly=true`, `qualified=false` and
+`payloadsUnchanged=true`. Driver SHA-256:
+`7bdec05fab501b5588209e701c8eb3bf559cadff57f0ec4c1916f14e3b32460e`.
+Retained original BMP hashes:
+
+- `06-menu.bmp`: `bf1c3e3bc0527735ee46de00778a3d080e85c5c883562ef916c033013ab3f667`
+- `14-tooltip.bmp`: `be0bc55731f67cc18a373455931f16c9a5a3c16aa05a56e740d0265179409aed`
+
+This resolves the missing-label observation for this Windows candidate, not all
+theme, placement, DPI or cross-platform popup parity. The source-pin producer
+Build and complete package/application validation remain required.
+
 ProGPU's three separate recursive SVG exception mismatches and WPF ARM64
 pending-compute/resize failure remain independent release gates.
