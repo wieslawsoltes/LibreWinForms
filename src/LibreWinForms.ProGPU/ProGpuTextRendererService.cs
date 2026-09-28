@@ -210,11 +210,10 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         float width = proposedSize.Width == int.MaxValue
             ? float.MaxValue
             : Math.Max(1L, (long)proposedSize.Width - left - right);
-        // DT_CALCRECT extends the single-line rectangle to its full height.
-        float height = format.HasFlag(LibreTextFormat.SingleLine) || proposedSize.Height is <= 0 or int.MaxValue
-            ? float.MaxValue
-            : proposedSize.Height;
-        SizeF measured = graphics.MeasureString(text, font, new SizeF(width, height), stringFormat);
+        // DT_CALCRECT extends the bottom to the last line, even without
+        // DT_SINGLELINE. A proposed height is not a fitting/trimming viewport:
+        // using it here can feed a clipped height back into source AutoSize.
+        SizeF measured = graphics.MeasureString(text, font, new SizeF(width, float.MaxValue), stringFormat);
         int measuredWidth = Math.Max(0, (int)MathF.Ceiling(measured.Width));
         int measuredHeight = Math.Max(0, (int)MathF.Ceiling(measured.Height));
         return new Size(checked(measuredWidth + left + right), measuredHeight);

@@ -1,5 +1,12 @@
 # Agent Guidance
 
+Portable TextRenderer measurement extends the native CALCRECT rectangle through
+the final line; proposed height is not a fitting or trimming viewport. Preserve
+the width constraint, font realization, padding and independent drawing clip.
+Do not compensate clipped menu autosizing with a fixed menu height or DPI factor.
+Finite-height single-line vertical-alignment measurement remains a separate
+native contract. See docs/portable-text-measurement-height.md.
+
 Portable TextRenderer margins share the original native rounding policy. Use
 the realized font metric, preserve LeftAndRightPadding precedence and NoPadding
 editor layout, subtract margins before wrapping, and clip at the outer caller
