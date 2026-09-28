@@ -76,6 +76,9 @@ jobs:
       - name: Validate original grid designer metadata preparation
         run: python3 eng/tests/test_grid_designer_metadata.py
 
+      - name: Validate passive original grid editing driver contracts
+        run: python3 eng/tests/test_original_grid_desktop.py
+
       - name: Install Linux display and software WebGPU adapter
         shell: bash
         run: |
