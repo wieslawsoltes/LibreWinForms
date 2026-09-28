@@ -105,3 +105,20 @@ combinations. A subsequent native run must establish the stronger outcome.
 The shared scenario asks each desktop adapter for its actual native identity:
 Windows HWND, Cocoa window number or X11 XID. It does not compare titles or
 bounds, or reinterpret one backend's identity as another's.
+
+The stronger driver at `88f9af8cff8cec83c6b5b8553ba383c943815219`
+(SHA-256 `7bdec05fab501b5588209e701c8eb3bf559cadff57f0ec4c1916f14e3b32460e`)
+completed all 14 phases for both original apps. Portable's final hover raises
+Popup a second time at 39,933 ms, adds a real 289-by-48 tooltip window and its
+shadow, and captures it at 40,321 ms. The original 60-second deadline, application
+and input sequence are unchanged. All original/overlay/SDK hashes match; both
+owned child processes exited after harness cleanup. These exits are not claimed
+as normal application exit zero.
+
+Paired final images are retained under `popup-fresh-tooltip.gHVQzN9g` and were
+inspected. The portable tooltip is visible but shows only "Popup interaction",
+where Microsoft shows "Popup interaction tooltip"; styling and placement also
+differ. The old-renderer missing More label remains. Thus input progression and
+actual tooltip capture pass, while full UI/package/platform qualification stays
+open. All 120 offline popup harness contracts pass; no source application or
+product keyboard mapping was changed by this driver work.
