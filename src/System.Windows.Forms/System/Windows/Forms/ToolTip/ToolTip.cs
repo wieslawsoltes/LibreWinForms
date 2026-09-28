@@ -1643,7 +1643,7 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
                     Math.Max(0, bounds.Width - titleLeft - horizontalPadding),
                     titleHeight),
                 ForeColor,
-                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
             contentTop += titleHeight + verticalPadding;
         }
 
@@ -1657,7 +1657,7 @@ public partial class ToolTip : Component, IExtenderProvider, IHandle<HWND>
                 Math.Max(0, bounds.Width - horizontalPadding * 2),
                 Math.Max(0, bounds.Bottom - contentTop - verticalPadding)),
             ForeColor,
-            TextFormatFlags.Left | TextFormatFlags.WordBreak | TextFormatFlags.HidePrefix);
+            TextFormatFlags.Left | TextFormatFlags.WordBreak | TextFormatFlags.HidePrefix | TextFormatFlags.NoPadding);
     }
 
     private void HookPortableTool(Control control)

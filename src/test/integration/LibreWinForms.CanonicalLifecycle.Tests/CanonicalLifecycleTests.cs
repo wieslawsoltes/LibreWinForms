@@ -7238,7 +7238,7 @@ public partial class CanonicalLifecycleTests
             {
                 bounds.Width.Should().BeGreaterThan(0);
                 bounds.Height.Should().BeGreaterThan(0);
-                format.Should().Be(LibreTextFormat.WordBreak | LibreTextFormat.HidePrefix);
+                format.Should().Be(LibreTextFormat.WordBreak | LibreTextFormat.HidePrefix | LibreTextFormat.NoPadding);
             }
             else
             {

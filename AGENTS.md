@@ -1,5 +1,11 @@
 # Agent Guidance
 
+Portable tooltip body/title drawing must match their NoPadding measurement;
+the source already owns DPI-scaled outer padding. Keep wrapping, real fonts,
+title/icon layout, OwnerDraw and caller-specified ToolTipSize authoritative.
+Do not enlarge the popup to hide newly introduced text margins. Source layout
+contracts do not qualify native appearance; see docs/portable-tooltip-text-margins.md.
+
 Submenu ItemClicked dismissal shares canonical ancestor rollup and SourceControl
 retention through command delivery. Keep leaf/ancestor cancellation and persistent
 menus distinct from forced native teardown. Capture the original menu continuation
