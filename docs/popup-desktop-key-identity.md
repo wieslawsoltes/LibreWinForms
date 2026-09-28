@@ -102,3 +102,6 @@ events cannot satisfy it. The same pointer/key sequence, application, screenshot
 inspection and original deadline remain required; no delay or retry is added.
 A regression exercises stale-event, existing-shadow and fresh-popup/window
 combinations. A subsequent native run must establish the stronger outcome.
+The shared scenario asks each desktop adapter for its actual native identity:
+Windows HWND, Cocoa window number or X11 XID. It does not compare titles or
+bounds, or reinterpret one backend's identity as another's.

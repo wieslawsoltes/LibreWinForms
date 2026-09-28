@@ -265,6 +265,10 @@ class MacDesktop:
     def foreground(self, pid):
         self.call("foreground", pid=pid)
 
+    @staticmethod
+    def window_identity(window):
+        return window["windowNumber"]
+
     def activate(self, window):
         require(window["sourceName"] == "main" and window["clientGeometryVerified"], "Unverified activation target")
         self.call("activate", pid=window["pid"], windowNumber=window["windowNumber"])

@@ -298,6 +298,7 @@ class PopupDesktopContracts(unittest.TestCase):
         initial = [dict(hwnd=11, title="popup"), dict(hwnd=12, title="")]
         session.wait.return_value = initial
         session.desktop.windows.return_value = initial
+        session.desktop.window_identity.side_effect = DRIVER.WindowsDesktop.window_identity
         DRIVER.scenario(session)
         label, predicate = session.capture.call_args.args
         self.assertEqual(label, "14-tooltip")
@@ -307,6 +308,18 @@ class PopupDesktopContracts(unittest.TestCase):
         self.assertFalse(predicate(dict(counts={"tooltip-popup": 4})), "the preexisting owner shadow is not a tooltip")
         session.desktop.windows.return_value = initial + [dict(hwnd=13, title="")]
         self.assertTrue(predicate(dict(counts={"tooltip-popup": 4})))
+
+    def test_each_backend_uses_its_actual_native_window_identity(self):
+        adapters = ((DRIVER.WindowsDesktop, "hwnd"),
+                    (load("tooltip_macos", "librewinforms-popup-macos.py").MacDesktop, "windowNumber"),
+                    (load("tooltip_x11", "librewinforms-popup-x11.py").X11Desktop, "xid"))
+        for adapter, field in adapters:
+            with self.subTest(backend=adapter.__name__):
+                window = {"hwnd": 11, "windowNumber": 12, "xid": 13, "title": "unchanged"}
+                self.assertEqual(adapter.window_identity(window), window[field])
+                del window[field]
+                with self.assertRaises(KeyError):
+                    adapter.window_identity(window)
 
     def test_wrong_pid_snapshot_fails_before_native_calls(self):
         with tempfile.TemporaryDirectory() as temporary:

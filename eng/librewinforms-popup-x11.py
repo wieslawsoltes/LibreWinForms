@@ -236,6 +236,10 @@ class X11Desktop:
                                windowTypes=list(self.property(window, "_NET_WM_WINDOW_TYPE", self.atom_types.ATOM, 32) or [])))
         return sorted(result, key=lambda item: item["xid"])
 
+    @staticmethod
+    def window_identity(window):
+        return window["xid"]
+
     @bounded
     def foreground(self, pid):
         active = self.scalar(self.root, "_NET_ACTIVE_WINDOW", self.atom_types.WINDOW)

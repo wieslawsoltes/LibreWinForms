@@ -127,6 +127,10 @@ class WindowsDesktop:
         # Only called with the freshly launched application's PID/title-verified window.
         self.user.SetForegroundWindow(window["hwnd"])
 
+    @staticmethod
+    def window_identity(window):
+        return window["hwnd"]
+
     def windows(self, pid):
         result = []
 
@@ -362,10 +366,11 @@ def scenario(session):
     session.capture("13-combo-committed", lambda s: not s["combo"]["droppedDown"] and s["combo"]["selectedIndex"] == 1 and s["counts"].get("combo-committed") == 1)
     tooltip_count = session.state["counts"].get("tooltip-popup", 0)
     session.input_ready()
-    existing_windows = {window["hwnd"] for window in session.desktop.windows(session.process.pid)}
+    existing_windows = {session.desktop.window_identity(window) for window in session.desktop.windows(session.process.pid)}
     session.point(session.state["tooltipTarget"])
     session.capture("14-tooltip", lambda s: s["counts"].get("tooltip-popup", 0) > tooltip_count
-                    and any(window["hwnd"] not in existing_windows for window in session.desktop.windows(session.process.pid)))
+                    and any(session.desktop.window_identity(window) not in existing_windows
+                            for window in session.desktop.windows(session.process.pid)))
 
 
 def run_case(desktop, executable, root, label, run):
