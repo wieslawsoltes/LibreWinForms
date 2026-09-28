@@ -25,3 +25,27 @@ deadline. The strengthened tooltip capture requires a new Popup event and a
 newly visible owned native window, not an earlier event or the owner's shadow.
 This is a private diagnostic payload, not newly staged package qualification.
 Final native appearance and cross-platform/package qualification remain separate.
+
+## Windows result
+
+The candidate at `a3dea95d92fc416bf0b95e5e9decf748888ae32c` changes only the
+private Forms DLL over the same diagnostic payload. Both Microsoft and portable
+apps complete all fourteen phases under the original sixty-second limit. The
+portable final tooltip now visibly contains the entire "Popup interaction
+tooltip" string in the same 289-by-48 window, captured at 42,677 ms. No popup
+size, text, input sequence or renderer payload was changed to obtain that result.
+
+The Forms DLL SHA-256 is
+`2fb6a181ad3565025b46e42c0a23aa8077459b16f8483fe59951702a5f8eedaa`;
+source tooltip SHA-256 is
+`458a7e47538fd426996ceba26380170aa036ea4bbdf5121196c59246a83f4944`.
+All original/candidate/SDK hashes were checked before and after execution, and
+both child exits were observed. Original BMPs, inspected paired PNGs, source
+snapshots and receipts are under `popup-tooltip-text.NsAdUb14`.
+
+The thirteen selected tooltip source tests pass without skips. Broader source
+selection also caught a new-test renderer-probe leak, so the probe now restores
+the previous typed provider in `finally`, including on assertion failure.
+The product fix remains just the two drawing flag changes. Different native
+styling/placement and the older renderer's missing menu label remain open;
+this result is not complete popup UI or released-package parity.

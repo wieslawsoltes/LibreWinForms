@@ -25,33 +25,41 @@ public partial class CanonicalLifecycleTests
         form.Controls.Add(target);
         form.Show();
         ToolTipTextProbe probe = new();
+        ILibreTextRendererService? previous = platform.ActualTextRenderer;
         platform.ActualTextRenderer = probe;
-        using ToolTip tip = new() { ToolTipTitle = title ? "Tooltip title" : string.Empty };
-        Size requested = new(180, 28);
-        if (resize)
-            tip.Popup += (_, args) => args.ToolTipSize = requested;
-
-        tip.Show("Popup interaction tooltip", target, new Point(7, 9));
-
-        platform.Popups.Should().ContainSingle();
-        probe.Draws.Should().HaveCount(title ? 2 : 1);
-        foreach (var draw in probe.Draws)
+        try
         {
-            draw.Format.Should().HaveFlag(LibreTextFormat.NoPadding,
-                "the source measured without text margins and already owns outer tooltip padding");
-            if (!resize)
-                draw.Required.Height.Should().BeLessThanOrEqualTo(draw.Bounds.Height,
-                    "drawing at the measured width must not introduce another wrapped row");
-        }
+            using ToolTip tip = new() { ToolTipTitle = title ? "Tooltip title" : string.Empty };
+            Size requested = new(180, 28);
+            if (resize)
+                tip.Popup += (_, args) => args.ToolTipSize = requested;
 
-        if (resize)
+            tip.Show("Popup interaction tooltip", target, new Point(7, 9));
+
+            platform.Popups.Should().ContainSingle();
+            probe.Draws.Should().HaveCount(title ? 2 : 1);
+            foreach (var draw in probe.Draws)
+            {
+                draw.Format.Should().HaveFlag(LibreTextFormat.NoPadding,
+                    "the source measured without text margins and already owns outer tooltip padding");
+                if (!resize)
+                    draw.Required.Height.Should().BeLessThanOrEqualTo(draw.Bounds.Height,
+                        "drawing at the measured width must not introduce another wrapped row");
+            }
+
+            if (resize)
+            {
+                var bounds = platform.Popups.Values.Single().Request.ScreenBounds;
+                new Size(bounds.Width, bounds.Height).Should().Be(requested);
+            }
+
+            tip.Hide(target);
+            platform.Popups.Should().BeEmpty();
+        }
+        finally
         {
-            var bounds = platform.Popups.Values.Single().Request.ScreenBounds;
-            new Size(bounds.Width, bounds.Height).Should().Be(requested);
+            platform.ActualTextRenderer = previous;
         }
-
-        tip.Hide(target);
-        platform.Popups.Should().BeEmpty();
     }
 
     private sealed class ToolTipTextProbe : ILibreTextRendererService
