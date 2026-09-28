@@ -69,6 +69,11 @@ run_test_project \
 "${repo_root}/eng/common/dotnet.sh" run \
   --project "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
   --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" -- \
+  --filter-class '*ProGpuSingleLineHeightTests*' '*ProGpuTextMeasurementHeightTests*' \
+  --minimum-expected-tests 39 --fail-skips on --timeout 10m
+"${repo_root}/eng/common/dotnet.sh" run \
+  --project "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
+  --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" -- \
   --filter-class '*ProGpuPopupSurfaceServiceTests*' \
   --minimum-expected-tests 10 --fail-skips on --timeout 10m
 "${repo_root}/eng/common/dotnet.sh" run \
@@ -107,6 +112,24 @@ run_test_project \
   --project "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
   --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" \
   -p:LibreWinFormsUseProGpuSystemDrawing=true -p:LibreWinFormsReferenceMode=Project -- \
+  --filter-method '*PortableWindowUICues*' \
+  --minimum-expected-tests 9 --fail-skips on --timeout 2m
+"${repo_root}/eng/common/dotnet.sh" run \
+  --project "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
+  --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" \
+  -p:LibreWinFormsUseProGpuSystemDrawing=true -p:LibreWinFormsReferenceMode=Project -- \
+  --filter-method '*CanonicalMenuHover*' \
+  --minimum-expected-tests 8 --fail-skips on --timeout 10m
+"${repo_root}/eng/common/dotnet.sh" run \
+  --project "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
+  --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" \
+  -p:LibreWinFormsUseProGpuSystemDrawing=true -p:LibreWinFormsReferenceMode=Project -- \
+  --filter-method '*SubmenuCommand*' \
+  --minimum-expected-tests 9 --fail-skips on --timeout 10m
+"${repo_root}/eng/common/dotnet.sh" run \
+  --project "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
+  --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" \
+  -p:LibreWinFormsUseProGpuSystemDrawing=true -p:LibreWinFormsReferenceMode=Project -- \
   --filter-class '*TextRendererMarginPolicyTests*' \
   --minimum-expected-tests 9 --fail-skips on --timeout 10m
 "${repo_root}/eng/common/dotnet.sh" run \
@@ -114,6 +137,12 @@ run_test_project \
   --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" \
   -p:LibreWinFormsUseProGpuSystemDrawing=true -p:LibreWinFormsReferenceMode=Project -- \
   --filter-method '*PortableToolTipCoordinateMode*' \
+  --minimum-expected-tests 4 --fail-skips on --timeout 10m
+"${repo_root}/eng/common/dotnet.sh" run \
+  --project "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
+  --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" \
+  -p:LibreWinFormsUseProGpuSystemDrawing=true -p:LibreWinFormsReferenceMode=Project -- \
+  --filter-method '*PortableToolTipTextMargins*' \
   --minimum-expected-tests 4 --fail-skips on --timeout 10m
 "${repo_root}/eng/common/dotnet.sh" run \
   --project "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \

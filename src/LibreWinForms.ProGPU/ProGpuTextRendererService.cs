@@ -131,9 +131,27 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
             return;
         }
 
-        Rectangle textBounds = new(checked(bounds.X + left), bounds.Y,
+        RectangleF textBounds = new(checked(bounds.X + left), bounds.Y,
             bounds.Width - left - right, bounds.Height);
         using StringFormat stringFormat = CreateStringFormat(format);
+        if (format.HasFlag(LibreTextFormat.SingleLine))
+        {
+            // DrawText clips an oversized single line; its vertical viewport
+            // must not make DrawString's ellipsis trimming remove every glyph.
+            float lineHeight = selectedFont.GetHeight(graphics);
+            if (lineHeight > textBounds.Height)
+            {
+                float remaining = textBounds.Height - lineHeight;
+                textBounds.Y += stringFormat.LineAlignment switch
+                {
+                    StringAlignment.Center => remaining / 2f,
+                    StringAlignment.Far => remaining,
+                    _ => 0f,
+                };
+                textBounds.Height = lineHeight;
+            }
+        }
+
         using var foreground = new SolidBrush(foreColor);
         // Margins constrain alignment/wrapping, not glyph overhang. Clip at the
         // original caller rectangle so italic ink can use its reserved padding.
@@ -192,10 +210,10 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         float width = proposedSize.Width == int.MaxValue
             ? float.MaxValue
             : Math.Max(1L, (long)proposedSize.Width - left - right);
-        float height = proposedSize.Height is <= 0 or int.MaxValue
-            ? float.MaxValue
-            : proposedSize.Height;
-        SizeF measured = graphics.MeasureString(text, font, new SizeF(width, height), stringFormat);
+        // DT_CALCRECT extends the bottom to the last line, even without
+        // DT_SINGLELINE. A proposed height is not a fitting/trimming viewport:
+        // using it here can feed a clipped height back into source AutoSize.
+        SizeF measured = graphics.MeasureString(text, font, new SizeF(width, float.MaxValue), stringFormat);
         int measuredWidth = Math.Max(0, (int)MathF.Ceiling(measured.Width));
         int measuredHeight = Math.Max(0, (int)MathF.Ceiling(measured.Height));
         return new Size(checked(measuredWidth + left + right), measuredHeight);

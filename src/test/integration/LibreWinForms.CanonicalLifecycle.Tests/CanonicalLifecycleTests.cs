@@ -5894,6 +5894,7 @@ public partial class CanonicalLifecycleTests
         private int _dispatcherPostCount;
         private int _managedThreadId;
         private Action? _timerCallback;
+        private readonly Dictionary<int, Action> _timerCallbacks = [];
         private int _timerGeneration;
 
         internal HeadlessPlatform(bool autoCloseWindows = true)
@@ -6020,6 +6021,7 @@ public partial class CanonicalLifecycleTests
             LastDrawnTextClip = default;
             LastMeasuredText = string.Empty;
             _timerCallback = null;
+            _timerCallbacks.Clear();
             _timerGeneration = 0;
             TimerStartCount = 0;
             TimerStopCount = 0;
@@ -6696,15 +6698,25 @@ public partial class CanonicalLifecycleTests
             LastTimerRepeating = repeating;
             _timerCallback = callback;
             int generation = ++_timerGeneration;
+            _timerCallbacks.Add(generation, callback);
             return new HeadlessTimerRegistration(this, generation);
         }
 
         internal void FireTimer()
             => (_timerCallback ?? throw new InvalidOperationException("No headless timer is active."))();
 
+        internal void FireTimers()
+        {
+            // Menu expansion and item-hover timers can be active together.
+            // Keep the legacy last-timer helper for its single-timer fixtures.
+            foreach ((int generation, Action callback) in _timerCallbacks.ToArray())
+                if (_timerCallbacks.ContainsKey(generation)) callback();
+        }
+
         private void StopTimer(int generation)
         {
             TimerStopCount++;
+            _timerCallbacks.Remove(generation);
             if (generation != _timerGeneration)
             {
                 return;
@@ -7226,7 +7238,7 @@ public partial class CanonicalLifecycleTests
             {
                 bounds.Width.Should().BeGreaterThan(0);
                 bounds.Height.Should().BeGreaterThan(0);
-                format.Should().Be(LibreTextFormat.WordBreak | LibreTextFormat.HidePrefix);
+                format.Should().Be(LibreTextFormat.WordBreak | LibreTextFormat.HidePrefix | LibreTextFormat.NoPadding);
             }
             else
             {

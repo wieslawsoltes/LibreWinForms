@@ -114,7 +114,7 @@ public partial class ListBox
                 using (SolidBrush brush = new(background))
                     e.Graphics.FillRectangle(brush, row);
                 TextRenderer.DrawText(e.Graphics, text, Font, row, foreground, flags);
-                if (selected && Focused && ShowFocusCues)
+                if (selected && Focused && ShowPortableNativeFocusCues)
                     ControlPaint.DrawFocusRectangle(e.Graphics, row, foreground, background);
             }
         }

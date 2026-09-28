@@ -3830,6 +3830,14 @@ public partial class ComboBox : ListControl
     {
         switch (m.MsgInternal)
         {
+#if LIBREWINFORMS_PORTABLE
+            case PInvokeCore.WM_QUERYUISTATE:
+            case PInvokeCore.WM_CHANGEUISTATE:
+            case PInvokeCore.WM_UPDATEUISTATE:
+                base.WndProc(ref m);
+                break;
+#endif
+
             // We don't want to fire the focus events twice -
             // once in the ComboBox and once in the ChildWndProc.
             case PInvokeCore.WM_SETFOCUS:

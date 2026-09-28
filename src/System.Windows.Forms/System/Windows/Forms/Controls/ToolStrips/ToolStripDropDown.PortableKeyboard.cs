@@ -19,6 +19,25 @@ public partial class ToolStripDropDown
         return null;
     }
 
+    internal static bool IsPortableMenuInputAncestor(ToolStrip? parent)
+    {
+        if (parent is not { Visible: true, IsHandleCreated: true, IsDisposed: false, Disposing: false })
+            return false;
+
+        // MenuTimer also transitions siblings on an ancestor while its child
+        // is active. Match that actual chain, not another Form's menu or a
+        // persistent popup that has never entered portable menu input mode.
+        ToolStrip? active = GetPortableKeyboardTarget();
+        while (active is not null)
+        {
+            if (ReferenceEquals(active, parent))
+                return true;
+            active = active is ToolStripDropDown dropdown ? dropdown.OwnerToolStrip : null;
+        }
+
+        return false;
+    }
+
     internal static bool SetPortableKeyboardContinuation(ToolStrip strip, bool requireMainMenu = false)
     {
         if (s_portableKeyboardContinuation is { IsLive: true } current && ReferenceEquals(current.Strip, strip))

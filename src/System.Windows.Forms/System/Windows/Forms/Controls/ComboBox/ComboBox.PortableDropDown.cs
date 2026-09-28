@@ -176,7 +176,7 @@ public partial class ComboBox
                         flags |= TextFormatFlags.RightToLeft | TextFormatFlags.Right;
                     TextRenderer.DrawText(e.Graphics, Text, Font, text,
                         Enabled ? ForeColor : SystemColors.GrayText, flags);
-                    if (Focused && ShowFocusCues)
+                    if (Focused && ShowPortableNativeFocusCues)
                         ControlPaint.DrawFocusRectangle(e.Graphics, text, ForeColor, background);
                 }
             }

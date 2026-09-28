@@ -1,5 +1,51 @@
 # Agent Guidance
 
+Portable native-style focus painting reads per-handle window UI state, not the
+managed properties that lazily broadcast hidden cues. Reuse canonical cache/
+notification handling, preserve Tab versus Alt/F10 masks, and inherit state on
+actual handle creation. Revalidate snapshotted child handles after callbacks;
+never update a replacement generation or infer global last input for INITIALIZE.
+Source/offscreen evidence is not desktop parity. See docs/portable-window-ui-cues.md.
+
+Shared desktop popup scenarios hover the active source editor before baseline
+capture, using its fresh native-verified client rectangle and ordinary pointer
+guards. Never click to normalize focus, invent neutral desktop coordinates,
+ignore changed capture state or restart the original per-case deadline. This
+precondition does not qualify a previous failed or incomplete reference run.
+
+Portable tooltip body/title drawing must match their NoPadding measurement;
+the source already owns DPI-scaled outer padding. Keep wrapping, real fonts,
+title/icon layout, OwnerDraw and caller-specified ToolTipSize authoritative.
+Do not enlarge the popup to hide newly introduced text margins. Source layout
+contracts do not qualify native appearance; see docs/portable-tooltip-text-margins.md.
+
+Submenu ItemClicked dismissal shares canonical ancestor rollup and SourceControl
+retention through command delivery. Keep leaf/ancestor cancellation and persistent
+menus distinct from forced native teardown. Capture the original menu continuation
+before callbacks; old closure and post-click keyboard cleanup must not deactivate
+a replacement input chain, including one on the same menu bar. See
+docs/portable-submenu-command-dismissal.md.
+
+Portable menu hover expansion uses the actual live source menu/keyboard chain,
+not Win32 ModalMenuFilter state or another owner's menu. Retain ancestor/sibling
+transitions, source timer delays and existing selected/enabled checks; hidden or
+retired parents and unadmitted persistent menus cannot expand implicitly. Keep
+the native Windows branch unchanged. See docs/portable-menu-hover.md.
+
+Popup renderer initialization waits for the actual typed owner when a hidden
+handle is precreated. Reuse only a live same-service/dispatcher owner's device
+through ProGPU's shared lifetime; keep surfaces, compositors and atlases separate.
+Explicit pre-owner Graphics remains standalone. Never substitute another device
+after initialization or weaken native ownership/nonactivation admission. See
+docs/portable-popup-render-device.md; device reuse is not popup UI qualification.
+
+Portable TextRenderer measurement extends the native CALCRECT rectangle through
+the final line; proposed height is not a fitting or trimming viewport. Preserve
+the width constraint, font realization, padding and independent drawing clip.
+Do not compensate clipped menu autosizing with a fixed menu height or DPI factor.
+Finite-height single-line vertical-alignment measurement remains a separate
+native contract. See docs/portable-text-measurement-height.md.
+
 Portable TextRenderer margins share the original native rounding policy. Use
 the realized font metric, preserve LeftAndRightPadding precedence and NoPadding
 editor layout, subtract margins before wrapping, and clip at the outer caller

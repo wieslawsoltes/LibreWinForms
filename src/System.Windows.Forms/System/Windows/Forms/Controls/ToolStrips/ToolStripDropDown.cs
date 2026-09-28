@@ -1706,13 +1706,7 @@ public partial class ToolStripDropDown : ToolStrip
                             // design since the item wasn't clicked on that window.
                             if (reason == ToolStripDropDownCloseReason.ItemClicked)
                             {
-                                // Preserve the SourceControl value up the chain.
-                                _saveSourceControl = true;
-                                DismissAll();
-
-                                // make sure that when we roll up, our owner item's selection is cleared.
-                                ToolStripItem? rootOwnerItem = GetToplevelOwnerItem();
-                                rootOwnerItem?.Unselect();
+                                DismissItemClickedChain();
 
                                 ToolStripManager.ModalMenuFilter.RemoveActiveToolStrip(this);
                                 ToolStripManager.ModalMenuFilter.ExitMenuMode();
@@ -1947,6 +1941,15 @@ public partial class ToolStripDropDown : ToolStrip
     }
 
     #region DropDownSpecific
+    private void DismissItemClickedChain()
+    {
+        // Preserve the SourceControl value while the original command is
+        // delivered, and retain ordinary cancelable closure of each ancestor.
+        _saveSourceControl = true;
+        DismissAll();
+        GetToplevelOwnerItem()?.Unselect();
+    }
+
     internal void DismissAll()
     {
         ToolStripDropDown toplevel = GetFirstDropDown();

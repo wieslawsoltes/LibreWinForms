@@ -2482,6 +2482,14 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
         // post processing after the click has happened.
         if (dismissingItem is ToolStripDropDownItem item && !item.HasDropDownItems)
         {
+#if LIBREWINFORMS_PORTABLE
+            // ItemClicked/Closed/Click callbacks can establish a new menu on
+            // the same ancestor. This hidden dropdown no longer owns that
+            // ancestor's keyboard-active state when post-click cleanup runs.
+            if (this is ToolStripDropDown { Visible: false } closed
+                && ToolStripDropDown.IsPortableMenuInputAncestor(closed.GetToplevelOwnerToolStrip()))
+                return;
+#endif
             KeyboardActive = false;
         }
     }

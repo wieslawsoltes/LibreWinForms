@@ -71,6 +71,76 @@ class PopupDesktopContracts(unittest.TestCase):
                     desktop.key(24, key)
                 self.assertEqual(desktop.user.mutations, [])
 
+    def test_navigation_pairs_preserve_extended_physical_key_identity(self):
+        # Win32 extended scan identities distinguish the dedicated navigation
+        # cluster from numeric keypad keys. Native callbacks need both bytes.
+        cases = ((0x21, 0xE049), (0x22, 0xE051), (0x23, 0xE04F), (0x24, 0xE047),
+                 (0x25, 0xE04B), (0x26, 0xE048), (0x27, 0xE04D), (0x28, 0xE050),
+                 (0x2D, 0xE052), (0x2E, 0xE053), (0x79, 0x44), (0x1B, 0x01),
+                 (0x12, 0x38), (0x0D, 0x1C), (0x62, 0x50))
+        for key, scan in cases:
+            with self.subTest(key=key):
+                desktop = self.desktop_with_held_key(None)
+                desktop.user.MapVirtualKeyW = mock.Mock(return_value=scan)
+                desktop.send_pair = mock.Mock()
+                desktop.key(24, key)
+                desktop.user.MapVirtualKeyW.assert_called_once_with(key, 4)
+                pair = desktop.send_pair.call_args.args[0]
+                extended = 1 if scan >> 8 == 0xE0 else 0
+                self.assertEqual([(p.kind, p.value.key.key, p.value.key.scan, p.value.key.flags) for p in pair],
+                                 [(1, key, scan & 0xFF, extended), (1, key, scan & 0xFF, extended | 2)])
+
+    def test_unmapped_or_unsupported_scan_prefix_does_not_inject_input(self):
+        for scan in (0, 0xE11D, 0xE250):
+            with self.subTest(scan=scan):
+                desktop = self.desktop_with_held_key(None)
+                desktop.user.MapVirtualKeyW = mock.Mock(return_value=scan)
+                with self.assertRaisesRegex(RuntimeError, "scan"):
+                    desktop.key(24, 0x28)
+                self.assertEqual(desktop.user.mutations, [])
+
+    def test_navigation_cluster_remains_extended_when_windows_returns_a_keypad_scan_alias(self):
+        # Observed MAPVK_VK_TO_VSC_EX results on the Windows ARM64 guest's US
+        # layout omit E0 for all ten dedicated navigation virtual keys.
+        cases = ((0x21, 0x49), (0x22, 0x51), (0x23, 0x4F), (0x24, 0x47),
+                 (0x25, 0x4B), (0x26, 0x48), (0x27, 0x4D), (0x28, 0x50),
+                 (0x2D, 0x52), (0x2E, 0x53))
+        for key, scan in cases:
+            with self.subTest(key=key):
+                desktop = self.desktop_with_held_key(None)
+                desktop.user.MapVirtualKeyW = mock.Mock(return_value=scan)
+                desktop.send_pair = mock.Mock()
+                desktop.key(24, key)
+                pair = desktop.send_pair.call_args.args[0]
+                self.assertEqual([(p.value.key.key, p.value.key.scan, p.value.key.flags) for p in pair],
+                                 [(key, scan, 1), (key, scan, 3)])
+
+    def test_ordinary_and_keypad_keys_do_not_inherit_navigation_cluster_flags(self):
+        for key, scan in ((0x62, 0x50), (0x68, 0x48), (0x0D, 0x1C), (0x12, 0x38),
+                          (0x79, 0x44), (0x1B, 0x01), (0x41, 0x1E)):
+            with self.subTest(key=key):
+                desktop = self.desktop_with_held_key(None)
+                desktop.user.MapVirtualKeyW = mock.Mock(return_value=scan)
+                desktop.send_pair = mock.Mock()
+                desktop.key(24, key)
+                pair = desktop.send_pair.call_args.args[0]
+                self.assertEqual([(p.value.key.key, p.value.key.scan, p.value.key.flags) for p in pair],
+                                 [(key, scan, 0), (key, scan, 2)])
+
+    def test_partial_extended_pair_releases_only_the_same_injected_key(self):
+        desktop = self.desktop_with_held_key(None)
+        desktop.user.MapVirtualKeyW = mock.Mock(return_value=0xE050)
+        submitted = []
+        def send(count, inputs, size):
+            self.assertEqual(size, DRIVER.C.sizeof(DRIVER.Input))
+            submitted.append([(inputs[i].value.key.key, inputs[i].value.key.scan,
+                               inputs[i].value.key.flags) for i in range(count)])
+            return 1
+        desktop.user.SendInput = send
+        with self.assertRaisesRegex(RuntimeError, "complete input pair"):
+            desktop.key(24, 0x28)
+        self.assertEqual(submitted, [[(0x28, 0x50, 1), (0x28, 0x50, 3)], [(0x28, 0x50, 3)]])
+
     def test_pair_staging_preserves_exact_source_and_scoped_versions(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -218,6 +288,97 @@ class PopupDesktopContracts(unittest.TestCase):
         after["client"]["x"] = 10
         after["counts"]["command"] = 1
         self.assertNotEqual(DRIVER.stable_state(before), DRIVER.stable_state(after))
+
+    def test_startup_hover_uses_fresh_active_editor_before_baseline_without_click(self):
+        session = mock.Mock()
+        session.deadline = 123.5
+        main = dict(hwnd=11, title="popup")
+        old_editor = dict(x=1, y=2, width=3, height=4)
+        active_editor = dict(x=10, y=20, width=30, height=40)
+        initial = dict(title="popup", form=dict(visible=True, active=False),
+                       counts={"form-paint": 1}, editor=dict(client=old_editor))
+        active = dict(initial, form=dict(visible=True, active=True), editor=dict(client=active_editor))
+        session.state = initial
+        events = []
+
+        def wait(predicate):
+            if not events:
+                self.assertTrue(predicate(initial))
+                events.append("painted")
+            else:
+                self.assertFalse(predicate(initial))
+                self.assertTrue(predicate(active))
+                session.state = active
+                events.append("active")
+            return [main]
+
+        def point(rectangle, button=None):
+            self.assertIs(rectangle, active_editor)
+            self.assertIsNone(button, "startup must not click, focus or edit the control")
+            self.assertEqual(session.phase, "startup")
+            events.append("hover")
+
+        def capture(phase, predicate):
+            self.assertEqual(phase, "01-baseline")
+            self.assertFalse(predicate(initial))
+            self.assertTrue(predicate(active))
+            events.append("baseline")
+            raise RuntimeError("baseline reached")
+
+        session.wait.side_effect = wait
+        session.desktop.activate.side_effect = lambda window: events.append("activate")
+        session.point.side_effect = point
+        session.capture.side_effect = capture
+        with self.assertRaisesRegex(RuntimeError, "baseline reached"):
+            DRIVER.scenario(session)
+        self.assertEqual(events, ["painted", "activate", "active", "hover", "baseline"])
+        session.desktop.activate.assert_called_once_with(main)
+        session.point.assert_called_once_with(active_editor)
+        session.key.assert_not_called()
+        self.assertEqual(session.deadline, 123.5)
+
+    def test_startup_activation_rejection_never_moves_pointer_or_captures(self):
+        session = mock.Mock()
+        session.state = dict(title="popup")
+        session.wait.side_effect = [[dict(hwnd=11, title="popup")], RuntimeError("owner not active")]
+        with self.assertRaisesRegex(RuntimeError, "owner not active"):
+            DRIVER.scenario(session)
+        session.point.assert_not_called()
+        session.capture.assert_not_called()
+        session.key.assert_not_called()
+        self.assertEqual(session.wait.call_count, 2)
+
+    def test_tooltip_requires_a_fresh_popup_and_new_owned_window_not_an_old_event_or_shadow(self):
+        session = mock.Mock()
+        session.state = dict(title="popup", contextTarget=None, tooltipTarget=None,
+            editor=dict(client=None), combo=dict(client=None), counts={"tooltip-popup": 3},
+            items={name: dict(client=None) for name in
+                   ("context-more", "context-command", "menu-file", "menu-more", "menu-command")})
+        initial = [dict(hwnd=11, title="popup"), dict(hwnd=12, title="")]
+        session.wait.return_value = initial
+        session.desktop.windows.return_value = initial
+        session.desktop.window_identity.side_effect = DRIVER.WindowsDesktop.window_identity
+        DRIVER.scenario(session)
+        label, predicate = session.capture.call_args.args
+        self.assertEqual(label, "14-tooltip")
+        session.desktop.windows.return_value = initial + [dict(hwnd=13, title="")]
+        self.assertFalse(predicate(dict(counts={"tooltip-popup": 3})), "an old Popup event is not this hover")
+        session.desktop.windows.return_value = initial
+        self.assertFalse(predicate(dict(counts={"tooltip-popup": 4})), "the preexisting owner shadow is not a tooltip")
+        session.desktop.windows.return_value = initial + [dict(hwnd=13, title="")]
+        self.assertTrue(predicate(dict(counts={"tooltip-popup": 4})))
+
+    def test_each_backend_uses_its_actual_native_window_identity(self):
+        adapters = ((DRIVER.WindowsDesktop, "hwnd"),
+                    (load("tooltip_macos", "librewinforms-popup-macos.py").MacDesktop, "windowNumber"),
+                    (load("tooltip_x11", "librewinforms-popup-x11.py").X11Desktop, "xid"))
+        for adapter, field in adapters:
+            with self.subTest(backend=adapter.__name__):
+                window = {"hwnd": 11, "windowNumber": 12, "xid": 13, "title": "unchanged"}
+                self.assertEqual(adapter.window_identity(window), window[field])
+                del window[field]
+                with self.assertRaises(KeyError):
+                    adapter.window_identity(window)
 
     def test_wrong_pid_snapshot_fails_before_native_calls(self):
         with tempfile.TemporaryDirectory() as temporary:

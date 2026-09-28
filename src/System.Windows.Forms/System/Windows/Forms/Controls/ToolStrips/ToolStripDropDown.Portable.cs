@@ -211,6 +211,9 @@ public partial class ToolStripDropDown
 
             ToolStripDropDownCloseReason reason = _closeReason;
             ResetCloseReason();
+            PortableKeyboardContinuation? continuation = reason == ToolStripDropDownCloseReason.ItemClicked
+                && ReferenceEquals(s_portableKeyboardContinuation?.Strip, GetToplevelOwnerToolStrip())
+                    ? s_portableKeyboardContinuation : null;
 
             ToolStripDropDownClosingEventArgs closingEventArgs = new(reason)
             {
@@ -224,6 +227,14 @@ public partial class ToolStripDropDown
 
             DismissActiveDropDowns();
             CancelAutoExpand(reason);
+            if (reason == ToolStripDropDownCloseReason.ItemClicked)
+            {
+                DismissItemClickedChain();
+                // Closing/deselection callbacks may establish a new lease,
+                // even for the same strip. Only retire the original identity.
+                if (continuation is not null && ReferenceEquals(s_portableKeyboardContinuation, continuation))
+                    ToolStripManager.ModalMenuFilter.ExitMenuMode();
+            }
 
             try
             {

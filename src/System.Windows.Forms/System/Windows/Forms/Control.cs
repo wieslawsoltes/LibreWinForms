@@ -3521,7 +3521,9 @@ public unsafe partial class Control :
 
                     // The side effect of this initial state is that adding new controls may clear the accelerator
                     // state (has been this way forever)
-#if !LIBREWINFORMS_PORTABLE
+#if LIBREWINFORMS_PORTABLE
+                    TopMostParent.ChangePortableUIState(PInvoke.UIS_SET, PInvoke.UISF_HIDEACCEL);
+#else
                     uint actionMask = PInvoke.UISF_HIDEACCEL << 16;
                     PInvokeCore.SendMessage(
                         TopMostParent,
@@ -3569,7 +3571,10 @@ public unsafe partial class Control :
                     // if we're in the hidden state, we need to manufacture an update message so everyone knows it.
                     // The side effect of this initial state is that adding new controls may clear the focus cue state
                     // state (has been this way forever)
-#if !LIBREWINFORMS_PORTABLE
+#if LIBREWINFORMS_PORTABLE
+                    TopMostParent.ChangePortableUIState(PInvoke.UIS_SET,
+                        PInvoke.UISF_HIDEACCEL | PInvoke.UISF_HIDEFOCUS);
+#else
                     int actionMask = (int)(PInvoke.UISF_HIDEACCEL | PInvoke.UISF_HIDEFOCUS) << 16;
                     PInvokeCore.SendMessage(TopMostParent,
                         PInvokeCore.WM_CHANGEUISTATE,
@@ -4828,6 +4833,8 @@ public unsafe partial class Control :
             CreateParams cp = CreateParams;
             SetState(States.Mirrored, (cp.ExStyle & (int)WINDOW_EX_STYLE.WS_EX_LAYOUTRTL) != 0);
             _window.CreateHandle(cp);
+            _portableWindowUIState = ParentInternal is { IsHandleCreated: true } cueParent
+                ? cueParent._portableWindowUIState : 0;
             LibreHandle createdHandle = _window.PortableHandle;
             ILibreWindow? createdWindow = _window.PortableWindow;
             if (createdWindow is not null && IsHandleCreated)
@@ -5004,6 +5011,11 @@ public unsafe partial class Control :
     protected virtual void DefWndProc(ref Message m)
     {
 #if LIBREWINFORMS_PORTABLE
+        if (TryProcessPortableUIState(ref m))
+        {
+            return;
+        }
+
         // DefWindowProc forwards unhandled context-menu messages to the parent.
         // Logical portable children have no native default window procedure;
         // retain the original source WndProc/virtual WmContextMenu policy.
@@ -9605,9 +9617,19 @@ public unsafe partial class Control :
         }
 
 #if LIBREWINFORMS_PORTABLE
-        TopMostParent.UpdatePortableUICues(
-            showKeyboard: keyCode is Keys.F10 or Keys.Menu,
-            showFocus: keyCode == Keys.Tab);
+        Control topMostParent = TopMostParent;
+        uint current = _portableWindowUIState;
+        if (current == 0)
+        {
+            current = topMostParent._portableWindowUIState;
+        }
+
+        uint toClear = current & (keyCode == Keys.Tab ? PInvoke.UISF_HIDEFOCUS : PInvoke.UISF_HIDEACCEL);
+        if (toClear != 0)
+        {
+            topMostParent.ChangePortableUIState(PInvoke.UIS_CLEAR, toClear);
+        }
+
         return;
 #else
         Control? topMostParent = null;
@@ -9669,43 +9691,6 @@ public unsafe partial class Control :
         }
 #endif
     }
-
-#if LIBREWINFORMS_PORTABLE
-    private void UpdatePortableUICues(bool showKeyboard, bool showFocus)
-    {
-        UICues cues = UICues.None;
-
-        if (showKeyboard
-            && (_uiCuesState & UICuesStates.KeyboardMask) != UICuesStates.KeyboardShow)
-        {
-            _uiCuesState &= ~UICuesStates.KeyboardMask;
-            _uiCuesState |= UICuesStates.KeyboardShow;
-            cues |= UICues.ChangeKeyboard | UICues.ShowKeyboard;
-        }
-
-        if (showFocus
-            && (_uiCuesState & UICuesStates.FocusMask) != UICuesStates.FocusShow)
-        {
-            _uiCuesState &= ~UICuesStates.FocusMask;
-            _uiCuesState |= UICuesStates.FocusShow;
-            cues |= UICues.ChangeFocus | UICues.ShowFocus;
-        }
-
-        if ((cues & UICues.Changed) != 0)
-        {
-            OnChangeUICues(new UICuesEventArgs(cues));
-            Invalidate();
-        }
-
-        if (ChildControls is { } children)
-        {
-            for (int i = 0; i < children.Count; i++)
-            {
-                children[i].UpdatePortableUICues(showKeyboard, showFocus);
-            }
-        }
-    }
-#endif
 
     /// <summary>
     ///  Raises the event associated with key with the event data of
@@ -13639,6 +13624,13 @@ public unsafe partial class Control :
             case PInvokeCore.WM_UPDATEUISTATE:
                 WmUpdateUIState(ref m);
                 break;
+
+#if LIBREWINFORMS_PORTABLE
+            case PInvokeCore.WM_QUERYUISTATE:
+            case PInvokeCore.WM_CHANGEUISTATE:
+                DefWndProc(ref m);
+                break;
+#endif
 
             case PInvokeCore.WM_PARENTNOTIFY:
                 WmParentNotify(ref m);

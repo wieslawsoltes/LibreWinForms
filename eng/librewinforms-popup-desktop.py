@@ -95,6 +95,7 @@ class WindowsDesktop:
             (self.user, "SetForegroundWindow", C.c_int32, [C.c_void_p]),
             (self.user, "WindowFromPoint", C.c_void_p, [Point]),
             (self.user, "GetAsyncKeyState", C.c_int16, [C.c_int32]),
+            (self.user, "MapVirtualKeyW", C.c_uint32, [C.c_uint32, C.c_uint32]),
             (self.user, "SetCursorPos", C.c_int32, [C.c_int32, C.c_int32]),
             (self.user, "SendInput", C.c_uint32, [C.c_uint32, C.POINTER(Input), C.c_int32]),
             (self.user, "GetDC", C.c_void_p, [C.c_void_p]),
@@ -126,6 +127,10 @@ class WindowsDesktop:
         # Only called with the freshly launched application's PID/title-verified window.
         self.user.SetForegroundWindow(window["hwnd"])
 
+    @staticmethod
+    def window_identity(window):
+        return window["hwnd"]
+
     def windows(self, pid):
         result = []
 
@@ -152,8 +157,18 @@ class WindowsDesktop:
         # Never release user-held modifiers or silently work around an interactive desktop.
         require(not any(self.user.GetAsyncKeyState(k) & 0x8000 for k in (key, 0x10, 0x11, 0x12, 0x5B, 0x5C)),
                 "The requested physical key or a modifier is held; refusing keyboard injection")
-        inputs = (Input * 2)(Input(1, InputUnion(key=KeyInput(key, 0, 0, 0, 0))),
-                             Input(1, InputUnion(key=KeyInput(key, 0, 2, 0, 0))))
+        # Preserve the physical navigation cluster identity. Omitting E0 makes
+        # Down's scan code indistinguishable from keypad 2 to native key callbacks.
+        # Keep the requested virtual key, source scenario and paired release.
+        scan = self.user.MapVirtualKeyW(key, 4)  # MAPVK_VK_TO_VSC_EX
+        require(scan & 0xFF and scan >> 8 in (0, 0xE0), "Missing or unsupported keyboard scan code")
+        # MapVirtualKey can choose an unprefixed keypad alias even in EX mode.
+        # This scenario requests the dedicated navigation cluster, whose E0
+        # identity must not depend on that ambiguous virtual-key reverse map.
+        navigation = key in (0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x2D, 0x2E)
+        flags = 1 if navigation or scan >> 8 == 0xE0 else 0  # KEYEVENTF_EXTENDEDKEY
+        inputs = (Input * 2)(Input(1, InputUnion(key=KeyInput(key, scan & 0xFF, flags, 0, 0))),
+                             Input(1, InputUnion(key=KeyInput(key, scan & 0xFF, flags | 2, 0, 0))))
         self.send_pair(inputs)
 
     def send_pair(self, inputs):
@@ -315,6 +330,10 @@ def scenario(session):
     main = next(w for w in windows if w["title"] == session.state["title"])
     # Activate only this freshly launched, PID-verified application.
     session.desktop.activate(main)
+    session.wait(lambda s: s["form"]["active"])
+    # A previous case can leave the cursor over this case's tooltip target.
+    # Hover the fresh, geometry-verified editor without clicking or changing focus.
+    session.point(session.state["editor"]["client"])
     session.capture("01-baseline", lambda s: s["form"]["active"])
     session.point(session.state["contextTarget"], "right")
     session.capture("02-context", opened("context"))
@@ -349,8 +368,13 @@ def scenario(session):
     session.key(0x28)
     session.key(0x0D)
     session.capture("13-combo-committed", lambda s: not s["combo"]["droppedDown"] and s["combo"]["selectedIndex"] == 1 and s["counts"].get("combo-committed") == 1)
+    tooltip_count = session.state["counts"].get("tooltip-popup", 0)
+    session.input_ready()
+    existing_windows = {session.desktop.window_identity(window) for window in session.desktop.windows(session.process.pid)}
     session.point(session.state["tooltipTarget"])
-    session.capture("14-tooltip", lambda s: s["counts"].get("tooltip-popup", 0) > 0 and len(session.desktop.windows(session.process.pid)) > 1)
+    session.capture("14-tooltip", lambda s: s["counts"].get("tooltip-popup", 0) > tooltip_count
+                    and any(session.desktop.window_identity(window) not in existing_windows
+                            for window in session.desktop.windows(session.process.pid)))
 
 
 def run_case(desktop, executable, root, label, run):
