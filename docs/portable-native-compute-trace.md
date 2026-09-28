@@ -2,7 +2,8 @@
 
 The source graph advances ProGPU from the successful drawing-clip baseline
 `3dc02026028c4ba42ddeef9f2a4232f660c51a9e` to
-`b3f221d314133075382747372ad63349abdcd0a0` (ProGPU #221).
+`5991fce2c61a3e98b5ff5e47f2b5473c5b4a9a83` (ProGPU #221), including
+the MSVC member-shadowing correction to the diagnostic identifiers.
 This retains every popup, text-margin and clip fix in the preceding Forms stack.
 The additional native change is bounded, opt-in dispatch/submission attribution;
 it does not change managed rendering, shader bytes, resource ownership,
@@ -19,3 +20,7 @@ required. The prior ProGPU Build 36436941579 passed all 49 jobs and the Windows
 popup diagnostic showed the restored More label and complete tooltip, but those
 results do not qualify the newly combined graph or all platforms. See
 [drawing clip evidence](portable-drawing-clip-parity.md).
+
+The preceding Forms drawing-clip Build `36446248684` at `7b8f1a8f` now passes
+all nine jobs, including visible applications on Windows, Ubuntu and macOS.
+That result qualifies its tested graph, not this new source pin.
