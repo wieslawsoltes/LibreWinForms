@@ -28,9 +28,10 @@ public partial class CanonicalLifecycleTests
         editor.Controls.Add(child);
 
         editor.ClientSize.Should().Be(new Size(80 - 2 * inset, 30 - 2 * inset));
-        editor.PointToScreen(Point.Empty).Should().Be(new Point(110 + inset, 220 + inset));
-        child.PointToScreen(Point.Empty).Should().Be(new Point(113 + inset, 224 + inset));
-        child.PointToClient(new Point(120 + inset, 230 + inset)).Should().Be(new Point(7, 6));
+        int actualInset = style == BorderStyle.FixedSingle ? 0 : inset;
+        editor.PointToScreen(Point.Empty).Should().Be(new Point(110 + actualInset, 220 + actualInset));
+        child.PointToScreen(Point.Empty).Should().Be(new Point(113 + actualInset, 224 + actualInset));
+        child.PointToClient(new Point(120 + actualInset, 230 + actualInset)).Should().Be(new Point(7, 6));
         editor.ClientSize = new Size(70, 18);
         editor.Size.Should().Be(new Size(70 + 2 * inset, 18 + 2 * inset));
         editor.IsHandleCreated.Should().BeFalse();
@@ -39,28 +40,29 @@ public partial class CanonicalLifecycleTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void PortableTextBoxFrame_StyleChangePreservesOuterBoundsAndPublishesClientBeforeEvent(bool created)
+    public void PortableTextBoxFrame_StyleChangeRetainsNativeHandleDependentClientState(bool created)
     {
         UseHeadlessPlatform(autoCloseWindows: false).BorderSizeValue = new(1, 1);
         using TextBox editor = new() { AutoSize = false, Size = new Size(80, 30) };
         if (created) _ = editor.Handle;
         Rectangle bounds = editor.Bounds;
+        Size expected = created ? new Size(80, 30) : new Size(76, 26);
         int changed = 0;
         int createdEvents = 0;
         editor.HandleCreated += (_, _) =>
         {
             createdEvents++;
-            editor.ClientSize.Should().Be(new Size(78, 28));
+            editor.ClientSize.Should().Be(expected);
         };
         editor.BorderStyleChanged += (_, _) =>
         {
             changed++;
-            editor.ClientSize.Should().Be(new Size(78, 28));
+            editor.ClientSize.Should().Be(expected);
         };
         editor.BorderStyle = BorderStyle.FixedSingle;
         changed.Should().Be(1);
         editor.Bounds.Should().Be(bounds);
-        editor.ClientSize.Should().Be(new Size(78, 28));
+        editor.ClientSize.Should().Be(expected);
         editor.IsHandleCreated.Should().Be(created);
         createdEvents.Should().Be(created ? 1 : 0);
     }
@@ -85,12 +87,15 @@ public partial class CanonicalLifecycleTests
         using (Graphics graphics = Graphics.FromImage(bitmap)) graphics.Clear(Color.Magenta);
         editor.DrawToBitmap(bitmap, new Rectangle(Point.Empty, editor.Size));
 
+        // EDIT's FixedSingle border belongs to the client; ordinary child
+        // painting can cover it. Fixed3D descendants stop at the true NC frame.
+        int actualInset = style == BorderStyle.FixedSingle ? 0 : inset;
         for (int y = 0; y < bitmap.Height; y++)
         for (int x = 0; x < bitmap.Width; x++)
         {
             int pixel = bitmap.GetPixel(x, y).ToArgb();
             if (x >= 30 || y >= 20) pixel.Should().Be(Color.Magenta.ToArgb());
-            else if (x >= inset && x < 30 - inset && y >= inset && y < 20 - inset)
+            else if (x >= actualInset && x < 30 - actualInset && y >= actualInset && y < 20 - actualInset)
                 pixel.Should().Be(Color.Red.ToArgb());
             else
             {
@@ -171,7 +176,7 @@ public partial class CanonicalLifecycleTests
             Size = new Size(60, 50), BackColor = Color.Lime
         };
         editor.ClientSize.Should().Be(new Size(38, 24));
-        editor.PointToScreen(Point.Empty).Should().Be(new Point(11, 13));
+        editor.PointToScreen(Point.Empty).Should().Be(Point.Empty);
         using Bitmap bitmap = new(60, 50);
         editor.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
         bitmap.GetPixel(10, 24).ToArgb().Should().Be(SystemColors.WindowFrame.ToArgb());
@@ -203,11 +208,11 @@ public partial class CanonicalLifecycleTests
         using TextBox editor = new() { AutoSize = false, Size = new Size(30, 20), BackColor = Color.Lime };
         using Bitmap bitmap = new(30, 20);
         editor.DrawToBitmap(bitmap, new Rectangle(Point.Empty, bitmap.Size));
-        bitmap.GetPixel(0, 0).ToArgb().Should().Be(SystemColors.ControlDarkDark.ToArgb());
-        bitmap.GetPixel(29, 0).ToArgb().Should().Be(SystemColors.ControlDarkDark.ToArgb());
-        bitmap.GetPixel(0, 19).ToArgb().Should().Be(SystemColors.ControlDarkDark.ToArgb());
+        bitmap.GetPixel(0, 0).ToArgb().Should().Be(SystemColors.ControlDark.ToArgb());
+        bitmap.GetPixel(29, 0).ToArgb().Should().Be(SystemColors.ControlLightLight.ToArgb());
+        bitmap.GetPixel(0, 19).ToArgb().Should().Be(SystemColors.ControlLightLight.ToArgb());
         bitmap.GetPixel(29, 19).ToArgb().Should().Be(SystemColors.ControlLightLight.ToArgb());
-        bitmap.GetPixel(1, 1).ToArgb().Should().Be(SystemColors.ControlDark.ToArgb());
+        bitmap.GetPixel(1, 1).ToArgb().Should().Be(SystemColors.ControlDarkDark.ToArgb());
         bitmap.GetPixel(28, 18).ToArgb().Should().Be(SystemColors.ControlLight.ToArgb());
     }
 

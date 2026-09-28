@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 #if LIBREWINFORMS_PORTABLE
+using System.Drawing;
 using LibreWinForms.Platform;
 
 namespace System.Windows.Forms;
@@ -391,10 +392,11 @@ public unsafe partial class Control
         }
 
         Control? hit = PortableHitTest(rootPosition);
-        UpdatePortableHover(hit);
+        bool clientHit = hit is not null && hit.PortableClientRectangle.Contains(hit.PointToClient(s_portableMousePosition));
+        UpdatePortableHover(clientHit ? hit : null);
         Control? target = _portableCapturedControl ?? hit;
         RefreshPortableCursor();
-        if (target is null)
+        if (target is null || (_portableCapturedControl is null && !clientHit))
         {
             return;
         }
@@ -577,10 +579,16 @@ public unsafe partial class Control
 
     private Control? PortableHitTest(Point position)
     {
-        if (!Visible || !Enabled || !ClientRectangle.Contains(position))
+        Padding ownInsets = PortableNonClientInsets;
+        Rectangle window = new(-ownInsets.Left, -ownInsets.Top, Width, Height);
+        if (!Visible || !Enabled || !window.Contains(position))
         {
             return null;
         }
+
+        // A source border blocks underlying controls but is not a client mouse
+        // event. Only an existing capture continues receiving outside-client input.
+        if (!PortableClientRectangle.Contains(position)) return this;
 
         if (ChildControls is { } children)
         {

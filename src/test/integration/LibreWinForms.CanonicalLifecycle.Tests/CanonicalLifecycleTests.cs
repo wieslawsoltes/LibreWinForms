@@ -3409,7 +3409,7 @@ public partial class CanonicalLifecycleTests
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
 
-        SystemInformation.GetBorderSizeForDpi(192).Should().Be(new Size(22, 26));
+        SystemInformation.GetBorderSizeForDpi(192).Should().Be(new Size(11, 13));
         SystemInformation.ScreenOrientation.Should().Be(ScreenOrientation.Angle270);
         SystemInformation.SizingBorderWidth.Should().Be(7);
         SystemInformation.SmallCaptionButtonSize.Should().Be(new Size(31, 33));

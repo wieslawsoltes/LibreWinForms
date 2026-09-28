@@ -417,7 +417,7 @@ public unsafe partial class Control :
         if (_width != 0 && _height != 0)
         {
 #if LIBREWINFORMS_PORTABLE
-            Padding insets = PortableNonClientInsets;
+            Padding insets = PortableWindowAdornments;
             _clientWidth = Math.Max(0, _width - insets.Horizontal);
             _clientHeight = Math.Max(0, _height - insets.Vertical);
 #else
@@ -4785,7 +4785,7 @@ public unsafe partial class Control :
         }
 
         _ = root.Handle;
-        Rectangle visibleClip = new(originX, originY, _clientWidth, _clientHeight);
+        Rectangle visibleClip = new(new Point(originX, originY), PortableClientRectangle.Size);
         Control descendant = this;
         int ancestorOriginX = originX;
         int ancestorOriginY = originY;
@@ -4799,8 +4799,8 @@ public unsafe partial class Control :
                 new Rectangle(
                     ancestorOriginX,
                     ancestorOriginY,
-                    ancestor._clientWidth,
-                    ancestor._clientHeight));
+                    ancestor.PortableClientRectangle.Width,
+                    ancestor.PortableClientRectangle.Height));
             descendant = ancestor;
         }
 
@@ -4841,6 +4841,11 @@ public unsafe partial class Control :
                 ? cueParent._portableWindowUIState : 0;
             LibreHandle createdHandle = _window.PortableHandle;
             ILibreWindow? createdWindow = _window.PortableWindow;
+            if (createdWindow is null && IsHandleCreated)
+            {
+                UpdateBounds(_x, _y, _width, _height);
+            }
+
             if (createdWindow is not null && IsHandleCreated)
             {
                 // StartPosition changes the creation request, not the source Location.
@@ -6897,7 +6902,7 @@ public unsafe partial class Control :
 #endif
     {
 #if LIBREWINFORMS_PORTABLE
-        Padding insets = PortableNonClientInsets;
+        Padding insets = PortableWindowAdornments;
         rect.left -= insets.Left;
         rect.top -= insets.Top;
         rect.right += insets.Right;
@@ -8470,7 +8475,7 @@ public unsafe partial class Control :
     protected virtual void OnPaintBackground(PaintEventArgs pevent)
     {
 #if LIBREWINFORMS_PORTABLE
-        PaintBackground(pevent, ClientRectangle);
+        PaintBackground(pevent, PortableClientRectangle);
 #else
         // We need the true client rectangle as clip rectangle causes problems on "Windows Classic" theme.
         PInvokeCore.GetClientRect(new HandleRef<HWND>(_window, InternalHandle), out RECT rect);
@@ -10846,7 +10851,7 @@ public unsafe partial class Control :
                 _window.SetPortableBounds(new LibreRectangle(x, y, width, height));
             }
 
-            Padding insets = PortableNonClientInsets;
+            Padding insets = PortableClientSizeInsets;
             UpdateBounds(x, y, width, height,
                 Math.Max(0, width - insets.Horizontal), Math.Max(0, height - insets.Vertical));
 #else
@@ -10925,7 +10930,7 @@ public unsafe partial class Control :
     internal Size SizeFromClientSizeInternal(Size size)
     {
 #if LIBREWINFORMS_PORTABLE
-        Padding insets = PortableNonClientInsets;
+        Padding insets = PortableWindowAdornments;
         return size + new Size(insets.Horizontal, insets.Vertical);
 #else
         RECT rect = new(size);
@@ -11888,7 +11893,7 @@ public unsafe partial class Control :
     protected void UpdateBounds(int x, int y, int width, int height)
     {
 #if LIBREWINFORMS_PORTABLE
-        Padding insets = PortableNonClientInsets;
+        Padding insets = PortableClientSizeInsets;
         UpdateBounds(x, y, width, height,
             Math.Max(0, width - insets.Horizontal), Math.Max(0, height - insets.Vertical));
 #else
@@ -12093,16 +12098,16 @@ public unsafe partial class Control :
 
     internal virtual void UpdateStylesCore()
     {
-#if LIBREWINFORMS_PORTABLE
-        // Publish logical client geometry before handle recreation and its
-        // callbacks, just as the native style update applies the frame first.
-        UpdateBounds(_x, _y, _width, _height);
-#endif
         if (!IsHandleCreated)
         {
             return;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        // An existing EDIT window can have different actual client insets from
+        // AdjustWindowRectEx's pre-handle sizing estimate (notably WS_BORDER).
+        UpdateBounds(_x, _y, _width, _height);
+#endif
         CreateParams cp = CreateParams;
         WINDOW_STYLE currentStyle = WindowStyle;
         WINDOW_EX_STYLE currentExtendedStyle = ExtendedWindowStyle;

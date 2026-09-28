@@ -11,7 +11,7 @@ public partial class TextBox
 {
     protected override void OnPaint(PaintEventArgs e)
     {
-        Rectangle bounds = ClientRectangle;
+        Rectangle bounds = PortableTextViewport;
         if (bounds.Width > 0 && bounds.Height > 0)
         {
             bool placeholder = TextLength == 0 && !Focused;

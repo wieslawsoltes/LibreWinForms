@@ -12,15 +12,27 @@ public partial class Control
     // Logical child controls own these source adornments. Native top-level
     // decorations remain outside the backend's drawable client surface.
     internal virtual Padding PortableNonClientInsets => Padding.Empty;
+    internal virtual Padding PortableWindowAdornments => PortableNonClientInsets;
+    private Padding PortableClientSizeInsets => IsHandleCreated ? PortableNonClientInsets : PortableWindowAdornments;
 
     internal virtual void PaintPortableNonClient(PaintEventArgs e) { }
+    internal virtual void PaintPortableClientBorder(PaintEventArgs e) { }
+
+    internal Rectangle PortableClientRectangle
+    {
+        get
+        {
+            Padding insets = PortableNonClientInsets;
+            return new Rectangle(0, 0, Math.Max(0, Width - insets.Horizontal), Math.Max(0, Height - insets.Vertical));
+        }
+    }
 
     private Rectangle PortableClientBoundsInWindow
     {
         get
         {
             Padding insets = PortableNonClientInsets;
-            return new Rectangle(insets.Left, insets.Top, _clientWidth, _clientHeight);
+            return new Rectangle(new Point(insets.Left, insets.Top), PortableClientRectangle.Size);
         }
     }
 
@@ -63,6 +75,8 @@ public partial class Control
         using PaintEventArgs paint = new(graphics, clip,
             DrawingEventFlags.SaveState | DrawingEventFlags.GraphicsStateUnclean);
         PaintWithErrorHandling(paint, PaintLayerBackground);
+        paint.ResetGraphics();
+        PaintPortableClientBorder(paint);
         paint.ResetGraphics();
         PaintWithErrorHandling(paint, PaintLayerForeground);
     }

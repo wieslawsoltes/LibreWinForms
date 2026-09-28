@@ -1197,7 +1197,7 @@ public static unsafe partial class ControlPaint
                     graphics,
                     ref bounds,
                     sides,
-                    SystemPens.ControlLightLight,
+                    SystemPens.ControlLight,
                     SystemPens.ControlDarkDark);
             }
             else if ((edge & (int)DRAWEDGE_FLAGS.BDR_SUNKENOUTER) != 0)
@@ -1206,7 +1206,7 @@ public static unsafe partial class ControlPaint
                     graphics,
                     ref bounds,
                     sides,
-                    SystemPens.ControlDarkDark,
+                    SystemPens.ControlDark,
                     SystemPens.ControlLightLight);
             }
 
@@ -1216,7 +1216,7 @@ public static unsafe partial class ControlPaint
                     graphics,
                     ref bounds,
                     sides,
-                    SystemPens.ControlLight,
+                    SystemPens.ControlLightLight,
                     SystemPens.ControlDark);
             }
             else if ((edge & (int)DRAWEDGE_FLAGS.BDR_SUNKENINNER) != 0)
@@ -1225,7 +1225,7 @@ public static unsafe partial class ControlPaint
                     graphics,
                     ref bounds,
                     sides,
-                    SystemPens.ControlDark,
+                    SystemPens.ControlDarkDark,
                     SystemPens.ControlLight);
             }
         }
@@ -1257,28 +1257,32 @@ public static unsafe partial class ControlPaint
         if ((sides & Border3DSide.Top) != 0)
         {
             graphics.FillRectangle(topLeftBrush, bounds.Left, bounds.Top, bounds.Width, 1);
-            bounds.Y++;
-            bounds.Height--;
         }
 
         if ((sides & Border3DSide.Left) != 0)
         {
-            graphics.FillRectangle(topLeftBrush, bounds.Left, bounds.Top, 1, Math.Max(0, bottom - bounds.Top + 1));
-            bounds.X++;
-            bounds.Width--;
+            graphics.FillRectangle(topLeftBrush, bounds.Left, bounds.Top, 1, bounds.Height);
         }
 
         if ((sides & Border3DSide.Right) != 0)
         {
-            graphics.FillRectangle(bottomRightBrush, right, bounds.Top, 1, Math.Max(0, bottom - bounds.Top + 1));
-            bounds.Width--;
+            graphics.FillRectangle(bottomRightBrush, right, bounds.Top, 1, bounds.Height);
         }
 
         if ((sides & Border3DSide.Bottom) != 0)
         {
-            graphics.FillRectangle(bottomRightBrush, bounds.Left, bottom, Math.Max(0, right - bounds.Left + 1), 1);
-            bounds.Height--;
+            graphics.FillRectangle(bottomRightBrush, bounds.Left, bottom, bounds.Width, 1);
         }
+
+        // DrawEdge gives right/bottom ownership of shared corners. Shrink only
+        // after painting every requested side in the same original rectangle.
+        int leftInset = (sides & Border3DSide.Left) != 0 ? 1 : 0;
+        int topInset = (sides & Border3DSide.Top) != 0 ? 1 : 0;
+        int rightInset = (sides & Border3DSide.Right) != 0 ? 1 : 0;
+        int bottomInset = (sides & Border3DSide.Bottom) != 0 ? 1 : 0;
+        bounds = new Rectangle(bounds.X + leftInset, bounds.Y + topInset,
+            Math.Max(0, bounds.Width - leftInset - rightInset),
+            Math.Max(0, bounds.Height - topInset - bottomInset));
     }
 #endif
 

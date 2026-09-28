@@ -155,7 +155,9 @@ public static class SystemInformation
     public static Size GetBorderSizeForDpi(int dpi)
     {
 #if LIBREWINFORMS_PORTABLE
-        return ScaleHelper.ScaleToDpi(GetPortableSize(PortableSystemSettings.BorderSize), dpi);
+        // SM_CXBORDER/SM_CYBORDER are fixed pixel metrics even when queried
+        // through GetSystemMetricsForDpi. Do not scale the source frame twice.
+        return GetPortableSize(PortableSystemSettings.BorderSize);
 #else
         return ScaleHelper.IsThreadPerMonitorV2Aware
             ? new(PInvoke.GetCurrentSystemMetrics(SM_CXBORDER, (uint)dpi),

@@ -37,7 +37,7 @@ public partial class CanonicalLifecycleTests
             editor.ScrollToCaret();
             // No paint between the public call and hit testing: deferring the
             // viewport change until OnPaint would select near the source start.
-            editor.Press(new Point(editor.ClientSize.Width - 1, (int)(layout.GetCaret(0).Height / 2)));
+            editor.Press(new Point(editor.ClientSize.Width - 2, 1 + (int)(layout.GetCaret(0).Height / 2)));
             editor.SelectionStart.Should().Be(editor.TextLength);
             editor.SelectionLength.Should().Be(0);
             editor.Capture = false;
@@ -63,14 +63,14 @@ public partial class CanonicalLifecycleTests
             editor.Record();
             LibreTextCaret caret = layout.GetCaret(editor.TextLength);
             float y = caret.Position.Y + layout.LastOrigin.Y;
-            y.Should().BeGreaterThanOrEqualTo(0);
-            (y + Math.Min(caret.Height, editor.ClientSize.Height)).Should().BeApproximately(editor.ClientSize.Height, .001f);
+            y.Should().BeGreaterThanOrEqualTo(1);
+            (y + Math.Min(caret.Height, editor.ClientSize.Height - 2)).Should().BeApproximately(editor.ClientSize.Height - 1, .001f);
             editor.Text.Should().Be("first\r\n\r\nlast\r\n");
             editor.SelectionStart.Should().Be(editor.TextLength);
             editor.Select(0, 0);
             editor.ScrollToCaret();
             editor.Record();
-            layout.LastOrigin.Y.Should().Be(0);
+            layout.LastOrigin.Y.Should().Be(1);
         });
     }
 
@@ -111,7 +111,7 @@ public partial class CanonicalLifecycleTests
             editor.Select(editor.TextLength, -editor.TextLength);
             editor.ScrollToCaret();
             editor.Record();
-            layout.LastOrigin.X.Should().Be(0);
+            layout.LastOrigin.X.Should().Be(1);
             editor.SelectionStart.Should().Be(0);
             editor.SelectionLength.Should().Be(editor.TextLength);
         });
@@ -166,7 +166,7 @@ public partial class CanonicalLifecycleTests
             editor.Select(editor.TextLength, 0);
             editor.ScrollToCaret();
             editor.Record();
-            layout.LastOrigin.Should().Be(PointF.Empty);
+            layout.LastOrigin.Should().Be(new PointF(1, 1));
         });
     }
 
@@ -249,9 +249,9 @@ public partial class CanonicalLifecycleTests
                 RetainedLayoutProbe layout = probe.Layouts.Last();
                 LibreTextCaret caret = layout.GetCaret(position);
                 float x = caret.Position.X + layout.LastOrigin.X;
-                x.Should().BeGreaterThanOrEqualTo(0);
-                (x + Math.Min(Math.Max(1, SystemInformation.CaretWidth), editor.ClientSize.Width))
-                    .Should().BeLessThanOrEqualTo(editor.ClientSize.Width);
+                x.Should().BeGreaterThanOrEqualTo(1);
+                (x + Math.Min(Math.Max(1, SystemInformation.CaretWidth), editor.ClientSize.Width - 2))
+                    .Should().BeLessThanOrEqualTo(editor.ClientSize.Width - 1);
                 editor.SelectionStart.Should().Be(position);
             }
         });
@@ -318,7 +318,7 @@ public partial class CanonicalLifecycleTests
             replaced.Should().BeTrue();
             original.Disposed.Should().BeTrue();
             probe.Layouts.Last().Disposed.Should().BeFalse();
-            probe.Layouts.Last().LastOrigin.Should().Be(PointF.Empty);
+            probe.Layouts.Last().LastOrigin.Should().Be(new PointF(1, 1));
             editor.Text.Should().Be("new");
             editor.SelectionStart.Should().Be(0);
         });
