@@ -1,5 +1,11 @@
 # Agent Guidance
 
+Shared desktop popup scenarios hover the active source editor before baseline
+capture, using its fresh native-verified client rectangle and ordinary pointer
+guards. Never click to normalize focus, invent neutral desktop coordinates,
+ignore changed capture state or restart the original per-case deadline. This
+precondition does not qualify a previous failed or incomplete reference run.
+
 Portable tooltip body/title drawing must match their NoPadding measurement;
 the source already owns DPI-scaled outer padding. Keep wrapping, real fonts,
 title/icon layout, OwnerDraw and caller-specified ToolTipSize authoritative.
