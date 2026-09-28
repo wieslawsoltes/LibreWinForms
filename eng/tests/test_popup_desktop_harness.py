@@ -71,6 +71,48 @@ class PopupDesktopContracts(unittest.TestCase):
                     desktop.key(24, key)
                 self.assertEqual(desktop.user.mutations, [])
 
+    def test_navigation_pairs_preserve_extended_physical_key_identity(self):
+        # Win32 extended scan identities distinguish the dedicated navigation
+        # cluster from numeric keypad keys. Native callbacks need both bytes.
+        cases = ((0x21, 0xE049), (0x22, 0xE051), (0x23, 0xE04F), (0x24, 0xE047),
+                 (0x25, 0xE04B), (0x26, 0xE048), (0x27, 0xE04D), (0x28, 0xE050),
+                 (0x2D, 0xE052), (0x2E, 0xE053), (0x79, 0x44), (0x1B, 0x01),
+                 (0x12, 0x38), (0x0D, 0x1C), (0x62, 0x50))
+        for key, scan in cases:
+            with self.subTest(key=key):
+                desktop = self.desktop_with_held_key(None)
+                desktop.user.MapVirtualKeyW = mock.Mock(return_value=scan)
+                desktop.send_pair = mock.Mock()
+                desktop.key(24, key)
+                desktop.user.MapVirtualKeyW.assert_called_once_with(key, 4)
+                pair = desktop.send_pair.call_args.args[0]
+                extended = 1 if scan >> 8 == 0xE0 else 0
+                self.assertEqual([(p.kind, p.value.key.key, p.value.key.scan, p.value.key.flags) for p in pair],
+                                 [(1, key, scan & 0xFF, extended), (1, key, scan & 0xFF, extended | 2)])
+
+    def test_unmapped_or_unsupported_scan_prefix_does_not_inject_input(self):
+        for scan in (0, 0xE11D, 0xE250):
+            with self.subTest(scan=scan):
+                desktop = self.desktop_with_held_key(None)
+                desktop.user.MapVirtualKeyW = mock.Mock(return_value=scan)
+                with self.assertRaisesRegex(RuntimeError, "scan"):
+                    desktop.key(24, 0x28)
+                self.assertEqual(desktop.user.mutations, [])
+
+    def test_partial_extended_pair_releases_only_the_same_injected_key(self):
+        desktop = self.desktop_with_held_key(None)
+        desktop.user.MapVirtualKeyW = mock.Mock(return_value=0xE050)
+        submitted = []
+        def send(count, inputs, size):
+            self.assertEqual(size, DRIVER.C.sizeof(DRIVER.Input))
+            submitted.append([(inputs[i].value.key.key, inputs[i].value.key.scan,
+                               inputs[i].value.key.flags) for i in range(count)])
+            return 1
+        desktop.user.SendInput = send
+        with self.assertRaisesRegex(RuntimeError, "complete input pair"):
+            desktop.key(24, 0x28)
+        self.assertEqual(submitted, [[(0x28, 0x50, 1), (0x28, 0x50, 3)], [(0x28, 0x50, 3)]])
+
     def test_pair_staging_preserves_exact_source_and_scoped_versions(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

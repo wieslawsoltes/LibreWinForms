@@ -95,6 +95,7 @@ class WindowsDesktop:
             (self.user, "SetForegroundWindow", C.c_int32, [C.c_void_p]),
             (self.user, "WindowFromPoint", C.c_void_p, [Point]),
             (self.user, "GetAsyncKeyState", C.c_int16, [C.c_int32]),
+            (self.user, "MapVirtualKeyW", C.c_uint32, [C.c_uint32, C.c_uint32]),
             (self.user, "SetCursorPos", C.c_int32, [C.c_int32, C.c_int32]),
             (self.user, "SendInput", C.c_uint32, [C.c_uint32, C.POINTER(Input), C.c_int32]),
             (self.user, "GetDC", C.c_void_p, [C.c_void_p]),
@@ -152,8 +153,14 @@ class WindowsDesktop:
         # Never release user-held modifiers or silently work around an interactive desktop.
         require(not any(self.user.GetAsyncKeyState(k) & 0x8000 for k in (key, 0x10, 0x11, 0x12, 0x5B, 0x5C)),
                 "The requested physical key or a modifier is held; refusing keyboard injection")
-        inputs = (Input * 2)(Input(1, InputUnion(key=KeyInput(key, 0, 0, 0, 0))),
-                             Input(1, InputUnion(key=KeyInput(key, 0, 2, 0, 0))))
+        # Preserve the physical navigation cluster identity. Omitting E0 makes
+        # Down's scan code indistinguishable from keypad 2 to native key callbacks.
+        # Keep the requested virtual key, source scenario and paired release.
+        scan = self.user.MapVirtualKeyW(key, 4)  # MAPVK_VK_TO_VSC_EX
+        require(scan & 0xFF and scan >> 8 in (0, 0xE0), "Missing or unsupported keyboard scan code")
+        flags = 1 if scan >> 8 == 0xE0 else 0  # KEYEVENTF_EXTENDEDKEY
+        inputs = (Input * 2)(Input(1, InputUnion(key=KeyInput(key, scan & 0xFF, flags, 0, 0))),
+                             Input(1, InputUnion(key=KeyInput(key, scan & 0xFF, flags | 2, 0, 0))))
         self.send_pair(inputs)
 
     def send_pair(self, inputs):
