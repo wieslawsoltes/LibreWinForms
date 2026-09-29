@@ -79,6 +79,9 @@ jobs:
       - name: Validate passive original grid editing driver contracts
         run: python3 eng/tests/test_original_grid_desktop.py
 
+      - name: Validate bounded analyzer mode scheduling
+        run: python3 eng/test-librewinforms-analyzer-scheduling.py
+
       - name: Install Linux display and software WebGPU adapter
         shell: bash
         run: |

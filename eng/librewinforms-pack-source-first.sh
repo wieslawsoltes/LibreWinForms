@@ -278,6 +278,7 @@ rm -rf "${smoke_root}/canonical-packages" \
 # rewritten manifest. The existing SDK Project smoke still owns the cold build.
 python3 "${repo_root}/eng/test-librewinforms-analyzer-snapshot.py"
 python3 "${repo_root}/eng/test-librewinforms-analyzer-cache.py"
+python3 "${repo_root}/eng/test-librewinforms-analyzer-scheduling.py"
 echo "Capturing original SDK analyzer producer generation."
 mkdir -p "${repo_root}/artifacts/log"
 analyzer_evidence_root="$(mktemp -d "${repo_root}/artifacts/log/analyzer-contract.XXXXXXXX")"
@@ -529,6 +530,7 @@ python3 "${repo_root}/eng/librewinforms-analyzer-contract.py" \
   --package-source "${package_output}" \
   --sdk-version "${sdk_package_version}" \
   --runtime-version "${package_version}" \
+  --parallel-modes \
   --configuration "${configuration}" \
   --dotnet "${dotnet}" \
   --scratch-parent "${smoke_root}" \
