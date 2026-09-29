@@ -25,9 +25,7 @@ public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindo
     private readonly Lock _windowSync = new();
     private readonly HashSet<SilkLibreWindow> _windows = [];
     private readonly ProGpuReversibleDrawingStore _reversibleDrawing = new();
-    private IProGpuDragInputSink? _dragInputSink;
-    private ProGpuDragInput _lastDragInput;
-    private int _dragKeyState;
+    private readonly ProGpuDragInputRouter _dragInput;
 
     public SilkWindowService(ProGpuDispatcher dispatcher, ILibreHandleRegistry handles)
         : this(dispatcher, handles, new SilkMonitorService())
@@ -42,6 +40,7 @@ public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindo
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         _handles = handles ?? throw new ArgumentNullException(nameof(handles));
         _monitors = monitors ?? throw new ArgumentNullException(nameof(monitors));
+        _dragInput = new(_handles);
     }
 
     public ILibreWindow Create(in LibreWindowCreateOptions options, ILibreWindowEvents events)
@@ -64,6 +63,8 @@ public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindo
             _windows.Add(window);
             operations = _reversibleDrawing.Snapshot();
         }
+
+        _dragInput.Register(window);
 
         try
         {
@@ -144,92 +145,20 @@ public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindo
         {
             _windows.Remove(window);
         }
+
+        _dragInput.Unregister(window);
     }
 
-    internal ProGpuDragInput BeginDrag(IProGpuDragInputSink sink)
-    {
-        ArgumentNullException.ThrowIfNull(sink);
-        lock (_windowSync)
-        {
-            if (_dragInputSink is not null)
-            {
-                throw new InvalidOperationException("A Silk drag operation is already active.");
-            }
+    ProGpuDragInput IProGpuDragInputSource.BeginDrag(LibreHandle sourceWindow, IProGpuDragInputSink sink)
+        => _dragInput.BeginDrag(sourceWindow, sink);
 
-            _dragInputSink = sink;
-            return _lastDragInput;
-        }
-    }
+    void IProGpuDragInputSource.EndDrag(IProGpuDragInputSink sink) => _dragInput.EndDrag(sink);
 
-    ProGpuDragInput IProGpuDragInputSource.BeginDrag(IProGpuDragInputSink sink) => BeginDrag(sink);
-
-    internal void EndDrag(IProGpuDragInputSink sink)
-    {
-        lock (_windowSync)
-        {
-            if (ReferenceEquals(_dragInputSink, sink))
-            {
-                _dragInputSink = null;
-            }
-        }
-    }
-
-    void IProGpuDragInputSource.EndDrag(IProGpuDragInputSink sink) => EndDrag(sink);
+    internal ProGpuDragCancellation? PrepareDragPointerCancellation(SilkLibreWindow window)
+        => _dragInput.PreparePointerCancellation(window);
 
     internal bool RecordDragInput(SilkLibreWindow window, in LibreInputEvent inputEvent)
-    {
-        ProGpuDragInput input;
-        IProGpuDragInputSink? sink;
-        lock (_windowSync)
-        {
-            int button = inputEvent.Button switch
-            {
-                LibrePointerButton.Primary => 0x0001,
-                LibrePointerButton.Secondary => 0x0002,
-                LibrePointerButton.Middle => 0x0010,
-                _ => 0,
-            };
-            if (inputEvent.Kind == LibreInputEventKind.PointerDown)
-            {
-                _dragKeyState |= button;
-            }
-            else if (inputEvent.Kind == LibreInputEventKind.PointerUp)
-            {
-                _dragKeyState &= ~button;
-            }
-
-            _dragKeyState &= ~(0x0004 | 0x0008 | 0x0020);
-            if (inputEvent.Modifiers.HasFlag(LibreInputModifiers.Shift)) _dragKeyState |= 0x0004;
-            if (inputEvent.Modifiers.HasFlag(LibreInputModifiers.Control)) _dragKeyState |= 0x0008;
-            if (inputEvent.Modifiers.HasFlag(LibreInputModifiers.Alt)) _dragKeyState |= 0x0020;
-
-            ProGpuDragInputKind kind = inputEvent.Kind == LibreInputEventKind.KeyDown
-                && inputEvent.Key == LibreKey.Escape
-                    ? ProGpuDragInputKind.Escape
-                    : ProGpuDragInputKind.Pointer;
-            if (inputEvent.Kind is LibreInputEventKind.PointerDown
-                or LibreInputEventKind.PointerUp
-                or LibreInputEventKind.PointerMove)
-            {
-                LibreRectangle bounds = window.Bounds;
-                _lastDragInput = new ProGpuDragInput(
-                    kind,
-                    new LibrePoint(
-                        checked(bounds.X + inputEvent.Position.X),
-                        checked(bounds.Y + inputEvent.Position.Y)),
-                    _dragKeyState);
-            }
-            else
-            {
-                _lastDragInput = _lastDragInput with { Kind = kind, KeyState = _dragKeyState };
-            }
-
-            input = _lastDragInput;
-            sink = _dragInputSink;
-        }
-
-        return sink?.Input(input) == true;
-    }
+        => _dragInput.Record(window, inputEvent);
 
     internal void RefreshReversibleDrawing(SilkLibreWindow window)
     {
@@ -321,7 +250,7 @@ public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindo
         => !owner.IsNull && owner.Kind == LibreHandleKind.Window;
 }
 
-internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, INativePopupAdmissionHost, INativeCharacterTarget
+internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, INativePopupAdmissionHost, INativeCharacterTarget, IProGpuDragInputWindow
 {
     private readonly SilkWindowService _service;
     private readonly ProGpuDispatcher _dispatcher;
@@ -473,6 +402,9 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
     internal ProGpuDispatcher Dispatcher => _dispatcher;
 
     internal bool IsDisposed => _disposed;
+
+    bool IProGpuDragInputWindow.IsDisposed => _disposed;
+    bool IProGpuDragInputWindow.CheckAccess() => _dispatcher.CheckAccess();
 
     internal bool TryGetNativeGeometrySnapshot(
         SilkWindowService service,
@@ -1927,10 +1859,21 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
 
     private void DeliverInput(in LibreInputEvent inputEvent)
     {
+        if (inputEvent.Kind == LibreInputEventKind.PointerCancel)
+        {
+            ProGpuDragCancellation? cancellation = _service.PrepareDragPointerCancellation(this);
+            LibreInputEvent captured = inputEvent;
+            ProGpuDragCancellation.Deliver(
+                () => _characters?.Flush(),
+                () => { if (!_disposed) _events.Input(captured); },
+                cancellation);
+            return;
+        }
+
         _characters?.Flush();
         if (_disposed)
             return;
-        if (inputEvent.Kind is LibreInputEventKind.PointerLeave or LibreInputEventKind.PointerCancel)
+        if (inputEvent.Kind == LibreInputEventKind.PointerLeave)
         {
             // A policy/leave notification is source-state retirement, not a
             // fresh drag sample or keyboard modifier snapshot. Disabled windows

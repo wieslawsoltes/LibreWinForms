@@ -157,7 +157,7 @@ public class ProGpuDispatcherTests
     {
         internal int EndCount { get; private set; }
 
-        public ProGpuDragInput BeginDrag(IProGpuDragInputSink sink)
+        public ProGpuDragInput BeginDrag(LibreHandle sourceWindow, IProGpuDragInputSink sink)
         {
             foreach (ProGpuDragInput input in inputs)
             {

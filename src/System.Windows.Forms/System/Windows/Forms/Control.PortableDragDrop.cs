@@ -31,7 +31,12 @@ public unsafe partial class Control
             new PortableDataTransfer(dataObject),
             ToLibreDragDropEffects(allowedEffects & PortableValidDragDropEffects),
             new LibrePoint(cursorOffset.X, cursorOffset.Y),
-            useDefaultDragImage);
+            useDefaultDragImage)
+        {
+            // Hosted menu editors retain their actual popup source window,
+            // not the Form that lends them keyboard focus. Do not create one.
+            SourceWindow = GetPortableTopLevelControl()._window.PortableWindow?.Handle ?? default
+        };
         LibreDragDropEffects result = LibrePlatform.Current.DragDrop.DoDragDrop(request, session);
         return ToDragDropEffects(result) & allowedEffects & PortableValidDragDropEffects;
     }

@@ -36,7 +36,15 @@ public sealed record LibreDragDropRequest(
     ILibreDataTransfer Data,
     LibreDragDropEffects AllowedEffects,
     LibrePoint CursorOffset,
-    bool UseDefaultDragImage);
+    bool UseDefaultDragImage)
+{
+    /// <summary>
+    /// The actual platform window containing the source, when known. A default
+    /// value preserves legacy drag input, but does not admit native pointer
+    /// cancellation. This is not a logical control or borrowed native handle.
+    /// </summary>
+    public LibreHandle SourceWindow { get; init; }
+}
 
 public readonly record struct LibreDragTransition(
     LibreHandle Target,
