@@ -51,6 +51,26 @@ The unfiltered canonical minimum is 810 and the additional focused CI gate keeps
 the same two-minute limit with no skips. Source-native OS leave notifications and
 cross-window capture transfer are not inferred from these source transitions.
 
+The existing Silk backend delivers `FocusLost` both for native focus loss and
+when native input is disabled. Nonactivating popups may never have held keyboard
+focus, but their pointer capture, pressed state and hover must still retire.
+Source dispatch now retires those states before considering keyboard focus.
+Button ownership is tracked independently for all five buttons: a delayed loss
+from another window cannot clear the current window's held button or keyboard
+modifiers. Retirement clears state before capture/leave callbacks, emits no
+synthetic release/click and does not move the pointer. Nested pointer input owns
+its replacement; an explicit new focus packet also supersedes the old loss even
+when it targets the same still-focused source window.
+
+Capture/leave errors do not prevent the still-current focus-loss transition.
+The original callback error remains primary, with later cleanup errors attached.
+Fifteen source cases cover five-button popup cancellation, independent window
+ownership, nested input/focus and throwing callbacks. CI keeps the previous full
+and focused suites, raises the full minimum to 825, and adds a 15-case gate with
+the same no-skips/two-minute policy. This consumes the existing source event
+contract; it does not opt into the lossless native pointer provider or change
+native backend factory selection.
+
 These are source lifetime contracts, not native input-provider or desktop UI
 qualification. They do not select the Cocoa owned-window factory, implement
 deferred native owner-bound creation, add a wheel-unit conversion policy or

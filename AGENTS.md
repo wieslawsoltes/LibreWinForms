@@ -1,5 +1,12 @@
 # Agent Guidance
 
+Native focus-loss input also retires pointer ownership in nonactivating windows
+that never held focus. Clear exact-source capture, press and hover before public
+callbacks, release only that window's button owners, and retain a nested source
+or focus-input generation. Pointer callback errors cannot undo committed focus
+loss or replace the original exception. This does not admit a native pointer
+provider, wheel conversion or cross-window capture transfer.
+
 Portable hover has one thread-owned source window, independent of keyboard
 focus. Pointer entry into another native source root retires its predecessor
 before callbacks, cancels only its old continuation and respects replacement
