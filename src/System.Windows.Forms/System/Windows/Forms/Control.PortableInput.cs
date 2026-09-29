@@ -53,6 +53,25 @@ public unsafe partial class Control
     internal void DispatchPortableInput(in LibreInputEvent inputEvent)
     {
         Control root = GetPortableTopLevelControl();
+        if (inputEvent.Kind == LibreInputEventKind.PointerLeave)
+        {
+            // Retire before callbacks and never mutate their replacement hover.
+            // Leaving the native view does not release a held drag/capture.
+            root._portablePointerInputVersion++;
+            if (ReferenceEquals(s_portableHoverRoot, root))
+                s_portableHoverRoot = null;
+            root.RetirePortableHover();
+            return;
+        }
+
+        if (inputEvent.Kind == LibreInputEventKind.PointerCancel)
+        {
+            root.CancelPortablePointerInput(out Exception? failure);
+            if (failure is not null)
+                ExceptionDispatchInfo.Capture(failure).Throw();
+            return;
+        }
+
         if (inputEvent.Kind == LibreInputEventKind.FocusGained)
             root._portableFocusInputVersion++;
         if (inputEvent.Kind == LibreInputEventKind.FocusLost)

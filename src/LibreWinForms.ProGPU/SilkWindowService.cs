@@ -1947,6 +1947,15 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         _characters?.Flush();
         if (_disposed)
             return;
+        if (inputEvent.Kind is LibreInputEventKind.PointerLeave or LibreInputEventKind.PointerCancel)
+        {
+            // A policy/leave notification is source-state retirement, not a
+            // fresh drag sample or keyboard modifier snapshot. Disabled windows
+            // must still retire their own state through the same source handle.
+            _events.Input(inputEvent);
+            return;
+        }
+
         if (_service.RecordDragInput(this, inputEvent))
         {
             return;

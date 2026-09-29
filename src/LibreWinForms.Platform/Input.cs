@@ -15,6 +15,10 @@ public enum LibreInputEventKind
     FocusGained,
     FocusLost,
     SystemTextInput,
+    // Keep existing wire values stable. These retire pointer state only;
+    // neither event is a keyboard-focus loss or a synthetic mouse release.
+    PointerLeave,
+    PointerCancel,
 }
 
 [Flags]

@@ -1,5 +1,12 @@
 # Agent Guidance
 
+Explicit source PointerLeave retires only exact-window hover, preserving capture
+and held buttons; PointerCancel retires capture/press/hover without keyboard focus
+loss. Append event values without changing the old wire contract. Preserve pointer
+position/modifiers, nested generations, callback errors and other windows' input;
+do not invent MouseUp/Click or feed retirement to the drag sampler. These source
+events do not select native providers or qualify native drag/scroll/platform UI.
+
 Native focus-loss input also retires pointer ownership in nonactivating windows
 that never held focus. Clear exact-source capture, press and hover before public
 callbacks, release only that window's button owners, and retain a nested source
