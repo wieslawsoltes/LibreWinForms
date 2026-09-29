@@ -1,5 +1,12 @@
 # Agent Guidance
 
+Portable pointer callbacks retain the exact source window/target and input
+generation. Retire hover before MouseLeave, preserve nested hover and press
+ownership, and stop an obsolete event after public hover/focus callbacks.
+Do not clear a replacement capture or continue into recreated source handles.
+These source lifetime guards do not qualify native popup input or platform UX.
+See docs/portable-pointer-reentrancy.md.
+
 Portable plain TextBox frames distinguish source window-adjustment estimates
 from actual client geometry: native EDIT's FixedSingle border is client content;
 Fixed3D owns non-client insets. Keep pre-handle/source scaling and live sizing
