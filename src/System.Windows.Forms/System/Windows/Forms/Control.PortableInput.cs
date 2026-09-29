@@ -24,6 +24,9 @@ public unsafe partial class Control
     [ThreadStatic]
     private static Control? s_portablePointerRoot;
 
+    [ThreadStatic]
+    private static Control? s_portableHoverRoot;
+
     private Control? _portableFocusedControl;
     private Control? _portableHoveredControl;
     private LibreHandle _portableHoveredControlHandle;
@@ -396,6 +399,22 @@ public unsafe partial class Control
         Point rootPosition = new(inputEvent.Position.X, inputEvent.Position.Y);
         s_portableMousePosition = PointToScreen(rootPosition);
 
+        if (!ReferenceEquals(s_portableHoverRoot, this))
+        {
+            Control? previousRoot = s_portableHoverRoot;
+            // Claim the new window before public leave callbacks. Nested input
+            // owns its replacement even if it returns to the previous window.
+            s_portableHoverRoot = this;
+            if (previousRoot is not null)
+            {
+                previousRoot._portablePointerInputVersion++;
+                previousRoot.RetirePortableHover();
+            }
+
+            if (!IsCurrentPortablePointerInput(inputVersion, receivingHandle))
+                return;
+        }
+
         if (inputEvent.Kind == LibreInputEventKind.PointerDown
             && inputEvent.Button is LibrePointerButton.Primary or LibrePointerButton.Secondary or LibrePointerButton.Middle)
         {
@@ -609,19 +628,7 @@ public unsafe partial class Control
             return true;
         }
 
-        Control? previous = _portableHoveredControl;
-        LibreHandle previousHandle = _portableHoveredControlHandle;
-        LibreHandle previousWindowHandle = _portableHoverWindowHandle;
-        // Retire the previous hover before a public callback. Nested input must
-        // neither send its leave twice nor have its new hover overwritten here.
-        _portableHoveredControl = null;
-        _portableHoveredControlHandle = default;
-        _portableHoverWindowHandle = default;
-        if (previous is not null && previousWindowHandle == receivingHandle
-            && !previous.IsDisposed && !previous.Disposing
-            && previous._window.PortableHandle == previousHandle
-            && ReferenceEquals(previous.GetPortableTopLevelControl(), this))
-            previous.OnMouseLeave(EventArgs.Empty);
+        RetirePortableHover();
         if (!IsCurrentPortablePointerInput(inputVersion, receivingHandle)
             || (target is not null && !IsCurrentPortablePointerTarget(target, targetHandle)))
             return false;
@@ -643,6 +650,24 @@ public unsafe partial class Control
         }
 
         return true;
+    }
+
+    private void RetirePortableHover()
+    {
+        Control? previous = _portableHoveredControl;
+        LibreHandle previousHandle = _portableHoveredControlHandle;
+        LibreHandle previousWindowHandle = _portableHoverWindowHandle;
+        // Clear first for same-window and cross-window transitions alike. A
+        // retired native handle must not send leave into its replacement.
+        _portableHoveredControl = null;
+        _portableHoveredControlHandle = default;
+        _portableHoverWindowHandle = default;
+        if (previous is not null && previousWindowHandle == _window.PortableHandle
+            && !IsDisposed && !Disposing && IsHandleCreated
+            && !previous.IsDisposed && !previous.Disposing
+            && previous._window.PortableHandle == previousHandle
+            && ReferenceEquals(previous.GetPortableTopLevelControl(), this))
+            previous.OnMouseLeave(EventArgs.Empty);
     }
 
     private void RefreshPortableCursor(bool force = false)

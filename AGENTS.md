@@ -1,5 +1,11 @@
 # Agent Guidance
 
+Portable hover has one thread-owned source window, independent of keyboard
+focus. Pointer entry into another native source root retires its predecessor
+before callbacks, cancels only its old continuation and respects replacement
+handle identity. Preserve canonical submenu leave/timer behavior without
+fabricating native leave, capture transfer or desktop qualification.
+
 Portable pointer callbacks retain the exact source window/target and input
 generation. Retire hover before MouseLeave, preserve nested hover and press
 ownership, and stop an obsolete event after public hover/focus callbacks.
