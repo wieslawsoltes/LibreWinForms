@@ -153,6 +153,36 @@ remain available unchanged. Routing and rejection controls live in
 `eng/test-librewinforms-analyzer-cache.py`. Full compiler and CI timing evidence
 for this handoff remains required; path stability alone is not a speed claim.
 
+The full source-first packing gate opts into `--parallel-modes` after the same
+producer snapshot and mandatory cold Project/Package smokes. It runs exactly two
+serial groups concurrently: all 42 Project cases still share their original
+source output paths and exact caller-owned cache without concurrent source
+builds; all 42 Package cases use the installed verified packages and a separate
+fresh cache. The ordinary upstream-generator and three missing-file compiler
+controls follow both groups, preserving all 88 original cases and result order.
+The four damaged-archive controls and before/after snapshot checks are unchanged.
+This is not case-level source-build parallelism or additional VM concurrency.
+
+The opt-in requires `Both`, the validated Project cache handoff, the immutable
+producer snapshot and POSIX-owned process groups. Standalone/single-mode callers
+remain serial by default. Registration and cancellation of each compiler/runtime
+process are synchronized; the first failing group cancels its sibling's owned
+processes and remains the reported error. Interrupted coordination also cancels
+and joins both groups. Compiler and runtime bounds stay 300 and 60 seconds; no
+test, payload assertion, fresh process or cold-build step is skipped.
+`eng/test-librewinforms-analyzer-scheduling.py` adds nine offline controls for the
+complete ordered case inventory, actual group overlap, per-group serialization,
+cache separation, fail-closed admission, originating-error retention, cancellation
+during process creation, timeout cleanup, termination and packing-hook ownership.
+These scheduling doubles do not replace actual compiler/runtime execution.
+
+`mode-timing.json` joins the existing uploaded analyzer evidence with each group's
+actual elapsed time, case count and cache path. The preceding successful Forms125
+Build36532679330 executed all 88 compiler cases serially; its analyzer section
+finished at 07:16:33 UTC on 2026-09-29. Earlier successful Forms124 took about
+11 minutes 32 seconds in that section. A reduction in the full exact-head Build
+must be measured in hosted CI, not inferred from concurrency or offline controls.
+
 `eng/test-librewinforms-analyzer-snapshot.py` covers modified/missing/additional
 snapshot files, symlinks, writable files, forged manifests/hashes, source and
 submodule changes, configuration/package identity, and legitimate later consumer
