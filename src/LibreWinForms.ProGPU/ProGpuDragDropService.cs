@@ -19,11 +19,13 @@ internal readonly record struct ProGpuDragInput(
 internal interface IProGpuDragInputSink
 {
     bool Input(in ProGpuDragInput input);
+
+    ProGpuDragCancellation? PreparePointerCancellation();
 }
 
 internal interface IProGpuDragInputSource
 {
-    ProGpuDragInput BeginDrag(IProGpuDragInputSink sink);
+    ProGpuDragInput BeginDrag(LibreHandle sourceWindow, IProGpuDragInputSink sink);
 
     void EndDrag(IProGpuDragInputSink sink);
 }
@@ -109,7 +111,7 @@ public sealed class ProGpuDragDropService : ILibreDragDropService
         Exception? failure = null;
         try
         {
-            ProGpuDragInput initial = _input.BeginDrag(lease);
+            ProGpuDragInput initial = _input.BeginDrag(request.SourceWindow, lease);
             registered = true;
             ProcessInput(initial);
             if (!_complete && (initial.KeyState & MouseButtonMask) == 0)
@@ -184,20 +186,38 @@ public sealed class ProGpuDragDropService : ILibreDragDropService
     private sealed class DragInputLease(ProGpuDragDropService owner) : IProGpuDragInputSink
     {
         private ProGpuDragDropService? _owner = owner;
+        private ProGpuDragCancellation? _cancellation;
 
         internal bool IsAttached => Volatile.Read(ref _owner) is not null;
-        internal void Detach() => Interlocked.Exchange(ref _owner, null);
+        internal void Detach()
+        {
+            Interlocked.Exchange(ref _owner, null);
+            _cancellation?.Retire();
+            _cancellation = null;
+        }
 
         public bool Input(in ProGpuDragInput input)
             => Volatile.Read(ref _owner)?.ReceiveInput(this, input) == true;
+
+        public ProGpuDragCancellation? PreparePointerCancellation()
+        {
+            ProGpuDragDropService? owner = Volatile.Read(ref _owner);
+            if (owner is null || !owner._dispatcher.CheckAccess()
+                || !ReferenceEquals(owner._inputLease, this) || owner._complete)
+                return null;
+
+            return _cancellation = owner.PrepareCancellation();
+        }
     }
 
     private void ProcessInput(in ProGpuDragInput input)
     {
+        if (_complete) return;
         ILibreDragDropSession session = _session!;
         LibreDragDropRequest request = _request!;
         bool escape = input.Kind == ProGpuDragInputKind.Escape;
         LibreDragAction action = session.QueryContinue(input.KeyState, escape);
+        if (_complete) return;
         if (action == LibreDragAction.Cancel || escape)
         {
             Cancel();
@@ -205,6 +225,7 @@ public sealed class ProGpuDragDropService : ILibreDragDropService
         }
 
         UpdateTarget(session, request, input.ScreenPosition, input.KeyState);
+        if (_complete) return;
         if (action == LibreDragAction.Drop || (input.KeyState & MouseButtonMask) == 0)
         {
             Drop(session, input.ScreenPosition, input.KeyState);
@@ -218,6 +239,7 @@ public sealed class ProGpuDragDropService : ILibreDragDropService
         int keyState)
     {
         LibreHandle hit = session.HitTest(screenPosition);
+        if (_complete) return;
         if (!IsEnabledTarget(hit))
         {
             hit = default;
@@ -228,7 +250,11 @@ public sealed class ProGpuDragDropService : ILibreDragDropService
         {
             if (!_target.IsNull)
             {
-                session.Leave(_target);
+                LibreHandle previous = _target;
+                _target = default;
+                _effect = LibreDragDropEffects.None;
+                session.Leave(previous);
+                if (_complete) return;
             }
 
             _target = default;
@@ -236,6 +262,16 @@ public sealed class ProGpuDragDropService : ILibreDragDropService
             if (!hit.IsNull)
             {
                 LibreDragTransition transition = session.Enter(hit, keyState, screenPosition, requestedEffect);
+                if (_complete)
+                {
+                    // Cancellation can arrive inside DragEnter before it has
+                    // returned the canonical accepted target. Retire that exact
+                    // returned transition without adopting it or giving feedback.
+                    if (IsEnabledTarget(transition.Target))
+                        new ProGpuDragCancellation(session, transition.Target).Complete();
+                    return;
+                }
+
                 if (IsEnabledTarget(transition.Target))
                 {
                     _target = transition.Target;
@@ -245,8 +281,9 @@ public sealed class ProGpuDragDropService : ILibreDragDropService
         }
         else if (!_target.IsNull)
         {
-            _effect = session.Over(_target, keyState, screenPosition, requestedEffect)
-                & request.AllowedEffects;
+            LibreDragDropEffects effect = session.Over(_target, keyState, screenPosition, requestedEffect);
+            if (_complete) return;
+            _effect = effect & request.AllowedEffects;
         }
 
         session.GiveFeedback(_effect);
@@ -264,15 +301,18 @@ public sealed class ProGpuDragDropService : ILibreDragDropService
     }
 
     private void Cancel()
+        => PrepareCancellation()?.Complete();
+
+    private ProGpuDragCancellation? PrepareCancellation()
     {
         // Leave has the same reentrancy boundary as Drop, including when the
         // callback throws. DoDragDrop still owns registration cleanup.
         _result = LibreDragDropEffects.None;
         _complete = true;
-        if (!_target.IsNull)
-        {
-            _session!.Leave(_target);
-        }
+        LibreHandle target = _target;
+        _target = default;
+        _effect = LibreDragDropEffects.None;
+        return target.IsNull ? null : new ProGpuDragCancellation(_session!, target);
     }
 
     private bool IsEnabledTarget(LibreHandle target)

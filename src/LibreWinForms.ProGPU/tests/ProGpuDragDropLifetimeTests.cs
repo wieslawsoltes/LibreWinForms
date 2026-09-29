@@ -205,7 +205,7 @@ public sealed class ProGpuDragDropLifetimeTests
         internal ProGpuDragInput Initial { get; set; } = Released;
         internal int EndCount { get; set; }
 
-        public ProGpuDragInput BeginDrag(IProGpuDragInputSink sink)
+        public ProGpuDragInput BeginDrag(LibreHandle sourceWindow, IProGpuDragInputSink sink)
         {
             Assert.Null(Active);
             Sinks.Add(sink);
