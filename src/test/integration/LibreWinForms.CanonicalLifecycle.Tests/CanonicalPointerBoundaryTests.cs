@@ -179,9 +179,14 @@ public partial class CanonicalLifecycleTests
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
         using Form owner = new() { ShowIcon = false };
+        using Form priorOwner = new() { ShowIcon = false };
         using Panel target = new() { Bounds = new(10, 10, 100, 60) };
         owner.Controls.Add(target);
         owner.Show();
+        priorOwner.Show();
+        SendCancellationButton(platform, priorOwner, priorOwner, LibrePointerButton.Primary);
+        priorOwner.Capture.Should().BeTrue();
+        Control.MouseButtons.Should().Be(MouseButtons.Left);
         int downs = 0, leaves = 0;
         target.MouseEnter += (_, _) => SendPointerBoundary(platform, owner, kind);
         target.MouseLeave += (_, _) => leaves++;
@@ -190,6 +195,10 @@ public partial class CanonicalLifecycleTests
         downs.Should().Be(0);
         leaves.Should().Be(1);
         target.Capture.Should().BeFalse();
+        priorOwner.Capture.Should().BeTrue("the aborted event must not steal another window's button ownership");
+        Control.MouseButtons.Should().Be(MouseButtons.Left);
+        SendPointerBoundary(platform, priorOwner, LibreInputEventKind.PointerCancel);
+        priorOwner.Capture.Should().BeFalse();
         Control.MouseButtons.Should().Be(MouseButtons.None);
     }
 
