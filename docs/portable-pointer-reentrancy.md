@@ -71,6 +71,32 @@ the same no-skips/two-minute policy. This consumes the existing source event
 contract; it does not opt into the lossless native pointer provider or change
 native backend factory selection.
 
+## Explicit source leave and cancellation
+
+The platform event contract appends `PointerLeave` and `PointerCancel` without
+renumbering existing values or changing the input-event constructor. Both are
+source-state notifications, not positions, wheel samples or keyboard snapshots.
+They do not update global pointer position/modifiers, run menu-key preprocessing,
+or change native/source keyboard focus. The backend forwards them even while
+disabled, without allowing the drag sink to swallow source-state retirement.
+
+Leave retires only that source window's hover, before `MouseLeave`, and invalidates
+its obsolete pointer continuation. It preserves pressed buttons and capture until
+a real release or cancellation. Cancel reuses the existing exact-window capture,
+press and hover retirement path, including all five button owners, nested source
+generations and original-error precedence. An old window cannot retire another
+window's hover/buttons, and callback replacements survive old cleanup. Neither
+notification synthesizes MouseUp or Click, nor is either translated to FocusLost.
+
+Seventeen canonical source cases cover stable enum values, actual unfocused popup
+cancellation for all five buttons, focused editor/keyboard retention, leave during
+a press, cross-window and nested callback ownership, obsolete event cancellation
+and throwing cleanup. The full canonical minimum becomes 842, with every prior
+focused gate retained and a separate 17-case/two-minute/no-skips gate added.
+This adds the source contract required by the native pointer adapter; that adapter,
+native drag-session cancellation, wheel policy and factory selection are not
+enabled by these event kinds. No local runtime/VM tests are used for this change.
+
 The initial cancellation CI run executed all 825 canonical cases: 820 passed,
 five failed and none were skipped. The five failures were the popup fixture's
 capture precondition: its empty Panel had an auto-sized zero-area host. The
