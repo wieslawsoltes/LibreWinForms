@@ -71,6 +71,15 @@ the same no-skips/two-minute policy. This consumes the existing source event
 contract; it does not opt into the lossless native pointer provider or change
 native backend factory selection.
 
+The initial cancellation CI run executed all 825 canonical cases: 820 passed,
+five failed and none were skipped. The five failures were the popup fixture's
+capture precondition: its empty Panel had an auto-sized zero-area host. The
+fixture now fixes its intended 100-by-60 host size, like the existing hosted-menu
+fixtures, and asserts live handles and both client hit areas before sending input.
+All five button variants and their cancellation assertions remain unchanged.
+The corrected commit requires a fresh complete CI run; the failed producer is
+not qualified for package staging.
+
 These are source lifetime contracts, not native input-provider or desktop UI
 qualification. They do not select the Cocoa owned-window factory, implement
 deferred native owner-bound creation, add a wheel-unit conversion policy or

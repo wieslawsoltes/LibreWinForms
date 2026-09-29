@@ -23,7 +23,7 @@ public partial class CanonicalLifecycleTests
         using Form owner = new() { ShowIcon = false };
         using ContextMenuStrip menu = new() { AutoClose = false };
         using Panel target = new() { Size = new(100, 60) };
-        menu.Items.Add(new ToolStripControlHost(target));
+        menu.Items.Add(new ToolStripControlHost(target) { AutoSize = false, Size = target.Size });
         owner.Show();
         platform.SendFormInput(owner, LibreInputEventKind.FocusGained);
         menu.Show(owner, Point.Empty);
@@ -226,6 +226,9 @@ public partial class CanonicalLifecycleTests
         LibrePointerButton button)
     {
         Point point = root.PointToClient(target.PointToScreen(new(4, 5)));
+        target.IsHandleCreated.Should().BeTrue();
+        target.ClientRectangle.Contains(4, 5).Should().BeTrue("the target must have an actual pointer hit area");
+        root.ClientRectangle.Contains(point).Should().BeTrue("the target point must be inside the source window");
         platform.SendControlInput(root, new LibreInputEvent(LibreInputEventKind.PointerDown, 1,
             LibreInputModifiers.None, LibreKey.Unknown, null, new(point.X, point.Y), default, button));
     }
