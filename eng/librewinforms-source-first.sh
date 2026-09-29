@@ -60,7 +60,12 @@ run_test_project \
   50
 run_test_project \
   "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
-  150
+  170
+"${repo_root}/eng/common/dotnet.sh" run \
+  --project "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
+  --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" -- \
+  --filter-class '*ProGpuPointerDragCancellationTests*' \
+  --minimum-expected-tests 20 --fail-skips on --timeout 2m
 "${repo_root}/eng/common/dotnet.sh" run \
   --project "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
   --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" -- \
@@ -115,9 +120,15 @@ generator_tests="${repo_root}/src/System.Windows.Forms.Analyzers.CSharp/tests/Un
 echo "Testing unchanged canonical Application.Run(Form) against a typed headless backend."
 run_test_project \
   "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
-  842 \
+  845 \
   -p:LibreWinFormsUseProGpuSystemDrawing=true \
   -p:LibreWinFormsReferenceMode=Project
+"${repo_root}/eng/common/dotnet.sh" run \
+  --project "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
+  --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" \
+  -p:LibreWinFormsUseProGpuSystemDrawing=true -p:LibreWinFormsReferenceMode=Project -- \
+  --filter-method '*PortableDragSourceWindow*' '*PortableDragWithoutNativeWindow*' \
+  --minimum-expected-tests 3 --fail-skips on --timeout 2m
 "${repo_root}/eng/common/dotnet.sh" run \
   --project "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
   --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" \

@@ -1,5 +1,14 @@
 # Agent Guidance
 
+Native pointer drag cancellation binds the actual source-window object, handle
+generation and registration lease before callbacks. Commit terminal state before
+source/character retirement can pump input, then notify only the captured old
+target once. Revoke deferred notifications when that registration ends; preserve
+primary callback errors and other windows' buttons. Missing legacy ownership does
+not admit inferred cancellation, and PointerLeave remains distinct. Keep source
+request constructor/deconstruction and ordinary sampling; no invented Drop/Escape,
+factory selection or native desktop qualification. See docs/drag-input-lifetime.md.
+
 Native popup retirement belongs to the creating source dispatcher after logical
 window teardown. Retain exact window identity and failed renderer cleanup owners
 until rendering and provider-aware native disposal both complete. Drain after
