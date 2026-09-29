@@ -2,6 +2,7 @@
 """Compile real SDK consumers and verify its original analyzer payload; no UI runs."""
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import copy
 import hashlib
 import json
@@ -12,6 +13,8 @@ import shutil
 import signal
 import subprocess
 import tempfile
+import threading
+import time
 import warnings
 import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape
@@ -267,12 +270,79 @@ def case_packages(args, scratch, mode):
     return scratch / "packages"
 
 
+class CompilerProcesses:
+    """Own only this verifier's compiler/runtime process groups."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.cancelled = False
+        self.failure = None
+        self.processes = set()
+
+    def check(self):
+        with self.lock:
+            if self.cancelled:
+                raise RuntimeError("Analyzer mode cancelled after another mode failed")
+
+    def cancel(self, failure=None):
+        with self.lock:
+            if self.failure is None and failure is not None:
+                self.failure = failure
+            self.cancelled = True
+            for process in self.processes:
+                if process.poll() is None:
+                    self.kill(process)
+
+    @staticmethod
+    def kill(process):
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+    def run(self, command, *, cwd, env, output, timeout):
+        # Start and registration are indivisible with cancellation. A failed
+        # sibling cannot leave a new process running outside the owned set.
+        with self.lock:
+            if self.cancelled:
+                raise RuntimeError("Analyzer mode cancelled before process creation")
+            process = subprocess.Popen(command, cwd=cwd, env=env, start_new_session=True,
+                                       stdout=output, stderr=subprocess.STDOUT)
+            self.processes.add(process)
+        try:
+            try:
+                return process.wait(timeout=timeout)
+            except BaseException:
+                self.kill(process)
+                process.wait()
+                raise
+        finally:
+            with self.lock:
+                self.processes.remove(process)
+
+
+def run_consumer(args, command, *, cwd, env, output, timeout):
+    processes = getattr(args, "_compiler_processes", None) or CompilerProcesses()
+    return processes.run(command, cwd=cwd, env=env, output=output, timeout=timeout)
+
+
+def validate_parallel_modes(args):
+    if not args.parallel_modes:
+        return
+    if args.reference_mode != "Both" or args.project_packages is None or args.producer_snapshot is None:
+        raise AssertionError("Parallel modes require Both and the verified caller-owned Project cache/snapshot handoff")
+    if os.name != "posix":
+        raise AssertionError("Parallel mode cancellation requires owned POSIX process groups")
+
+
 def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
                executable=False, caller_configuration=False, disable_configuration=False,
                expected_errors=(), ordinary_generator=False, sdk_directory=None,
                missing_analyzer=None, default_font=None, expected_font=None,
                use_forms=None, runtime=False, late_properties=None, expected_configuration=None,
                late_phase="PrepareForBuild", high_dpi_mode=None, expected_high_dpi="SystemAware"):
+    if processes := getattr(args, "_compiler_processes", None):
+        processes.check()
     case = scratch / (mode.lower() + "-" + name)
     case.mkdir()
     extension = "vb" if vb else "cs"
@@ -342,17 +412,7 @@ def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
     environment["NUGET_PACKAGES"] = str(case_packages(args, scratch, mode))
     log = evidence / (case.name + ".log")
     with log.open("w", encoding="utf-8") as output:
-        process = subprocess.Popen(command, cwd=scratch, env=environment, start_new_session=True,
-                                   stdout=output, stderr=subprocess.STDOUT)
-        try:
-            exit_code = process.wait(timeout=300)
-        except BaseException:
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            process.wait()
-            raise
+        exit_code = run_consumer(args, command, cwd=scratch, env=environment, output=output, timeout=300)
     if missing_analyzer is not None:
         message = "The LibreWinForms SDK is missing an original WinForms analyzer: "
         missing_lines = [line for line in log.read_text(encoding="utf-8").splitlines() if message in line]
@@ -470,18 +530,9 @@ def build_case(args, scratch, evidence, mode, name, source, *, vb=False,
         with runtime_log.open("w", encoding="utf-8") as output:
             # Each policy runs in a fresh process, before any Control font
             # cache or native window can exist. No Show/input/GPU fixture runs.
-            process = subprocess.Popen([args.dotnet, str(case / "bin" / args.configuration / "net11.0/Consumer.dll")],
-                                       cwd=case, env=environment, start_new_session=True,
-                                       stdout=output, stderr=subprocess.STDOUT)
-            try:
-                runtime_exit = process.wait(timeout=60)
-            except BaseException:
-                try:
-                    os.killpg(process.pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
-                process.wait()
-                raise
+            runtime_exit = run_consumer(args,
+                                       [args.dotnet, str(case / "bin" / args.configuration / "net11.0/Consumer.dll")],
+                                       cwd=case, env=environment, output=output, timeout=60)
         runtime_output = runtime_log.read_text(encoding="utf-8").strip()
         if runtime_exit != 0:
             raise AssertionError(f"Actual Initialize policy contract failed in {case.name}; see {runtime_log}")
@@ -661,6 +712,78 @@ global::System.Console.WriteLine(global::System.Text.Json.JsonSerializer.Seriali
     return results
 
 
+def build_mode_cases(args, scratch, evidence, mode):
+    # Project cases share the canonical source outputs and must remain serial.
+    # Package cases use only the installed, verified feed and their fresh cache.
+    results = []
+    for name, source, vb, errors in (("csharp-negative", CS_NEGATIVE, False, ("WFO1000",)),
+                                     ("csharp-positive", CS_POSITIVE, False, ()),
+                                     ("vb-negative", VB_NEGATIVE, True, ("WFO1000",)),
+                                     ("vb-positive", VB_POSITIVE, True, ())):
+        results.append(build_case(args, scratch, evidence, mode, name, source, vb=vb, expected_errors=errors))
+    for name, source in ENTRYPOINTS.items():
+        results.append(build_case(args, scratch, evidence, mode, name, source, executable=True))
+    results.append(build_case(args, scratch, evidence, mode, "caller-owned", ENTRYPOINTS["top-level"],
+                              executable=True, caller_configuration=True, disable_configuration=True))
+    results.append(build_case(args, scratch, evidence, mode, "caller-missing", ENTRYPOINTS["top-level"],
+                              executable=True, disable_configuration=True, expected_errors=("CS0103",)))
+    results.extend(build_font_cases(args, scratch, evidence, mode))
+    results.extend(build_dpi_cases(args, scratch, evidence, mode))
+    return results
+
+
+def build_modes(args, scratch, evidence):
+    validate_parallel_modes(args)
+    modes = ("Project", "Package") if args.reference_mode == "Both" else (args.reference_mode,)
+    timings = [None] * len(modes)
+    processes = CompilerProcesses() if args.parallel_modes else None
+    args._compiler_processes = processes
+
+    def run_mode(index, mode):
+        started = time.monotonic()
+        try:
+            result = build_mode_cases(args, scratch, evidence, mode)
+            timings[index] = {"mode": mode, "caseCount": len(result),
+                              "elapsedSeconds": time.monotonic() - started,
+                              "packageCache": str(case_packages(args, scratch, mode))}
+            return result
+        except BaseException as error:
+            if processes is not None:
+                processes.cancel(error)
+            raise
+
+    started = time.monotonic()
+    try:
+        if processes is None:
+            results = [run_mode(index, mode) for index, mode in enumerate(modes)]
+        else:
+            # There are exactly two independently owned modes, not a pool of
+            # competing source builds. Retain deterministic original result order.
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                try:
+                    futures = [executor.submit(run_mode, index, mode) for index, mode in enumerate(modes)]
+                    results = [future.result() for future in futures]
+                except BaseException as error:
+                    processes.cancel()
+                    # A killed sibling can fail its diagnostic read first. Report
+                    # the real originating failure, not that cancellation symptom.
+                    if processes.failure is not None and not isinstance(error, (KeyboardInterrupt, SystemExit)):
+                        raise processes.failure
+                    raise
+        (evidence / "mode-timing.json").write_text(json.dumps(
+            {"parallel": args.parallel_modes, "elapsedSeconds": time.monotonic() - started,
+             "modes": timings}, indent=2) + "\n", encoding="utf-8")
+        return [case for mode in results for case in mode]
+    finally:
+        args._compiler_processes = None
+
+
+def terminate_modes(signum, frame):
+    # Translate the producer's normal termination signal into the same owned
+    # process cleanup as a keyboard interrupt or a failed compiler assertion.
+    raise SystemExit(128 + signum)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parent.parent)
@@ -670,6 +793,8 @@ def main():
     parser.add_argument("--configuration", default="Release")
     parser.add_argument("--dotnet", default="dotnet")
     parser.add_argument("--reference-mode", choices=("Project", "Package", "Both"), default="Both")
+    parser.add_argument("--parallel-modes", action="store_true",
+                        help="Run Project and Package as two serial lanes; requires the verified Project cache/snapshot handoff")
     parser.add_argument("--progpu-source-root", type=Path)
     parser.add_argument("--scratch-parent", type=Path,
                         help="Parent owned by the calling gate's cleanup; omitted scratch is retained for local diagnosis")
@@ -689,6 +814,8 @@ def main():
         parser.error("Capture and consumer verification are separate phases")
     if args.capture_producer and args.project_packages:
         parser.error("Producer capture cannot reuse a consumer cache")
+    if args.capture_producer and args.parallel_modes:
+        parser.error("Producer capture cannot run consumer modes")
     args.repo_root = args.repo_root.resolve()
     args.package_source = args.package_source.resolve()
     evidence = args.evidence_directory.resolve()
@@ -706,6 +833,7 @@ def main():
     else:
         payload = verify_payload(args.repo_root, package, args.configuration)
     validate_project_packages(args, package)
+    validate_parallel_modes(args)
     payload["sourceHead"] = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=args.repo_root, text=True).strip()
     payload["sourceChanges"] = subprocess.check_output(["git", "status", "--porcelain"], cwd=args.repo_root, text=True).splitlines()
     (evidence / "analyzer-payload.json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -717,22 +845,12 @@ def main():
     sources = config.getroot().find("packageSources")
     ET.SubElement(sources, "add", key="LibreWinFormsAnalyzerContract", value=str(args.package_source))
     config.write(scratch / "NuGet.config", encoding="utf-8", xml_declaration=True)
-    modes = ("Project", "Package") if args.reference_mode == "Both" else (args.reference_mode,)
-    results = []
-    for mode in modes:
-        for name, source, vb, errors in (("csharp-negative", CS_NEGATIVE, False, ("WFO1000",)),
-                                         ("csharp-positive", CS_POSITIVE, False, ()),
-                                         ("vb-negative", VB_NEGATIVE, True, ("WFO1000",)),
-                                         ("vb-positive", VB_POSITIVE, True, ())):
-            results.append(build_case(args, scratch, evidence, mode, name, source, vb=vb, expected_errors=errors))
-        for name, source in ENTRYPOINTS.items():
-            results.append(build_case(args, scratch, evidence, mode, name, source, executable=True))
-        results.append(build_case(args, scratch, evidence, mode, "caller-owned", ENTRYPOINTS["top-level"],
-                                  executable=True, caller_configuration=True, disable_configuration=True))
-        results.append(build_case(args, scratch, evidence, mode, "caller-missing", ENTRYPOINTS["top-level"],
-                                  executable=True, disable_configuration=True, expected_errors=("CS0103",)))
-        results.extend(build_font_cases(args, scratch, evidence, mode))
-        results.extend(build_dpi_cases(args, scratch, evidence, mode))
+    previous_termination = signal.signal(signal.SIGTERM, terminate_modes) if args.parallel_modes else None
+    try:
+        results = build_modes(args, scratch, evidence)
+    finally:
+        if args.parallel_modes:
+            signal.signal(signal.SIGTERM, previous_termination)
     results.append(build_case(args, scratch, evidence, "Package", "ordinary-upstream", ENTRYPOINTS["top-level"],
                               executable=True, ordinary_generator=True))
     for language, entry in (("shared", "analyzers/dotnet/System.Windows.Forms.Analyzers.dll"),
