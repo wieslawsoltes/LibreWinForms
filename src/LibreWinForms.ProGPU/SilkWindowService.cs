@@ -900,6 +900,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         // cleanup operation or a user callback fails.
         Release(() => _service.Unregister(this));
         Release(() => _dispatcher.Unregister(this));
+        // Hide without destroying a surface that failed GPU cleanup may still own.
+        Release(() => _window.IsVisible = false);
         Release(() => _characterInput?.Dispose());
         Release(() => _input?.Dispose());
         foreach (DrawingVisual visual in _paintLayers.Values)
@@ -910,12 +912,31 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         Release(_transientPaintVisual.Context.Clear);
         Release(_reversiblePaintVisual.Context.Clear);
         Release(_paintRoot.ClearChildren);
-        Release(() => _compositor?.Dispose());
-        Release(() => _wgpuContext?.Dispose());
         Release(_controller.Dispose);
-        Release(_window.Dispose);
+        // Logical source teardown is complete, but the native view can still be
+        // leased or inside a callback. The dispatcher retains it until the
+        // provider confirms retirement, including after an initial failure.
+        Release(() => _dispatcher.RetireNativeWindow(_window, ReleaseRenderingResources));
         Release(() => _handles.Release(Handle));
         Release(RaiseClosed);
+        if (firstFailure is not null)
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(firstFailure).Throw();
+    }
+
+    private void ReleaseRenderingResources()
+    {
+        Exception? firstFailure = null;
+        try { _compositor?.Dispose(); _compositor = null; }
+        catch (Exception failure) { firstFailure = failure; }
+        try { _wgpuContext?.Dispose(); _wgpuContext = null; }
+        catch (Exception failure)
+        {
+            if (firstFailure is null)
+                firstFailure = failure;
+            else
+                firstFailure.Data["WindowRendererDisposal"] = failure;
+        }
+
         if (firstFailure is not null)
             System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(firstFailure).Throw();
     }
