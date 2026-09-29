@@ -8,20 +8,26 @@ managed menu input.
 
 Hidden ownerless creation is staging only. Before display, a popup requires a
 live typed owner. Hidden owner changes call the pinned ProGPU
-`NativePopupWindow.TryPrepareOwner` before publishing the logical `Owner`.
+`NativePopupWindow.TryPrepareOwner` with the actual `IWindow` before publishing
+the logical `Owner`.
 The same-owner setter is a no-op. Changing an already visible owner is rejected
 before mutation; callers must hide, set the owner, then show again. Reopening
 re-resolves the live owner and uses `NativePopupWindow.TryShowOwned` on every
 show, including Cocoa reattachment after hiding. Native rejection destroys the
 surface, releases its handle and notifies `Closed`; cleanup exceptions cannot
 replace the original admission/callback exception.
-Normal popup disposal uses the same exhaustive cleanup path, so an earlier
-resource-disposal exception cannot prevent native window/handle release and
-`Closed`. The first cleanup exception is rethrown after every release is
-attempted. Ordinary Form disposal remains unchanged.
+Logical teardown and `Closed` still complete after cleanup errors. The
+[source dispatcher retirement queue](native-window-retirement.md) retains native
+and renderer owners for retry: failed rendering cleanup must never destroy a
+still-owned native surface. The first cleanup exception remains observable.
 
-The display callback temporarily disables GLFW focus-on-show and restores its
-actual prior setting. There is no activating fallback. Explicit `Activate` is
+The display callback prepares the renderer, then uses ProGPU's shared
+`ShowWithoutActivation` with the actual `IWindow`. GLFW providers temporarily
+disable focus-on-show and restore the prior setting while the same initialized
+native identity remains. Owned Cocoa providers use checked panel visibility,
+never a GLFW call on an opaque panel handle. Typed Show admission retains the
+panel across the source callback and rejects owner replacement, nested admission
+and disposed/hidden success. There is no activating fallback. Explicit `Activate` is
 rejected for a popup. Win32 front ordering reuses the existing same-rank
 `SetTopMost` operation, whose native flags preserve nonactivation; its ordinary
 `SetZOrder` operation lacks that flag. Popup ordering to the back is therefore
@@ -40,7 +46,9 @@ ordering paths are unchanged.
 - Cocoa uses hidden preparation followed by native child attachment at the show
   boundary. The ordinary controller's `SetParent` is not used for popup owner
   assignment because `addChildWindow` can show the window. This does not add an
-  NSPanel contract or AppKit modal-session admission.
+  automatic AppKit modal-session admission. The typed API also supports hidden
+  source-scheduled owned-panel binding, but the Forms constructor still selects
+  its existing factory until native input/scroll integration is complete.
 - Other native window kinds remain rejected by the existing ProGPU capability.
 
 Native popup admission does not supply canonical menu keyboard routing,
@@ -50,7 +58,7 @@ application qualification remain separately required under issue #197.
 
 ## Source and contract evidence
 
-The native implementation is reused unchanged from ProGPU
+The initial integration reused the native implementation from ProGPU
 `08f4343ef15328ba742cdcf11f8eb2daeefb5f7b`:
 `NativePopupWindow`, `Win32PopupConfiguration`, `X11PopupConfiguration` and
 `CocoaPopupConfiguration`. Existing Win32 ordering flags and Cocoa owner/show
@@ -58,6 +66,14 @@ side effects were inspected in their native platform implementations. The local
 LibreWPF `SilkNetWpfWindowDecorationService` provides the prior GLFW
 focus-on-show host usage; this backend retains its actual previous attribute
 instead of assuming it was enabled.
+
+The typed-provider update pins ProGPU `d7cea09ba63458213becccc801d09819c9abe1c5`
+and delegates preparation, display admission and visibility directly to its
+shared provider-aware APIs. Eighteen new upstream managed cases cover callback
+ownership/reentrancy, retirement, native identity and thread affinity; all
+existing Forms admission/source/package checks remain. Local validation is
+compilation only. The exact upstream and Forms Builds must pass before merge;
+the source pin does not stage artifacts from a partial or failed producer.
 
 The official [GLFW window visibility documentation](https://www.glfw.org/docs/3.4/window_guide.html#window_hide)
 and [window attribute contract](https://www.glfw.org/docs/3.4/window_guide.html#window_attribs)
