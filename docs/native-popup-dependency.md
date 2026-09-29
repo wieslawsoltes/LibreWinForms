@@ -5,6 +5,12 @@ provider, and neutral native pointer transport contracts. LibreWPF's canonical
 Forms integration must use this exact same ProGPU commit as LibreWinForms; the
 cross-repository identity check remains unchanged.
 
+The owned provider now explicitly tags AppKit scroll-phase semantics. Both source
+hosts must carry that protocol with the original phase bits; the process OS does
+not identify a packet's protocol. Existing constructor/deconstruction signatures
+remain available. This dependency update does not yet interpret scroll phases or
+admit the Forms source input provider.
+
 Updating this dependency does not select the owned Cocoa factory in Forms.
 Native window creation must still wait for the actual live typed owner when a
 popup handle is created before ownership is assigned. Source button/capture,
