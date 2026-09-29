@@ -33,6 +33,7 @@ public unsafe partial class Control
     private MouseButtons _portablePressedButton;
     private uint _portablePointerPressVersion;
     private uint _portablePointerInputVersion;
+    private uint _portablePointerCaptureVersion;
     private bool _portableWindowFocused;
     private bool _portableControlFocusNotified;
     private uint _portableWindowFocusVersion;
@@ -120,6 +121,7 @@ public unsafe partial class Control
         Control? captured = root._portableCapturedControl;
         root._portablePointerInputVersion++;
         root._portablePointerPressVersion++;
+        root._portablePointerCaptureVersion++;
         root._portableCapturedControl = null;
         root._portablePressedControl = null;
         root._portablePressedButton = MouseButtons.None;
@@ -386,6 +388,11 @@ public unsafe partial class Control
         if (!IsCurrentPortablePointerInput(inputVersion, receivingHandle))
             return;
 
+        // Physical release remains authoritative even when a hover callback
+        // retires its recipient before source MouseUp can be delivered.
+        if (inputEvent.Kind == LibreInputEventKind.PointerUp)
+            s_portableMouseButtons &= ~ToMouseButtons(inputEvent.Button);
+
         Point rootPosition = new(inputEvent.Position.X, inputEvent.Position.Y);
         s_portableMousePosition = PointToScreen(rootPosition);
 
@@ -401,10 +408,31 @@ public unsafe partial class Control
 
         Control? hit = PortableHitTest(rootPosition);
         bool clientHit = hit is not null && hit.PortableClientRectangle.Contains(hit.PointToClient(s_portableMousePosition));
+        Control? capturedBeforeHover = _portableCapturedControl;
+        LibreHandle capturedHandle = capturedBeforeHover?._window.PortableHandle ?? default;
+        uint captureVersion = _portablePointerCaptureVersion;
         if (!UpdatePortableHover(clientHit ? hit : null, inputVersion, receivingHandle))
+        {
+            RetireInvalidPortablePointerCapture(capturedBeforeHover, capturedHandle, captureVersion, inputVersion, receivingHandle);
             return;
+        }
+
+        if (capturedBeforeHover is not null && ReferenceEquals(_portableCapturedControl, capturedBeforeHover)
+            && !IsCurrentPortablePointerTarget(capturedBeforeHover, capturedHandle))
+        {
+            RetireInvalidPortablePointerCapture(capturedBeforeHover, capturedHandle, captureVersion, inputVersion, receivingHandle);
+            return;
+        }
+
         Control? target = _portableCapturedControl ?? hit;
         LibreHandle targetHandle = target?._window.PortableHandle ?? default;
+        captureVersion = _portablePointerCaptureVersion;
+        if (target is not null && !IsCurrentPortablePointerTarget(target, targetHandle))
+        {
+            RetireInvalidPortablePointerCapture(target, targetHandle, captureVersion, inputVersion, receivingHandle);
+            return;
+        }
+
         RefreshPortableCursor();
         if (!IsCurrentPortablePointerInput(inputVersion, receivingHandle))
             return;
@@ -414,7 +442,10 @@ public unsafe partial class Control
         }
 
         if (!IsCurrentPortablePointerTarget(target, targetHandle))
+        {
+            RetireInvalidPortablePointerCapture(target, targetHandle, captureVersion, inputVersion, receivingHandle);
             return;
+        }
 
         Point location = target.PointToClient(s_portableMousePosition);
         MouseButtons button = ToMouseButtons(inputEvent.Button);
@@ -440,6 +471,7 @@ public unsafe partial class Control
                 }
 
                 _portableCapturedControl = target;
+                _portablePointerCaptureVersion++;
                 _portablePressedControl = target;
                 _portablePressedButton = button;
                 _portablePointerPressVersion++;
@@ -460,8 +492,8 @@ public unsafe partial class Control
         nint targetHandle = target.Handle;
         uint pressVersion = _portablePointerPressVersion;
         Control? captured = _portableCapturedControl;
+        uint captureVersion = _portablePointerCaptureVersion;
         Exception? callbackError = null;
-        s_portableMouseButtons &= ~button;
 
         bool IsCurrentRelease() => _portablePointerPressVersion == pressVersion
             && !IsDisposed && !Disposing && IsHandleCreated && _window.PortableHandle == receivingHandle
@@ -515,8 +547,11 @@ public unsafe partial class Control
                     target.SetState(States.ValidationCancelled, false);
                 _portablePressedControl = null;
                 _portablePressedButton = MouseButtons.None;
-                if (ReferenceEquals(_portableCapturedControl, captured))
+                if (_portablePointerCaptureVersion == captureVersion && ReferenceEquals(_portableCapturedControl, captured))
+                {
                     _portableCapturedControl = null;
+                    _portablePointerCaptureVersion++;
+                }
 
                 try
                 {
@@ -554,6 +589,16 @@ public unsafe partial class Control
         => !target.IsDisposed && !target.Disposing && target.Visible && target.Enabled
             && target._window.PortableHandle == targetHandle
             && ReferenceEquals(target.GetPortableTopLevelControl(), this);
+
+    private void RetireInvalidPortablePointerCapture(Control? target, LibreHandle targetHandle,
+        uint captureVersion, uint inputVersion, LibreHandle receivingHandle)
+    {
+        if (target is not null && _portablePointerCaptureVersion == captureVersion
+            && ReferenceEquals(_portableCapturedControl, target)
+            && IsCurrentPortablePointerInput(inputVersion, receivingHandle)
+            && !IsCurrentPortablePointerTarget(target, targetHandle))
+            CancelPortableCapture(updateCursor: false);
+    }
 
     private bool UpdatePortableHover(Control? target, uint inputVersion, LibreHandle receivingHandle)
     {

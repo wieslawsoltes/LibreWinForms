@@ -1202,13 +1202,15 @@ public unsafe partial class Control :
         set
         {
             Control root = GetPortableTopLevelControl();
-            if (value)
+            if (value && root._portableCapturedControl != this)
             {
                 root._portableCapturedControl = this;
+                root._portablePointerCaptureVersion++;
             }
-            else if (root._portableCapturedControl == this)
+            else if (!value && root._portableCapturedControl == this)
             {
                 root._portableCapturedControl = null;
+                root._portablePointerCaptureVersion++;
             }
 
             root.RefreshPortableCursor();

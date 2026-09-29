@@ -195,6 +195,67 @@ public partial class CanonicalLifecycleTests
         Control.MouseButtons.Should().Be(MouseButtons.None);
     }
 
+    [Theory]
+    [InlineData(LibreInputEventKind.PointerMove, 0)]
+    [InlineData(LibreInputEventKind.PointerMove, 1)]
+    [InlineData(LibreInputEventKind.PointerMove, 2)]
+    [InlineData(LibreInputEventKind.PointerMove, 3)]
+    [InlineData(LibreInputEventKind.PointerUp, 0)]
+    [InlineData(LibreInputEventKind.PointerUp, 1)]
+    [InlineData(LibreInputEventKind.PointerUp, 2)]
+    [InlineData(LibreInputEventKind.PointerUp, 3)]
+    public void PortablePointerReentrancy_RetiredCaptureDoesNotKeepAPressedButton(LibreInputEventKind kind, int retirement)
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form owner = new() { ShowIcon = false };
+        using PointerLifetimePanel captured = new() { Bounds = new(10, 10, 80, 60) };
+        using Panel target = new() { Bounds = new(110, 10, 80, 60) };
+        owner.Controls.AddRange([captured, target]);
+        owner.Show();
+        SendReentrantPointer(platform, owner, captured, LibreInputEventKind.PointerDown);
+        captured.Capture.Should().BeTrue();
+        int releases = 0, clicks = 0, targetClicks = 0;
+        captured.MouseUp += (_, _) => releases++;
+        captured.Click += (_, _) => clicks++;
+        target.Click += (_, _) => targetClicks++;
+        captured.MouseLeave += (_, _) =>
+        {
+            switch (retirement)
+            {
+                case 0: captured.Hide(); break;
+                case 1: captured.Enabled = false; break;
+                case 2: captured.Dispose(); break;
+                case 3: captured.RecreatePortableHandle(); break;
+            }
+        };
+
+        SendReentrantPointer(platform, owner, target, kind);
+        Control.MouseButtons.Should().Be(MouseButtons.None);
+        captured.Capture.Should().BeFalse();
+        releases.Should().Be(0, "a retired capture receives cancellation, not a synthetic up");
+        clicks.Should().Be(0);
+        SendReentrantPointer(platform, owner, target, LibreInputEventKind.PointerDown);
+        SendReentrantPointer(platform, owner, target, LibreInputEventKind.PointerUp);
+        targetClicks.Should().Be(1);
+        target.Capture.Should().BeFalse();
+    }
+
+    [Fact]
+    public void PortablePointerReentrancy_MouseUpPreservesAReacquiredCaptureOnTheSameControl()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form owner = new() { ShowIcon = false };
+        using Panel target = new() { Bounds = new(10, 10, 80, 60) };
+        owner.Controls.Add(target);
+        owner.Show();
+        target.MouseUp += (_, _) => { target.Capture = false; target.Capture = true; };
+        SendReentrantPointer(platform, owner, target, LibreInputEventKind.PointerDown);
+        SendReentrantPointer(platform, owner, target, LibreInputEventKind.PointerUp);
+        target.Capture.Should().BeTrue("the callback created a distinct capture lifetime");
+        Control.MouseButtons.Should().Be(MouseButtons.None);
+        target.Capture = false;
+    }
+
     private static void SendReentrantPointer(HeadlessPlatform platform, Control root, Control target, LibreInputEventKind kind)
     {
         Point point = root.PointToClient(target.PointToScreen(new(4, 5)));
