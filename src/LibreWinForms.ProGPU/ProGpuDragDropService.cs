@@ -32,7 +32,7 @@ internal interface IProGpuDragInputSource
 /// Runs an application-local drag operation over the live Silk window inventory. Canonical
 /// WinForms remains responsible for logical hit testing and event dispatch.
 /// </summary>
-public sealed class ProGpuDragDropService : ILibreDragDropService, IProGpuDragInputSink
+public sealed class ProGpuDragDropService : ILibreDragDropService
 {
     private const int MouseButtonMask = 0x0001 | 0x0002 | 0x0010;
     private const int ControlKey = 0x0008;
@@ -47,6 +47,7 @@ public sealed class ProGpuDragDropService : ILibreDragDropService, IProGpuDragIn
     private LibreDragDropEffects _effect;
     private LibreDragDropEffects _result;
     private bool _complete;
+    private DragInputLease? _inputLease;
 
     public ProGpuDragDropService(ProGpuDispatcher dispatcher, SilkWindowService windows)
         : this(dispatcher, (IProGpuDragInputSource)windows)
@@ -102,9 +103,14 @@ public sealed class ProGpuDragDropService : ILibreDragDropService, IProGpuDragIn
         _result = LibreDragDropEffects.None;
         _complete = false;
 
-        ProGpuDragInput initial = _input.BeginDrag(this);
+        DragInputLease lease = new(this);
+        _inputLease = lease;
+        bool registered = false;
+        Exception? failure = null;
         try
         {
+            ProGpuDragInput initial = _input.BeginDrag(lease);
+            registered = true;
             ProcessInput(initial);
             if (!_complete && (initial.KeyState & MouseButtonMask) == 0)
             {
@@ -118,35 +124,72 @@ public sealed class ProGpuDragDropService : ILibreDragDropService, IProGpuDragIn
 
             return _result & request.AllowedEffects;
         }
+        catch (Exception error)
+        {
+            failure = error;
+            throw;
+        }
         finally
         {
-            _input.EndDrag(this);
-            _session = null;
-            _request = null;
-            _target = default;
-            _effect = LibreDragDropEffects.None;
-            _complete = true;
+            // Revoke callbacks before external teardown, even if registration or
+            // source dispatch failed. Old queued input cannot enter a later drag.
+            lease.Detach();
+            try
+            {
+                if (registered) _input.EndDrag(lease);
+            }
+            catch (Exception cleanup) when (failure is not null)
+            {
+                failure.Data["DragInputRelease"] = cleanup;
+            }
+            finally
+            {
+                _inputLease = null;
+                _session = null;
+                _request = null;
+                _target = default;
+                _effect = LibreDragDropEffects.None;
+                _complete = true;
+            }
         }
     }
 
-    bool IProGpuDragInputSink.Input(in ProGpuDragInput input)
+    private bool ReceiveInput(DragInputLease lease, in ProGpuDragInput input)
     {
-        if (_session is null || _request is null || _complete)
+        if (!lease.IsAttached)
         {
             return false;
         }
 
         if (_dispatcher.CheckAccess())
         {
-            ProcessInput(input);
-        }
-        else
-        {
-            ProGpuDragInput captured = input;
-            _dispatcher.Send(() => ProcessInput(captured));
+            return ProcessCurrentInput(lease, input);
         }
 
+        ProGpuDragInput captured = input;
+        bool handled = false;
+        _dispatcher.Send(() => handled = ProcessCurrentInput(lease, captured));
+        return handled;
+    }
+
+    private bool ProcessCurrentInput(DragInputLease lease, in ProGpuDragInput input)
+    {
+        if (!ReferenceEquals(_inputLease, lease) || !lease.IsAttached ||
+            _session is null || _request is null || _complete)
+            return false;
+        ProcessInput(input);
         return true;
+    }
+
+    private sealed class DragInputLease(ProGpuDragDropService owner) : IProGpuDragInputSink
+    {
+        private ProGpuDragDropService? _owner = owner;
+
+        internal bool IsAttached => Volatile.Read(ref _owner) is not null;
+        internal void Detach() => Interlocked.Exchange(ref _owner, null);
+
+        public bool Input(in ProGpuDragInput input)
+            => Volatile.Read(ref _owner)?.ReceiveInput(this, input) == true;
     }
 
     private void ProcessInput(in ProGpuDragInput input)
