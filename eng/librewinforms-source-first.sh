@@ -60,12 +60,12 @@ run_test_project \
   50
 run_test_project \
   "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
-  142
+  150
 "${repo_root}/eng/common/dotnet.sh" run \
   --project "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
   --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" -- \
   --filter-class '*ProGpuDragDropLifetimeTests*' \
-  --minimum-expected-tests 10 --fail-skips on --timeout 2m
+  --minimum-expected-tests 18 --fail-skips on --timeout 2m
 "${repo_root}/eng/common/dotnet.sh" run \
   --project "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
   --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" -- \

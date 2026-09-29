@@ -13,11 +13,19 @@ remains primary if release also fails; the release error is retained under
 This does not repair an external input provider that fails to release its own
 resources; its ownership contract remains authoritative.
 
-Ten authored backend cases cover registration failure, direct and queued source
+The service commits the terminal state before calling application Drop or
+cancellation Leave callbacks. Reentrant release/Escape input cannot dispatch a
+second terminal callback or replace the result, including when application code
+throws. Registration cleanup still belongs to the outer DoDragDrop lifetime.
+This does not serialize or qualify reentrancy in nonterminal source callbacks.
+
+Eighteen authored backend cases cover registration failure, direct and queued source
 failures, teardown errors, original-error precedence, queued old pointer/Escape
 events during a later drag, teardown callbacks, dispatcher disposal and successful
-subsequent drags. The existing source-first CI retains its full backend gate and
-adds a ten-case, two-minute, no-skips lifetime gate. Local validation is compilation
+subsequent drags. Eight cases exercise reentrant release/Escape in Drop and
+cancellation Leave, with successful and throwing callbacks. The existing
+source-first CI retains its full backend gate and an eighteen-case, two-minute,
+no-skips lifetime gate. Local validation is compilation
 only; hosted CI owns execution.
 
 This change does not turn PointerLeave/PointerCancel into drag samples, invent a
