@@ -848,36 +848,19 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
     }
 
     bool INativePopupAdmissionHost.PrepareOwner(NativeWindowHandle owner)
-        => NativePopupWindow.TryPrepareOwner(owner, NativeHandle);
+        => NativePopupWindow.TryPrepareOwner(owner, _window);
 
     bool INativePopupAdmissionHost.ClearOwner() => _controller.SetParent(NativeWindowHandle.Empty);
 
     bool INativePopupAdmissionHost.ShowOwned(NativeWindowHandle owner, Action showWithoutActivation)
-        => NativePopupWindow.TryShowOwned(owner, NativeHandle, showWithoutActivation);
+        => NativePopupWindow.TryShowOwned(owner, _window, showWithoutActivation);
 
-    unsafe void INativePopupAdmissionHost.ShowWithoutActivation()
+    void INativePopupAdmissionHost.ShowWithoutActivation()
     {
         EnsureRenderer();
-        // Use the existing host's GLFW visibility path without its default focus
-        // transfer. NativePopupWindow separately admits the platform owner and
-        // nonactivation contract; this is not an alternative ownership path.
-        var native = (Silk.NET.GLFW.WindowHandle*)(_window.Native?.Glfw ?? IntPtr.Zero);
-        if (native == null)
-            throw new PlatformNotSupportedException("Popup display requires the live GLFW host identity.");
-        var glfw = Silk.NET.GLFW.GlfwProvider.GLFW.Value;
-        bool previous = glfw.GetWindowAttrib(native, Silk.NET.GLFW.WindowAttributeGetter.FocusOnShow);
-        glfw.SetWindowAttrib(native, Silk.NET.GLFW.WindowAttributeSetter.FocusOnShow, false);
-        try
-        {
-            if (glfw.GetWindowAttrib(native, Silk.NET.GLFW.WindowAttributeGetter.FocusOnShow))
-                throw new PlatformNotSupportedException("The native host rejected nonactivating visibility.");
-            _window.IsVisible = true;
-        }
-        finally
-        {
-            if (!_disposed)
-                glfw.SetWindowAttrib(native, Silk.NET.GLFW.WindowAttributeSetter.FocusOnShow, previous);
-        }
+        // The actual provider owns nonactivation and callback-safe native identity.
+        // An owned panel must never enter the GLFW visibility path.
+        NativePopupWindow.ShowWithoutActivation(_window);
     }
 
     void INativePopupAdmissionHost.Discard() => ReleaseNativeWindow();
