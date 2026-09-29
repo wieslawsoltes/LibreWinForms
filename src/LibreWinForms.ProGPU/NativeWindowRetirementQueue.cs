@@ -75,29 +75,15 @@ internal sealed class NativeWindowRetirementQueue(Func<IWindow, bool>? tryDispos
 
     private bool TryComplete(Retirement retirement)
     {
-        ExceptionDispatchInfo? renderingFailure = null;
-        try
+        if (!retirement.RenderingResourcesReleased)
         {
-            if (!retirement.RenderingResourcesReleased)
-            {
-                retirement.ReleaseRenderingResources?.Invoke();
-                retirement.RenderingResourcesReleased = true;
-            }
-        }
-        catch (Exception failure) { renderingFailure = ExceptionDispatchInfo.Capture(failure); }
-
-        bool retired = false;
-        try { retired = _tryDispose(retirement.Window); }
-        catch (Exception cleanup) when (renderingFailure is not null)
-        {
-            renderingFailure.SourceException.Data["NativeWindowDisposal"] = cleanup;
+            retirement.ReleaseRenderingResources?.Invoke();
+            retirement.RenderingResourcesReleased = true;
         }
 
-        // A failed renderer owner stays retained even if native retirement
-        // succeeded; conversely, native disposal still blocks input/hides when
-        // a renderer failed and its lease must protect the surviving view.
-        renderingFailure?.Throw();
-        return retired;
+        // Legacy providers need not implement Cocoa's native view-lease guard.
+        // Keep every native surface alive until its renderer cleanup succeeds.
+        return _tryDispose(retirement.Window);
     }
 
     private void VerifyAccess()

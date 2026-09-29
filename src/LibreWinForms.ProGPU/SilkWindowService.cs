@@ -900,6 +900,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         // cleanup operation or a user callback fails.
         Release(() => _service.Unregister(this));
         Release(() => _dispatcher.Unregister(this));
+        // Hide without destroying a surface that failed GPU cleanup may still own.
+        Release(() => _window.IsVisible = false);
         Release(() => _characterInput?.Dispose());
         Release(() => _input?.Dispose());
         foreach (DrawingVisual visual in _paintLayers.Values)

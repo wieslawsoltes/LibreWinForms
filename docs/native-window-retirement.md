@@ -12,8 +12,10 @@ provider attempt. The queue retains both the exact `IWindow` and the source owne
 render-resource cleanup callback. Compositor/context cleanup remains ordered; a
 successfully released resource is cleared, and successful rendering cleanup is not
 repeated while native completion is pending. A failed renderer owner remains
-reachable for retry. Native disposal is still attempted after rendering failure
-to block input/hide safely, with live view leases remaining authoritative.
+reachable for retry. Source teardown first attempts to hide the window without
+destroying its surface. Native destruction starts only after renderer cleanup
+succeeds, including for legacy providers without Cocoa's native view-lease guard.
+Renderer failure therefore retains both the renderer owner and its native surface.
 
 The queue deduplicates by reference identity. Each drain attempts each original
 entry once; reentrant requests cannot recurse into disposal, and newly queued

@@ -5,7 +5,9 @@ window teardown. Retain exact window identity and failed renderer cleanup owners
 until rendering and provider-aware native disposal both complete. Drain after
 callbacks/polling without another poll or recursive disposal; preserve original
 errors and refuse dispatcher shutdown while native ownership remains pending.
-Successful renderer cleanup is not repeated. See docs/native-window-retirement.md;
+Successful renderer cleanup is not repeated. Hide separately; never destroy a
+native surface after failed renderer cleanup, even on providers without native
+view-lease guards. See docs/native-window-retirement.md;
 source retirement integration is not factory, modal-input or desktop admission.
 
 Explicit source PointerLeave retires only exact-window hover, preserving capture

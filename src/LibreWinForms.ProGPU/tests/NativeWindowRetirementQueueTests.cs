@@ -236,7 +236,7 @@ public class NativeWindowRetirementQueueTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void RendererFailureStillRequestsNativeDisposalAndRetainsItsCleanupOwner(bool nativeFinishes)
+    public void RendererFailureProtectsTheNativeSurfaceAndRetainsItsCleanupOwner(bool nativeFinishes)
     {
         bool rendererReady = false;
         int rendererAttempts = 0, nativeAttempts = 0;
@@ -250,32 +250,49 @@ public class NativeWindowRetirementQueueTests
         };
         Action retire = () => queue.Retire(CreateWindow(), releaseRenderer);
         retire.Should().Throw<InvalidOperationException>().Which.Should().BeSameAs(failure);
-        nativeAttempts.Should().Be(1);
+        nativeAttempts.Should().Be(0, "native providers need not have a view-lease guard");
         rendererAttempts.Should().Be(1);
         queue.HasPending.Should().BeTrue("both renderer and native ownership must complete");
-        rendererReady = nativeFinishes = true;
+        rendererReady = true;
         queue.Drain();
         rendererAttempts.Should().Be(2);
-        nativeAttempts.Should().Be(2);
+        nativeAttempts.Should().Be(1);
+        queue.HasPending.Should().Be(!nativeFinishes);
+        int expectedNativeAttempts = nativeFinishes ? 1 : 2;
+        nativeFinishes = true;
+        queue.Drain();
+        rendererAttempts.Should().Be(2);
+        nativeAttempts.Should().Be(expectedNativeAttempts);
         queue.HasPending.Should().BeFalse();
     }
 
     [Fact]
-    public void RendererFailureRemainsPrimaryWhenNativeDisposalAlsoThrows()
+    public void NativeFailureIsOnlyObservedAfterRendererRetirementCompletes()
     {
-        bool ready = false;
+        bool rendererReady = false, nativeReady = false;
+        int nativeAttempts = 0;
         InvalidOperationException rendererFailure = new("renderer"), nativeFailure = new("native");
-        NativeWindowRetirementQueue queue = new(_ => ready ? true : throw nativeFailure);
+        NativeWindowRetirementQueue queue = new(_ =>
+        {
+            nativeAttempts++;
+            return nativeReady ? true : throw nativeFailure;
+        });
         Action retire = () => queue.Retire(CreateWindow(), () =>
         {
-            if (!ready)
+            if (!rendererReady)
                 throw rendererFailure;
         });
         retire.Should().Throw<InvalidOperationException>().Which.Should().BeSameAs(rendererFailure);
-        rendererFailure.Data["NativeWindowDisposal"].Should().BeSameAs(nativeFailure);
+        nativeAttempts.Should().Be(0);
         queue.HasPending.Should().BeTrue();
-        ready = true;
+        rendererReady = true;
+        Action drain = queue.Drain;
+        drain.Should().Throw<InvalidOperationException>().Which.Should().BeSameAs(nativeFailure);
+        nativeAttempts.Should().Be(1);
+        queue.HasPending.Should().BeTrue();
+        nativeReady = true;
         queue.Drain();
+        nativeAttempts.Should().Be(2);
         queue.HasPending.Should().BeFalse();
     }
 
