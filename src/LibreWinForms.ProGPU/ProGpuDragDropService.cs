@@ -254,23 +254,25 @@ public sealed class ProGpuDragDropService : ILibreDragDropService
 
     private void Drop(ILibreDragDropSession session, LibrePoint screenPosition, int keyState)
     {
+        // Application callbacks may pump input. Retire this operation before
+        // dispatching Drop so reentrant release/Escape cannot finish it again.
+        _complete = true;
         if (!_target.IsNull)
         {
             _result = session.Drop(_target, keyState, screenPosition, _effect);
         }
-
-        _complete = true;
     }
 
     private void Cancel()
     {
+        // Leave has the same reentrancy boundary as Drop, including when the
+        // callback throws. DoDragDrop still owns registration cleanup.
+        _result = LibreDragDropEffects.None;
+        _complete = true;
         if (!_target.IsNull)
         {
             _session!.Leave(_target);
         }
-
-        _result = LibreDragDropEffects.None;
-        _complete = true;
     }
 
     private bool IsEnabledTarget(LibreHandle target)

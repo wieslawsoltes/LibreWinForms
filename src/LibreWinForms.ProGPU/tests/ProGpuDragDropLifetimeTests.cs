@@ -140,6 +140,53 @@ public sealed class ProGpuDragDropLifetimeTests
         Assert.Equal(2, input.EndCount);
     }
 
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, false, false)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public void TerminalCallbacksCannotFinishTheSameDragAgain(bool drop, bool escape, bool callbackThrows)
+    {
+        using ProGpuDispatcher dispatcher = new();
+        var input = new InputSource { Initial = Released with { KeyState = drop ? 0 : 1 } };
+        if (!drop)
+            input.OnBegin = sink => dispatcher.Post(() => Assert.True(sink.Input(Escape)));
+        var service = Create(dispatcher, input);
+        var failure = new InvalidOperationException("terminal callback");
+        int callbackCount = 0;
+        void OnTerminal()
+        {
+            callbackCount++;
+            // Bound an unfixed implementation's recursion so failure reports
+            // an assertion instead of exhausting the test process stack.
+            Assert.Equal(1, callbackCount);
+            Assert.NotNull(input.Active);
+            Assert.False(input.Active.Input(escape ? Escape : Released));
+            if (callbackThrows) throw failure;
+        }
+
+        var session = new Session { OnDrop = drop ? OnTerminal : null, OnLeave = drop ? null : OnTerminal };
+        if (callbackThrows)
+            Assert.Same(failure, Assert.Throws<InvalidOperationException>(() => service.DoDragDrop(Request, session)));
+        else
+            Assert.Equal(drop ? LibreDragDropEffects.Copy : LibreDragDropEffects.None, service.DoDragDrop(Request, session));
+        Assert.Equal(1, callbackCount);
+        Assert.Equal(drop ? 1 : 0, session.DropCount);
+        Assert.Equal(drop ? 0 : 1, session.LeaveCount);
+        Assert.Equal(drop ? 1 : 2, session.QueryCount);
+        Assert.Equal(1, input.EndCount);
+        Assert.False(input.Sinks[0].Input(Released));
+
+        input.OnBegin = null;
+        input.Initial = Released;
+        Assert.Equal(LibreDragDropEffects.Copy, service.DoDragDrop(Request, new Session()));
+        Assert.Equal(2, input.EndCount);
+    }
+
     private static ProGpuDragDropService Create(ProGpuDispatcher dispatcher, InputSource input)
     {
         var service = new ProGpuDragDropService(dispatcher, input);
@@ -183,13 +230,16 @@ public sealed class ProGpuDragDropLifetimeTests
         internal Func<int, LibreDragAction>? Query { get; set; }
         internal int QueryCount { get; set; }
         internal int DropCount { get; set; }
+        internal int LeaveCount { get; set; }
+        internal Action? OnDrop { get; set; }
+        internal Action? OnLeave { get; set; }
         public LibreHandle HitTest(LibrePoint position) => Target;
         public LibreDragTransition Enter(LibreHandle target, int keys, LibrePoint position, LibreDragDropEffects effect)
             => new(target, LibreDragDropEffects.Copy);
         public LibreDragDropEffects Over(LibreHandle target, int keys, LibrePoint position, LibreDragDropEffects effect) => effect;
-        public void Leave(LibreHandle target) { }
+        public void Leave(LibreHandle target) { LeaveCount++; OnLeave?.Invoke(); }
         public LibreDragDropEffects Drop(LibreHandle target, int keys, LibrePoint position, LibreDragDropEffects effect)
-        { DropCount++; return effect; }
+        { DropCount++; OnDrop?.Invoke(); return effect; }
         public LibreDragAction QueryContinue(int keys, bool escape)
         { QueryCount++; return Query?.Invoke(QueryCount) ?? (escape ? LibreDragAction.Cancel : LibreDragAction.Continue); }
         public bool GiveFeedback(LibreDragDropEffects effect) => true;
