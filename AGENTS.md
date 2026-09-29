@@ -14,7 +14,10 @@ Native popup preparation, Show admission and nonactivating visibility delegate
 the actual IWindow to ProGPU's shared typed provider APIs. Preserve the source
 renderer-before-show callback and rejected-setup disposal. Never reinterpret an
 owned Cocoa panel as GLFW or replace rejected typed admission with handle setup.
-Factory selection and native input/scroll/platform qualification remain separate.
+Input transparency also uses the shared actual-provider API, never an opaque
+GLFW pointer. Preserve independent enabled/transparency policy and dispose on
+rejected configuration. Factory selection and native input/scroll/platform
+qualification remain separate.
 
 Explicit source PointerLeave retires only exact-window hover, preserving capture
 and held buttons; PointerCancel retires capture/press/hover without keyboard focus

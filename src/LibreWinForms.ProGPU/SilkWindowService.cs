@@ -1669,35 +1669,14 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         }
     }
 
-    private unsafe void ApplyInputTransparency()
+    private void ApplyInputTransparency()
     {
         if (!_inputTransparent)
         {
             return;
         }
 
-        try
-        {
-            // GLFW 3.4 exposes mouse pass-through as a window attribute, but
-            // Silk.NET's generated enum predates the public constant.
-            const int glfwMousePassthrough = 0x0002000D;
-            Silk.NET.GLFW.Glfw glfw = Silk.NET.GLFW.GlfwProvider.GLFW.Value;
-            glfw.SetWindowAttrib(
-                (Silk.NET.GLFW.WindowHandle*)_window.Handle,
-                (Silk.NET.GLFW.WindowAttributeSetter)glfwMousePassthrough,
-                true);
-        }
-        catch (Exception exception) when (
-            exception is DllNotFoundException
-            or EntryPointNotFoundException
-            or BadImageFormatException
-            or Silk.NET.GLFW.GlfwException
-            or TypeInitializationException)
-        {
-            throw new PlatformNotSupportedException(
-                "The active Silk.NET windowing backend does not provide input-transparent popup windows.",
-                exception);
-        }
+        NativeWindowInput.SetInputTransparent(_window, true);
     }
 
     private unsafe void OnRender(double delta)

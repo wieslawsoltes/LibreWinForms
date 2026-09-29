@@ -34,6 +34,14 @@ rejected for a popup. Win32 front ordering reuses the existing same-rank
 explicitly unsupported on Win32. Ordinary Form ownership, activation and
 ordering paths are unchanged.
 
+Input-transparent source windows call `NativeWindowInput.SetInputTransparent`
+with the actual `IWindow`. The shared provider confirms GLFW pass-through using
+`Native.Glfw`, or preserves independent transparency/enabled intent for an owned
+Cocoa panel. An opaque panel handle is never cast to GLFW. Native rejection follows
+the existing constructor cleanup path. This does not enable the owned factory or
+change character/precision-scroll policy; desktop click routing remains a separate
+application check.
+
 ## Platform boundaries
 
 - Win32 admission uses the original same-thread top-level owner checks, hidden
