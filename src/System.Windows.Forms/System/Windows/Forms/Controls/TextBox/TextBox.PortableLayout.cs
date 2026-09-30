@@ -312,6 +312,7 @@ public partial class TextBox
             _portableTextPointerPress = default;
             return true;
         }
+
         if (!_portablePointerSelecting || !Capture || (e.Button & MouseButtons.Left) == 0) return true;
         return ApplyPortablePointerCaret(e, context, extend: true, out _);
     }
@@ -400,6 +401,7 @@ public partial class TextBox
             _portablePointerSelecting = false;
             _portableTextPointerPress = default;
         }
+
         base.OnMouseCaptureChanged(e);
     }
 }
