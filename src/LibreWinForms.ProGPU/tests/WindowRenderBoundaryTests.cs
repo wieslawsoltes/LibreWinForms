@@ -154,6 +154,7 @@ public sealed class WindowRenderBoundaryTests
                 frame.Complete();
                 frameCompleted = true;
             }
+
             Assert.False(cleanupCalled);
         });
         Assert.True(cleanupCalled);

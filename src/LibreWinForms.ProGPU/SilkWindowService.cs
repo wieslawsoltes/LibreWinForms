@@ -1592,12 +1592,10 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
             throw new InvalidOperationException("Dispose the source window after failed renderer cleanup before creating another renderer.");
 
         _initializingRenderer = true;
-        WgpuContext? context = null;
-        Compositor? compositor = null;
         Exception? initializationFailure = null;
         try
         {
-            context = new WgpuContext();
+            WgpuContext context = new();
             _unpublishedContext = context;
             // Native ownership and render-device ownership are distinct. Only
             // borrow an actual live same-service, same-dispatcher Silk owner;
@@ -1620,7 +1618,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
                 context.Initialize(_window);
             }
 
-            compositor = new Compositor(context, context.SwapChainFormat,
+            Compositor compositor = new(context, context.SwapChainFormat,
                 CompositorOptions.Default with { EnableGpuHitTesting = false, PrimarySampleCount = 1 });
             _unpublishedCompositor = compositor;
             VerifyAccess();
