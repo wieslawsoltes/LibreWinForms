@@ -1,8 +1,9 @@
 # Plain TextBox word selection
 
-Acceptance action: double-click a word in the actual plain TextBox editor used
-by the Forms example, then extend and reverse the selection while holding the
-second press. The source editor must retain whole-word selection and notify
+Acceptance application: the existing `WinFormsControlsTest.TextBoxes` form,
+starting with its `textBox` and `multilineTextBox` controls. Double-click a word,
+then extend and reverse the selection while holding the second press. The source
+editor must retain whole-word selection and notify
 derived/public mouse handlers after its default processing. ToolStripTextBox and
 the editable ComboBox reuse that same plain editor; this does not specify
 MaskedTextBox or RichTextBox behavior.
