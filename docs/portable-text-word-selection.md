@@ -68,12 +68,46 @@ The observations distinguish these contracts:
 - Password double presses and the recorded drags retain the entire source
   selection, without exposing that source to the portable shaping provider.
 
-The remaining Unicode boundary policy requires a bounded comparison with
-stock logical break attributes and distinguishing whitespace/symbol/wrapped-word
-cases. Those attributes are independent observations, not an assertion that EDIT
-uses a particular Uniscribe algorithm. The existing caret and retained-row APIs
-cover the observed coordinate contract; no extra public cluster-hit API is
-justified by this reference.
+The expanded reference passed Windows job `109799419524` of Build `36688369362`
+on head `e7cf4da37ee5dee73df1d0311f6a067eeb911873` (integration checkout
+`f8259147a0118b0b864a6476e2f30ee686ccbbcd`). Receipt SHA-256 is
+`6a91435fbf228b11af930a6ffe6660ea7f80e91c8f7369bab128eb92a3b2baca`.
+It records 18 cases, 294 requests, 286 observed gestures and 2,288 selection
+states; eight coordinate requests are unavailable. Every observed default
+word-break callback address is zero, so there is no borrowed callable default
+implementation. The independent Uniscribe flags are observations, not a claim
+that EDIT uses that specific API internally.
+
+For all 286 double presses and 1,144 recorded moves, the following boundary-based
+policy matches the receipt. Source endpoints, native stop flags, whitespace run
+seams and CR-start boundaries form the observed boundary set. A double press
+uses the preceding strict boundary, except a hit at an actual row-start may use
+that boundary. Hit zero skips leading native-flagged whitespace. During dragging,
+retain the original hit and both original selection endpoints: movement logically
+left uses the inclusive preceding boundary with the original end; movement right
+uses the original start with the inclusive following boundary. Returning to the
+original hit restores the original selection. Do not use the most recent ordered
+selection as a new anchor.
+
+These observations also constrain the remaining boundary implementation:
+
+- Soft-break and word-stop flags coincide in this receipt; it cannot distinguish
+  those primitives. Raw flags miss some bidi whitespace/run seams and CR edges.
+- Narrow NBSP `U+202F` breaks here, while NBSP `U+00A0` stays joined. Substituting
+  a default Unicode line-break implementation without a compatibility contract
+  would change the observed behavior.
+- Isolated LF stays attached to preceding text; CR separates it. The two isolated
+  break cases remain one native row. Do not infer visual rows from CR/LF scans.
+- A long word selects across three soft-wrapped rows. Visual rows do not clamp
+  word ranges.
+- CRCRLF interior selections were not observed: apparent interior requests mapped
+  elsewhere or were unavailable. Do not turn them into invented native expected
+  ranges.
+
+The existing caret and retained-row APIs cover the observed coordinate contract;
+no extra public cluster-hit API is justified. The reusable boundary calculation
+is still an implementation prerequisite; this finite receipt is not arbitrary
+Unicode or physical-input qualification.
 
 ## Password source selection
 
