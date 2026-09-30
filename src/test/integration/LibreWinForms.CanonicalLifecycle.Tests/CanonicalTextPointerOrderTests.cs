@@ -235,13 +235,18 @@ public partial class CanonicalLifecycleTests
             editor.ReadOnly = true;
             editor.Select(5, 0);
             int edits = 0;
+            int notifications = 0;
             editor.TextChanged += (_, _) => edits++;
             editor.BeforeMouseDown = _ =>
             {
+                notifications++;
                 Assert.Equal(2, editor.SelectionStart);
                 Assert.Equal(3, editor.SelectionLength);
             };
             editor.Press(point, LibreInputModifiers.Shift);
+            Assert.Equal(1, notifications);
+            Assert.Equal(2, editor.SelectionStart);
+            Assert.Equal(3, editor.SelectionLength);
             Assert.Equal("wide text", editor.Text);
             Assert.Equal(0, edits);
         });
