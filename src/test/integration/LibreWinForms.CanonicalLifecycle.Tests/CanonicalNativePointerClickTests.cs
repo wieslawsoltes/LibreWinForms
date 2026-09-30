@@ -62,8 +62,8 @@ public partial class CanonicalLifecycleTests
         input.Click(control, 1);
         input.Click(control, 2);
 
-        Assert.Equal(new[] { "down:1", "down:2" }, events.Where(value => value.StartsWith("down:")));
-        Assert.DoesNotContain(events, value => value.StartsWith("double:") || value.StartsWith("mouse-double:"));
+        Assert.Equal(new[] { "down:1", "down:2" }, events.Where(value => value.StartsWith("down:", StringComparison.Ordinal)));
+        Assert.DoesNotContain(events, value => value.StartsWith("double:", StringComparison.Ordinal) || value.StartsWith("mouse-double:", StringComparison.Ordinal));
         Assert.Equal(standardClick ? 2 : 0, events.Count(value => value == "click:1"));
         Assert.Equal(2, events.Count(value => value == "up:1"));
     }
@@ -90,7 +90,7 @@ public partial class CanonicalLifecycleTests
         input.Click(second, 9);
 
         Assert.Equal(new[] { "down:1", "down:2", "down:1", "down:2", "down:1", "down:1", "down:2" },
-            events.Where(value => value.StartsWith("down:")));
+            events.Where(value => value.StartsWith("down:", StringComparison.Ordinal)));
         Assert.Equal(3, events.Count(value => value == "mouse-double:2"));
     }
 
@@ -140,7 +140,7 @@ public partial class CanonicalLifecycleTests
         input.Click(control, 3);
 
         Assert.Equal(cancel ? 0 : 1, events.Count(value => value == "mouse-double:2"));
-        Assert.Equal(new[] { "down:1", "down:2", "down:1" }, events.Where(value => value.StartsWith("down:")));
+        Assert.Equal(new[] { "down:1", "down:2", "down:1" }, events.Where(value => value.StartsWith("down:", StringComparison.Ordinal)));
         Assert.False(control.Capture);
         Assert.Equal(MouseButtons.None, Control.MouseButtons);
     }
@@ -161,7 +161,7 @@ public partial class CanonicalLifecycleTests
         Assert.NotEqual(oldHandle, control.Handle);
         input.Click(control, 2);
 
-        Assert.Equal(new[] { "down:1", "down:1" }, events.Where(value => value.StartsWith("down:")));
+        Assert.Equal(new[] { "down:1", "down:1" }, events.Where(value => value.StartsWith("down:", StringComparison.Ordinal)));
         Assert.DoesNotContain("mouse-double:2", events);
     }
 
@@ -182,7 +182,7 @@ public partial class CanonicalLifecycleTests
         control.Click -= fail;
         input.Click(control, 2);
 
-        Assert.Equal(new[] { "down:1", "down:1" }, events.Where(value => value.StartsWith("down:")));
+        Assert.Equal(new[] { "down:1", "down:1" }, events.Where(value => value.StartsWith("down:", StringComparison.Ordinal)));
         Assert.DoesNotContain("mouse-double:2", events);
         Assert.False(control.Capture);
     }
@@ -214,7 +214,7 @@ public partial class CanonicalLifecycleTests
         input.Button(control, down: false, count: 3);
         input.Click(control, 4);
 
-        Assert.Equal(new[] { "down:1", "down:2", "down:1", "down:2" }, events.Where(value => value.StartsWith("down:")));
+        Assert.Equal(new[] { "down:1", "down:2", "down:1", "down:2" }, events.Where(value => value.StartsWith("down:", StringComparison.Ordinal)));
         Assert.Single(events, value => value == "mouse-double:2");
         Assert.False(control.Capture);
     }
@@ -282,7 +282,7 @@ public partial class CanonicalLifecycleTests
         editor.DoubleClick -= fail;
         input.Click(editor, 3);
 
-        Assert.Equal(new[] { "down:1", "down:2", "down:1" }, events.Where(value => value.StartsWith("down:")));
+        Assert.Equal(new[] { "down:1", "down:2", "down:1" }, events.Where(value => value.StartsWith("down:", StringComparison.Ordinal)));
         Assert.Equal(2, events.Count(value => value == "click:1"));
         Assert.Single(events, value => value == "double:1"); // TextBox forwards its canonical MouseUp args.
         Assert.Equal(failDoubleClick ? 0 : 1, events.Count(value => value == "mouse-double:1"));
@@ -312,7 +312,7 @@ public partial class CanonicalLifecycleTests
 
         Assert.Equal(2, events.Count(value => value == "click:1"));
         Assert.Equal(2, events.Count(value => value == "mouse-click:1"));
-        Assert.DoesNotContain(events, value => value.StartsWith("double:") || value.StartsWith("mouse-double:"));
+        Assert.DoesNotContain(events, value => value.StartsWith("double:", StringComparison.Ordinal) || value.StartsWith("mouse-double:", StringComparison.Ordinal));
         Assert.Equal(MouseButtons.None, Control.MouseButtons);
         Assert.False(item.TextBox.Capture);
     }
