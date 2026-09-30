@@ -1557,26 +1557,57 @@ public abstract partial class TextBoxBase : Control
     /// </summary>
     protected override void OnMouseUp(MouseEventArgs mevent)
     {
+#if LIBREWINFORMS_PORTABLE
+        if (_portableMouseUpIsCurrent?.Invoke() == false)
+            return;
+#endif
         if (mevent is not null && mevent.Button == MouseButtons.Left)
         {
-            if (!ValidationCancelled && IsMousePointerDirectlyOver(mevent.Location))
+            if (!ValidationCancelled && IsMousePointerDirectlyOver(mevent.Location)
+#if LIBREWINFORMS_PORTABLE
+                && (!_portableMouseUpDoubleClick.HasValue || _portableMouseUpClickEligible)
+#endif
+                )
             {
-                if (!_doubleClickFired)
+#if LIBREWINFORMS_PORTABLE
+                bool doubleClickFired = _portableMouseUpDoubleClick ?? _doubleClickFired;
+#else
+                bool doubleClickFired = _doubleClickFired;
+#endif
+                if (!doubleClickFired)
                 {
                     OnClick(mevent);
+#if LIBREWINFORMS_PORTABLE
+                    if (_portableMouseUpIsCurrent?.Invoke() == false)
+                        return;
+#endif
                     OnMouseClick(mevent);
                 }
                 else
                 {
+#if LIBREWINFORMS_PORTABLE
+                    if (!_portableMouseUpDoubleClick.HasValue)
+#endif
                     _doubleClickFired = false;
                     OnDoubleClick(mevent);
+#if LIBREWINFORMS_PORTABLE
+                    if (_portableMouseUpIsCurrent?.Invoke() == false)
+                        return;
+#endif
                     OnMouseDoubleClick(mevent);
                 }
             }
 
+#if LIBREWINFORMS_PORTABLE
+            if (!_portableMouseUpDoubleClick.HasValue)
+#endif
             _doubleClickFired = false;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        if (_portableMouseUpIsCurrent?.Invoke() == false)
+            return;
+#endif
         // Because the code has been like that since long time, we assume that mevent is not null.
         base.OnMouseUp(mevent!);
     }

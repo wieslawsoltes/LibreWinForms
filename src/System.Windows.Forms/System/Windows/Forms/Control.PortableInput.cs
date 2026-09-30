@@ -38,6 +38,8 @@ public unsafe partial class Control
     private Control? _portableCapturedControl;
     private Control? _portablePressedControl;
     private MouseButtons _portablePressedButton;
+    private PortableNativeClick? _portableNativePress;
+    private PortableNativeClick? _portableCompletedNativeClick;
     private uint _portablePointerPressVersion;
     private uint _portablePointerInputVersion;
     private uint _portablePointerCaptureVersion;
@@ -185,6 +187,8 @@ public unsafe partial class Control
         root._portableCapturedControl = null;
         root._portablePressedControl = null;
         root._portablePressedButton = MouseButtons.None;
+        root._portableNativePress = null;
+        root._portableCompletedNativeClick = null;
         if (s_portableButtonOwners is { } owners)
         {
             for (int index = 0; index < owners.Length; index++)
@@ -526,6 +530,17 @@ public unsafe partial class Control
         if (!IsCurrentPortablePointerInput(inputVersion, receivingHandle))
             return;
 
+        PortableNativeClick? previousClick = null;
+        if (inputEvent.Kind == LibreInputEventKind.PointerDown)
+        {
+            // A new press claims the history before hover/focus callbacks can
+            // pump a replacement press. Native counts belong to the whole view,
+            // so only this exact logical target can continue its completed pair.
+            previousClick = _portableCompletedNativeClick;
+            _portableCompletedNativeClick = null;
+            _portableNativePress = null;
+        }
+
         // Physical release remains authoritative even when a hover callback
         // retires its recipient before source MouseUp can be delivered.
         if (inputEvent.Kind == LibreInputEventKind.PointerUp)
@@ -629,10 +644,39 @@ public unsafe partial class Control
                 _portablePressedControl = target;
                 _portablePressedButton = button;
                 _portablePointerPressVersion++;
-                target.OnMouseDown(new MouseEventArgs(button, 1, location.X, location.Y, 0));
+                int clicks = 1;
+                if (IsNativePointerButton(inputEvent, LibreNativePointerKind.Down, out var nativeDown))
+                {
+                    if (nativeDown.ClickCount > 0 && previousClick is { Clicks: 1, NativeCount: > 0 and < int.MaxValue }
+                        && nativeDown.ClickCount == previousClick.NativeCount + 1
+                        && previousClick.Matches(this, target, button))
+                        clicks = 2;
+                    _portableNativePress = new(this, target, button, nativeDown.ClickCount, clicks);
+                }
+
+                PortableNativeClick? nativePress = _portableNativePress;
+                uint pressVersion = _portablePointerPressVersion;
+                try
+                {
+                    target.OnMouseDown(new MouseEventArgs(button, clicks, location.X, location.Y, 0));
+                    // The native WndProc samples this style after MouseDown,
+                    // not at the later release. A callback may change it, but
+                    // cannot classify a newer reentrant press on this one's behalf.
+                    if (nativePress is not null && _portablePointerPressVersion == pressVersion
+                        && ReferenceEquals(_portableNativePress, nativePress)
+                        && nativePress.Matches(this, target, button))
+                        nativePress.StandardDoubleClickEnabled = target.GetStyle(ControlStyles.StandardDoubleClick);
+                }
+                catch
+                {
+                    if (_portablePointerPressVersion == pressVersion && ReferenceEquals(_portableNativePress, nativePress))
+                        _portableNativePress = null;
+                    throw;
+                }
+
                 break;
             case LibreInputEventKind.PointerUp:
-                DispatchPortableMouseUp(target, hit, button, location);
+                DispatchPortableMouseUp(target, hit, button, location, inputEvent);
                 break;
             case LibreInputEventKind.PointerWheel:
                 DispatchPortableMouseWheel(target, s_portableMousePosition, inputEvent.Delta.Y);
@@ -640,7 +684,8 @@ public unsafe partial class Control
         }
     }
 
-    private void DispatchPortableMouseUp(Control target, Control? hit, MouseButtons button, Point location)
+    private void DispatchPortableMouseUp(Control target, Control? hit, MouseButtons button, Point location,
+        in LibreInputEvent inputEvent)
     {
         LibreHandle receivingHandle = _window.PortableHandle;
         nint targetHandle = target.Handle;
@@ -648,6 +693,13 @@ public unsafe partial class Control
         Control? captured = _portableCapturedControl;
         uint captureVersion = _portablePointerCaptureVersion;
         Exception? callbackError = null;
+        PortableNativeClick? nativePress = _portableNativePress;
+        _portableNativePress = null;
+        _portableCompletedNativeClick = null;
+        bool nativeUp = IsNativePointerButton(inputEvent, LibreNativePointerKind.Up, out _);
+        bool nativeRelease = nativeUp && nativePress is not null && nativePress.Matches(this, target, button);
+        bool? nativeDoubleClick = nativeUp ? nativeRelease && nativePress!.Clicks == 2 : null;
+        bool completedNativeClick = false;
 
         bool IsCurrentRelease() => _portablePointerPressVersion == pressVersion
             && !IsDisposed && !Disposing && IsHandleCreated && _window.PortableHandle == receivingHandle
@@ -669,22 +721,41 @@ public unsafe partial class Control
             if (!IsCurrentRelease())
                 return;
 
-            bool fireClick = target == _portablePressedControl
+            bool eligibleClick = target == _portablePressedControl
                 && button == _portablePressedButton
                 && hit == target
-                && target.GetStyle(ControlStyles.StandardClick)
                 && !target.ValidationCancelled;
+            bool nativeClickEligible = nativeRelease && eligibleClick && target.PortableClientRectangle.Contains(location);
+            bool fireClick = (nativeUp ? nativeClickEligible : eligibleClick) && target.GetStyle(ControlStyles.StandardClick);
             if (fireClick)
             {
-                MouseEventArgs clickEvent = new(button, 1, location.X, location.Y, 0);
-                target.OnClick(clickEvent);
-                if (!IsCurrentRelease())
-                    return;
-                target.OnMouseClick(clickEvent);
+                if (nativeDoubleClick == true && nativePress!.StandardDoubleClickEnabled)
+                {
+                    MouseEventArgs clickEvent = new(button, 2, location.X, location.Y, 0);
+                    target.OnDoubleClick(clickEvent);
+                    if (!IsCurrentRelease())
+                        return;
+                    target.OnMouseDoubleClick(clickEvent);
+                }
+                else
+                {
+                    MouseEventArgs clickEvent = new(button, 1, location.X, location.Y, 0);
+                    target.OnClick(clickEvent);
+                    if (!IsCurrentRelease())
+                        return;
+                    target.OnMouseClick(clickEvent);
+                }
             }
 
             if (IsCurrentRelease())
-                target.OnMouseUp(new MouseEventArgs(button, 1, location.X, location.Y, 0));
+            {
+                // Up retains the original canonical count of one. TextBoxBase
+                // owns its own click notifications inside this virtual dispatch.
+                target.InvokePortableMouseUp(new MouseEventArgs(button, 1, location.X, location.Y, 0),
+                    nativeDoubleClick, nativeClickEligible, nativeUp ? IsCurrentRelease : null);
+                completedNativeClick = nativeClickEligible && nativePress!.NativeCount > 0
+                    && !target.ValidationCancelled;
+            }
         }
         catch (Exception error)
         {
@@ -701,6 +772,7 @@ public unsafe partial class Control
                     target.SetState(States.ValidationCancelled, false);
                 _portablePressedControl = null;
                 _portablePressedButton = MouseButtons.None;
+                _portableNativePress = null;
                 if (_portablePointerCaptureVersion == captureVersion && ReferenceEquals(_portableCapturedControl, captured))
                 {
                     _portableCapturedControl = null;
@@ -718,6 +790,51 @@ public unsafe partial class Control
                 }
             }
         }
+
+        // Publication follows all callbacks and cleanup. A nested press, failed
+        // release, retired source or replacement target cannot seed a later pair.
+        if (completedNativeClick && IsCurrentRelease() && nativePress!.Matches(this, target, button)
+            && IsCurrentPortablePointerTarget(target, target._window.PortableHandle))
+            _portableCompletedNativeClick = nativePress;
+    }
+
+    internal virtual void InvokePortableMouseUp(MouseEventArgs e, bool? nativeDoubleClick,
+        bool nativeClickEligible, Func<bool>? isCurrentRelease)
+        => OnMouseUp(e);
+
+    private static bool IsNativePointerButton(in LibreInputEvent input, LibreNativePointerKind kind,
+        out LibreNativePointerMetadata native)
+    {
+        native = input.NativePointer.GetValueOrDefault();
+        return input.NativePointer.HasValue && native.Kind == kind && native.ClickCount >= 0
+            && input.Button is >= LibrePointerButton.Primary and <= LibrePointerButton.XButton2
+            && native.Button == (int)input.Button - 1;
+    }
+
+    private sealed class PortableNativeClick
+    {
+        private readonly WeakReference<Control> _target;
+        private readonly LibreHandle _sourceHandle;
+        private readonly LibreHandle _targetHandle;
+        private readonly MouseButtons _button;
+
+        internal int NativeCount { get; }
+        internal int Clicks { get; }
+        internal bool StandardDoubleClickEnabled { get; set; }
+
+        internal PortableNativeClick(Control source, Control target, MouseButtons button, int nativeCount, int clicks)
+        {
+            _target = new(target);
+            _sourceHandle = source._window.PortableHandle;
+            _targetHandle = target._window.PortableHandle;
+            _button = button;
+            NativeCount = nativeCount;
+            Clicks = clicks;
+        }
+
+        internal bool Matches(Control source, Control target, MouseButtons button)
+            => _sourceHandle == source._window.PortableHandle && _targetHandle == target._window.PortableHandle
+                && _button == button && _target.TryGetTarget(out Control? previous) && ReferenceEquals(previous, target);
     }
 
     private static void DispatchPortableMouseWheel(Control target, Point screenPosition, int delta)

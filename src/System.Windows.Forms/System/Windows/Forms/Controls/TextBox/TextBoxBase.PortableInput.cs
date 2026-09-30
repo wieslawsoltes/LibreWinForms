@@ -6,6 +6,32 @@ namespace System.Windows.Forms;
 
 public abstract partial class TextBoxBase
 {
+    private bool? _portableMouseUpDoubleClick;
+    private bool _portableMouseUpClickEligible;
+    private Func<bool>? _portableMouseUpIsCurrent;
+
+    internal override void InvokePortableMouseUp(MouseEventArgs e, bool? nativeDoubleClick,
+        bool nativeClickEligible, Func<bool>? isCurrentRelease)
+    {
+        bool? previousDoubleClick = _portableMouseUpDoubleClick;
+        bool previousClickEligible = _portableMouseUpClickEligible;
+        Func<bool>? previousIsCurrent = _portableMouseUpIsCurrent;
+        _portableMouseUpDoubleClick = nativeDoubleClick;
+        _portableMouseUpClickEligible = nativeClickEligible;
+        // A nested ordinary release must not borrow the outer native scope.
+        _portableMouseUpIsCurrent = nativeDoubleClick.HasValue ? isCurrentRelease : null;
+        try
+        {
+            OnMouseUp(e);
+        }
+        finally
+        {
+            _portableMouseUpDoubleClick = previousDoubleClick;
+            _portableMouseUpClickEligible = previousClickEligible;
+            _portableMouseUpIsCurrent = previousIsCurrent;
+        }
+    }
+
     // Rich controls require their document's own retained viewport capability.
     private protected virtual void ScrollPortableTextCaretIntoView()
         => throw new PlatformNotSupportedException("This text control does not provide retained caret scrolling.");

@@ -1,5 +1,14 @@
 # Agent Guidance
 
+Native click pairs belong to exact source/target handles and the owned button
+press, not just the provider's native view. Advance a pair only from consecutive
+positive native counts and an eligible completed release; retain raw metadata,
+canonical style/event order and MouseUp count one. Scope TextBox's native release
+classification through its existing virtual handler, without leaking its native
+double-click flag or completing an obsolete callback tail. Cancellation cannot
+invent editor clicks. Keep ordinary Silk, wheel and factory policy unchanged.
+See docs/native-pointer-clicks.md; source events do not qualify desktop behavior.
+
 Provider-native pointer input owns one actual context subscription, never its
 parallel Silk projection. Preserve native double coordinates/time and flags beside
 canonical integer points/shortcut modifiers; reject unsupported scroll and button
