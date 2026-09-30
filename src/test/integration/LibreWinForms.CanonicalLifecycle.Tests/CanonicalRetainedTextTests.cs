@@ -387,6 +387,7 @@ public partial class CanonicalLifecycleTests
     {
         private readonly ProGpuTextRendererService _renderer = new();
         internal List<RetainedLayoutProbe> Layouts { get; } = [];
+        internal Action? AfterCreateLayout { get; set; }
         internal string? LastText { get; private set; }
         internal GraphicsUnit LastFontUnit { get; private set; }
         internal float LastFontSize { get; private set; }
@@ -398,6 +399,7 @@ public partial class CanonicalLifecycleTests
             LastFontSize = font.Size;
             var layout = new RetainedLayoutProbe(_renderer.CreateLayout(graphics, text, font, size, format));
             Layouts.Add(layout);
+            AfterCreateLayout?.Invoke();
             return layout;
         }
 
@@ -410,6 +412,7 @@ public partial class CanonicalLifecycleTests
     private sealed class RetainedLayoutProbe(ILibreTextLayout layout) : ILibreTextLayout, ILibreTextRowNavigation, ILibreTextSourceGeometry
     {
         internal Action? AfterHitTest { get; set; }
+        internal Action? AfterDispose { get; set; }
         internal bool Disposed { get; private set; }
         internal PointF LastOrigin { get; private set; }
         internal List<Color> Colors { get; } = [];
@@ -445,6 +448,7 @@ public partial class CanonicalLifecycleTests
             Disposed.Should().BeFalse("each captured generation is retired exactly once");
             Disposed = true;
             layout.Dispose();
+            AfterDispose?.Invoke();
         }
     }
 }

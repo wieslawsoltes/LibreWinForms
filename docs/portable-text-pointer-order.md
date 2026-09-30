@@ -38,17 +38,17 @@ Native Windows source behavior and unrelated controls remain unchanged.
 
 ## Focused coverage
 
-Fourteen fresh-process facts use actual canonical controls, source input dispatch
+Sixteen fresh-process facts use actual canonical controls, source input dispatch
 and the existing ProGPU retained-layout adapter. They cover native and ordinary
 down ordering, drag ordering, derived/public handlers, `UserMouse`, notification-
 only calls, exceptions, Shift/read-only selection, and reentry through actual
-layout and selection callbacks. Provider probes wrap real layout operations;
+layout creation, hit testing, disposal and selection callbacks. Provider probes wrap real layout operations;
 they do not replace hit geometry with fabricated text positions.
 
 Existing retained-editor pointer helpers now send real source input instead of
 invoking protected notifications. Existing assertions and all previous suites
-remain. Hosted CI requires all fourteen focused facts with no skips and the
-existing two-minute bound; the complete canonical minimum rises from 869 to 883.
+remain. Hosted CI requires all sixteen focused facts with no skips and the
+existing two-minute bound; the complete canonical minimum rises from 869 to 885.
 The process-isolation helper still requires exactly one fact per child, with its
 original deadline. No local build, test, native window or VM run is claimed.
 

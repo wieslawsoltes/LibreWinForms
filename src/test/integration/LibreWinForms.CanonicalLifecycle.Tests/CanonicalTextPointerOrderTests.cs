@@ -252,6 +252,62 @@ public partial class CanonicalLifecycleTests
         });
     }
 
+    [Fact]
+    public void PortableTextPointerOrder_LayoutCreationCannotPublishAcrossReplacedText()
+    {
+        if (RunDpiCaseInNewProcess(retainedTextLayout: true)) return;
+        RunRetainedEditor((_, _, editor, probe) =>
+        {
+            Point point = PrepareTextPointerOrder(editor, probe, 2);
+            editor.Text = "new source";
+            int notifications = 0;
+            RetainedLayoutProbe? rejected = null;
+            editor.MouseDown += (_, _) => notifications++;
+            probe.AfterCreateLayout = () =>
+            {
+                probe.AfterCreateLayout = null;
+                rejected = probe.Layouts.Last();
+                editor.Text = "replacement";
+                editor.Select(1, 1);
+            };
+            editor.Press(point);
+            Assert.NotNull(rejected);
+            Assert.True(rejected.Disposed);
+            Assert.Equal(0, notifications);
+            Assert.Equal("replacement", editor.Text);
+            Assert.Equal(1, editor.SelectionStart);
+            Assert.Equal(1, editor.SelectionLength);
+        });
+    }
+
+    [Fact]
+    public void PortableTextPointerOrder_PreviousLayoutDisposalCannotReturnRetiredReplacement()
+    {
+        if (RunDpiCaseInNewProcess(retainedTextLayout: true)) return;
+        RunRetainedEditor((_, _, editor, probe) =>
+        {
+            Point point = PrepareTextPointerOrder(editor, probe, 2);
+            RetainedLayoutProbe previous = probe.Layouts.Last();
+            int notifications = 0;
+            bool disposed = false;
+            editor.MouseDown += (_, _) => notifications++;
+            previous.AfterDispose = () =>
+            {
+                previous.AfterDispose = null;
+                disposed = true;
+                editor.Text = "replacement";
+                editor.Select(1, 1);
+            };
+            editor.Width += 20;
+            editor.Press(point);
+            Assert.True(disposed);
+            Assert.Equal(0, notifications);
+            Assert.Equal("replacement", editor.Text);
+            Assert.Equal(1, editor.SelectionStart);
+            Assert.Equal(1, editor.SelectionLength);
+        });
+    }
+
     private static Point PrepareTextPointerOrder(RetainedEditor editor, RetainedTextRendererProbe probe, int position)
     {
         editor.Text = "wide text";
