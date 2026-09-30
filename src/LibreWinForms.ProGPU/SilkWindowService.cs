@@ -276,6 +276,10 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
     private GlfwCharacterInput? _characterInput;
     private volatile WgpuContext? _wgpuContext;
     private Compositor? _compositor;
+    private WgpuContext? _unpublishedContext;
+    private Compositor? _unpublishedCompositor;
+    private readonly WindowRenderBoundary _renderBoundary;
+    private readonly Action _renderFrame;
     private bool _initializingRenderer;
     private bool _paintQueued;
     private float _lastPaintDpi = 96f;
@@ -312,6 +316,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         _handles = handles;
         _monitors = monitors;
         _events = events;
+        _renderBoundary = new WindowRenderBoundary(DrainRetiredNativeWindow);
+        _renderFrame = RenderFrame;
         _adorners = new ProGpuAdornerStore(_adornerRoot);
         _coordinateMode = options.CoordinateMode;
         _scaleOnDpiChange = options.ScaleOnDpiChange;
@@ -821,19 +827,12 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         Release(() => _nativePointerInput?.Dispose());
         Release(() => _characterInput?.Dispose());
         Release(() => _input?.Dispose());
-        foreach (DrawingVisual visual in _paintLayers.Values)
-            Release(visual.Context.Clear);
-        _paintLayers.Clear();
-        Release(_adorners.Clear);
-        Release(_fallbackPaintVisual.Context.Clear);
-        Release(_transientPaintVisual.Context.Clear);
-        Release(_reversiblePaintVisual.Context.Clear);
-        Release(_paintRoot.ClearChildren);
         Release(_controller.Dispose);
         // Logical source teardown is complete, but the native view can still be
         // leased or inside a callback. The dispatcher retains it until the
         // provider confirms retirement, including after an initial failure.
-        Release(() => _dispatcher.RetireNativeWindow(_window, ReleaseRenderingResources));
+        Release(() => _dispatcher.RetireNativeWindow(_window, ReleaseRenderingResources,
+            CanReleaseRenderingResources));
         Release(() => _handles.Release(Handle));
         Release(RaiseClosed);
         if (firstFailure is not null)
@@ -842,20 +841,41 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
 
     private void ReleaseRenderingResources()
     {
-        Exception? firstFailure = null;
-        try { _compositor?.Dispose(); _compositor = null; }
-        catch (Exception failure) { firstFailure = failure; }
-        try { _wgpuContext?.Dispose(); _wgpuContext = null; }
-        catch (Exception failure)
-        {
-            if (firstFailure is null)
-                firstFailure = failure;
-            else
-                firstFailure.Data["WindowRendererDisposal"] = failure;
-        }
+        // PaintRequested may retire the window while its Graphics/frame still
+        // records into these visuals. Clear only after that scope completes.
+        foreach (DrawingVisual visual in _paintLayers.Values)
+            visual.Context.Clear();
+        _paintLayers.Clear();
+        _adorners.Clear();
+        _fallbackPaintVisual.Context.Clear();
+        _transientPaintVisual.Context.Clear();
+        _reversiblePaintVisual.Context.Clear();
+        _paintRoot.ClearChildren();
 
-        if (firstFailure is not null)
-            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(firstFailure).Throw();
+        ReleaseUnpublishedRenderer();
+        // A failed compositor still owns its device. Retain that exact context
+        // rather than destroying a dependency of failed cleanup.
+        _compositor?.Dispose();
+        _compositor = null;
+        _wgpuContext?.Dispose();
+        _wgpuContext = null;
+    }
+
+    private void ReleaseUnpublishedRenderer()
+    {
+        _unpublishedCompositor?.Dispose();
+        _unpublishedCompositor = null;
+        _unpublishedContext?.Dispose();
+        _unpublishedContext = null;
+    }
+
+    private bool CanReleaseRenderingResources()
+        => !_renderBoundary.IsActive && !_initializingRenderer;
+
+    private void DrainRetiredNativeWindow()
+    {
+        if (_disposed)
+            _dispatcher.DrainNativeWindowRetirements();
     }
 
     internal void RequestPaint(LibreRectangle? dirtyRectangle)
@@ -979,9 +999,11 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
     public void PresentPendingPaint()
     {
         VerifyAccess();
+        if (_renderBoundary.IsActive)
+            return;
         const int maxImmediateAttempts = 3;
         for (int attempt = 0;
-             attempt < maxImmediateAttempts && (_paintQueued || _presentationQueued);
+             !_disposed && attempt < maxImmediateAttempts && (_paintQueued || _presentationQueued);
              attempt++)
         {
             _window.DoRender();
@@ -1259,6 +1281,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         if (_disposed)
             return;
         _window.DoUpdate();
+        if (_disposed)
+            return;
         if ((_paintQueued || _presentationQueued) && Visible)
         {
             _window.DoRender();
@@ -1564,13 +1588,15 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
             return;
         if (_initializingRenderer)
             throw new InvalidOperationException("Window rendering cannot initialize reentrantly.");
+        if (_unpublishedContext is not null || _unpublishedCompositor is not null)
+            throw new InvalidOperationException("Dispose the source window after failed renderer cleanup before creating another renderer.");
 
         _initializingRenderer = true;
-        WgpuContext? context = null;
-        Compositor? compositor = null;
+        Exception? initializationFailure = null;
         try
         {
-            context = new WgpuContext();
+            WgpuContext context = new();
+            _unpublishedContext = context;
             // Native ownership and render-device ownership are distinct. Only
             // borrow an actual live same-service, same-dispatcher Silk owner;
             // external native registrations do not expose a rendering device.
@@ -1592,23 +1618,34 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
                 context.Initialize(_window);
             }
 
-            compositor = new Compositor(context, context.SwapChainFormat,
+            Compositor compositor = new(context, context.SwapChainFormat,
                 CompositorOptions.Default with { EnableGpuHitTesting = false, PrimarySampleCount = 1 });
+            _unpublishedCompositor = compositor;
             VerifyAccess();
             _compositor = compositor;
             _wgpuContext = context;
+            _unpublishedCompositor = null;
+            _unpublishedContext = null;
         }
         catch (Exception failure)
         {
-            try { compositor?.Dispose(); }
-            catch (Exception cleanupFailure) { failure.Data["CompositorCleanup"] = cleanupFailure; }
-            try { context?.Dispose(); }
-            catch (Exception cleanupFailure) { failure.Data["ContextCleanup"] = cleanupFailure; }
+            initializationFailure = failure;
+            // Failed cleanup remains source-owned for Dispose/dispatcher retry;
+            // do not discard an unpublished device or its native surface lease.
+            try { ReleaseUnpublishedRenderer(); }
+            catch (Exception) { /* Exact unpublished owners remain available for disposal retry. */ }
             throw;
         }
         finally
         {
             _initializingRenderer = false;
+            // Explicit pre-owner Graphics/Show initialization may run outside
+            // rendering. Its rejected source/native callbacks must unwind too.
+            try { DrainRetiredNativeWindow(); }
+            catch (Exception) when (initializationFailure is not null)
+            {
+                // Keep initialization primary; the queue retains failed owners.
+            }
         }
     }
 
@@ -1622,10 +1659,17 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         NativeWindowInput.SetInputTransparent(_window, true);
     }
 
-    private unsafe void OnRender(double delta)
+    private void OnRender(double delta)
     {
         _ = delta;
-        if (!_paintQueued && !_presentationQueued)
+        if (_disposed)
+            return;
+        _renderBoundary.Run(_renderFrame);
+    }
+
+    private void RenderFrame()
+    {
+        if (_disposed || (!_paintQueued && !_presentationQueued))
         {
             return;
         }
@@ -1659,24 +1703,38 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
                     surfaceBounds,
                     dirty,
                     targetDpi);
+                Exception? paintFailure = null;
                 try
                 {
                     _events.PaintRequested(frame);
                 }
+                catch (Exception failure) { paintFailure = failure; throw; }
                 finally
                 {
-                    frame.Complete();
+                    try { frame.Complete(); }
+                    catch (Exception) when (paintFailure is not null)
+                    {
+                        // Preserve the application's paint failure. Source
+                        // resource cleanup still runs at the outer boundary.
+                    }
                 }
 
+                if (!OwnsRenderResources(context, compositor))
+                    return;
                 _lastPaintDpi = targetDpi;
             }
         }
 
+        if (!OwnsRenderResources(context, compositor))
+            return;
         _paintRoot.Size = new Vector2(surfaceBounds.Width, surfaceBounds.Height);
         _adornerRoot.Size = new Vector2(surfaceBounds.Width, surfaceBounds.Height);
         _paintRoot.Invalidate();
         PresentFrame(context, compositor, surfaceBounds);
     }
+
+    private bool OwnsRenderResources(WgpuContext context, Compositor compositor)
+        => !_disposed && ReferenceEquals(_wgpuContext, context) && ReferenceEquals(_compositor, compositor);
 
     private unsafe void PresentFrame(
         WgpuContext context,
@@ -1755,7 +1813,14 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
 
     private void OnClosing()
     {
-        if (!_events.Closing())
+        if (_disposed)
+            return;
+        bool accepted = _events.Closing();
+        // Source closing callbacks can dispose synchronously even when they
+        // return cancellation. Never touch the retired provider in that case.
+        if (_disposed)
+            return;
+        if (!accepted)
         {
             _window.IsClosing = false;
             return;

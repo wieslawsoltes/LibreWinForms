@@ -312,7 +312,79 @@ public class NativeWindowRetirementQueueTests
         nativeCalls.Should().Be(3);
     }
 
-    private static IWindow CreateWindow(Action? dispose = null)
+    [Fact]
+    public void ActiveSourceFrameBlocksRenderingCleanupAndNativeDisposal()
+    {
+        bool active = true;
+        int renderingCalls = 0, nativeCalls = 0;
+        NativeWindowRetirementQueue queue = new(_ => { nativeCalls++; return true; });
+        queue.Retire(CreateWindow(), () => renderingCalls++, () => !active);
+        queue.Drain(); // A nested dispatcher pump is not a render-scope unwind.
+        queue.HasPending.Should().BeTrue();
+        renderingCalls.Should().Be(0);
+        nativeCalls.Should().Be(0);
+        active = false;
+        queue.Drain();
+        renderingCalls.Should().Be(1);
+        nativeCalls.Should().Be(1);
+        queue.HasPending.Should().BeFalse();
+    }
+
+    [Fact]
+    public void DuplicateRetirementCannotReplaceItsOriginalFrameGuardOrCleanupOwner()
+    {
+        bool active = true;
+        int originalCleanup = 0, replacementCleanup = 0, nativeCalls = 0;
+        IWindow window = CreateWindow();
+        NativeWindowRetirementQueue queue = new(_ => { nativeCalls++; return true; });
+        queue.Retire(window, () => originalCleanup++, () => !active);
+        queue.Retire(window, () => replacementCleanup++);
+        nativeCalls.Should().Be(0);
+        active = false;
+        queue.Drain();
+        originalCleanup.Should().Be(1);
+        replacementCleanup.Should().Be(0);
+        nativeCalls.Should().Be(1);
+    }
+
+    [Fact]
+    public void PendingFrameDoesNotPreventAnIndependentWindowFromRetiring()
+    {
+        bool active = true;
+        IWindow first = CreateWindow(), second = CreateWindow();
+        List<IWindow> disposed = [];
+        NativeWindowRetirementQueue queue = new(window => { disposed.Add(window); return true; });
+        queue.Retire(first, canReleaseRenderingResources: () => !active);
+        queue.Retire(second);
+        disposed.Should().Equal(second);
+        queue.HasPending.Should().BeTrue();
+        active = false;
+        queue.Drain();
+        disposed.Should().Equal(second, first);
+        queue.HasPending.Should().BeFalse();
+    }
+
+    [Fact]
+    public void ThrowingFrameGuardRetainsExactOwnerBeforeAnyCleanupOrNativeAttempt()
+    {
+        InvalidOperationException expected = new("source guard");
+        bool ready = false;
+        int cleanup = 0, native = 0;
+        NativeWindowRetirementQueue queue = new(_ => { native++; return true; });
+        Action retire = () => queue.Retire(CreateWindow(), () => cleanup++,
+            () => ready ? true : throw expected);
+        retire.Should().Throw<InvalidOperationException>().Which.Should().BeSameAs(expected);
+        cleanup.Should().Be(0);
+        native.Should().Be(0);
+        queue.HasPending.Should().BeTrue();
+        ready = true;
+        queue.Drain();
+        cleanup.Should().Be(1);
+        native.Should().Be(1);
+        queue.HasPending.Should().BeFalse();
+    }
+
+    internal static IWindow CreateWindow(Action? dispose = null)
     {
         IWindow window = DispatchProxy.Create<IWindow, WindowIdentity>();
         ((WindowIdentity)(object)window).DisposeWindow = dispose;
