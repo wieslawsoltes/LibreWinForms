@@ -24,6 +24,8 @@ public partial class TextBox
     private uint _portableLayoutVersion;
     private uint _portableTextFocusVersion;
     private PortablePointerDispatchContext _portableTextPointerPress;
+    private PortableTextPointerState? _portablePasswordPointerSelection;
+    private uint _portablePasswordPointerLayoutVersion;
     private bool _portableCaretVisible = true;
     private Timer? _portableCaretTimer;
     private RectangleF _portableCaretBounds;
@@ -95,8 +97,7 @@ public partial class TextBox
 
     private void DisposePortableTextInteraction()
     {
-        _portablePointerSelecting = false;
-        _portableTextPointerPress = default;
+        RetirePortablePointerSelection();
         ReleasePortableTextLayout();
         _portableCaretTimer?.Dispose();
         _portableCaretTimer = null;
@@ -294,9 +295,27 @@ public partial class TextBox
         if (!context.IsCurrent) return false;
         if (!Focused && !Focus()) return context.IsCurrent;
         if (!context.IsCurrent) return false;
-        if (!ApplyPortablePointerCaret(e, context, extend: (ModifierKeys & Keys.Shift) != 0,
-            out bool selected)) return false;
-        if (!selected) return true;
+        _portablePasswordPointerSelection = null;
+        if (e.Clicks == 2 && PasswordProtect)
+        {
+            // EDIT selects the whole password, not a word in either the source
+            // or its display mask. No hit test or source shaping is needed.
+            PortableTextPointerState state = new(this);
+            uint layoutVersion = _portableLayoutVersion;
+            SelectAll();
+            if (layoutVersion != _portableLayoutVersion
+                || !state.IsCurrent(this, unchecked(state.SelectionVersion + 1), checkScroll: false)
+                || !context.IsCurrent) return false;
+            _portablePasswordPointerSelection = state;
+            _portablePasswordPointerLayoutVersion = layoutVersion;
+        }
+        else
+        {
+            if (!ApplyPortablePointerCaret(e, context, extend: (ModifierKeys & Keys.Shift) != 0,
+                out bool selected)) return false;
+            if (!selected) return true;
+        }
+
         // Control already captured this exact press. Do not reacquire capture
         // after a selection callback has released/replaced it.
         _portableTextPointerPress = context;
@@ -308,12 +327,24 @@ public partial class TextBox
     {
         if (_portablePointerSelecting && !_portableTextPointerPress.IsCurrentPress)
         {
-            _portablePointerSelecting = false;
-            _portableTextPointerPress = default;
+            RetirePortablePointerSelection();
             return true;
         }
 
         if (!_portablePointerSelecting || !Capture || (e.Button & MouseButtons.Left) == 0) return true;
+        if (_portablePasswordPointerSelection is { } selection)
+        {
+            // Moves retain the committed range without selecting again. A
+            // handler's replacement selection (even the same range), text or
+            // layout retires this mode instead of being overwritten on drag.
+            bool currentSelection = _portablePasswordPointerLayoutVersion == _portableLayoutVersion
+                && selection.IsCurrent(this, unchecked(selection.SelectionVersion + 1), checkScroll: false);
+            if (!context.IsCurrent) return false;
+            if (!currentSelection)
+                RetirePortablePointerSelection();
+            return true;
+        }
+
         return ApplyPortablePointerCaret(e, context, extend: true, out _);
     }
 
@@ -322,9 +353,15 @@ public partial class TextBox
     {
         // Release the old drag lease before public up/click callbacks can start
         // another press. Control's normal release need not raise CaptureChanged.
+        RetirePortablePointerSelection();
+        base.InvokePortableMouseUp(e, nativeDoubleClick, nativeClickEligible, isCurrentRelease);
+    }
+
+    private void RetirePortablePointerSelection()
+    {
         _portablePointerSelecting = false;
         _portableTextPointerPress = default;
-        base.InvokePortableMouseUp(e, nativeDoubleClick, nativeClickEligible, isCurrentRelease);
+        _portablePasswordPointerSelection = null;
     }
 
     private bool ApplyPortablePointerCaret(MouseEventArgs e, in PortablePointerDispatchContext context,
@@ -398,8 +435,7 @@ public partial class TextBox
     {
         if (!Capture)
         {
-            _portablePointerSelecting = false;
-            _portableTextPointerPress = default;
+            RetirePortablePointerSelection();
         }
 
         base.OnMouseCaptureChanged(e);

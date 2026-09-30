@@ -8,13 +8,13 @@ derived/public mouse handlers after its default processing. ToolStripTextBox and
 the editable ComboBox reuse that same plain editor; this does not specify
 MaskedTextBox or RichTextBox behavior.
 
-## Current source gap
+## Remaining unmasked source gap
 
 The native input adapter already carries completed click pairs to
 `ProcessPortableMouseDownDefault` as `MouseEventArgs.Clicks == 2`. That method
-still calls the ordinary caret hit path, and its captured move path extends by
-character. Correct native click notifications and their ordering therefore do
-not yet implement word selection.
+still calls the ordinary caret hit path for unmasked text, and that captured
+move path extends by character. Correct native click notifications and their
+ordering therefore do not yet implement general word selection.
 
 The existing retained layout owns original UTF-16 hit/caret/selection geometry.
 Its row and grapheme capabilities do not define a clicked word. The source's
@@ -75,9 +75,26 @@ uses a particular Uniscribe algorithm. The existing caret and retained-row APIs
 cover the observed coordinate contract; no extra public cluster-hit API is
 justified by this reference.
 
-The implementation PR stays draft until the actual source behavior and focused
-regressions accompany this reference. A successful reference process alone is
-not a product fix. Ordinary Silk double-click classification, wheel policy,
+## Password source selection
+
+An admitted password double press uses canonical `SelectAll` once, before the
+derived/public mouse notifications. It does not hit-test, create another layout,
+or send password source to a text provider. Held moves retain that range without
+reselecting. The lease belongs to the original press, text, focus, selection and
+layout generation; a callback replacement retires it even if capture remains.
+Release, lost capture and control disposal also retire the lease. Ordinary
+single-click caret placement and character dragging remain unchanged.
+
+`CanonicalTextWordSelectionTests` adds 13 focused source cases through the actual
+provider input adapter: both mask modes, read-only selection, drag reversal,
+callback overrides and exceptions, cancellation, capture/handle replacement,
+selection reentry and the next ordinary press. These are authored regressions;
+their execution belongs to required CI, not a local desktop validation run.
+
+This is the confirmed password special case, not the unresolved unmasked word
+classifier. The implementation PR stays draft until general source word behavior
+and its focused regressions accompany the reference. A successful reference
+process alone is not a product fix. Ordinary Silk double-click classification, wheel policy,
 native factory admission, IME and full platform/UI qualification remain separate.
 
 ## Native documentation boundary
