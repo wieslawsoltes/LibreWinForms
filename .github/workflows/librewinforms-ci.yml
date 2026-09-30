@@ -244,6 +244,9 @@ jobs:
       - name: Validate bounded analyzer mode scheduling
         run: python3 eng/test-librewinforms-analyzer-scheduling.py
 
+      - name: Validate Drawing trace integration contracts
+        run: python3 eng/tests/test_drawing_trace_gate.py
+
       - name: Install Linux display and software WebGPU adapter
         shell: bash
         run: |
@@ -265,11 +268,22 @@ jobs:
 
       - name: Validate canonical source and local ProGPU graph
         shell: bash
+        env:
+          LIBREWINFORMS_DRAWING_TRACE: "1"
         run: ./eng/librewinforms-source-first.sh
 
       - name: Pack and consume canonical source-first package
         shell: bash
         run: xvfb-run -a ./eng/librewinforms-pack-source-first.sh
+
+      - name: Retain Drawing test and allocation diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-system-drawing-quality
+          path: artifacts/system-drawing-quality/**
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Retain application isolation package evidence
         if: always()

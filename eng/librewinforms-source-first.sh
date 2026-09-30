@@ -223,9 +223,21 @@ echo "Verifying ProGPU System.Drawing API debt and focused quality gates."
 (
   cd "${progpu_root}"
   ./eng/progpu-verify-system-drawing-api.sh
-  dotnet test src/System.Drawing.Common.Tests/System.Drawing.Common.Tests.csproj \
-    --configuration "${configuration}" \
-    --nologo
+  if [[ "${LIBREWINFORMS_DRAWING_TRACE:-0}" == "1" && "${configuration}" == "Release" ]]; then
+    # The pinned wrapper runs the full unfiltered Release suite exactly once.
+    # Additional method metadata is diagnostic admission, not an allocation sample.
+    python3 eng/progpu-test-system-drawing.py \
+      --output "${repo_root}/artifacts/system-drawing-quality" \
+      --require-method System.Drawing.Common.Tests.MetafileParserTests \
+      WarmedEnumerationDoesNotAllocatePerRecordPayloads
+  else
+    if [[ "${LIBREWINFORMS_DRAWING_TRACE:-0}" == "1" ]]; then
+      echo "Drawing trace disabled: the pinned collector supports Release; preserving ${configuration} tests."
+    fi
+    dotnet test src/System.Drawing.Common.Tests/System.Drawing.Common.Tests.csproj \
+      --configuration "${configuration}" \
+      --nologo
+  fi
 )
 
 echo "Verifying the retired Portable comparison vectors remain canonically owned."
