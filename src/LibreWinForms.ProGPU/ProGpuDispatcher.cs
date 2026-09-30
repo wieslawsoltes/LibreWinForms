@@ -198,10 +198,17 @@ public sealed class ProGpuDispatcher : ILibreDispatcher, ILibreThreadDispatcherP
 
     internal void Wake() => _wake.Set();
 
-    internal void RetireNativeWindow(IWindow window, Action? releaseRenderingResources = null)
+    internal void RetireNativeWindow(IWindow window, Action? releaseRenderingResources = null,
+        Func<bool>? canReleaseRenderingResources = null)
     {
         VerifyAccess();
-        _nativeRetirements.Retire(window, releaseRenderingResources);
+        _nativeRetirements.Retire(window, releaseRenderingResources, canReleaseRenderingResources);
+    }
+
+    internal void DrainNativeWindowRetirements()
+    {
+        VerifyAccess();
+        _nativeRetirements.Drain();
     }
 
     public void PumpOnce()

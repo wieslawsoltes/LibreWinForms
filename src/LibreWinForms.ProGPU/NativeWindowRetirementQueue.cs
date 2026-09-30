@@ -17,14 +17,15 @@ internal sealed class NativeWindowRetirementQueue(Func<IWindow, bool>? tryDispos
 
     internal bool HasPending => _pendingCount != 0;
 
-    internal void Retire(IWindow window, Action? releaseRenderingResources = null)
+    internal void Retire(IWindow window, Action? releaseRenderingResources = null,
+        Func<bool>? canReleaseRenderingResources = null)
     {
         VerifyAccess();
         ArgumentNullException.ThrowIfNull(window);
         if (!_pending.Any(candidate => ReferenceEquals(candidate.Window, window)))
         {
             // Acquire ownership before invoking a reentrant or throwing provider.
-            _pending.Add(new Retirement(window, releaseRenderingResources));
+            _pending.Add(new Retirement(window, releaseRenderingResources, canReleaseRenderingResources));
             _pendingCount = _pending.Count;
         }
 
@@ -75,6 +76,12 @@ internal sealed class NativeWindowRetirementQueue(Func<IWindow, bool>? tryDispos
 
     private bool TryComplete(Retirement retirement)
     {
+        // A nested source pump may reach this queue while painting, acquired
+        // textures or renderer initialization still own the exact resources.
+        // Pending is not failure, and cannot admit either cleanup or destruction.
+        if (retirement.CanReleaseRenderingResources is { } canRelease && !canRelease())
+            return false;
+
         if (!retirement.RenderingResourcesReleased)
         {
             retirement.ReleaseRenderingResources?.Invoke();
@@ -92,10 +99,12 @@ internal sealed class NativeWindowRetirementQueue(Func<IWindow, bool>? tryDispos
             throw new InvalidOperationException("Native window retirement belongs to the source dispatcher thread.");
     }
 
-    private sealed class Retirement(IWindow window, Action? releaseRenderingResources)
+    private sealed class Retirement(IWindow window, Action? releaseRenderingResources,
+        Func<bool>? canReleaseRenderingResources)
     {
         internal IWindow Window { get; } = window;
         internal Action? ReleaseRenderingResources { get; } = releaseRenderingResources;
+        internal Func<bool>? CanReleaseRenderingResources { get; } = canReleaseRenderingResources;
         internal bool RenderingResourcesReleased { get; set; }
     }
 }
