@@ -1,5 +1,15 @@
 # Agent Guidance
 
+Provider-native pointer input owns one actual context subscription, never its
+parallel Silk projection. Preserve native double coordinates/time and flags beside
+canonical integer points/shortcut modifiers; reject unsupported scroll and button
+identities before delivery. Recheck source/context and per-packet generation after
+character callbacks, while cancellation commits the old drag before those callbacks.
+New live generations remain admissible. Retire the subscription before input disposal;
+only an actual keyboardless native popup may omit GLFW character ownership. Keep
+factory selection and legacy wheel policy unchanged. See docs/native-pointer-source-input.md;
+source adapter tests are not native popup/desktop qualification.
+
 Native pointer drag cancellation binds the actual source-window object, handle
 generation and registration lease before callbacks. Commit terminal state before
 source/character retirement can pump input, then notify only the captured old
