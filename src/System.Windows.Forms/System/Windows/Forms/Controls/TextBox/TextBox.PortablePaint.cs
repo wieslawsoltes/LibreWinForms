@@ -54,9 +54,12 @@ public partial class TextBox
 
     protected override void OnLostFocus(EventArgs e)
     {
+        _portableTextFocusVersion++;
         _portableCaretTimer?.Stop();
-        if (_portablePointerSelecting && Capture) Capture = false;
+        bool releaseCapture = _portablePointerSelecting && Capture;
         _portablePointerSelecting = false;
+        _portableTextPointerPress = default;
+        if (releaseCapture) Capture = false;
         base.OnLostFocus(e);
         Invalidate();
     }

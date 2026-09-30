@@ -20,12 +20,17 @@ public partial class TextBox
     private PointF _portableTextScroll;
     private bool _portableEnsureCaretVisible = true;
     private bool _portableCaretTrailing, _portableApplyingCaret, _portablePointerSelecting;
+    private uint _portableSelectionVersion;
+    private uint _portableLayoutVersion;
+    private uint _portableTextFocusVersion;
+    private PortablePointerDispatchContext _portableTextPointerPress;
     private bool _portableCaretVisible = true;
     private Timer? _portableCaretTimer;
     private RectangleF _portableCaretBounds;
     private float? _portablePreferredCaretX;
 
-    private ILibreTextLayout? GetPortableTextLayout(Graphics graphics, string text, TextFormatFlags flags)
+    private ILibreTextLayout? GetPortableTextLayout(Graphics graphics, string text, TextFormatFlags flags,
+        PortablePointerDispatchContext? pointerContext = null)
     {
         if (LibrePlatform.Current.TextRenderer is not ILibreTextLayoutService service)
         {
@@ -41,40 +46,60 @@ public partial class TextBox
 
         // The source clip stays fixed while this owned paragraph scrolls. The
         // ordinary non-layout renderer retains its original format contract.
-        ILibreTextLayout next = TextRenderer.CreatePortableTextLayout(service, graphics, text, Font, PortableTextViewport.Size,
+        uint layoutVersion = _portableLayoutVersion;
+        uint selectionVersion = _portableSelectionVersion;
+        Font font = Font;
+        Size size = PortableTextViewport.Size;
+        ILibreTextLayout next = TextRenderer.CreatePortableTextLayout(service, graphics, text, font, size,
             flags | TextFormatFlags.NoClipping);
-        _portableTextLayout?.Dispose();
+        if (pointerContext is { } context && (!context.IsCurrent || layoutVersion != _portableLayoutVersion
+            || selectionVersion != _portableSelectionVersion || !ReferenceEquals(font, Font)
+            || size != PortableTextViewport.Size || text != GetPortableDisplayText(placeholder: false)
+            || flags != GetPortableEditorTextFlags() || !ReferenceEquals(service, LibrePlatform.Current.TextRenderer)))
+        {
+            next.Dispose();
+            return null;
+        }
+
+        ILibreTextLayout? previous = _portableTextLayout;
         _portableTextLayout = next;
+        uint publishedVersion = ++_portableLayoutVersion;
         _portableLayoutService = service;
-        _portableLayoutFont = Font;
+        _portableLayoutFont = font;
         _portableLayoutText = text;
-        _portableLayoutSize = PortableTextViewport.Size;
+        _portableLayoutSize = size;
         _portableLayoutFlags = flags;
         _portableLayoutDpiX = graphics.DpiX;
         _portableLayoutDpiY = graphics.DpiY;
         _portableEnsureCaretVisible = true;
         _portablePreferredCaretX = null;
-        return next;
+        // Publish before releasing the previous provider lease. Reentrant
+        // disposal must not have its replacement generation overwritten.
+        previous?.Dispose();
+        return publishedVersion == _portableLayoutVersion && ReferenceEquals(_portableTextLayout, next) ? next : null;
     }
 
     private void ReleasePortableTextLayout()
     {
-        _portableTextLayout?.Dispose();
+        ILibreTextLayout? previous = _portableTextLayout;
         _portableTextLayout = null;
+        _portableLayoutVersion++;
         _portableLayoutService = null;
         _portableLayoutFont = null;
         _portableLayoutText = null;
         _portablePreferredCaretX = null;
         _portableCaretTimer?.Stop();
         _portableEnsureCaretVisible = true;
+        previous?.Dispose();
     }
 
     private void DisposePortableTextInteraction()
     {
+        _portablePointerSelecting = false;
+        _portableTextPointerPress = default;
         ReleasePortableTextLayout();
         _portableCaretTimer?.Dispose();
         _portableCaretTimer = null;
-        _portablePointerSelecting = false;
     }
 
     private void ResetPortableCaretBlink()
@@ -194,7 +219,7 @@ public partial class TextBox
         }
     }
 
-    private ILibreTextLayout? GetPortableInputLayout()
+    private ILibreTextLayout? GetPortableInputLayout(PortablePointerDispatchContext? pointerContext = null)
     {
         if (IsDisposed || !IsHandleCreated || LibrePlatform.Current.TextRenderer is not ILibreTextLayoutService)
             return null;
@@ -205,7 +230,7 @@ public partial class TextBox
             _portableLayoutFlags == flags && ReferenceEquals(_portableLayoutService, LibrePlatform.Current.TextRenderer))
             return _portableTextLayout;
         using Graphics graphics = CreateGraphicsInternal();
-        return GetPortableTextLayout(graphics, text, flags);
+        return GetPortableTextLayout(graphics, text, flags, pointerContext);
     }
 
     private void ApplyPortableLayoutCaret(int position, bool trailing, bool extend, bool vertical = false)
@@ -263,37 +288,120 @@ public partial class TextBox
         return true;
     }
 
-    private void ProcessPortableTextMouseDown(MouseEventArgs e)
+    internal override bool ProcessPortableMouseDownDefault(MouseEventArgs e, in PortablePointerDispatchContext context)
     {
-        if (e.Button != MouseButtons.Left || IsDisposed || !Enabled || !IsHandleCreated) return;
-        if (!Focused && !Focus()) return;
-        if (IsDisposed || !IsHandleCreated) return;
-        ILibreTextLayout? layout = GetPortableInputLayout();
-        if (layout is null) return;
-        Rectangle viewport = PortableTextViewport;
-        LibreTextHit hit = layout.HitTest(new PointF(e.X - viewport.X + _portableTextScroll.X,
-            e.Y - viewport.Y + _portableTextScroll.Y));
-        ApplyPortableLayoutCaret(hit.TextPosition, hit.IsTrailing, (ModifierKeys & Keys.Shift) != 0);
-        if (IsDisposed || !IsHandleCreated) return;
+        if (e.Button != MouseButtons.Left) return true;
+        if (!context.IsCurrent) return false;
+        if (!Focused && !Focus()) return context.IsCurrent;
+        if (!context.IsCurrent) return false;
+        if (!ApplyPortablePointerCaret(e, context, extend: (ModifierKeys & Keys.Shift) != 0,
+            out bool selected)) return false;
+        if (!selected) return true;
+        // Control already captured this exact press. Do not reacquire capture
+        // after a selection callback has released/replaced it.
+        _portableTextPointerPress = context;
         _portablePointerSelecting = true;
-        Capture = true;
+        return true;
     }
 
-    protected override void OnMouseMove(MouseEventArgs e)
+    internal override bool ProcessPortableMouseMoveDefault(MouseEventArgs e, in PortablePointerDispatchContext context)
     {
-        base.OnMouseMove(e);
-        if (!_portablePointerSelecting || !Capture || IsDisposed || (e.Button & MouseButtons.Left) == 0) return;
-        ILibreTextLayout? layout = GetPortableInputLayout();
-        if (layout is null) return;
-        Rectangle viewport = PortableTextViewport;
-        LibreTextHit hit = layout.HitTest(new PointF(e.X - viewport.X + _portableTextScroll.X,
-            e.Y - viewport.Y + _portableTextScroll.Y));
-        ApplyPortableLayoutCaret(hit.TextPosition, hit.IsTrailing, extend: true);
+        if (_portablePointerSelecting && !_portableTextPointerPress.IsCurrentPress)
+        {
+            _portablePointerSelecting = false;
+            _portableTextPointerPress = default;
+            return true;
+        }
+
+        if (!_portablePointerSelecting || !Capture || (e.Button & MouseButtons.Left) == 0) return true;
+        return ApplyPortablePointerCaret(e, context, extend: true, out _);
+    }
+
+    internal override void InvokePortableMouseUp(MouseEventArgs e, bool? nativeDoubleClick,
+        bool nativeClickEligible, Func<bool>? isCurrentRelease)
+    {
+        // Release the old drag lease before public up/click callbacks can start
+        // another press. Control's normal release need not raise CaptureChanged.
+        _portablePointerSelecting = false;
+        _portableTextPointerPress = default;
+        base.InvokePortableMouseUp(e, nativeDoubleClick, nativeClickEligible, isCurrentRelease);
+    }
+
+    private bool ApplyPortablePointerCaret(MouseEventArgs e, in PortablePointerDispatchContext context,
+        bool extend, out bool selected)
+    {
+        selected = false;
+        PortableTextPointerState state = new(this);
+        ILibreTextLayout? layout = GetPortableInputLayout(context);
+        if (!context.IsCurrent || !state.IsCurrent(this, state.SelectionVersion)) return false;
+        if (layout is null) return LibrePlatform.Current.TextRenderer is not ILibreTextLayoutService;
+        if (!ReferenceEquals(layout, _portableTextLayout)) return false;
+        uint layoutVersion = _portableLayoutVersion;
+        LibreTextHit hit = layout.HitTest(new PointF(e.X - state.Viewport.X + state.Scroll.X,
+            e.Y - state.Viewport.Y + state.Scroll.Y));
+        if (!context.IsCurrent || !ReferenceEquals(layout, _portableTextLayout)
+            || layoutVersion != _portableLayoutVersion || !state.IsCurrent(this, state.SelectionVersion)) return false;
+
+        ApplyPortableLayoutCaret(hit.TextPosition, hit.IsTrailing, extend);
+        // SelectInternal can invoke accessibility and Invalidated callbacks.
+        // Exactly our own selection revision may advance, never a nested one.
+        if (!context.IsCurrent || !ReferenceEquals(layout, _portableTextLayout)
+            || layoutVersion != _portableLayoutVersion
+            || !state.IsCurrent(this, unchecked(state.SelectionVersion + 1), checkScroll: false)) return false;
+        selected = true;
+        return true;
+    }
+
+    private readonly struct PortableTextPointerState
+    {
+        private readonly string _text;
+        private readonly Font _font;
+        private readonly TextFormatFlags _flags;
+        private readonly ILibreTextRendererService _service;
+        private readonly char _passwordChar;
+        private readonly bool _useSystemPasswordChar;
+        private readonly int _deviceDpi;
+        private readonly uint _focusVersion;
+        internal uint SelectionVersion { get; }
+        internal Rectangle Viewport { get; }
+        internal PointF Scroll { get; }
+
+        internal PortableTextPointerState(TextBox owner)
+        {
+            _text = owner.Text;
+            _font = owner.Font;
+            _flags = owner.GetPortableEditorTextFlags();
+            _service = LibrePlatform.Current.TextRenderer;
+            _passwordChar = owner._passwordChar;
+            _useSystemPasswordChar = owner._useSystemPasswordChar;
+            _deviceDpi = owner.DeviceDpiInternal;
+            _focusVersion = owner._portableTextFocusVersion;
+            SelectionVersion = owner._portableSelectionVersion;
+            Viewport = owner.PortableTextViewport;
+            Scroll = owner._portableTextScroll;
+        }
+
+        internal bool IsCurrent(TextBox owner, uint selectionVersion, bool checkScroll = true)
+            => selectionVersion == owner._portableSelectionVersion && owner.Focused
+                && _focusVersion == owner._portableTextFocusVersion
+                && _text == owner.Text && ReferenceEquals(_font, owner.Font)
+                && _flags == owner.GetPortableEditorTextFlags()
+                && ReferenceEquals(_service, LibrePlatform.Current.TextRenderer)
+                && _passwordChar == owner._passwordChar && _useSystemPasswordChar == owner._useSystemPasswordChar
+                && _deviceDpi == owner.DeviceDpiInternal && Viewport == owner.PortableTextViewport
+                // Our own selection invalidation may synchronously paint and
+                // reveal its caret. The hit frame need not survive that commit.
+                && (!checkScroll || Scroll == owner._portableTextScroll);
     }
 
     protected override void OnMouseCaptureChanged(EventArgs e)
     {
-        if (!Capture) _portablePointerSelecting = false;
+        if (!Capture)
+        {
+            _portablePointerSelecting = false;
+            _portableTextPointerPress = default;
+        }
+
         base.OnMouseCaptureChanged(e);
     }
 }

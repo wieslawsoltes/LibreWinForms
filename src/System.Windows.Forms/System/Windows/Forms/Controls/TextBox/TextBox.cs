@@ -613,6 +613,9 @@ public partial class TextBox : TextBoxBase
     /// </summary>
     protected override void OnGotFocus(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        _portableTextFocusVersion++;
+#endif
         base.OnGotFocus(e);
 #if LIBREWINFORMS_PORTABLE
         ResetPortableCaretBlink();
@@ -703,9 +706,6 @@ public partial class TextBox : TextBoxBase
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
-#if LIBREWINFORMS_PORTABLE
-        ProcessPortableTextMouseDown(e);
-#endif
 
         if (IsHandleCreated && IsAccessibilityObjectCreated)
         {
@@ -761,12 +761,21 @@ public partial class TextBox : TextBoxBase
     /// </summary>
     private protected override void SelectInternal(int start, int length, int textLen)
     {
+#if LIBREWINFORMS_PORTABLE
+        uint selectionVersion = ++_portableSelectionVersion;
+        // Consume the layout-caret marker before any accessibility/invalidation
+        // callback can select again. A caller selection owns its own affinity.
+        bool applyingCaret = _portableApplyingCaret;
+        _portableApplyingCaret = false;
+#endif
         // If user set selection into text box, mark it so we don't
         // clobber it when we get focus.
         _selectionSet = true;
         base.SelectInternal(start, length, textLen);
 #if LIBREWINFORMS_PORTABLE
-        if (!_portableApplyingCaret)
+        if (selectionVersion != _portableSelectionVersion || IsDisposed || Disposing)
+            return;
+        if (!applyingCaret)
         {
             _portableCaretTrailing = false;
             _portablePreferredCaretX = null;
