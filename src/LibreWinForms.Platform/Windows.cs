@@ -182,6 +182,17 @@ public sealed class LibreWindowIcon
 /// <summary>Checked conversion between native logical window units and managed coordinates.</summary>
 public static class LibreWindowCoordinates
 {
+    /// <summary>Maps native pointer precision directly to the canonical integer point.</summary>
+    public static LibrePoint ToManagedPoint(double x, double y,
+        LibreWindowCoordinateMode mode, double dpiScale, double framebufferScale)
+    {
+        if (!double.IsFinite(x) || !double.IsFinite(y))
+            throw new ArgumentOutOfRangeException(nameof(x), "Pointer coordinates must be finite.");
+        double scale = ResolveManagedScale(mode, dpiScale, framebufferScale);
+        return new(checked((int)Math.Round(x * scale, MidpointRounding.AwayFromZero)),
+            checked((int)Math.Round(y * scale, MidpointRounding.AwayFromZero)));
+    }
+
     public static LibreRectangle ToManaged(
         LibreRectangle nativeBounds,
         LibreWindowCoordinateMode mode,
