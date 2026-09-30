@@ -323,7 +323,7 @@ public partial class CanonicalLifecycleTests
         platform.BorderSizeValue = new(1, 1);
         var probe = (RetainedTextRendererProbe)platform.Services.TextRenderer;
         using Form owner = new() { ShowIcon = false, AutoScaleMode = AutoScaleMode.None };
-        using RetainedEditor editor = new() { Multiline = true, Bounds = new(8, 8, 240, 80) };
+        using RetainedEditor editor = new(platform, owner) { Multiline = true, Bounds = new(8, 8, 240, 80) };
         owner.Controls.Add(editor);
         owner.Shown += (_, _) => platform.Post(() =>
         {
@@ -339,8 +339,11 @@ public partial class CanonicalLifecycleTests
         probe.Layouts.Should().OnlyContain(layout => layout.Disposed);
     }
 
-    private sealed class RetainedEditor : TextBox
+    private sealed class RetainedEditor(HeadlessPlatform platform, Form owner) : TextBox
     {
+        internal Action<MouseEventArgs>? BeforeMouseDown { get; set; }
+        internal Action<MouseEventArgs>? BeforeMouseMove { get; set; }
+
         internal DrawingContext Record(float dpi = 96)
         {
             DrawingContext context = new();
@@ -350,8 +353,34 @@ public partial class CanonicalLifecycleTests
             return context;
         }
 
-        internal void Press(Point point) => OnMouseDown(new(MouseButtons.Left, 1, point.X, point.Y, 0));
-        internal void Drag(Point point) => OnMouseMove(new(MouseButtons.Left, 0, point.X, point.Y, 0));
+        internal void Press(Point point, LibreInputModifiers modifiers = LibreInputModifiers.None)
+            => SendPointer(LibreInputEventKind.PointerDown, point, modifiers);
+        internal void Drag(Point point) => SendPointer(LibreInputEventKind.PointerMove, point);
+        internal void CancelPointer() => SendPointer(LibreInputEventKind.PointerCancel, Point.Empty);
+        internal void SetUserMouse(bool enabled) => SetStyle(ControlStyles.UserMouse, enabled);
+        internal void RecreateSourceHandle() => RecreateHandle();
+        internal void RaiseDownNotification(Point point) => OnMouseDown(new(MouseButtons.Left, 1, point.X, point.Y, 0));
+        internal void RaiseMoveNotification(Point point) => OnMouseMove(new(MouseButtons.Left, 0, point.X, point.Y, 0));
+
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            BeforeMouseDown?.Invoke(e);
+            base.OnMouseDown(e);
+        }
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            BeforeMouseMove?.Invoke(e);
+            base.OnMouseMove(e);
+        }
+
+        private void SendPointer(LibreInputEventKind kind, Point point,
+            LibreInputModifiers modifiers = LibreInputModifiers.None)
+        {
+            Point position = owner.PointToClient(PointToScreen(point));
+            platform.SendControlInput(owner, new(kind, 1, modifiers, LibreKey.Unknown, null,
+                new(position.X, position.Y), default, LibrePointerButton.Primary));
+        }
     }
 
     private sealed class RetainedTextRendererProbe : ILibreTextRendererService, ILibreTextSourceGeometryService
@@ -380,6 +409,7 @@ public partial class CanonicalLifecycleTests
 
     private sealed class RetainedLayoutProbe(ILibreTextLayout layout) : ILibreTextLayout, ILibreTextRowNavigation, ILibreTextSourceGeometry
     {
+        internal Action? AfterHitTest { get; set; }
         internal bool Disposed { get; private set; }
         internal PointF LastOrigin { get; private set; }
         internal List<Color> Colors { get; } = [];
@@ -395,7 +425,12 @@ public partial class CanonicalLifecycleTests
             => ((ILibreTextRowNavigation)layout).GetRowBoundary(position, trailing, end);
         public LibreTextCaret MoveCaretVertically(int position, bool trailing, int direction, float preferredX)
             => ((ILibreTextRowNavigation)layout).MoveCaretVertically(position, trailing, direction, preferredX);
-        public LibreTextHit HitTest(PointF point) => layout.HitTest(point);
+        public LibreTextHit HitTest(PointF point)
+        {
+            LibreTextHit hit = layout.HitTest(point);
+            AfterHitTest?.Invoke();
+            return hit;
+        }
         public ReadOnlyMemory<RectangleF> GetSelectionRectangles(int start, int length) => layout.GetSelectionRectangles(start, length);
         public void Draw(Graphics graphics, PointF origin, Color color)
         {

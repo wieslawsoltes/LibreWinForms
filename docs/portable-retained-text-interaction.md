@@ -16,8 +16,11 @@ Source paint owns the fixed client clip. Scrolling moves the paragraph and its
 selection/caret together without translating that viewport. Focus, enabled state
 and the platform caret timing control the managed blink timer. Left/right and
 Shift selection use the signed source anchor. Pointer dragging uses actual
-capture and releases its selection ownership when capture is lost. Public mouse
-callbacks run before layout input and disposal is checked again afterwards.
+capture and releases its selection ownership when capture is lost. Editor default
+selection now precedes virtual/public mouse callbacks, matching the source EDIT
+message order; public selection/capture overrides remain authoritative. See
+[pointer default ordering](portable-text-pointer-order.md) for the exact input,
+layout and callback lifetime boundary.
 
 Native Windows source remains unchanged. Providers without the optional
 capability preserve their existing text-painting path; they are not advertised as
