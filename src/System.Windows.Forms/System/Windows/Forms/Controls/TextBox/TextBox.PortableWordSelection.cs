@@ -2,7 +2,6 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 #if LIBREWINFORMS_PORTABLE
-using System.Drawing;
 using LibreWinForms.Platform;
 
 namespace System.Windows.Forms;
