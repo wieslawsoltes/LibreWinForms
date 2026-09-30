@@ -26,12 +26,11 @@ internal sealed class WindowRenderBoundary(Action drainRetirements)
         {
             IsActive = false;
             try { drainRetirements(); }
-            catch (Exception cleanup) when (renderFailure is not null)
+            catch (Exception) when (renderFailure is not null)
             {
                 // The retirement queue keeps failed owners for an explicit
                 // creating-thread retry. Never replace the original frame error
                 // or invoke arbitrary Exception.Data accessors while unwinding.
-                System.Diagnostics.Debug.WriteLine(cleanup);
             }
         }
     }

@@ -1,5 +1,14 @@
 # Agent Guidance
 
+Window paint and presentation retain exact renderer/native ownership until the
+outer source frame unwinds, including retained Graphics completion and acquired
+texture/view release. Nested pumps return pending retirement, never destroy an
+active frame. Recheck captured context/compositor identities after PaintRequested;
+failed compositor cleanup retains its device. Unpublished initialization failures
+remain owned for source disposal retry. Preserve primary frame errors and avoid
+another native poll. See docs/window-render-retirement.md; source boundaries are
+not factory, scroll, modality or native desktop qualification.
+
 Plain TextBox pointer selection is default processing before virtual/public mouse
 notifications, matching EDIT's DefWndProc order. Keep UserMouse authoritative,
 protected notifications side-effect free, and handler selection/capture overrides

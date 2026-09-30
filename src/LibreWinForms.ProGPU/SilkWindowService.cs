@@ -1635,7 +1635,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
             // Failed cleanup remains source-owned for Dispose/dispatcher retry;
             // do not discard an unpublished device or its native surface lease.
             try { ReleaseUnpublishedRenderer(); }
-            catch (Exception cleanupFailure) { System.Diagnostics.Debug.WriteLine(cleanupFailure); }
+            catch (Exception) { /* Exact unpublished owners remain available for disposal retry. */ }
             throw;
         }
         finally
@@ -1644,9 +1644,9 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
             // Explicit pre-owner Graphics/Show initialization may run outside
             // rendering. Its rejected source/native callbacks must unwind too.
             try { DrainRetiredNativeWindow(); }
-            catch (Exception cleanup) when (initializationFailure is not null)
+            catch (Exception) when (initializationFailure is not null)
             {
-                System.Diagnostics.Debug.WriteLine(cleanup);
+                // Keep initialization primary; the queue retains failed owners.
             }
         }
     }
@@ -1714,9 +1714,10 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
                 finally
                 {
                     try { frame.Complete(); }
-                    catch (Exception cleanup) when (paintFailure is not null)
+                    catch (Exception) when (paintFailure is not null)
                     {
-                        System.Diagnostics.Debug.WriteLine(cleanup);
+                        // Preserve the application's paint failure. Source
+                        // resource cleanup still runs at the outer boundary.
                     }
                 }
 
