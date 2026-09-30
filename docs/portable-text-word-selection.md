@@ -118,7 +118,14 @@ CTYPE1 entries describe original UTF-16 units, not Unicode scalars. Supplementar
 letters/music/CJK and emoji variation-selector/ZWJ cases distinguish native run
 handling from a presumed scalar property table. Their selections remain observed
 outputs, not assertions chosen to fit the draft. Existing cases and deadlines
-remain unchanged. This new instrumentation still requires hosted execution.
+remain unchanged. At head `4a7a93872f2a02678941e0075c1c0deb7014b495`, Windows job
+`109814811886` built and executed all 20 cases (326 observed gestures, eight
+unavailable) in 3,878 ms. Its receipt hash is
+`127d4e15d3ca03e778bd4fccc4eb8ddf96007ae6a55d9bbbd13c2399106b4001`.
+The job failed afterward because the CI inventory still listed 18 cases; it is
+not a passing reference or product gate. The updated verifier retains those
+original cases and checks both new cases, loaded module hashes, complete source
+partitions and raw/decoded classification fields.
 
 ## Owned boundary source seam
 

@@ -94,7 +94,7 @@ jobs:
                           'crlf-multiline', 'surrogate-combining', 'bidi-ltr', 'bidi-rtl', 'password',
                           'read-only', 'wrapped-multiline', 'unicode-spaces', 'symbols',
                           'isolated-breaks-single', 'isolated-breaks-multiline', 'crcrlf-multiline',
-                          'wrapped-longword']
+                          'wrapped-longword', 'supplementary-scripts', 'emoji-context']
               if (result.get('schema') != 'native-edit-word-selection-v1' or result.get('completed') is not True
                   or result.get('desktopQualified') is not False or result.get('physicalInputQualified') is not False
                   or result.get('error') is not None or result.get('expectedCases') != len(expected)
@@ -105,6 +105,16 @@ jobs:
                   or identity.get('processId') != phases[-1]['pid']
                   or identity.get('probeSha256') != hashlib.sha256((output / 'NativeTextBoxReference.dll').read_bytes()).hexdigest()):
                   raise RuntimeError('Native EDIT identity is absent or mismatched')
+              modules = identity.get('nativeTextModules', [])
+              module_names = [module['name'].lower() for module in modules]
+              if 'usp10.dll' not in module_names or len(set(module_names)) != len(modules):
+                  raise RuntimeError('Loaded Uniscribe identity is missing or duplicated')
+              for module in modules:
+                  binary = pathlib.Path(module['path'])
+                  if (binary.name.lower() != module['name'].lower() or not binary.is_file()
+                      or not module.get('fileVersion')
+                      or module.get('fileSha256') != hashlib.sha256(binary.read_bytes()).hexdigest()):
+                      raise RuntimeError('Loaded native text module identity is mismatched')
               steps = ['first-down', 'first-up', 'double-down', 'drag-last', 'drag-first-reversal',
                        'drag-anchor-reversal', 'drag-last-again', 'final-up']
               for case in result['cases']:
@@ -125,6 +135,45 @@ jobs:
                           or any(attribute[key] is not bool(raw[index] & mask) for key, mask in
                                  [('softBreak', 1), ('whiteSpace', 2), ('charStop', 4), ('wordStop', 8), ('invalid', 16)])):
                           raise RuntimeError('Mismatched native logical attribute bytes: ' + case['Name'])
+                  classification = analysis['classification']
+                  runs = classification['runs']
+                  if (classification.get('completed') is not True or classification.get('independentOfEdit') is not True
+                      or classification.get('itemByteSize') != 8 or classification.get('itemizeHResult') != 0
+                      or classification.get('propertiesHResult') != 0 or classification.get('control') != 0
+                      or classification.get('initialState') != int(case['RightToLeft'])
+                      or classification.get('itemCapacity') != len(utf16) + 1
+                      or classification.get('terminalPosition') != len(utf16)
+                      or classification.get('itemCount') != len(runs) or not runs
+                      or classification.get('propertyCount', 0) <= 0
+                      or classification.get('characterTypesSucceeded') is not True
+                      or len(classification['ctype1']) != len(utf16)):
+                      raise RuntimeError('Incomplete native script classification: ' + case['Name'])
+                  next_start = 0
+                  for run in runs:
+                      first, second = run['rawPropertiesFirst'], run['rawPropertiesSecond']
+                      if (run['start'] != next_start or not next_start < run['end'] <= len(utf16)
+                          or not 0 <= run['script'] < classification['propertyCount']
+                          or run['script'] != (run['rawAnalysis'] & 0x3ff)
+                          or any(type(run[key]) is not int or not 0 <= run[key] <= limit for key, limit in
+                                 [('rawAnalysis', 0xffff), ('rawState', 0xffff),
+                                  ('rawPropertiesFirst', 0xffffffff), ('rawPropertiesSecond', 0xffffffff)])
+                          or run['languageId'] != (first & 0xffff)
+                          or any(run[key] is not bool(first & mask) for key, mask in
+                                 [('numeric', 1 << 16), ('complex', 1 << 17),
+                                  ('needsWordBreaking', 1 << 18), ('needsCaretInfo', 1 << 19)])
+                          or run['invalidLogAttributes'] is not bool(second & 1)
+                          or run['clusterSizeVaries'] is not bool(second & 8)):
+                          raise RuntimeError('Mismatched native script item: ' + case['Name'])
+                      next_start = run['end']
+                  if next_start != len(utf16):
+                      raise RuntimeError('Truncated native script partition: ' + case['Name'])
+                  for index, attribute in enumerate(classification['ctype1']):
+                      value = attribute['raw']
+                      if (attribute['index'] != index or attribute['utf16'] != utf16[index]
+                          or type(value) is not int or not 0 <= value <= 0xffff
+                          or any(attribute[key] is not bool(value & mask) for key, mask in
+                                 [('space', 8), ('punctuation', 16), ('control', 32), ('blank', 64), ('alphabetic', 256)])):
+                          raise RuntimeError('Mismatched native CTYPE1 attributes: ' + case['Name'])
                   if len(case['gestures']) != len(case['Indices']) * 2:
                       raise RuntimeError('Truncated coordinate inventory: ' + case['Name'])
                   if [(g['requestedIndex'], g['quarter']) for g in case['gestures']] != [(i, q) for i in case['Indices'] for q in (1, 3)]:
