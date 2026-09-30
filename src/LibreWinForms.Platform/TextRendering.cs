@@ -72,11 +72,13 @@ public interface ILibreEditWordBoundaryService : ILibreTextSourceGeometryService
 
 /// <summary>One immutable word-boundary snapshot belonging to the complete owned layout generation.</summary>
 /// <remarks>
+/// <para>
 /// Positions are strictly increasing original UTF-16 offsets, including zero and
 /// the source length (one zero for empty text). LeadingContentStart is the first
 /// content boundary under the same EDIT policy and is a member of Positions.
 /// The borrowed memory remains immutable until its layout is disposed.
 /// These boundaries are not generic Unicode word, wrapping or grapheme breaks.
+/// </para>
 /// </remarks>
 public readonly record struct LibreEditWordBoundaries(ReadOnlyMemory<int> Positions, int LeadingContentStart);
 
