@@ -14,6 +14,7 @@ internal static class WordSelectionReference
 {
     private const uint MouseMove = 0x0200, LeftDown = 0x0201, LeftUp = 0x0202, LeftDouble = 0x0203;
     private const uint GetSelection = 0x00B0, PositionFromCharacter = 0x00D6, CharacterFromPosition = 0x00D7;
+    private const uint GetWordBreakProcedure = 0x00D1, ScriptBreak = 0x40, ScriptRightToLeft = 0x100;
     private const int MaximumCallbacks = 128;
 
     private sealed record Case(string Name, string Text, int[] Indices,
@@ -32,7 +33,13 @@ internal static class WordSelectionReference
         new("bidi-rtl", "abc \u05D0\u05D1\u05D2, \u0639\u0631\u0628\u0649 end ", [0, 2, 4, 6, 7, 9, 12, 14], RightToLeft: true),
         new("password", "alpha, beta\tend ", [0, 4, 5, 6, 7, 10, 11, 13], Password: true),
         new("read-only", "  alpha,beta \ttail ", [0, 2, 6, 7, 8, 11, 12, 14, 16], ReadOnly: true),
-        new("wrapped-multiline", "alpha beta gamma delta end ", [0, 4, 6, 9, 11, 15, 17, 21], Multiline: true, Wrap: true)
+        new("wrapped-multiline", "alpha beta gamma delta end ", [0, 4, 6, 9, 11, 15, 17, 21], Multiline: true, Wrap: true),
+        new("unicode-spaces", "a\u00A0b\u2003c\u202Fd\u3000e ", [0, 1, 2, 3, 4, 5, 6, 7, 8]),
+        new("symbols", "a\u00A9b\u2603c\U0001F600d ", [0, 1, 2, 3, 4, 5, 6, 7]),
+        new("isolated-breaks-single", "ab\rcd\nef ", [1, 2, 3, 4, 5, 6, 7]),
+        new("isolated-breaks-multiline", "ab\rcd\nef ", [1, 2, 3, 4, 5, 6, 7], Multiline: true),
+        new("crcrlf-multiline", "ab\r\r\ncd ", [1, 2, 3, 4, 5, 6], Multiline: true),
+        new("wrapped-longword", "abcdefghijklmnopqrstuvwxyz0123456789 ", [0, 4, 8, 12, 16, 20, 24, 28, 32, 35], Multiline: true, Wrap: true)
     ];
 
     internal static int Run(string path, string dpiMode, string themeFlag)
@@ -78,10 +85,11 @@ internal static class WordSelectionReference
             foreach (Case item in Cases)
             {
                 var gestures = new List<object>();
+                var scriptBreak = new Dictionary<string, object?>();
                 int completedGestures = 0;
                 // Publish the case before work so failures retain completed gestures.
                 results.Add(new { item.Name, requestedText = item.Text, requestedUtf16 = Utf16(item.Text),
-                    item.Multiline, item.Password, item.ReadOnly, item.RightToLeft, item.Wrap, item.Indices, gestures });
+                    item.Multiline, item.Password, item.ReadOnly, item.RightToLeft, item.Wrap, item.Indices, scriptBreak, gestures });
                 foreach (int index in item.Indices)
                 foreach (int quarter in new[] { 1, 3 })
                 {
@@ -103,7 +111,18 @@ internal static class WordSelectionReference
                     nint handle = editor.Handle;
                     RequireOwner(editor, handle);
                     string initialText = editor.Text;
+                    if (scriptBreak.Count == 0)
+                        ObserveScriptBreak(initialText, item.RightToLeft, scriptBreak);
+                    else if (!Equals(scriptBreak["actualText"], initialText))
+                        throw new InvalidOperationException("EDIT text changed between independent case observations.");
+                    // Borrowed diagnostic address only: do not invoke an unknown callback.
+                    nint wordBreakProcedure = SendMessageW(handle, GetWordBreakProcedure, 0, 0);
+                    RequireOwner(editor, handle);
                     var positions = ReadPositions(handle, initialText.Length);
+                    if (item.Name == "wrapped-longword"
+                        && positions.Where(p => p.Index < initialText.Length && p.Point.HasValue)
+                            .Select(p => p.Point!.Value.Y).Distinct().Count() < 2)
+                        throw new InvalidOperationException("The native long word did not span multiple observed rows.");
                     Hit? anchor = ResolveHit(editor, handle, positions, index, quarter);
                     var steps = new List<object>();
                     gestures.Add(new
@@ -112,6 +131,8 @@ internal static class WordSelectionReference
                         editor.DeviceDpi, editor.ClientSize, editor.Multiline, editor.ReadOnly,
                         passwordCharacter = (int)editor.PasswordChar, rightToLeft = editor.RightToLeft.ToString(),
                         font = new { editor.Font.Name, editor.Font.Size, unit = editor.Font.Unit.ToString(), style = editor.Font.Style.ToString() },
+                        wordBreakProcedure = new { message = GetWordBreakProcedure, address = wordBreakProcedure.ToInt64(),
+                            available = wordBreakProcedure != 0, invoked = false },
                         handle = handle.ToInt64(), nativeClass = ClassName(handle), positions, anchor,
                         coordinateUnavailable = anchor is null,
                         unavailableReason = anchor is null ? "No distinct same-row in-client native coordinate span for this UTF-16 request." : null,
@@ -202,6 +223,84 @@ internal static class WordSelectionReference
     }
 
     private static int[] Utf16(string value) => value.Select(c => (int)c).ToArray();
+
+    private static void ObserveScriptBreak(string text, bool rightToLeft, Dictionary<string, object?> result)
+    {
+        // Independent Uniscribe evidence, NOT a claim that EDIT uses these flags.
+        // https://learn.microsoft.com/windows/win32/api/usp10/nf-usp10-scriptstringanalyse
+        // https://learn.microsoft.com/windows/win32/api/usp10/ns-usp10-script_logattr
+        // No clipping/hotkey transformation: each original UTF-16 unit has one
+        // SCRIPT_LOGATTR byte. Never marshal native BYTE bitfields as C# bools.
+        uint flags = ScriptBreak | (rightToLeft ? ScriptRightToLeft : 0);
+        int glyphCapacity = checked((text.Length * 3 + 1) / 2 + 16);
+        result["api"] = "ScriptStringAnalyse/ScriptString_pLogAttr/ScriptStringFree";
+        result["independentOfEdit"] = true;
+        result["actualText"] = text;
+        result["actualUtf16"] = Utf16(text);
+        result["flags"] = flags;
+        result["hdc"] = 0;
+        result["charset"] = -1;
+        result["glyphCapacity"] = glyphCapacity;
+        result["attributeByteSize"] = 1;
+        result["completed"] = false;
+        nint analysis = 0;
+        bool ownsAnalysis = false;
+        Exception? primaryError = null;
+        try
+        {
+            if (text.Length == 0) throw new InvalidOperationException("Break analysis requires nonempty UTF-16 input.");
+            int analyseResult = ScriptStringAnalyse(0, text, text.Length, glyphCapacity, -1, flags, 0,
+                0, 0, 0, 0, 0, out analysis);
+            result["analyseHResult"] = analyseResult;
+            result["analyseHResultHex"] = $"0x{unchecked((uint)analyseResult):X8}";
+            result["analysisAllocated"] = analysis != 0;
+            if (analyseResult != 0 || analysis == 0)
+                throw new InvalidOperationException($"ScriptStringAnalyse failed: 0x{unchecked((uint)analyseResult):X8}.");
+            ownsAnalysis = true;
+            nint attributes = ScriptString_pLogAttr(analysis);
+            result["attributesAvailable"] = attributes != 0;
+            if (attributes == 0) throw new InvalidOperationException("ScriptString_pLogAttr returned null.");
+            byte[] bytes = new byte[text.Length];
+            Marshal.Copy(attributes, bytes, 0, bytes.Length);
+            // The copy, including reserved bits, survives ScriptStringFree.
+            result["rawBytes"] = bytes.Select(b => (int)b).ToArray();
+            result["attributes"] = bytes.Select((value, index) => new
+            {
+                index, utf16 = (int)text[index], raw = (int)value,
+                softBreak = (value & 1) != 0, whiteSpace = (value & 2) != 0,
+                charStop = (value & 4) != 0, wordStop = (value & 8) != 0,
+                invalid = (value & 16) != 0, reserved = value >> 5
+            }).ToArray();
+        }
+        catch (Exception error)
+        {
+            primaryError = error;
+            result["error"] = error.ToString();
+            throw;
+        }
+        finally
+        {
+            // A failed HRESULT does not transfer an analysis object to us.
+            if (ownsAnalysis)
+            {
+                try
+                {
+                    int freeResult = ScriptStringFree(ref analysis);
+                    result["freeHResult"] = freeResult;
+                    result["freeHResultHex"] = $"0x{unchecked((uint)freeResult):X8}";
+                    if (freeResult != 0)
+                        throw new InvalidOperationException($"ScriptStringFree failed: 0x{unchecked((uint)freeResult):X8}.");
+                }
+                catch (Exception error)
+                {
+                    result["freeError"] = error.ToString();
+                    if (primaryError is null) throw;
+                }
+            }
+        }
+        result["completed"] = true;
+    }
+
     private sealed record Position(int Index, long Raw, Point? Point);
     private sealed record Hit(int Index, int Quarter, int FollowingIndex, Point Start, Point Following,
         Point Point, int NativeCharacter, int NativeLine, long RawHit);
@@ -307,4 +406,13 @@ internal static class WordSelectionReference
     [DllImport("user32")] private static extern nint GetCapture();
     [DllImport("user32", SetLastError = true)] private static extern uint GetWindowThreadProcessId(nint hwnd, out uint processId);
     [DllImport("user32", CharSet = CharSet.Unicode, SetLastError = true)] private static extern int GetClassNameW(nint hwnd, [Out] char[] name, int capacity);
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [DllImport("usp10.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
+    private static extern int ScriptStringAnalyse(nint hdc, [MarshalAs(UnmanagedType.LPWStr)] string text,
+        int characterCount, int glyphCapacity, int charset, uint flags, int requiredWidth,
+        nint control, nint state, nint advances, nint tabs, nint inputClasses, out nint analysis);
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [DllImport("usp10.dll", ExactSpelling = true)] private static extern nint ScriptString_pLogAttr(nint analysis);
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [DllImport("usp10.dll", ExactSpelling = true)] private static extern int ScriptStringFree(ref nint analysis);
 }

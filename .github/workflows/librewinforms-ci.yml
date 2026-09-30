@@ -92,7 +92,9 @@ jobs:
               result = json.loads(receipt.read_text(encoding='utf-8'))
               expected = ['spaces', 'punctuation', 'tabs-single', 'tabs-multiline', 'crlf-single',
                           'crlf-multiline', 'surrogate-combining', 'bidi-ltr', 'bidi-rtl', 'password',
-                          'read-only', 'wrapped-multiline']
+                          'read-only', 'wrapped-multiline', 'unicode-spaces', 'symbols',
+                          'isolated-breaks-single', 'isolated-breaks-multiline', 'crcrlf-multiline',
+                          'wrapped-longword']
               if (result.get('schema') != 'native-edit-word-selection-v1' or result.get('completed') is not True
                   or result.get('desktopQualified') is not False or result.get('physicalInputQualified') is not False
                   or result.get('error') is not None or result.get('expectedCases') != len(expected)
@@ -106,11 +108,33 @@ jobs:
               steps = ['first-down', 'first-up', 'double-down', 'drag-last', 'drag-first-reversal',
                        'drag-anchor-reversal', 'drag-last-again', 'final-up']
               for case in result['cases']:
+                  analysis = case['scriptBreak']
+                  raw = analysis['rawBytes']
+                  utf16 = analysis['actualUtf16']
+                  if (analysis.get('completed') is not True or analysis.get('independentOfEdit') is not True
+                      or analysis.get('analyseHResult') != 0 or analysis.get('freeHResult') != 0
+                      or analysis.get('analysisAllocated') is not True or analysis.get('attributesAvailable') is not True
+                      or analysis.get('attributeByteSize') != 1 or analysis.get('hdc') != 0 or analysis.get('charset') != -1
+                      or analysis.get('flags') != (0x40 | (0x100 if case['RightToLeft'] else 0))
+                      or not utf16 or len(raw) != len(utf16) or len(analysis['attributes']) != len(utf16)
+                      or any(type(value) is not int or not 0 <= value <= 255 for value in raw)):
+                      raise RuntimeError('Incomplete native logical attributes: ' + case['Name'])
+                  for index, attribute in enumerate(analysis['attributes']):
+                      if (attribute['index'] != index or attribute['utf16'] != utf16[index] or attribute['raw'] != raw[index]
+                          or attribute['reserved'] != raw[index] >> 5
+                          or any(attribute[key] is not bool(raw[index] & mask) for key, mask in
+                                 [('softBreak', 1), ('whiteSpace', 2), ('charStop', 4), ('wordStop', 8), ('invalid', 16)])):
+                          raise RuntimeError('Mismatched native logical attribute bytes: ' + case['Name'])
                   if len(case['gestures']) != len(case['Indices']) * 2:
                       raise RuntimeError('Truncated coordinate inventory: ' + case['Name'])
                   if [(g['requestedIndex'], g['quarter']) for g in case['gestures']] != [(i, q) for i in case['Indices'] for q in (1, 3)]:
                       raise RuntimeError('Mismatched coordinate requests: ' + case['Name'])
                   for gesture in case['gestures']:
+                      procedure = gesture['wordBreakProcedure']
+                      if (gesture['actualText'] != analysis['actualText'] or gesture['actualUtf16'] != utf16
+                          or procedure.get('message') != 0xD1 or type(procedure.get('address')) is not int
+                          or procedure.get('available') is not (procedure['address'] != 0) or procedure.get('invoked') is not False):
+                          raise RuntimeError('Mismatched EDIT break evidence: ' + case['Name'])
                       if type(gesture['coordinateUnavailable']) is not bool:
                           raise RuntimeError('Malformed coordinate status: ' + case['Name'])
                       if gesture['coordinateUnavailable'] and (gesture['anchor'] is not None or gesture['steps']):
