@@ -12,6 +12,8 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args.Length == 4 && args[3] == "--word-selection")
+            return WordSelectionReference.Run(args[0], args[1], args[2]);
         if (args.Length != 3) throw new ArgumentException("receipt, DPI mode, theme flag required");
         string output = Path.GetFullPath(args[0]);
         if (File.Exists(output)) throw new IOException("Receipt must be new.");
