@@ -434,6 +434,7 @@ public partial class CanonicalLifecycleTests
             AfterHitTest?.Invoke();
             return hit;
         }
+
         public ReadOnlyMemory<RectangleF> GetSelectionRectangles(int start, int length) => layout.GetSelectionRectangles(start, length);
         public void Draw(Graphics graphics, PointF origin, Color color)
         {
