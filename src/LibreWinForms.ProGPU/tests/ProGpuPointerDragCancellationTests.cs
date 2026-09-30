@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using LibreWinForms.Platform;
+using ProGPU.Backend;
 using Xunit;
 
 namespace LibreWinForms.ProGPU.Tests;
@@ -9,6 +10,82 @@ namespace LibreWinForms.ProGPU.Tests;
 [Collection(ProGpuDesktopCaptureCollection.Name)]
 public sealed class ProGpuPointerDragCancellationTests
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void NativeProviderCancellationReachesActualDragRegistration(bool characterThrows, bool cleanupThrows)
+    {
+        using Fixture f = new();
+        using NativePointerTestContext provider = new();
+        ProviderTarget target = new(f) { CharacterThrows = characterThrows, CleanupThrows = cleanupThrows };
+        using NativePointerInput input = new(provider, target);
+        target.Subscription = input;
+        InvalidOperationException leaveFailure = new("old drag target leave");
+        f.Session.Leaving = () =>
+        {
+            Assert.True(target.SourceRetired);
+            if (cleanupThrows) throw leaveFailure;
+        };
+        f.Session.On("feedback", () =>
+        {
+            provider.Emit(NativePointerInputTests.Packet(NativePointerEventKind.Leave));
+            Assert.Equal(0, f.Session.Leaves);
+            provider.Emit(NativePointerInputTests.Packet(NativePointerEventKind.Cancel));
+        });
+        if (characterThrows || cleanupThrows)
+        {
+            Exception actual = Assert.Throws<InvalidOperationException>(() => f.Run());
+            Assert.Same(characterThrows ? target.Failure : target.SourceFailure, actual);
+            if (cleanupThrows) Assert.Same(leaveFailure, actual.Data["PointerCancellationDragLeave"]);
+            if (characterThrows && cleanupThrows)
+                Assert.Same(target.SourceFailure, actual.Data["PointerCancellationSourceRetirement"]);
+        }
+        else
+            Assert.Equal(LibreDragDropEffects.None, f.Run());
+        Assert.True(target.SourceRetired);
+        Assert.Equal(1, f.Session.Leaves);
+        Assert.Equal(0, f.Session.Drops);
+        Assert.Equal(1, f.Session.Queries);
+    }
+
+    private sealed class ProviderTarget(Fixture fixture) : INativePointerTarget
+    {
+        private bool _cancelling;
+        internal NativePointerInput? Subscription { get; set; }
+        internal bool CharacterThrows { get; set; }
+        internal bool CleanupThrows { get; set; }
+        internal bool SourceRetired { get; private set; }
+        internal InvalidOperationException Failure { get; } = new("original characters");
+        internal InvalidOperationException SourceFailure { get; } = new("source retirement");
+        public bool IsCurrent(NativePointerInput subscription) => ReferenceEquals(subscription, Subscription);
+        public LibrePoint MapPoint(double x, double y)
+            => LibreWindowCoordinates.ToManagedPoint(x, y, LibreWindowCoordinateMode.Logical, 1, 1);
+        public ProGpuDragCancellation? PrepareCancellation()
+        {
+            _cancelling = true;
+            return fixture.Router.PreparePointerCancellation(fixture.Window);
+        }
+
+        public void FlushCharacters()
+        {
+            if (!_cancelling) return;
+            Assert.False(fixture.Router.Record(fixture.Window, Event(LibreInputEventKind.PointerUp)));
+            if (CharacterThrows) throw Failure;
+        }
+
+        public void Input(in LibreInputEvent input)
+        {
+            Assert.False(fixture.Router.Record(fixture.Window, input));
+            if (input.Kind == LibreInputEventKind.PointerCancel)
+            {
+                SourceRetired = true;
+                if (CleanupThrows) throw SourceFailure;
+            }
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
