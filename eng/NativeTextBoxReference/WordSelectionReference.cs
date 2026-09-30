@@ -246,7 +246,8 @@ internal static class WordSelectionReference
             || GetWindowThreadProcessId(handle, out uint process) == 0 || process != Environment.ProcessId)
             throw new InvalidOperationException("Owned EDIT handle retired.");
         string className = ClassName(handle);
-        if (className != "EDIT" && !className.StartsWith("WindowsForms10.EDIT.", StringComparison.Ordinal))
+        if (!className.Equals("EDIT", StringComparison.OrdinalIgnoreCase)
+            && !className.StartsWith("WindowsForms10.EDIT.", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException($"Unexpected native class {className}.");
     }
 
