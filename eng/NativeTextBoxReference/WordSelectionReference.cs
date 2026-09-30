@@ -40,7 +40,9 @@ internal static class WordSelectionReference
         new("isolated-breaks-single", "ab\rcd\nef ", [1, 2, 3, 4, 5, 6, 7]),
         new("isolated-breaks-multiline", "ab\rcd\nef ", [1, 2, 3, 4, 5, 6, 7], Multiline: true),
         new("crcrlf-multiline", "ab\r\r\ncd ", [1, 2, 3, 4, 5, 6], Multiline: true),
-        new("wrapped-longword", "abcdefghijklmnopqrstuvwxyz0123456789 ", [0, 4, 8, 12, 16, 20, 24, 28, 32, 35], Multiline: true, Wrap: true)
+        new("wrapped-longword", "abcdefghijklmnopqrstuvwxyz0123456789 ", [0, 4, 8, 12, 16, 20, 24, 28, 32, 35], Multiline: true, Wrap: true),
+        new("supplementary-scripts", "a\U00010400b\U0001D11Ec\U00020000d ", [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
+        new("emoji-context", "a\u2603\uFE0Fb\U0001F469\u200D\U0001F4BBc ", [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
     ];
 
     internal static int Run(string path, string dpiMode, string themeFlag)
@@ -50,6 +52,7 @@ internal static class WordSelectionReference
         using FileStream file = new(output, FileMode.CreateNew, FileAccess.Write);
         Stopwatch budget = Stopwatch.StartNew();
         var results = new List<object>();
+        var nativeTextModules = new List<object>();
         object? identity = null;
         string? failure = null;
         try
@@ -68,7 +71,8 @@ internal static class WordSelectionReference
                 forms = typeof(Control).Assembly.FullName,
                 formsPath,
                 formsSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(formsPath))).ToLowerInvariant(),
-                probeSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(typeof(WordSelectionReference).Assembly.Location))).ToLowerInvariant()
+                probeSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(typeof(WordSelectionReference).Assembly.Location))).ToLowerInvariant(),
+                nativeTextModules
             };
             HighDpiMode mode = Enum.Parse<HighDpiMode>(dpiMode);
             bool themed = bool.Parse(themeFlag);
@@ -113,7 +117,10 @@ internal static class WordSelectionReference
                     RequireOwner(editor, handle);
                     string initialText = editor.Text;
                     if (scriptBreak.Count == 0)
+                    {
                         ObserveScriptBreak(initialText, item.RightToLeft, scriptBreak);
+                        if (nativeTextModules.Count == 0) ObserveNativeTextModules(nativeTextModules);
+                    }
                     else if (!Equals(scriptBreak["actualText"], initialText))
                         throw new InvalidOperationException("EDIT text changed between independent case observations.");
                     // Borrowed diagnostic address only: do not invoke an unknown callback.
@@ -225,6 +232,30 @@ internal static class WordSelectionReference
 
     private static int[] Utf16(string value) => value.Select(c => (int)c).ToArray();
 
+    private static void ObserveNativeTextModules(List<object> modules)
+    {
+        // Capture the actually loaded DLL paths after calling Uniscribe, not
+        // an assumed SDK or System32 file. Newer systems can forward its APIs.
+        using Process process = Process.GetCurrentProcess();
+        bool foundUniscribe = false;
+        foreach (ProcessModule module in process.Modules)
+        {
+            string path = module.FileName;
+            string name = Path.GetFileName(path);
+            bool uniscribe = name.Equals("usp10.dll", StringComparison.OrdinalIgnoreCase);
+            if (!uniscribe && !name.Equals("gdi32.dll", StringComparison.OrdinalIgnoreCase)
+                && !name.Equals("gdi32full.dll", StringComparison.OrdinalIgnoreCase)
+                && !name.Equals("textshaping.dll", StringComparison.OrdinalIgnoreCase)) continue;
+            modules.Add(new
+            {
+                name, path, fileVersion = module.FileVersionInfo.FileVersion,
+                fileSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant()
+            });
+            foundUniscribe |= uniscribe;
+        }
+        if (!foundUniscribe) throw new InvalidOperationException("The loaded Uniscribe module was not observed.");
+    }
+
     private static void ObserveScriptBreak(string text, bool rightToLeft, Dictionary<string, object?> result)
     {
         // Independent Uniscribe evidence, NOT a claim that EDIT uses these flags.
@@ -250,6 +281,9 @@ internal static class WordSelectionReference
         try
         {
             if (text.Length == 0) throw new InvalidOperationException("Break analysis requires nonempty UTF-16 input.");
+            var classification = new Dictionary<string, object?>();
+            result["classification"] = classification;
+            ObserveScriptClassification(text, rightToLeft, classification);
             int analyseResult = ScriptStringAnalyse(0, text, text.Length, glyphCapacity, -1, flags, 0,
                 0, 0, 0, 0, 0, out analysis);
             result["analyseHResult"] = analyseResult;
@@ -306,6 +340,95 @@ internal static class WordSelectionReference
         // cleanup failure only here so it cannot replace that original error.
         cleanupFailure?.Throw();
         result["completed"] = true;
+    }
+
+    private static void ObserveScriptClassification(string text, bool rightToLeft, Dictionary<string, object?> result)
+    {
+        // Independent diagnostic only: eScript identifies a version-dependent
+        // native engine, not a portable Unicode script number or EDIT policy.
+        // https://learn.microsoft.com/windows/win32/api/usp10/nf-usp10-scriptitemize
+        // https://learn.microsoft.com/windows/win32/api/usp10/ns-usp10-script_properties
+        result["completed"] = false;
+        result["api"] = "ScriptItemize/ScriptGetProperties/GetStringTypeW";
+        result["independentOfEdit"] = true;
+        result["itemByteSize"] = Marshal.SizeOf<ScriptItem>();
+        if (Marshal.SizeOf<ScriptItem>() != 8)
+            throw new InvalidOperationException("Unexpected SCRIPT_ITEM ABI.");
+        // Pass both control and state for full paragraph bidi analysis, keeping
+        // original text and direction. Reserve the documented extra sentinel.
+        uint control = 0;
+        ushort state = rightToLeft ? (ushort)1 : (ushort)0;
+        int capacity = checked(text.Length + 1);
+        ScriptItem[] items = new ScriptItem[checked(capacity + 1)];
+        result["control"] = control;
+        result["initialState"] = state;
+        result["itemCapacity"] = capacity;
+        int itemizeResult = ScriptItemize(text, text.Length, capacity, in control, in state, items, out int count);
+        result["itemizeHResult"] = itemizeResult;
+        result["itemCount"] = count;
+        if (itemizeResult != 0)
+            throw new InvalidOperationException($"ScriptItemize failed: 0x{unchecked((uint)itemizeResult):X8}.");
+        if (count <= 0 || count > text.Length || items[0].Start != 0 || items[count].Start != text.Length)
+            throw new InvalidOperationException("ScriptItemize returned an invalid source partition.");
+        result["terminalPosition"] = items[count].Start;
+        int propertiesResult = ScriptGetProperties(out nint propertyTable, out int propertyCount);
+        result["propertiesHResult"] = propertiesResult;
+        result["propertyCount"] = propertyCount;
+        if (propertiesResult != 0 || propertyTable == 0 || propertyCount <= 0)
+            throw new InvalidOperationException($"ScriptGetProperties failed: 0x{unchecked((uint)propertiesResult):X8}.");
+        var runs = new List<object>();
+        result["runs"] = runs;
+        for (int i = 0; i < count; i++)
+        {
+            ScriptItem item = items[i];
+            int end = items[i + 1].Start;
+            int script = item.Analysis & 0x3FF;
+            if (item.Start < 0 || end <= item.Start || end > text.Length || script >= propertyCount)
+                throw new InvalidOperationException("ScriptItemize returned an invalid item or property index.");
+            nint properties = Marshal.ReadIntPtr(propertyTable, checked(script * IntPtr.Size));
+            if (properties == 0) throw new InvalidOperationException("Missing SCRIPT_PROPERTIES entry.");
+            // Borrowed process-owned static properties: copy their two DWORD
+            // bitfields immediately; never free or retain the table pointers.
+            uint first = unchecked((uint)Marshal.ReadInt32(properties));
+            uint second = unchecked((uint)Marshal.ReadInt32(properties, 4));
+            runs.Add(new
+            {
+                start = item.Start, end, script, rawAnalysis = item.Analysis, rawState = item.State,
+                rawPropertiesFirst = first, rawPropertiesSecond = second,
+                languageId = first & 0xFFFF, numeric = (first & (1U << 16)) != 0,
+                complex = (first & (1U << 17)) != 0, needsWordBreaking = (first & (1U << 18)) != 0,
+                needsCaretInfo = (first & (1U << 19)) != 0,
+                invalidLogAttributes = (second & 1) != 0, clusterSizeVaries = (second & 8) != 0
+            });
+        }
+
+        // CTYPE1 is per original WCHAR, including surrogate halves. It is not
+        // a scalar classifier and is not substituted for SCRIPT_LOGATTR.
+        ushort[] characterTypes = new ushort[text.Length];
+        bool typed = GetStringTypeW(1, text, text.Length, characterTypes);
+        int typeError = typed ? 0 : Marshal.GetLastPInvokeError();
+        result["characterTypesSucceeded"] = typed;
+        if (!typed)
+        {
+            result["characterTypesError"] = typeError;
+            throw new InvalidOperationException($"GetStringTypeW failed: {typeError}.");
+        }
+        result["ctype1"] = characterTypes.Select((value, index) => new
+        {
+            index, utf16 = (int)text[index], raw = (int)value,
+            space = (value & 8) != 0, punctuation = (value & 16) != 0,
+            control = (value & 32) != 0, blank = (value & 64) != 0,
+            alphabetic = (value & 256) != 0
+        }).ToArray();
+        result["completed"] = true;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ScriptItem
+    {
+        public int Start;
+        public ushort Analysis;
+        public ushort State;
     }
 
     private sealed record Position(int Index, long Raw, Point? Point);
@@ -422,4 +545,16 @@ internal static class WordSelectionReference
     [DllImport("usp10.dll", ExactSpelling = true)] private static extern nint ScriptString_pLogAttr(nint analysis);
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     [DllImport("usp10.dll", ExactSpelling = true)] private static extern int ScriptStringFree(ref nint analysis);
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [DllImport("usp10.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
+    private static extern int ScriptItemize([MarshalAs(UnmanagedType.LPWStr)] string text, int characterCount,
+        int itemCapacity, in uint control, in ushort state, [Out] ScriptItem[] items, out int itemCount);
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [DllImport("usp10.dll", ExactSpelling = true)]
+    private static extern int ScriptGetProperties(out nint properties, out int count);
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [DllImport("kernel32.dll", ExactSpelling = true, CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetStringTypeW(uint type, [MarshalAs(UnmanagedType.LPWStr)] string text,
+        int characterCount, [Out] ushort[] characterTypes);
 }

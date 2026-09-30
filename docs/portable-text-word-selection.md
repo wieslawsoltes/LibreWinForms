@@ -12,9 +12,11 @@ MaskedTextBox or RichTextBox behavior.
 
 The native input adapter already carries completed click pairs to
 `ProcessPortableMouseDownDefault` as `MouseEventArgs.Clicks == 2`. That method
-still calls the ordinary caret hit path for unmasked text, and that captured
-move path extends by character. Correct native click notifications and their
-ordering therefore do not yet implement general word selection.
+now uses word selection only when the text service explicitly supplies an owned
+EDIT-boundary snapshot. The ordinary ProGPU provider does not yet supply that
+capability: its unmasked controls still place a caret and extend by character.
+Correct native click notifications and source state handling do not by themselves
+implement the missing boundary classifier.
 
 The existing retained layout owns original UTF-16 hit/caret/selection geometry.
 Its row and grapheme capabilities do not define a clicked word. The source's
@@ -109,6 +111,38 @@ no extra public cluster-hit API is justified. The reusable boundary calculation
 is still an implementation prerequisite; this finite receipt is not arbitrary
 Unicode or physical-input qualification.
 
+The current probe additionally records independent full-paragraph `ScriptItemize`
+runs, copied `ScriptGetProperties` flags and `GetStringTypeW` CTYPE1 values.
+Raw engine IDs are version-dependent diagnostics, not portable classifier values;
+CTYPE1 entries describe original UTF-16 units, not Unicode scalars. Supplementary
+letters/music/CJK and emoji variation-selector/ZWJ cases distinguish native run
+handling from a presumed scalar property table. Their selections remain observed
+outputs, not assertions chosen to fit the draft. Existing cases and deadlines
+remain unchanged. This new instrumentation still requires hosted execution.
+
+## Owned boundary source seam
+
+`ILibreEditWordBoundaryService` explicitly declares that its owned layouts supply
+`ILibreEditWordBoundaryLayout`. A snapshot contains strictly increasing original
+UTF-16 positions, including both endpoints, and a leading-content boundary from
+the same immutable layout generation. The source validates this once per press;
+missing or malformed declared capability rejects before selection. An undeclared
+service retains the existing character-selection path.
+
+The source retains the original raw hit, initial endpoints, signed anchor and
+selection/layout/press identity through reversals. Actual row starts affect the
+initial boundary choice, never clamp the word. Public selection replacements
+(including the same range) retire the lease; provider reentry cannot publish an
+obsolete selection or retire a nested replacement press. Password selection
+bypasses this service entirely.
+
+`CanonicalEditWordBoundaryTests` adds 24 authored fresh-process cases using real
+retained source geometry and literal boundaries from the native observations.
+These check source dispatch and lifetime, not a boundary classifier: the fixture
+copies its boundary memory into the layout and does not enable the actual ProGPU
+provider. They have not been executed locally. The PR remains draft until the
+real provider and its focused regressions connect this seam to ordinary controls.
+
 ## Password source selection
 
 An admitted password double press uses canonical `SelectAll` once, before the
@@ -122,8 +156,11 @@ single-click caret placement and character dragging remain unchanged.
 `CanonicalTextWordSelectionTests` adds 13 focused source cases through the actual
 provider input adapter: both mask modes, read-only selection, drag reversal,
 callback overrides and exceptions, cancellation, capture/handle replacement,
-selection reentry and the next ordinary press. These are authored regressions;
-their execution belongs to required CI, not a local desktop validation run.
+selection reentry and the next ordinary press. Build `36688369362` passed all nine
+jobs at `e7cf4da37ee5dee73df1d0311f6a067eeb911873`; its canonical source suite
+passed 898 cases with no failures or skips, including these 13 cases. This is
+hosted source/package evidence, not a local desktop validation run or validation
+of the newer, unexecuted boundary-source seam.
 
 This is the confirmed password special case, not the unresolved unmasked word
 classifier. The implementation PR stays draft until general source word behavior
