@@ -659,6 +659,13 @@ public unsafe partial class Control
                 try
                 {
                     target.OnMouseDown(new MouseEventArgs(button, clicks, location.X, location.Y, 0));
+                    // The native WndProc samples this style after MouseDown,
+                    // not at the later release. A callback may change it, but
+                    // cannot classify a newer reentrant press on this one's behalf.
+                    if (nativePress is not null && _portablePointerPressVersion == pressVersion
+                        && ReferenceEquals(_portableNativePress, nativePress)
+                        && nativePress.Matches(this, target, button))
+                        nativePress.StandardDoubleClickEnabled = target.GetStyle(ControlStyles.StandardDoubleClick);
                 }
                 catch
                 {
@@ -722,7 +729,7 @@ public unsafe partial class Control
             bool fireClick = (nativeUp ? nativeClickEligible : eligibleClick) && target.GetStyle(ControlStyles.StandardClick);
             if (fireClick)
             {
-                if (nativeDoubleClick == true && target.GetStyle(ControlStyles.StandardDoubleClick))
+                if (nativeDoubleClick == true && nativePress!.StandardDoubleClickEnabled)
                 {
                     MouseEventArgs clickEvent = new(button, 2, location.X, location.Y, 0);
                     target.OnDoubleClick(clickEvent);
@@ -813,6 +820,7 @@ public unsafe partial class Control
 
         internal int NativeCount { get; }
         internal int Clicks { get; }
+        internal bool StandardDoubleClickEnabled { get; set; }
 
         internal PortableNativeClick(Control source, Control target, MouseButtons button, int nativeCount, int clicks)
         {

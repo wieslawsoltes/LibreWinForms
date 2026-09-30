@@ -97,6 +97,32 @@ public partial class CanonicalLifecycleTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public void NativePointerProvider_DoubleClickStyleIsCapturedAfterDownCallbacksNotAtRelease(bool enabledAfterDown)
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        using Form form = new() { ShowIcon = false };
+        using NativeClickControl control = new(standardDoubleClick: !enabledAfterDown) { Bounds = new(10, 10, 100, 60) };
+        form.Controls.Add(control);
+        form.Show();
+        List<string> events = RecordNativeClicks(control);
+        using NativeClickBridge input = new(platform, form);
+        input.Click(control, 1);
+        control.MouseDown += (_, e) =>
+        {
+            if (e.Clicks == 2)
+                control.SetDoubleClickStyle(enabledAfterDown);
+        };
+        input.Button(control, down: true, count: 2);
+        control.SetDoubleClickStyle(!enabledAfterDown);
+        input.Button(control, down: false, count: 2);
+
+        Assert.Equal(enabledAfterDown ? 1 : 0, events.Count(value => value == "mouse-double:2"));
+        Assert.Equal(enabledAfterDown ? 1 : 2, events.Count(value => value == "mouse-click:1"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void NativePointerProvider_ClickCancellationAndLeaveKeepTheirDistinctOwnership(bool cancel)
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
@@ -312,6 +338,7 @@ public partial class CanonicalLifecycleTests
         }
 
         internal void RecreateSourceHandle() => RecreateHandle();
+        internal void SetDoubleClickStyle(bool enabled) => SetStyle(ControlStyles.StandardDoubleClick, enabled);
     }
 
     private sealed class NativeClickBridge : IDisposable

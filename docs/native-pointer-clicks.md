@@ -22,6 +22,8 @@ The real source receives MouseDown with the selected count. On an eligible relea
 Control retains its StandardClick and StandardDoubleClick policy: single Click and
 MouseClick, or DoubleClick and MouseDoubleClick, precede MouseUp. Double-click
 notification arguments have count two; MouseUp keeps the original count one.
+StandardDoubleClick is sampled after MouseDown callbacks, as in the original
+WndProc; a later style change does not reclassify the accepted press.
 The native packet and its count remain available unchanged in LibreInputEvent.
 
 The source retires old history before down callbacks and publishes replacement
@@ -47,14 +49,14 @@ selection, RichTextBox document selection or all multiple-click editing behavior
 
 ## Coverage and remaining integration
 
-Nineteen authored source cases compose the actual NativePointerInput adapter and
+Twenty-one authored source cases compose the actual NativePointerInput adapter and
 typed provider with real controls. They cover all five buttons, event order,
 standard styles, consecutive counts and target changes, Leave/Cancel, handle
 replacement, callback failure/reentry, actual DataGridView cell/header callbacks,
 hosted TextBox notifications and cancelled editor releases. The existing three
-canonical native-pointer cases remain. The existing selector now requires all 22
+canonical native-pointer cases remain. The existing selector now requires all 24
 without skips and with the same two-minute deadline; the full canonical minimum
-is 867 and the backend minimum remains 218. No local build, test or native/VM
+is 869 and the backend minimum remains 218. No local build, test or native/VM
 execution is claimed by these authored cases.
 
 The ordinary pinned Silk provider reports its DoubleClick callback after MouseDown

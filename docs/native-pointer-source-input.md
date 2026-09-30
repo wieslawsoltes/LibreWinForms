@@ -52,12 +52,12 @@ closed. The existing GLFW full-scalar character ownership/ordering is unchanged.
 - Three canonical source cases compose this same adapter with a real ContextMenuStrip,
   hosted Panel, capture and Form focus; they cover Leave/Cancel and callback disposal.
   The typed test provider is not an application factory or native input substitute.
-- Nineteen additional canonical cases connect provider counts to source click pairs,
+- Twenty-one additional canonical cases connect provider counts to source click pairs,
   real DataGridView cell/header actions and hosted TextBox notifications, retaining
   style, handle, cancellation and callback ownership.
 
 The unchanged full suites remain, with backend minimum 218 and canonical minimum
-867. The native-pointer canonical selector requires all 22 cases, retains the
+869. The native-pointer canonical selector requires all 24 cases, retains the
 two-minute bound and rejects skipped tests.
 Local work is source/static checking only: no build, test execution, GUI, VM or
 native window/input activity was performed. Exact-head hosted compilation/execution,
