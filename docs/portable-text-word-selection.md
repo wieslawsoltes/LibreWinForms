@@ -37,8 +37,10 @@ and password masking. It must record actual hit positions rather than inventing
 character widths or a clickable rectangle for a hard break. Password source must
 not be sent to the portable shaping service when the implementation is added.
 
-Run this narrow prerequisite in the existing Windows package CI job, retaining
-its original matrix, package checks and timeout. No local VM, platform matrix,
+Run this package-independent prerequisite in the existing early Windows
+automation CI job, retaining its original matrix, locale check and ten-minute
+timeout. It does not wait for, replace or qualify the separate package checks.
+No local VM, platform matrix,
 screen capture or general desktop audit is required to acquire these endpoints.
 Synthetic HWND messages are not physical input or rendered desktop qualification.
 Inspect the completed receipt before defining portable expected selections.

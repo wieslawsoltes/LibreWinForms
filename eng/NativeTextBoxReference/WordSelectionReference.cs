@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using System.Windows.Forms;
 
@@ -253,9 +252,11 @@ internal static class WordSelectionReference
 
     private static string ClassName(nint handle)
     {
-        StringBuilder value = new(256);
-        if (GetClassNameW(handle, value, value.Capacity) == 0) throw new System.ComponentModel.Win32Exception();
-        return value.ToString();
+        char[] value = new char[256];
+        int count = GetClassNameW(handle, value, value.Length);
+        if (count == 0) throw new System.ComponentModel.Win32Exception();
+        if (count >= value.Length - 1) throw new InvalidOperationException("Native class name was truncated.");
+        return new string(value, 0, count);
     }
 
     private sealed class Probe : TextBox
@@ -304,5 +305,5 @@ internal static class WordSelectionReference
     [DllImport("user32", EntryPoint = "SendMessageW")] private static extern nint SendMessageSelection(nint hwnd, uint message, out uint start, out uint end);
     [DllImport("user32")] private static extern nint GetCapture();
     [DllImport("user32", SetLastError = true)] private static extern uint GetWindowThreadProcessId(nint hwnd, out uint processId);
-    [DllImport("user32", CharSet = CharSet.Unicode, SetLastError = true)] private static extern int GetClassNameW(nint hwnd, StringBuilder name, int capacity);
+    [DllImport("user32", CharSet = CharSet.Unicode, SetLastError = true)] private static extern int GetClassNameW(nint hwnd, [Out] char[] name, int capacity);
 }
