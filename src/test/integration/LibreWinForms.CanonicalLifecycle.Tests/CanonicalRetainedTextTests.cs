@@ -383,7 +383,7 @@ public partial class CanonicalLifecycleTests
         }
     }
 
-    private sealed class RetainedTextRendererProbe : ILibreTextRendererService, ILibreTextSourceGeometryService
+    private class RetainedTextRendererProbe : ILibreTextRendererService, ILibreTextSourceGeometryService
     {
         private readonly ProGpuTextRendererService _renderer = new();
         internal List<RetainedLayoutProbe> Layouts { get; } = [];
@@ -397,11 +397,13 @@ public partial class CanonicalLifecycleTests
             LastText = text;
             LastFontUnit = font.Unit;
             LastFontSize = font.Size;
-            var layout = new RetainedLayoutProbe(_renderer.CreateLayout(graphics, text, font, size, format));
+            RetainedLayoutProbe layout = CreateLayoutProbe(_renderer.CreateLayout(graphics, text, font, size, format), text);
             Layouts.Add(layout);
             AfterCreateLayout?.Invoke();
             return layout;
         }
+
+        protected virtual RetainedLayoutProbe CreateLayoutProbe(ILibreTextLayout layout, string text) => new(layout);
 
         public void DrawText(Graphics graphics, string text, Font? font, Rectangle bounds, Color foreColor, Color backColor, LibreTextFormat format)
             => _renderer.DrawText(graphics, text, font, bounds, foreColor, backColor, format);
@@ -409,7 +411,7 @@ public partial class CanonicalLifecycleTests
             => _renderer.MeasureText(graphics, text, font, size, format);
     }
 
-    private sealed class RetainedLayoutProbe(ILibreTextLayout layout) : ILibreTextLayout, ILibreTextRowNavigation, ILibreTextSourceGeometry
+    private class RetainedLayoutProbe(ILibreTextLayout layout) : ILibreTextLayout, ILibreTextRowNavigation, ILibreTextSourceGeometry
     {
         internal Action? AfterHitTest { get; set; }
         internal Action? AfterDispose { get; set; }

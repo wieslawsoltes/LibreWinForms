@@ -296,6 +296,7 @@ public partial class TextBox
         if (!Focused && !Focus()) return context.IsCurrent;
         if (!context.IsCurrent) return false;
         _portablePasswordPointerSelection = null;
+        _portableWordPointerSelection = null;
         if (e.Clicks == 2 && PasswordProtect)
         {
             // EDIT selects the whole password, not a word in either the source
@@ -308,6 +309,10 @@ public partial class TextBox
                 || !context.IsCurrent) return false;
             _portablePasswordPointerSelection = state;
             _portablePasswordPointerLayoutVersion = layoutVersion;
+        }
+        else if (e.Clicks == 2 && LibrePlatform.Current.TextRenderer is ILibreEditWordBoundaryService)
+        {
+            if (!ApplyPortableWordPointerDown(e, context)) return false;
         }
         else
         {
@@ -345,6 +350,9 @@ public partial class TextBox
             return true;
         }
 
+        if (_portableWordPointerSelection is { } word)
+            return ApplyPortableWordPointerMove(e, context, word);
+
         return ApplyPortablePointerCaret(e, context, extend: true, out _);
     }
 
@@ -362,6 +370,7 @@ public partial class TextBox
         _portablePointerSelecting = false;
         _portableTextPointerPress = default;
         _portablePasswordPointerSelection = null;
+        _portableWordPointerSelection = null;
     }
 
     private bool ApplyPortablePointerCaret(MouseEventArgs e, in PortablePointerDispatchContext context,
@@ -399,6 +408,7 @@ public partial class TextBox
         private readonly bool _useSystemPasswordChar;
         private readonly int _deviceDpi;
         private readonly uint _focusVersion;
+        internal int TextLength => _text.Length;
         internal uint SelectionVersion { get; }
         internal Rectangle Viewport { get; }
         internal PointF Scroll { get; }
