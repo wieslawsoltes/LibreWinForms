@@ -1533,6 +1533,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
             _characterInput = new GlfwCharacterInput(new GlfwCharacterCallbacks(characterWindow), characterWindow,
                 _characters, this, Timestamp);
         }
+
         ApplyCursor();
         foreach (IKeyboard keyboard in _input.Keyboards)
         {
