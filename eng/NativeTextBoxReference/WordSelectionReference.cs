@@ -3,6 +3,7 @@
 
 using System.Diagnostics;
 using System.Drawing;
+using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -245,7 +246,7 @@ internal static class WordSelectionReference
         result["completed"] = false;
         nint analysis = 0;
         bool ownsAnalysis = false;
-        Exception? primaryError = null;
+        ExceptionDispatchInfo? cleanupFailure = null;
         try
         {
             if (text.Length == 0) throw new InvalidOperationException("Break analysis requires nonempty UTF-16 input.");
@@ -274,7 +275,6 @@ internal static class WordSelectionReference
         }
         catch (Exception error)
         {
-            primaryError = error;
             result["error"] = error.ToString();
             throw;
         }
@@ -289,15 +289,22 @@ internal static class WordSelectionReference
                     result["freeHResult"] = freeResult;
                     result["freeHResultHex"] = $"0x{unchecked((uint)freeResult):X8}";
                     if (freeResult != 0)
-                        throw new InvalidOperationException($"ScriptStringFree failed: 0x{unchecked((uint)freeResult):X8}.");
+                    {
+                        var error = new InvalidOperationException($"ScriptStringFree failed: 0x{unchecked((uint)freeResult):X8}.");
+                        result["freeError"] = error.ToString();
+                        cleanupFailure = ExceptionDispatchInfo.Capture(error);
+                    }
                 }
                 catch (Exception error)
                 {
                     result["freeError"] = error.ToString();
-                    if (primaryError is null) throw;
+                    cleanupFailure = ExceptionDispatchInfo.Capture(error);
                 }
             }
         }
+        // A primary analysis error already propagates after finally. Publish
+        // cleanup failure only here so it cannot replace that original error.
+        cleanupFailure?.Throw();
         result["completed"] = true;
     }
 
