@@ -8,7 +8,9 @@ using System.Drawing.Design;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Windows.Forms.Layout;
+#if !LIBREWINFORMS_PORTABLE
 using Windows.Win32.System.Variant;
+#endif
 using Windows.Win32.UI.Accessibility;
 using static System.Windows.Forms.ComboBox.ObjectCollection;
 
@@ -495,6 +497,18 @@ public partial class ComboBox : ListControl
     [SRDescription(nameof(SR.ComboBoxDroppedDownDescr))]
     public bool DroppedDown
     {
+#if LIBREWINFORMS_PORTABLE
+        get => IsPortableDropDownVisible;
+        set
+        {
+            if (!IsHandleCreated)
+            {
+                CreateHandle();
+            }
+
+            SetPortableDropDown(value);
+        }
+#else
         get => IsHandleCreated && (int)PInvokeCore.SendMessage(this, PInvoke.CB_GETDROPPEDSTATE) != 0;
         set
         {
@@ -505,6 +519,7 @@ public partial class ComboBox : ListControl
 
             PInvokeCore.SendMessage(this, PInvoke.CB_SHOWDROPDOWN, (WPARAM)(value ? -1 : 0));
         }
+#endif
     }
 
     /// <summary>
@@ -536,6 +551,11 @@ public partial class ComboBox : ListControl
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            // The canonical portable focus owner already includes hosted input.
+            // This control has no native edit/list child HWNDs to query.
+            return base.Focused || HasPortableDropDownFocus || HasPortableEditorFocus;
+#else
             if (base.Focused)
             {
                 return true;
@@ -544,6 +564,7 @@ public partial class ComboBox : ListControl
             HWND focus = PInvoke.GetFocus();
             return !focus.IsNull
                 && ((_childEdit is not null && focus == _childEdit.Handle) || (_childListBox is not null && focus == _childListBox.Handle));
+#endif
         }
     }
 
@@ -716,10 +737,14 @@ public partial class ComboBox : ListControl
             if (MaxLength != value)
             {
                 Properties.AddValue(s_propMaxLength, value);
+#if LIBREWINFORMS_PORTABLE
+                SyncPortableEditorProperties();
+#else
                 if (IsHandleCreated)
                 {
                     PInvokeCore.SendMessage(this, PInvoke.CB_LIMITTEXT, (WPARAM)value);
                 }
+#endif
             }
         }
     }
@@ -991,6 +1016,11 @@ public partial class ComboBox : ListControl
             if (DropDownStyle != ComboBoxStyle.DropDownList)
             {
 #if LIBREWINFORMS_PORTABLE
+                if (SetPortableEditSelectedText(value))
+                {
+                    return;
+                }
+
                 string replacement = value ?? string.Empty;
                 string text = Text;
                 int selectionStart = SelectionStart;
@@ -1022,7 +1052,7 @@ public partial class ComboBox : ListControl
         get
         {
 #if LIBREWINFORMS_PORTABLE
-            return _portableSelectionLength;
+            return GetPortableEditSelectionLength();
 #else
             int end = 0;
             int start = 0;
@@ -1048,7 +1078,7 @@ public partial class ComboBox : ListControl
         get
         {
 #if LIBREWINFORMS_PORTABLE
-            return _portableSelectionStart;
+            return GetPortableEditSelectionStart();
 #else
             int value = 0;
             PInvokeCore.SendMessage(this, PInvoke.CB_GETEDITSEL, (WPARAM)(&value));
@@ -1845,11 +1875,14 @@ public partial class ComboBox : ListControl
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
-
+#if LIBREWINFORMS_PORTABLE
+        HandlePortableDropDownMouse(e);
+#else
         if (IsAccessibilityObjectCreated && _childEdit is not null && ChildEditAccessibleObject.Bounds.Contains(PointToScreen(e.Location)))
         {
             ChildEditAccessibleObject.RaiseAutomationEvent(UIA_EVENT_ID.UIA_Text_TextSelectionChangedEventId);
         }
+#endif
     }
 
     /// <summary>
@@ -1894,6 +1927,23 @@ public partial class ComboBox : ListControl
 
     protected override void Dispose(bool disposing)
     {
+#if LIBREWINFORMS_PORTABLE
+        System.Runtime.ExceptionServices.ExceptionDispatchInfo? failure = null;
+        if (disposing)
+        {
+            CompletePortableDropDownStage(DisposePortableDropDown, ref failure);
+            CompletePortableDropDownStage(DisposePortableEditor, ref failure);
+            CompletePortableDropDownStage(() =>
+            {
+                _autoCompleteCustomSource?.CollectionChanged -= OnAutoCompleteCustomSourceChanged;
+                _stringSource?.ReleaseAutoComplete();
+                _stringSource = null;
+            }, ref failure);
+        }
+
+        CompletePortableDropDownStage(() => base.Dispose(disposing), ref failure);
+        failure?.Throw();
+#else
         if (disposing)
         {
             _autoCompleteCustomSource?.CollectionChanged -= OnAutoCompleteCustomSourceChanged;
@@ -1902,6 +1952,7 @@ public partial class ComboBox : ListControl
         }
 
         base.Dispose(disposing);
+#endif
     }
 
     /// <summary>
@@ -2197,6 +2248,12 @@ public partial class ComboBox : ListControl
     /// </summary>
     protected override bool IsInputKey(Keys keyData)
     {
+#if LIBREWINFORMS_PORTABLE
+        if (IsPortableDropDownInputKey(keyData))
+        {
+            return true;
+        }
+#endif
         Keys keyCode = keyData & (Keys.KeyCode | Keys.Alt);
         if (keyCode is Keys.Return or Keys.Escape)
         {
@@ -2357,6 +2414,7 @@ public partial class ComboBox : ListControl
             Height = _requestedHeight;
         }
 
+        EnsurePortableEditor();
         return;
 #else
         if (MaxLength > 0)
@@ -2463,6 +2521,11 @@ public partial class ComboBox : ListControl
     /// </summary>
     protected override void OnHandleDestroyed(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        System.Runtime.ExceptionServices.ExceptionDispatchInfo? failure = null;
+        CompletePortableDropDownStage(DisposePortableDropDown, ref failure);
+        CompletePortableDropDownStage(DisposePortableEditor, ref failure);
+#endif
         _dropDownHandle = HWND.Null;
         if (Disposing)
         {
@@ -2477,7 +2540,12 @@ public partial class ComboBox : ListControl
         _stringSource?.ReleaseAutoComplete();
         _stringSource = null;
 
+#if LIBREWINFORMS_PORTABLE
+        CompletePortableDropDownStage(() => base.OnHandleDestroyed(e), ref failure);
+        failure?.Throw();
+#else
         base.OnHandleDestroyed(e);
+#endif
     }
 
     /// <summary>
@@ -2498,7 +2566,7 @@ public partial class ComboBox : ListControl
     protected virtual void OnDropDown(EventArgs e)
     {
         ((EventHandler?)Events[s_dropDownEvent])?.Invoke(this, e);
-
+#if !LIBREWINFORMS_PORTABLE
         if (!IsHandleCreated)
         {
             return;
@@ -2517,6 +2585,7 @@ public partial class ComboBox : ListControl
                 accessibleObject.SetComboBoxItemFocus();
             }
         }
+#endif
     }
 
     [EditorBrowsable(EditorBrowsableState.Advanced)]
@@ -2541,6 +2610,9 @@ public partial class ComboBox : ListControl
 
         // Base Handling
         base.OnKeyDown(e);
+#if LIBREWINFORMS_PORTABLE
+        HandlePortableDropDownKey(e);
+#endif
     }
 
     /// <summary>
@@ -2644,7 +2716,7 @@ public partial class ComboBox : ListControl
     protected virtual void OnSelectionChangeCommitted(EventArgs e)
     {
         ((EventHandler?)Events[s_selectionChangedComittedEvent])?.Invoke(this, e);
-
+#if !LIBREWINFORMS_PORTABLE
         // The user selects a list item or selects an item and then closes the list.
         // It indicates that the user's selection is to be processed but should not
         // be focused after closing the list.
@@ -2652,6 +2724,7 @@ public partial class ComboBox : ListControl
         {
             _dropDownWillBeClosed = true;
         }
+#endif
     }
 
     /// <summary>
@@ -2814,6 +2887,13 @@ public partial class ComboBox : ListControl
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected override void OnGotFocus(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        Invalidate();
+        if (HandlePortableEditorGotFocus(e))
+        {
+            return;
+        }
+#endif
         if (!_canFireLostFocus)
         {
             base.OnGotFocus(e);
@@ -2824,6 +2904,13 @@ public partial class ComboBox : ListControl
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected override void OnLostFocus(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        Invalidate();
+        if (HandlePortableEditorLostFocus(e))
+        {
+            return;
+        }
+#endif
         if (_canFireLostFocus)
         {
             if (AutoCompleteMode != AutoCompleteMode.None
@@ -2841,6 +2928,10 @@ public partial class ComboBox : ListControl
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected override void OnTextChanged(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        Invalidate();
+        SyncPortableEditorText();
+#endif
         if (SystemAutoCompleteEnabled)
         {
             string text = Text;
@@ -2955,7 +3046,7 @@ public partial class ComboBox : ListControl
     protected virtual void OnDropDownClosed(EventArgs e)
     {
         ((EventHandler?)Events[s_dropDownClosedEvent])?.Invoke(this, e);
-
+#if !LIBREWINFORMS_PORTABLE
         if (!IsHandleCreated)
         {
             return;
@@ -2998,6 +3089,7 @@ public partial class ComboBox : ListControl
 
         // Collapsing the DropDown, so reset the flag.
         _dropDownWillBeClosed = false;
+#endif
     }
 
     /// <summary>
@@ -3333,6 +3425,7 @@ public partial class ComboBox : ListControl
         int normalizedEnd = (int)Math.Clamp((long)start + length, 0, textLength);
         _portableSelectionStart = Math.Min(normalizedStart, normalizedEnd);
         _portableSelectionLength = Math.Abs(normalizedEnd - normalizedStart);
+        ApplyPortableEditSelection();
 #else
         int end = start + length;
         PInvokeCore.SendMessage(this, PInvoke.CB_SETEDITSEL, (WPARAM)0, LPARAM.MAKELPARAM(start, end));
@@ -3737,6 +3830,14 @@ public partial class ComboBox : ListControl
     {
         switch (m.MsgInternal)
         {
+#if LIBREWINFORMS_PORTABLE
+            case PInvokeCore.WM_QUERYUISTATE:
+            case PInvokeCore.WM_CHANGEUISTATE:
+            case PInvokeCore.WM_UPDATEUISTATE:
+                base.WndProc(ref m);
+                break;
+#endif
+
             // We don't want to fire the focus events twice -
             // once in the ComboBox and once in the ChildWndProc.
             case PInvokeCore.WM_SETFOCUS:

@@ -745,7 +745,10 @@ public class ContainerControl : ScrollableControl, IContainerControl
 
         // Note: intentional integer round off here for Win32 compatibility.
         float averageCharacterWidth = (int)Math.Round(textSize.Width / (float)FontMeasureString.Length);
-        return new SizeF(averageCharacterWidth, font.Height);
+        // Width and height must use the same canonical screen-reference DPI.
+        // Font.Height alone is a 96-DPI metric in portable Drawing. Measure the
+        // selected font, not a derived control's cached FontHeight override.
+        return new SizeF(averageCharacterWidth, GetFontHeightForTarget(font));
     }
 #endif
 

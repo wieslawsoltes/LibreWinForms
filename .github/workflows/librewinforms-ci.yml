@@ -4,7 +4,6 @@ on:
   pull_request:
     branches:
       - librewinforms-progpu-port
-      - main
   push:
     branches:
       - librewinforms-progpu-port
@@ -14,6 +13,36 @@ permissions:
   contents: read
 
 jobs:
+  automation-locale:
+    name: Automation thread locale (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-15
+          - windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Setup LibreWinForms repository SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Verify actual automation helper locale arguments
+        shell: bash
+        run: bash ./eng/librewinforms-automation-locale.sh
+
   source-first-shadow:
     name: Canonical source and ProGPU submodule lane
     runs-on: ubuntu-latest
@@ -25,10 +54,39 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install software WebGPU adapter
+      - name: Validate offline popup desktop harness contracts
+        run: python3 eng/tests/test_popup_desktop_harness.py
+
+      - name: Validate X11 popup driver offline contracts
+        run: python3 eng/tests/test_popup_x11_harness.py
+
+      - name: Validate read-only X11 keymap admission
+        run: python3 -B eng/tests/test_x11_keymap.py
+
+      - name: Validate native popup geometry evidence contracts
+        run: python3 eng/tests/test_popup_native_geometry.py
+
+      - name: Validate macOS popup driver offline contracts
+        run: python3 eng/tests/test_popup_macos_harness.py
+
+      - name: Validate popup observer Package verifier contracts
+        run: python3 eng/tests/test_popup_observer_package.py
+
+      - name: Validate original grid designer metadata preparation
+        run: python3 eng/tests/test_grid_designer_metadata.py
+
+      - name: Validate passive original grid editing driver contracts
+        run: python3 eng/tests/test_original_grid_desktop.py
+
+      - name: Validate bounded analyzer mode scheduling
+        run: python3 eng/test-librewinforms-analyzer-scheduling.py
+
+      - name: Install Linux display and software WebGPU adapter
         shell: bash
         run: |
           ./external/ProGPU/eng/progpu-install-linux-packages.sh \
+            xvfb \
+            libglfw3 \
             libvulkan1 \
             mesa-vulkan-drivers
 
@@ -48,7 +106,36 @@ jobs:
 
       - name: Pack and consume canonical source-first package
         shell: bash
-        run: ./eng/librewinforms-pack-source-first.sh
+        run: xvfb-run -a ./eng/librewinforms-pack-source-first.sh
+
+      - name: Retain application isolation package evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: application-isolation-contracts
+          path: |
+            artifacts/application-isolation/**/receipt.json
+            artifacts/application-isolation/**/*.log
+            artifacts/application-isolation/**/result.json
+          if-no-files-found: warn
+
+      - name: Retain popup observer compile-only package evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: popup-observer-package-build
+          path: |
+            artifacts/popup-observer-package/*/*.json
+            artifacts/popup-observer-package/*/*.log
+          if-no-files-found: warn
+
+      - name: Upload analyzer compiler diagnostics and exact payload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-analyzer-contract
+          path: artifacts/log/analyzer-contract.*/**
+          if-no-files-found: ignore
 
       - name: Upload canonical source-first package
         uses: actions/upload-artifact@v4
@@ -103,6 +190,27 @@ jobs:
           LIBREWINFORMS_VISIBLE_DOTNET: dotnet
         run: ./eng/librewinforms-source-first-visible-smoke.sh
 
+      - name: Run Microsoft-first isolated window contract
+        shell: bash
+        run: |
+          command=(python3 eng/test-application-isolation.py --dotnet dotnet --package-feed artifacts/packages/source-first --window)
+          if [[ "${RUNNER_OS}" == "Linux" ]]; then
+            xvfb-run -a "${command[@]}"
+          else
+            "${command[@]}"
+          fi
+
+      - name: Retain isolated window evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: isolated-window-${{ matrix.os }}
+          path: |
+            artifacts/application-isolation/**/receipt.json
+            artifacts/application-isolation/**/*.log
+            artifacts/application-isolation/**/result.json
+          if-no-files-found: error
+
   appkit-adapter:
     name: AppKit adapter lane
     runs-on: macos-15
@@ -113,6 +221,27 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Compile macOS popup native helper without desktop execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          popup_helper_build=$(mktemp -d "$RUNNER_TEMP/popup-macos-helper.XXXXXXXX")
+          mkdir "$popup_helper_build/tmp"
+          export TMPDIR="$popup_helper_build/tmp"
+          xcrun swiftc --version
+          xcrun --show-sdk-version
+          shasum -a 256 eng/PopupDesktopNative.swift
+          for target_arch in arm64 x86_64; do
+            xcrun swiftc -parse-as-library -O \
+              -target "$target_arch-apple-macosx15.2" \
+              -module-cache-path "$popup_helper_build/module-cache-$target_arch" \
+              -framework AppKit -framework ApplicationServices -framework CoreGraphics \
+              -framework ScreenCaptureKit -framework ImageIO -framework UniformTypeIdentifiers \
+              eng/PopupDesktopNative.swift -o "$popup_helper_build/PopupDesktopNative-$target_arch"
+            shasum -a 256 "$popup_helper_build/PopupDesktopNative-$target_arch"
+            xcrun vtool -show-build "$popup_helper_build/PopupDesktopNative-$target_arch"
+          done
 
       - name: Setup .NET 10 for ProGPU
         uses: actions/setup-dotnet@v4
@@ -139,11 +268,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     env:
-      LIBREWINFORMS_DEV_PACKAGE_VERSION: 0.1.0-preview.63
-      LIBREWINFORMS_BRIDGE_PACKAGE_VERSION: 0.1.0-preview.63
-      LIBREWINFORMS_PROGPU_PACKAGE_VERSION: 0.1.0-preview.63
-      LIBREWINFORMS_BRIDGE_REF: librewpf-v0.1.0-preview.63
-      LIBREWINFORMS_CANONICAL_WFI_REF: librewpf-v0.1.0-preview.63
+      LIBREWINFORMS_DEV_PACKAGE_VERSION: 0.1.0-preview.65
+      LIBREWINFORMS_BRIDGE_PACKAGE_VERSION: 0.1.0-preview.65
+      LIBREWINFORMS_PROGPU_PACKAGE_VERSION: 0.1.0-preview.65
+      LIBREWINFORMS_BRIDGE_REF: librewpf-v0.1.0-preview.65
+      LIBREWINFORMS_CANONICAL_WFI_REF: librewpf-v0.1.0-preview.65
 
     steps:
       - name: Checkout
@@ -165,6 +294,15 @@ jobs:
           repository: wieslawsoltes/LibreWPF
           ref: ${{ env.LIBREWINFORMS_CANONICAL_WFI_REF }}
           path: artifacts/checkouts/wpf-canonical
+
+      - name: Install Linux display for SDK initialization
+        shell: bash
+        run: |
+          ./external/ProGPU/eng/progpu-install-linux-packages.sh \
+            xvfb \
+            libglfw3 \
+            libvulkan1 \
+            mesa-vulkan-drivers
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -189,7 +327,7 @@ jobs:
           LIBREWINFORMS_CANONICAL_WFI_SOURCE_ROOT="${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-canonical" \
           LIBREWINFORMS_CANONICAL_WFI_EXPECTED_COMMIT="${canonical_wfi_commit}" \
           LIBREWINFORMS_CANONICAL_WFI_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-canonical/artifacts/packages/CanonicalWinForms" \
-          ./eng/librewinforms-build-canonical-wfi.sh
+          xvfb-run -a ./eng/librewinforms-build-canonical-wfi.sh
           echo "LIBREWINFORMS_CANONICAL_WFI_COMMIT=${canonical_wfi_commit}" >> "${GITHUB_ENV}"
           echo "LIBREWINFORMS_CANONICAL_WFI_PACKAGE_SOURCE=${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-canonical/artifacts/packages/CanonicalWinForms" >> "${GITHUB_ENV}"
 
@@ -207,14 +345,24 @@ jobs:
           set -euo pipefail
           export LIBREWINFORMS_PROGPU_COMMIT="$(git -C external/ProGPU rev-parse HEAD)"
           export LIBREWINFORMS_REQUIRE_CLEAN=1
-          ./eng/librewinforms-pack.sh
+          xvfb-run -a ./eng/librewinforms-pack.sh
 
       - name: Run package-mode SDK smoke
         shell: bash
         run: |
           set -euo pipefail
           export LIBREWINFORMS_BRIDGE_PACKAGE_OUTPUT="${GITHUB_WORKSPACE}/artifacts/checkouts/wpf-bridge/artifacts/packages/Release/NonShipping"
-          ./eng/librewinforms-package-smoke.sh
+          xvfb-run -a ./eng/librewinforms-package-smoke.sh
+
+      - name: Retain full Package lane popup observer compile evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: popup-observer-full-package-build
+          path: |
+            artifacts/popup-observer-package/*/*.json
+            artifacts/popup-observer-package/*/*.log
+          if-no-files-found: warn
 
       - name: Upload packages
         uses: actions/upload-artifact@v4

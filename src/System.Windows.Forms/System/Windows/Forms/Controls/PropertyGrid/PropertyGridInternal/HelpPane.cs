@@ -131,7 +131,7 @@ internal partial class HelpPane : PropertyGrid.SnappableControl
         if (ScaleHelper.IsScalingRequirementMet)
         {
             int oldLineHeight = _lineHeight;
-            _lineHeight = Font.Height + LogicalToDeviceUnits(2);
+            _lineHeight = GetFontHeightForTarget(Font) + LogicalToDeviceUnits(2);
             if (oldLineHeight != _lineHeight)
             {
                 _titleLabel.Location = new(_borderSize, _borderSize);
@@ -235,7 +235,7 @@ internal partial class HelpPane : PropertyGrid.SnappableControl
             {
             }
 
-            _lineHeight = Font.Height + 2;
+            _lineHeight = GetFontHeightForTarget(Font) + 2;
             _titleLabel.Location = new(_borderSize, _borderSize);
             _descriptionLabel.Location = new(_borderSize, _borderSize + _lineHeight);
 

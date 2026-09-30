@@ -1,0 +1,193 @@
+# Paired popup desktop interaction evidence
+
+`eng/PopupInteractionApp/Program.cs` is one public `System.Windows.Forms`
+application, compiled unchanged for Microsoft WinForms and the installed
+LibreWinForms SDK. It contains ContextMenuStrip and MenuStrip cascades, a normal
+DropDownList ComboBox, a normal ToolTip, and an outside editor. It does not call
+ShowDropDown/PerformClick/Focus, dispatch managed input, set ActiveControl, or
+install validation/DataError policy. Its 100 ms observer records public state,
+source client-to-screen geometry and events; it does not make a phase succeed.
+
+The existing installed-package popup smoke remains unchanged. That smoke checks
+window admission/source paint/owner teardown, not this independent desktop case.
+The upstream WinformsControlsTest menu/combo/tooltip forms and unit/UI integration
+tests lack a shared, externally driven Microsoft-versus-portable scenario.
+
+## Prepare and compile separately
+
+Use a **successful, non-cancelled exact-head package producer** and retain its run,
+job, archive hash and original package manifest. Do not qualify a failed producer
+because this fixture builds. Stage the complete original private dependency feed;
+the preparation tool records the three direct package hashes but does not replace
+the existing full package/source-identity verifier. Main at `94eb1b90b` contains
+physical popup admission; full keyboard phases additionally require the dropdown
+keyboard/outside-pointer and initial Alt/F10 changes (PRs 71/72, now merged).
+
+On the later, explicitly authorized Windows desktop, create a fresh task-owned
+parent directory and run (substitute actual successful package versions):
+
+```powershell
+python eng/librewinforms-prepare-popup-desktop.py `
+  --destination C:\Temp\popup-interaction\prepared `
+  --feed C:\Temp\qualified-forms-feed `
+  --sdk-version 0.1.0-source-first-sdk `
+  --canonical-version 0.1.0-source-first `
+  --backend-version 0.1.0-source-first-backend `
+  --dotnet-sdk 11.0.100-preview.5.26302.115
+```
+
+Preparation creates independent Microsoft/Portable projects outside the repository
+build graph, byte-compares both Program.cs copies with the checked-in source, and
+pins the compiler without roll-forward. It never builds or starts an application.
+Both projects target the installed SDK's consumer framework contract: `net11.0`
+for Portable and `net11.0-windows` for Microsoft. The canonical Forms assembly
+inside the package may target `net10.0`; that does not change the SDK's explicit
+`net11.0` consumer requirement.
+Run the following from the prepared directory, retaining both complete logs and
+the original clean source commit. Use task-owned separate NuGet caches:
+
+```powershell
+$env:NUGET_PACKAGES = "$PWD\microsoft-packages"
+dotnet build Microsoft/PopupInteractionApp.csproj -c Release --configfile NuGet.config
+if ($LASTEXITCODE -ne 0) { throw 'Microsoft reference build failed' }
+$env:NUGET_PACKAGES = "$PWD\portable-packages"
+dotnet build Portable/PopupInteractionApp.csproj -c Release --configfile NuGet.config
+if ($LASTEXITCODE -ne 0) { throw 'Installed portable build failed' }
+```
+
+No product backend/adapter override, native DLL replacement, package cache rewrite
+or renderer fallback is part of this harness. Preserve the environment and loaded
+native-module evidence separately from these file hashes. Restore any shell-local
+cache variable after the task.
+
+## Real input and screenshots
+
+Use a dedicated, unlocked, unobstructed interactive desktop with no authentication
+prompt or held keys/buttons. The root agent owns VM lifecycle and the one-VM rule;
+this script never starts/reconfigures a VM or dismisses another application's UI.
+Create the evidence parent first, then invoke from the repository:
+
+```powershell
+python eng/librewinforms-popup-desktop.py `
+  --prepared-root C:\Temp\popup-interaction\prepared `
+  --reference-app C:\Temp\popup-interaction\prepared\Microsoft\bin\Release\net11.0-windows\PopupInteractionApp.exe `
+  --portable-app C:\Temp\popup-interaction\prepared\Portable\bin\Release\net11.0\PopupInteractionApp.exe `
+  --evidence-parent C:\Temp\popup-interaction\evidence
+```
+
+Each process has one 60-second scenario deadline and an independent 60-second
+application watchdog. Screenshot storage is bounded at 16 MiB of pixels per
+image and 128 MiB per process. Only the freshly launched PID's windows receive input.
+Source coordinates must agree exactly with the real main/popup client geometry;
+WindowFromPoint and foreground PID are checked before native pointer input.
+Held buttons or modifiers reject both hovering and clicking before any cursor
+movement; a held requested physical key rejects its injected down/up pair.
+SendInput submits real down/up pairs, never direct source callbacks. A blocked
+foreground, covered target, failed native call, changed geometry, missing popup,
+wrong event or expired deadline fails and retains earlier evidence. No retry with
+invented coordinates, OS input to unrelated windows or alternate renderer exists.
+
+Before the baseline, the shared scenario waits for the activated owner's fresh
+geometry-verified snapshot and hovers its existing editor without clicking.
+This moves an ambient cursor off the tooltip target through the same PID,
+foreground, held-input, geometry and deadline guards as subsequent pointer input.
+It adds no source callback, focus mutation, fixed desktop coordinate, settle
+delay or retry. Windows, X11 and macOS share this precondition; the fourteen
+capture phases and their original input subsequence remain unchanged.
+
+The motivating Windows reference from the exact Forms `7b8f1a8f` package run
+failed its first capture because native window state changed. Its journal
+recorded `tooltip-popup` at 1,000 ms, and the baseline image showed the tooltip
+button hovered. The exact native before/after difference was not retained, so
+this does not conclusively attribute every changed-window failure to a tooltip.
+That original paired run stays failed despite its portable case completing all
+fourteen phases. The startup precondition requires a new independently recorded
+paired run; it does not relax either native/source screenshot stability check.
+
+A stable source/native geometry mismatch also retains the already-read source
+snapshot and native window rectangles, exact process identity and failed phase
+in the incomplete receipt's `failureState` (256 KiB maximum). This performs no
+additional native query, input or screenshot, does not admit the rejected state,
+and never retries or extends the original deadline. Oversized diagnostics retain
+an explicit evidence-budget error while the original geometry failure remains.
+
+Fourteen equivalent raw phases cover baseline, context root/cascade/command,
+outside-pointer dismissal, menu root/cascade/command, F10 selection/Down opening,
+Alt selection, ComboBox opening/committed selection, and tooltip appearance.
+Each phase requires two increasing immutable observer snapshots with unchanged
+non-paint state, plus native geometry validation; both are rechecked around the
+screenshot. The driver records actual desktop BMP
+pixels cropped to the union of the process's visible native windows, source/native
+rectangles, public events and completed input pairs. It preserves the executable
+and managed entry assembly SHA-256, source/package preparation receipt, stdout,
+stderr and final incomplete/completed-phase status. Normal final process stopping
+is runner-owned cleanup, **not** a close/teardown qualification.
+
+The screenshot crop can contain desktop background between owned windows: use a
+clean dedicated desktop, not sensitive/unrelated work. A screenshot's existence,
+source Paint event, or completed-phase exit is **not pixel/rendering parity**.
+Inspect paired pixels, event order/reasons, focus, clipping and native-window
+ownership independently before any acceptance claim. Linux/macOS external input,
+multi-monitor/edge/DPI variants, cancellation/persistent menus and host OS tooltip
+fidelity remain separate cases; this Windows driver must not fabricate them.
+
+## Implementation validation and sources
+
+The [X11/XWayland driver](popup-x11-interaction.md) reuses this same source and
+fourteen-phase scenario for the portable Linux application. It is not a Linux
+Microsoft reference, and its offline implementation checks do not qualify native
+input or usable compositor capture.
+
+The historical `net10.0-windows` Microsoft project/source at `4ee4336ba` cross-compiled on macOS with
+.NET SDK `11.0.100-preview.5.26302.115`, Microsoft's `10.0.8` WindowsDesktop reference
+pack and a `win-arm64` framework-dependent apphost: **0 warnings, 0 errors**, 4.80 s.
+The isolated external directory had its own NuGet feed configuration, caches and
+outputs, with no ProGPU/LibreWinForms source graph. Source/project byte comparisons
+passed; the apphost is an actual Windows ARM64 PE. The shared Program.cs SHA-256 is
+`057c07201dcc8b307d78c8cd161d1ba4ad81340af035aead1f7d966d393a89ae`.
+
+The driver/preparer/tests also passed Python bytecode compilation; this does not
+initialize or validate Win32 interop. `eng/tests/test_popup_desktop_harness.py`
+passes thirteen offline preparation/safety cases and runs before the unchanged
+canonical source lane in CI. The first offline run exposed a missing `returncode`
+field in the inert process fixture; that fixture was corrected without changing
+the PID-rejection assertion. A later actual Windows build of the PR72 installed
+portable package rejected the old `net10.0` consumer at
+`LibreWinForms.Sdk.targets` line 11: its guard requires `net11.0`. That failed
+build and original preparation are retained; both templates and the driver's
+strict output-path admission now use the required .NET 11 frameworks, with an
+offline negative control rejecting the old .NET 10 output paths. Program.cs is
+unchanged. The earlier reference compile does not qualify these corrected
+projects; their actual compilation and all Windows input/screenshots remain
+separate pending gates. No native application was started for the offline checks.
+
+The first subsequent Windows paired run used the corrected .NET 11 harness with
+the successful PR72 package baseline. Microsoft captured all fourteen raw phases;
+Portable stopped before input at the startup client-geometry assertion. Microsoft
+reported 192 DPI and a 1120×500 client, while the portable observer reported 96 DPI
+and 560×250; the original runner omitted the rejected native rectangle, so those
+records alone cannot establish its exact scale or offset. The bounded rejection
+receipt above closes that evidence gap without weakening geometry admission.
+This incomplete run does not qualify portable popup behavior or paired pixels.
+
+The same Microsoft reference also exposed a shared fixture initialization defect:
+the form had already consumed its 96-to-192 DPI autoscale pass before its
+design-sized children were attached, leaving the context button at 240×36
+physical pixels and clipping its caption. The source now suspends layout before
+setting design dimensions/mode/client size, attaches all children, then calls
+`ResumeLayout(false)` and `PerformLayout()` before starting the observer. This
+follows the repository's original `WinformsControlsTest/ComboBoxes.Designer.cs`
+initialization pattern and `ContainerControl.OnLayoutResuming` autoscale policy;
+it adds no manual DPI multiplication or control-specific sizing correction.
+The read-only observer, controls, labels, event handlers and input phases are
+unchanged. The original `057c0720…` source and evidence remain historical and
+must not be relabelled: this source correction requires new, identical paired
+builds and a new Microsoft baseline before any clipping or pixel claim. The
+offline ordering contract does not substitute for that actual desktop check.
+
+The Win32 driver follows Microsoft's original contracts for
+[SendInput](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput),
+[GetWindowThreadProcessId](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getwindowthreadprocessid)
+and [GetDIBits](https://learn.microsoft.com/en-us/windows/win32/api/wingdi/nf-wingdi-getdibits)
+(inspected 2026-09-27). It checks complete input insertion, uses pointer-sized
+native identities, and deselects its capture bitmap before reading actual pixels.

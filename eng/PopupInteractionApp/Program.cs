@@ -1,0 +1,171 @@
+// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+
+using System.Diagnostics;
+using System.Drawing;
+using System.Text.Json;
+using System.Windows.Forms;
+
+namespace PopupInteractionApp;
+
+internal static class Program
+{
+    [STAThread]
+    private static void Main(string[] args)
+    {
+        if (args.Length != 2 || !Directory.Exists(args[0]) || Directory.EnumerateFileSystemEntries(args[0]).Any())
+            throw new ArgumentException("Supply a fresh existing evidence directory and a unique run identifier.");
+        using System.Threading.Timer watchdog = new(_ => Environment.Exit(124), null, 60_000, Timeout.Infinite);
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
+        ApplicationConfiguration.Initialize();
+        using InteractionForm form = new(args[0], args[1]);
+        Application.Run(form);
+    }
+}
+
+internal sealed partial class InteractionForm : Form
+{
+    private readonly string _directory;
+    private readonly Stopwatch _clock = Stopwatch.StartNew();
+    private readonly StreamWriter _events;
+    private readonly Dictionary<string, int> _counts = new();
+    private readonly System.Windows.Forms.Timer _observer = new() { Interval = 100 };
+    private readonly ContextMenuStrip _context = new();
+    private readonly MenuStrip _menu = new();
+    private readonly ToolTip _tip = new() { InitialDelay = 500, ReshowDelay = 500, AutoPopDelay = 5_000 };
+    private readonly TextBox _editor = new() { Name = "editor", Location = new(24, 56), Size = new(240, 28) };
+    private readonly Button _contextTarget = new() { Name = "context-target", Text = "Right-click for context menu", Location = new(24, 108), Size = new(240, 36) };
+    private readonly ComboBox _combo = new() { Name = "combo", Location = new(24, 166), Size = new(240, 28), DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly Button _tipTarget = new() { Name = "tooltip-target", Text = "Hover for tooltip", Location = new(304, 108), Size = new(220, 36) };
+    private readonly Dictionary<string, ToolStripItem> _items = new();
+    private readonly Dictionary<string, ToolStripDropDown> _popups = new();
+    private long _sequence;
+
+    internal InteractionForm(string directory, string run)
+    {
+        _directory = directory;
+        _events = new StreamWriter(new FileStream(Path.Combine(directory, "events.jsonl"), FileMode.CreateNew)) { AutoFlush = true };
+        // Keep the form and every design-sized child in one canonical autoscale
+        // pass, just like a designer-generated InitializeComponent method.
+        SuspendLayout();
+        Text = $"PopupInteractionApp [{run}]";
+        StartPosition = FormStartPosition.CenterScreen;
+        AutoScaleDimensions = new(96, 96);
+        AutoScaleMode = AutoScaleMode.Dpi;
+        ClientSize = new(560, 250);
+
+        ToolStripMenuItem contextMore = new("More");
+        ToolStripMenuItem contextCommand = new("Context command");
+        contextMore.DropDownItems.Add(contextCommand);
+        _context.Items.Add("Context first");
+        _context.Items.Add(contextMore);
+        _contextTarget.ContextMenuStrip = _context;
+        RegisterPopup("context", _context);
+        RegisterPopup("context-child", contextMore.DropDown);
+        _items.Add("context-more", contextMore);
+        _items.Add("context-command", contextCommand);
+        contextCommand.Click += (_, _) => Record("context-command");
+
+        ToolStripMenuItem file = new("&File");
+        ToolStripMenuItem menuMore = new("&More");
+        ToolStripMenuItem menuCommand = new("Menu command");
+        menuMore.DropDownItems.Add(menuCommand);
+        file.DropDownItems.Add("First command");
+        file.DropDownItems.Add(menuMore);
+        _menu.Items.Add(file);
+        MainMenuStrip = _menu;
+        RegisterPopup("menu", file.DropDown);
+        RegisterPopup("menu-child", menuMore.DropDown);
+        _items.Add("menu-file", file);
+        _items.Add("menu-more", menuMore);
+        _items.Add("menu-command", menuCommand);
+        menuCommand.Click += (_, _) => Record("menu-command");
+        _menu.MenuActivate += (_, _) => Record("menu-activate");
+        _menu.MenuDeactivate += (_, _) => Record("menu-deactivate");
+
+        _combo.Items.AddRange(["Alpha", "Beta", "Gamma"]);
+        _combo.SelectedIndex = 0;
+        _combo.DropDown += (_, _) => Record("combo-opened");
+        _combo.DropDownClosed += (_, _) => Record("combo-closed");
+        _combo.SelectionChangeCommitted += (_, _) => Record("combo-committed");
+        _tip.SetToolTip(_tipTarget, "Popup interaction tooltip");
+        _tip.Popup += (_, _) => Record("tooltip-popup");
+        _editor.MouseDown += (_, _) => Record("editor-pointer");
+        _editor.TextChanged += (_, _) => Record("editor-text");
+        Controls.AddRange([_editor, _contextTarget, _combo, _tipTarget, _menu]);
+        Shown += (_, _) => Record("shown");
+        Paint += (_, _) => Record("form-paint");
+        FormClosed += (_, _) => Record("form-closed");
+        _observer.Tick += (_, _) => Snapshot();
+        ResumeLayout(false);
+        PerformLayout();
+        _observer.Start();
+    }
+
+    private void RegisterPopup(string name, ToolStripDropDown popup)
+    {
+        _popups.Add(name, popup);
+        popup.Opened += (_, _) => Record(name + "-opened");
+        popup.Closed += (_, e) => Record(name + "-closed", e.CloseReason.ToString());
+        popup.Paint += (_, _) => Record(name + "-paint");
+    }
+
+    private void Record(string name, string? detail = null)
+    {
+        _counts.TryGetValue(name, out int count);
+        _counts[name] = count + 1;
+        _events.WriteLine(JsonSerializer.Serialize(new { name, detail, elapsedMs = _clock.ElapsedMilliseconds }));
+    }
+
+    private static object RectangleRecord(Rectangle value)
+        => new { x = value.X, y = value.Y, width = value.Width, height = value.Height };
+
+    private static object? ClientScreen(Control control)
+        => control.IsHandleCreated && control.Visible
+            ? RectangleRecord(new Rectangle(control.PointToScreen(Point.Empty), control.ClientSize)) : null;
+
+    private void Snapshot()
+    {
+        // Observe public state only. Do not Focus, Show/Hide, Validate, assign
+        // ActiveControl/Text, register DataError, or dispatch managed input.
+        var state = new
+        {
+            schema = 1, pid = Environment.ProcessId, sequence = ++_sequence,
+            elapsedMs = _clock.ElapsedMilliseconds, title = Text,
+            form = new { client = ClientScreen(this), visible = Visible, active = Form.ActiveForm == this, dpi = DeviceDpi },
+            editor = new { client = ClientScreen(_editor), text = _editor.Text, focused = _editor.Focused },
+            contextTarget = ClientScreen(_contextTarget), tooltipTarget = ClientScreen(_tipTarget),
+            combo = new { client = ClientScreen(_combo), droppedDown = _combo.DroppedDown, selectedIndex = _combo.SelectedIndex },
+            counts = _counts,
+            popups = _popups.ToDictionary(pair => pair.Key, pair => new { visible = pair.Value.Visible, client = ClientScreen(pair.Value) }),
+            items = _items.ToDictionary(pair => pair.Key, pair => new
+            {
+                selected = pair.Value.Selected, enabled = pair.Value.Enabled,
+                client = pair.Value.Owner is { IsHandleCreated: true, Visible: true } owner
+                    ? RectangleRecord(new Rectangle(owner.PointToScreen(pair.Value.Bounds.Location), pair.Value.Bounds.Size)) : null
+            })
+        };
+        RecordNativeGeometry(_sequence);
+        string pending = Path.Combine(_directory, "snapshot.pending");
+        File.WriteAllText(pending, JsonSerializer.Serialize(state));
+        // Publish immutable snapshots: replacing a file concurrently open by a
+        // Windows reader can fail even though its contents are read-only.
+        File.Move(pending, Path.Combine(_directory, $"snapshot-{_sequence:D8}.json"));
+    }
+
+    // Optional portable-only observation; the Microsoft build erases this call.
+    partial void RecordNativeGeometry(long sequence);
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _observer.Dispose();
+            _tip.Dispose();
+            _context.Dispose();
+        }
+        base.Dispose(disposing);
+        if (disposing)
+            _events.Dispose();
+    }
+}

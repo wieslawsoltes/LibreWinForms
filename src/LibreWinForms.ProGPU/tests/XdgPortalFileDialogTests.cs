@@ -12,14 +12,11 @@ namespace LibreWinForms.ProGPU.Tests;
 
 public class XdgPortalFileDialogTests
 {
-    [Fact]
+    public static bool IsLinux => OperatingSystem.IsLinux();
+
+    [Fact(Skip = "The XDG file-dialog adapter requires Linux.", SkipUnless = nameof(IsLinux))]
     public void Show_MapsCanonicalOpenStateAndCommitsLocalPortalUris()
     {
-        if (!OperatingSystem.IsLinux())
-        {
-            return;
-        }
-
         RecordingPortal portal = new(new(
             XdgPortalResponse.Success,
             ["file:///tmp/first.txt", "file:///tmp/second%20file.md"],
@@ -51,14 +48,9 @@ public class XdgPortalFileDialogTests
         portal.Request.ShowReadOnly.Should().BeTrue();
     }
 
-    [Fact]
+    [Fact(Skip = "The XDG file-dialog adapter requires Linux.", SkipUnless = nameof(IsLinux))]
     public void Show_PreservesCandidateStateWhenPortalCancels()
     {
-        if (!OperatingSystem.IsLinux())
-        {
-            return;
-        }
-
         RecordingPortal portal = new(new(XdgPortalResponse.Cancelled, [], null, null));
         var service = CreateService(portal, string.Empty);
         LibreFileDialogRequest request = CreateRequest() with
@@ -76,14 +68,9 @@ public class XdgPortalFileDialogTests
         portal.Request.Kind.Should().Be(LibreFileDialogKind.SaveFile);
     }
 
-    [Fact]
+    [Fact(Skip = "The XDG file-dialog adapter requires Linux.", SkipUnless = nameof(IsLinux))]
     public void Show_RejectsPortalErrorsAndNonLocalOrAmbiguousSelections()
     {
-        if (!OperatingSystem.IsLinux())
-        {
-            return;
-        }
-
         LibreFileDialogRequest request = CreateRequest();
         Action failed = () => CreateService(
             new RecordingPortal(new(XdgPortalResponse.Other, [], null, null)),
@@ -100,14 +87,9 @@ public class XdgPortalFileDialogTests
         multiple.Should().Throw<InvalidOperationException>().WithMessage("*multiple paths*");
     }
 
-    [Fact]
+    [Fact(Skip = "The XDG file-dialog adapter requires Linux.", SkipUnless = nameof(IsLinux))]
     public void Show_RequiresDispatcherAndRoutesUnsupportedHelpToFallbackPolicy()
     {
-        if (!OperatingSystem.IsLinux())
-        {
-            return;
-        }
-
         RecordingPortal portal = new(new(XdgPortalResponse.Success, ["file:///tmp/file.txt"], null, null));
         var service = CreateService(portal, string.Empty);
         LibreFileDialogRequest helpRequest = CreateRequest() with
@@ -170,7 +152,7 @@ public class XdgPortalFileDialogTests
     }
 
     [Fact]
-    public void ParentProvider_RejectsInvalidWaylandExportAndServiceReleasesLease()
+    public void ParentProvider_RejectsInvalidWaylandExport()
     {
         RecordingWaylandExporter invalidExporter = new("wayland:");
         var provider = new ProGpuXdgPortalParentWindowProvider(
@@ -180,25 +162,31 @@ public class XdgPortalFileDialogTests
             new(NativeWindowKind.Wayland, (nint)0x2A, 0, "Wayland"));
         invalid.Should().Throw<InvalidOperationException>().WithMessage("*invalid xdg-foreign identifier*");
         invalidExporter.ReleaseCount.Should().Be(1);
+    }
 
+    [Fact(Skip = "The XDG file-dialog adapter requires Linux.", SkipUnless = nameof(IsLinux))]
+    public void PortalService_ReleasesParentLeaseWhenRequestCompletes()
+    {
         RecordingParentProvider parent = new("x11:2a");
         RecordingPortal portal = new(new(
             XdgPortalResponse.Success,
             ["file:///tmp/file.txt"],
             null,
             null));
-        var service = new XdgDesktopPortalLibreFileDialogService(new ProGpuDispatcher(), portal, parent);
+        using ProGpuDispatcher dispatcher = new();
+        using var service = new XdgDesktopPortalLibreFileDialogService(dispatcher, portal, parent);
 
         service.Show(CreateRequest());
 
+        parent.AcquireCount.Should().Be(1);
         parent.ReleaseCount.Should().Be(1);
     }
 
-    [Fact]
+    [Fact(Skip = "The libwayland exporter requires Linux.", SkipUnless = nameof(IsLinux))]
     public void LibWaylandExporter_MapsTypedProtocolExportAndOwnsItsLifetime()
     {
         RecordingWaylandProtocol protocol = new("compositor-token");
-        var exporter = new LibWaylandXdgForeignPortalParentExporter(protocol);
+        using var exporter = new LibWaylandXdgForeignPortalParentExporter(protocol);
 
         exporter.TryExport(
             new(NativeWindowKind.Wayland, (nint)0x2A, (nint)0x3B, "wl_surface"),
@@ -220,7 +208,7 @@ public class XdgPortalFileDialogTests
         afterDispose.Should().Throw<ObjectDisposedException>();
     }
 
-    [Fact]
+    [Fact(Skip = "The libwayland exporter requires Linux.", SkipUnless = nameof(IsLinux))]
     public void LibWaylandExporter_FailsClosedForUnavailableOrInvalidNativeState()
     {
         RecordingWaylandProtocol protocol = new(handle: null);
@@ -252,6 +240,32 @@ public class XdgPortalFileDialogTests
         missingExporter.TryExport(
             new(NativeWindowKind.Wayland, (nint)0x2A, (nint)0x3B, "wl_surface"),
             out _).Should().BeFalse();
+    }
+
+    [Fact(Skip = "Requires a non-Linux host to exercise unsupported platform admission.", SkipWhen = nameof(IsLinux))]
+    public void LinuxAdapters_RejectUnsupportedHostsBeforeAcquiringNativeState()
+    {
+        RecordingParentProvider parent = new("x11:2a");
+        RecordingPortal portal = new(new(XdgPortalResponse.Cancelled, [], null, null));
+        using ProGpuDispatcher dispatcher = new();
+        using var service = new XdgDesktopPortalLibreFileDialogService(dispatcher, portal, parent);
+
+        Action show = () => service.Show(CreateRequest());
+        show.Should().Throw<PlatformNotSupportedException>().WithMessage("*requires Linux*");
+        parent.AcquireCount.Should().Be(0);
+        parent.ReleaseCount.Should().Be(0);
+        portal.CallCount.Should().Be(0);
+
+        RecordingWaylandProtocol protocol = new("compositor-token");
+        using var exporter = new LibWaylandXdgForeignPortalParentExporter(protocol);
+        exporter.TryExport(
+            new(NativeWindowKind.Wayland, (nint)0x2A, (nint)0x3B, "wl_surface"),
+            out IXdgPortalParentWindowLease? lease).Should().BeFalse();
+        lease.Should().BeNull();
+        protocol.CallCount.Should().Be(0);
+        exporter.Dispose();
+        exporter.Dispose();
+        protocol.DisposeCount.Should().Be(1);
     }
 
     [Fact]
@@ -396,10 +410,15 @@ public class XdgPortalFileDialogTests
 
     private sealed class RecordingParentProvider(string parent) : IXdgPortalParentWindowProvider
     {
+        public int AcquireCount { get; private set; }
+
         public int ReleaseCount { get; private set; }
 
         public IXdgPortalParentWindowLease Acquire(LibreHandle owner)
-            => new XdgPortalParentWindowLease(parent, () => ReleaseCount++);
+        {
+            AcquireCount++;
+            return new XdgPortalParentWindowLease(parent, () => ReleaseCount++);
+        }
     }
 
     private sealed class RecordingWaylandExporter(string identifier) : IXdgPortalWaylandParentExporter, IDisposable

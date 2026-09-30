@@ -165,7 +165,13 @@ internal class MenuTimer
         }
 
         EndTransition(forceClose: false);
-        if (CurrentItem is not null && !CurrentItem.IsDisposed && CurrentItem.Selected && CurrentItem.Enabled && ToolStripManager.ModalMenuFilter.InMenuMode)
+        if (CurrentItem is not null && !CurrentItem.IsDisposed && CurrentItem.Selected && CurrentItem.Enabled
+#if LIBREWINFORMS_PORTABLE
+            && ToolStripDropDown.IsPortableMenuInputAncestor(CurrentItem.ParentInternal)
+#else
+            && ToolStripManager.ModalMenuFilter.InMenuMode
+#endif
+            )
         {
             CurrentItem.OnMenuAutoExpand();
         }

@@ -164,7 +164,13 @@ public static partial class ToolStripManager
             }
         }
 
-        internal static void ExitMenuMode() => Instance.ExitMenuModeCore();
+        internal static void ExitMenuMode()
+        {
+#if LIBREWINFORMS_PORTABLE
+            ToolStripDropDown.ClearPortableKeyboardContinuation();
+#endif
+            Instance.ExitMenuModeCore();
+        }
 
         private void ExitMenuModeCore()
         {
@@ -358,17 +364,21 @@ public static partial class ToolStripManager
 
         private bool ProcessActivationChange()
         {
-            int countDropDowns = _inputFilterQueue?.Count ?? 0;
+            CloseDropDownsForActivationChange(_inputFilterQueue?.Count ?? 0, GetActiveToolStripInternal);
+
+            ExitMenuModeCore();
+            return true;
+        }
+
+        internal static void CloseDropDownsForActivationChange(int countDropDowns, Func<ToolStrip?> getActiveToolStrip)
+        {
             for (int i = 0; i < countDropDowns; i++)
             {
-                if (GetActiveToolStripInternal() is ToolStripDropDown activeDropDown && activeDropDown.AutoClose)
+                if (getActiveToolStrip() is ToolStripDropDown activeDropDown && activeDropDown.AutoClose)
                 {
                     activeDropDown.Visible = false;
                 }
             }
-
-            ExitMenuModeCore();
-            return true;
         }
 
         internal static void SetActiveToolStrip(ToolStrip toolStrip, bool menuKeyPressed)

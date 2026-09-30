@@ -7,12 +7,18 @@
     <IsTestProject>true</IsTestProject>
     <OutputType>Exe</OutputType>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="AwesomeAssertions" />
     <PackageReference Include="Microsoft.DotNet.XUnitV3Extensions" />
     <ProjectReference Include="..\LibreWinForms.ProGPU.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\SilkWindowService.cs" Link="SourceContracts\SilkWindowService.cs"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

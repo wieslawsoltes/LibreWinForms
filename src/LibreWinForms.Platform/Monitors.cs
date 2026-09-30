@@ -11,7 +11,30 @@ public readonly record struct LibreMonitor(
     double DpiScale,
     bool IsPrimary,
     int BitsPerPixel = 32,
-    string? DisplayName = null);
+    string? DisplayName = null)
+{
+    /// <summary>
+    ///  Device pixels per native desktop coordinate unit, supplied by the actual
+    ///  monitor provider. Null means that coordinate conversion is unavailable.
+    ///  This is independent of content DPI and video-mode resolution.
+    /// </summary>
+    public double? NativeCoordinateScale { get; init; }
+}
+
+/// <summary>Converts declared monitor desktop units into the source window coordinate policy.</summary>
+public static class LibreMonitorCoordinates
+{
+    public static LibreMonitor ToManaged(LibreMonitor monitor, LibreWindowCoordinateMode mode)
+    {
+        double scale = monitor.NativeCoordinateScale
+            ?? throw new PlatformNotSupportedException("The monitor provider has not declared its desktop coordinate scale.");
+        return monitor with
+        {
+            Bounds = LibreWindowCoordinates.ToManaged(monitor.Bounds, mode, monitor.DpiScale, scale),
+            WorkArea = LibreWindowCoordinates.ToManaged(monitor.WorkArea, mode, monitor.DpiScale, scale)
+        };
+    }
+}
 
 /// <summary>Backend-neutral monitor selection matching the WinForms largest-overlap/nearest behavior.</summary>
 public static class LibreMonitorSelection

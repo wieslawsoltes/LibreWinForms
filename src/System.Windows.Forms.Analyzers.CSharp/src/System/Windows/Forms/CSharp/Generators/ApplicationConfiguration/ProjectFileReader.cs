@@ -62,7 +62,7 @@ internal static partial class ProjectFileReader
         return true;
     }
 
-    private static bool TryReadFont(AnalyzerConfigOptionsProvider configOptions, out FontDescriptor? font, out Diagnostic? diagnostic)
+    internal static bool TryReadFont(AnalyzerConfigOptionsProvider configOptions, out FontDescriptor? font, out Diagnostic? diagnostic)
     {
         font = null;
         diagnostic = null;
@@ -96,7 +96,7 @@ internal static partial class ProjectFileReader
         return false;
     }
 
-    private static bool TryReadHighDpiMode(AnalyzerConfigOptionsProvider configOptions, out HighDpiMode highDpiMode, out Diagnostic? diagnostic)
+    internal static bool TryReadHighDpiMode(AnalyzerConfigOptionsProvider configOptions, out HighDpiMode highDpiMode, out Diagnostic? diagnostic)
     {
         highDpiMode = PropertyDefaultValue.DpiMode;
         diagnostic = null;

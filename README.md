@@ -28,7 +28,19 @@ LibreWinForms is packaged as an MSBuild SDK so normal WinForms apps can move to 
 
 `LibreWinForms.Sdk` supplies canonical source-built WinForms plus the typed ProGPU/Silk.NET backend. Package mode is the default; source checkouts can select project mode explicitly.
 
-3. Change only the project SDK.
+3. Set the LibreWinForms SDK version once in a `global.json` at the solution root (above all projects that use it):
+
+```json
+{
+  "msbuild-sdks": {
+    "LibreWinForms.Sdk": "0.1.0-preview.65"
+  }
+}
+```
+
+If you already have a `global.json`, merge the `msbuild-sdks` entry into it and preserve your existing `sdk` settings. The `sdk` section selects the installed .NET SDK; `msbuild-sdks` selects the LibreWinForms NuGet SDK package. Use a .NET SDK that supports the project's target framework. See [MSBuild project SDK resolution](https://learn.microsoft.com/en-us/visualstudio/msbuild/how-to-use-project-sdk#how-project-sdks-are-resolved).
+
+4. Change the project SDK to the versionless `LibreWinForms.Sdk`. All projects under this `global.json` share its version, so upgrade the package in one place instead of repeating a version in each `.csproj`.
 
 Before:
 
@@ -45,7 +57,7 @@ Before:
 After:
 
 ```xml
-<Project Sdk="LibreWinForms.Sdk/0.1.0-preview.63">
+<Project Sdk="LibreWinForms.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net11.0</TargetFramework>
@@ -56,10 +68,10 @@ After:
 
 Older projects that still use `Microsoft.NET.Sdk.WindowsDesktop` should make the same SDK change and keep the existing WinForms properties.
 
-4. Keep existing app dependencies in place. For example, a mixed WPF/WinForms app only changes the SDK line in the WinForms project:
+5. Keep existing app dependencies in place. For example, a mixed WPF/WinForms app uses the same centrally versioned SDK in the WinForms project:
 
 ```xml
-<Project Sdk="LibreWinForms.Sdk/0.1.0-preview.63">
+<Project Sdk="LibreWinForms.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net11.0</TargetFramework>
@@ -72,14 +84,14 @@ Older projects that still use `Microsoft.NET.Sdk.WindowsDesktop` should make the
 </Project>
 ```
 
-5. Restore and run the app normally:
+6. Restore and run the app normally:
 
 ```bash
 dotnet restore
 dotnet run
 ```
 
-6. Treat Windows-only interop, custom HWND hosting, native common controls, P/Invoke-heavy owner-draw paths, GDI handles, and designer-only APIs as the first compatibility review points. Normal WinForms managed code should remain source-compatible as the portable runtime fills out.
+7. Treat Windows-only interop, custom HWND hosting, native common controls, P/Invoke-heavy owner-draw paths, GDI handles, and designer-only APIs as the first compatibility review points. Normal WinForms managed code should remain source-compatible as the portable runtime fills out.
 
 ## NuGet Packages
 
@@ -93,6 +105,7 @@ The preview package set is defined in `eng/librewinforms-package-list.sh` and va
 | `LibreWinForms.System.Windows.Forms` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.System.Windows.Forms.svg)](https://www.nuget.org/packages/LibreWinForms.System.Windows.Forms) | Canonical source-built `System.Windows.Forms` implementation and reference assets. |
 | `LibreWinForms.ProGPU` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.ProGPU.svg)](https://www.nuget.org/packages/LibreWinForms.ProGPU) | Typed ProGPU/Silk.NET platform backend for canonical WinForms. |
 | `LibreWinForms.WindowsFormsIntegration` | [![NuGet](https://img.shields.io/nuget/vpre/LibreWinForms.WindowsFormsIntegration.svg)](https://www.nuget.org/packages/LibreWinForms.WindowsFormsIntegration) | Real LibreWPF `WindowsFormsIntegration` source built and qualified against canonical LibreWinForms. |
+| `LibreWinForms.ApplicationIsolation` | Source-first feed; not yet published | Optional BCL-only launcher and primitive result contract for a separate portable application; see [process isolation](docs/librewinforms/application-isolation.md). |
 
 ### Bridge Packages
 
@@ -106,8 +119,38 @@ The canonical runtime and its ten-package ProGPU drawing closure are built from 
 
 ## Build And Release
 
+The SDK retains the original C# and VB compiler analyzers, including WFO1000,
+without replacing its existing application initialization policy. See the
+[SDK analyzer contract](docs/sdk-analyzer-parity.md) for source/package provenance,
+configuration ownership, and compiler regression gates.
+
+C# SDK consumers can set `ApplicationDefaultFont` and call
+`ApplicationConfiguration.Initialize()` before creating a window. The SDK reuses
+the original invariant font parser without changing absent-property defaults,
+DPI policy, or caller-owned initialization. See the
+[explicit default-font contract](docs/sdk-application-default-font.md).
+
+Canonical packages reject incompatible selected `System.Drawing.Common`
+compiler, output, and publish assets. The SDK reports an early dependency
+diagnostic when Microsoft drawing is already loaded; it cannot replace that
+assembly in the running process. See the [drawing identity contract](docs/librewinforms/drawing-runtime-identity.md)
+for the excluded-package, library, and single-file boundaries.
+
+Shared [TableLayoutPanel contracts](docs/librewinforms/table-layout-contracts.md)
+exercise exact sizing, spans, RTL, and nested invalidation in the source and
+isolated SDK package consumers.
+
+The same source/package gates exercise the pinned
+[PrintDocument lifecycle](docs/librewinforms/print-document-lifecycle.md),
+including preview actions, cancellation order, and retained page settings.
+
+Canonical [portable committed-text input](docs/librewinforms/portable-committed-text-input.md)
+retains source text/selection and ordinary DataGridView editing/commit/cancel.
+IME composition, undo, full navigation and visible sample qualification remain
+separate from these headless input contracts.
+
 ```bash
-LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.63 ./eng/librewinforms-pack.sh
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.65 ./eng/librewinforms-pack.sh
 ```
 
 The package lane builds canonical `LibreWinForms.System.Windows.Forms`, `LibreWinForms.ProGPU`, `LibreWinForms.Sdk`, and the exact ten-package ProGPU drawing closure. It consumes only a separately qualified canonical WFI source package plus its `LibreWPF.Interop` and `ProGPU.DirectX` source-built dependencies, verifies exact source/dependency provenance and the generated Forms contract, verifies docs, writes the preview manifest, creates a release bundle with hashes and a local-feed `NuGet.config`, and fails if a stale or unexpected current-version package would be published.
@@ -117,14 +160,14 @@ The pack script restores through an isolated cache under `artifacts/nuget/librew
 Build canonical WFI from a LibreWPF checkout first, then pass the qualified source output and exact LibreWPF commit to the package lane. A matching LibreWPF SDK feed is used only by the mixed-desktop package smoke:
 
 ```bash
-LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.63 \
-LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.63 \
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.65 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.65 \
 LIBREWINFORMS_CANONICAL_WFI_SOURCE_ROOT=/path/to/LibreWPF \
 LIBREWINFORMS_CANONICAL_WFI_EXPECTED_COMMIT=<librewpf-commit> \
 ./eng/librewinforms-build-canonical-wfi.sh
 
-LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.63 \
-LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.63 \
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.65 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.65 \
 LIBREWINFORMS_CANONICAL_WFI_PACKAGE_SOURCE=/path/to/LibreWPF/artifacts/packages/CanonicalWinForms \
 LIBREWINFORMS_CANONICAL_WFI_COMMIT=<librewpf-commit> \
 ./eng/librewinforms-pack.sh

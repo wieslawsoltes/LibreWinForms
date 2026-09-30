@@ -1,0 +1,109 @@
+<Project>
+  <!-- Shared by LibreWinForms.Sdk and the canonical Forms buildTransitive asset.
+       Validate selected files, never mere PackageReference presence. This is an
+       ABI-family check, not an aligned-version or cryptographic trust check. -->
+  <PropertyGroup>
+    <_LibreWinFormsDrawingIdentityTargetsImported>true</_LibreWinFormsDrawingIdentityTargetsImported>
+  </PropertyGroup>
+
+  <Target Name="_LibreWinFormsValidateDrawingCompilerIdentity"
+          BeforeTargets="CoreCompile"
+          DependsOnTargets="FindReferenceAssembliesForReferences"
+          Condition="'$(IsCrossTargetingBuild)' != 'true' And '$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <_LibreWinFormsDrawingCompilerFile Include="@(ReferencePathWithRefAssemblies)"
+          Condition="'%(ReferencePathWithRefAssemblies.Filename)%(ReferencePathWithRefAssemblies.Extension)' == 'System.Drawing.Common.dll' Or $([System.String]::Copy('%(ReferencePathWithRefAssemblies.FusionName)').ToLowerInvariant().StartsWith('system.drawing.common,')) Or '%(ReferencePathWithRefAssemblies.ReferenceIdentity)' == 'System.Drawing.Common' Or $([System.String]::Copy('%(ReferencePathWithRefAssemblies.ReferenceIdentity)').ToLowerInvariant().StartsWith('system.drawing.common,'))" />
+    </ItemGroup>
+    <Error Code="LWFDRAW002" Condition="'@(_LibreWinFormsDrawingCompilerFile)' != '' And !Exists('%(_LibreWinFormsDrawingCompilerFile.Identity)')"
+           Text="The selected LibreWinForms drawing compiler asset is missing: %(_LibreWinFormsDrawingCompilerFile.Identity). Restore the aligned ProGPU package closure." />
+    <GetAssemblyIdentity AssemblyFiles="@(_LibreWinFormsDrawingCompilerFile)">
+      <Output TaskParameter="Assemblies" ItemName="_LibreWinFormsDrawingCompilerIdentity" />
+    </GetAssemblyIdentity>
+    <Error Code="LWFDRAW001"
+           Condition="'@(_LibreWinFormsDrawingCompilerIdentity)' != '' And ('%(_LibreWinFormsDrawingCompilerIdentity.Name)' != 'System.Drawing.Common' Or '%(_LibreWinFormsDrawingCompilerIdentity.PublicKeyToken)' != 'c29c9752855ee183')"
+           Text="LibreWinForms requires ProGPU System.Drawing.Common (public key token c29c9752855ee183). Selected compiler asset '%(_LibreWinFormsDrawingCompilerIdentity.OriginalItemSpec)' has identity '%(_LibreWinFormsDrawingCompilerIdentity.Identity)'. Remove the conflicting selected asset; a Microsoft System.Drawing.Common already loaded at runtime cannot be replaced in that load context." />
+  </Target>
+
+  <Target Name="_LibreWinFormsValidateDrawingCopyIdentity"
+          BeforeTargets="_CopyFilesMarkedCopyLocal"
+          Condition="'$(IsCrossTargetingBuild)' != 'true' And '$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <_LibreWinFormsDrawingCopyFile Include="@(ReferenceCopyLocalPaths)"
+          Condition="'%(ReferenceCopyLocalPaths.Filename)%(ReferenceCopyLocalPaths.Extension)' == 'System.Drawing.Common.dll' Or $([System.String]::Copy('%(ReferenceCopyLocalPaths.FusionName)').ToLowerInvariant().StartsWith('system.drawing.common,')) Or '%(ReferenceCopyLocalPaths.ReferenceIdentity)' == 'System.Drawing.Common' Or $([System.String]::Copy('%(ReferenceCopyLocalPaths.ReferenceIdentity)').ToLowerInvariant().StartsWith('system.drawing.common,'))" />
+    </ItemGroup>
+    <Error Code="LWFDRAW002" Condition="'@(_LibreWinFormsDrawingCopyFile)' != '' And !Exists('%(_LibreWinFormsDrawingCopyFile.Identity)')"
+           Text="The selected LibreWinForms drawing copy-local asset is missing: %(_LibreWinFormsDrawingCopyFile.Identity)." />
+    <GetAssemblyIdentity AssemblyFiles="@(_LibreWinFormsDrawingCopyFile)">
+      <Output TaskParameter="Assemblies" ItemName="_LibreWinFormsDrawingCopyIdentity" />
+    </GetAssemblyIdentity>
+    <Error Code="LWFDRAW001"
+           Condition="'@(_LibreWinFormsDrawingCopyIdentity)' != '' And ('%(_LibreWinFormsDrawingCopyIdentity.Name)' != 'System.Drawing.Common' Or '%(_LibreWinFormsDrawingCopyIdentity.PublicKeyToken)' != 'c29c9752855ee183')"
+           Text="LibreWinForms requires ProGPU System.Drawing.Common (public key token c29c9752855ee183). Selected copy-local asset '%(_LibreWinFormsDrawingCopyIdentity.OriginalItemSpec)' has identity '%(_LibreWinFormsDrawingCopyIdentity.Identity)'. Remove the conflicting selected asset." />
+  </Target>
+
+  <Target Name="_LibreWinFormsValidateDrawingOutputIdentity"
+          AfterTargets="CopyFilesToOutputDirectory"
+          Condition="'$(IsCrossTargetingBuild)' != 'true' And '$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <!-- Libraries may legitimately have no copy-local drawing asset. Require
+           only selected destinations; also reject a stale loose root payload. -->
+      <_LibreWinFormsDrawingOutputFile Include="@(ReferenceCopyLocalPaths->'$(OutDir)%(DestinationSubDirectory)%(Filename)%(Extension)')"
+          Condition="'%(ReferenceCopyLocalPaths.Filename)%(ReferenceCopyLocalPaths.Extension)' == 'System.Drawing.Common.dll' Or $([System.String]::Copy('%(ReferenceCopyLocalPaths.FusionName)').ToLowerInvariant().StartsWith('system.drawing.common,')) Or '%(ReferenceCopyLocalPaths.ReferenceIdentity)' == 'System.Drawing.Common' Or $([System.String]::Copy('%(ReferenceCopyLocalPaths.ReferenceIdentity)').ToLowerInvariant().StartsWith('system.drawing.common,'))" />
+      <_LibreWinFormsDrawingOutputFile Include="$(OutDir)System.Drawing.Common.dll"
+          Condition="Exists('$(OutDir)System.Drawing.Common.dll')" />
+    </ItemGroup>
+    <Error Code="LWFDRAW002" Condition="'@(_LibreWinFormsDrawingOutputFile)' != '' And '$(UseCommonOutputDirectory)' != 'true' And !Exists('%(_LibreWinFormsDrawingOutputFile.Identity)')"
+           Text="The selected LibreWinForms drawing output is missing: %(_LibreWinFormsDrawingOutputFile.Identity)." />
+    <ItemGroup>
+      <_LibreWinFormsDrawingOutputFile Remove="@(_LibreWinFormsDrawingOutputFile)" Condition="'$(UseCommonOutputDirectory)' == 'true' And !Exists('%(Identity)')" />
+    </ItemGroup>
+    <GetAssemblyIdentity AssemblyFiles="@(_LibreWinFormsDrawingOutputFile->Distinct())">
+      <Output TaskParameter="Assemblies" ItemName="_LibreWinFormsDrawingOutputIdentity" />
+    </GetAssemblyIdentity>
+    <Error Code="LWFDRAW001"
+           Condition="'@(_LibreWinFormsDrawingOutputIdentity)' != '' And ('%(_LibreWinFormsDrawingOutputIdentity.Name)' != 'System.Drawing.Common' Or '%(_LibreWinFormsDrawingOutputIdentity.PublicKeyToken)' != 'c29c9752855ee183')"
+           Text="LibreWinForms output '%(_LibreWinFormsDrawingOutputIdentity.OriginalItemSpec)' has incompatible drawing identity '%(_LibreWinFormsDrawingOutputIdentity.Identity)'; expected ProGPU System.Drawing.Common (public key token c29c9752855ee183)." />
+  </Target>
+
+  <!-- ComputeFilesToPublish includes GenerateSingleFileBundle. Its after-hook
+       alone would be too late, and bundled files are no longer in
+       ResolvedFileToPublish. At the before-hook the bundler dependencies have
+       already populated the actual FilesToBundle inputs. -->
+  <Target Name="_LibreWinFormsValidateDrawingPublishIdentity"
+          BeforeTargets="GenerateSingleFileBundle"
+          AfterTargets="ComputeFilesToPublish"
+          Condition="'$(IsCrossTargetingBuild)' != 'true' And '$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <_LibreWinFormsDrawingPublishFile Include="@(ResolvedFileToPublish)"
+          Condition="'%(ResolvedFileToPublish.Filename)%(ResolvedFileToPublish.Extension)' == 'System.Drawing.Common.dll' Or $([System.String]::Copy('%(ResolvedFileToPublish.FusionName)').ToLowerInvariant().StartsWith('system.drawing.common,')) Or '%(ResolvedFileToPublish.ReferenceIdentity)' == 'System.Drawing.Common' Or $([System.String]::Copy('%(ResolvedFileToPublish.ReferenceIdentity)').ToLowerInvariant().StartsWith('system.drawing.common,')) Or '%(ResolvedFileToPublish.RelativePath)' == 'System.Drawing.Common.dll' Or $([System.String]::Copy('%(ResolvedFileToPublish.RelativePath)').Replace('\', '/').ToLowerInvariant().EndsWith('/system.drawing.common.dll'))" />
+      <_LibreWinFormsDrawingPublishFile Include="@(FilesToBundle)"
+          Condition="'%(FilesToBundle.Filename)%(FilesToBundle.Extension)' == 'System.Drawing.Common.dll' Or $([System.String]::Copy('%(FilesToBundle.FusionName)').ToLowerInvariant().StartsWith('system.drawing.common,')) Or '%(FilesToBundle.ReferenceIdentity)' == 'System.Drawing.Common' Or $([System.String]::Copy('%(FilesToBundle.ReferenceIdentity)').ToLowerInvariant().StartsWith('system.drawing.common,')) Or '%(FilesToBundle.RelativePath)' == 'System.Drawing.Common.dll' Or $([System.String]::Copy('%(FilesToBundle.RelativePath)').Replace('\', '/').ToLowerInvariant().EndsWith('/system.drawing.common.dll'))" />
+    </ItemGroup>
+    <Error Code="LWFDRAW002" Condition="'@(_LibreWinFormsDrawingPublishFile)' != '' And !Exists('%(_LibreWinFormsDrawingPublishFile.Identity)')"
+           Text="The selected LibreWinForms drawing publish asset is missing: %(_LibreWinFormsDrawingPublishFile.Identity)." />
+    <GetAssemblyIdentity AssemblyFiles="@(_LibreWinFormsDrawingPublishFile->Distinct())">
+      <Output TaskParameter="Assemblies" ItemName="_LibreWinFormsDrawingPublishIdentity" />
+    </GetAssemblyIdentity>
+    <Error Code="LWFDRAW001"
+           Condition="'@(_LibreWinFormsDrawingPublishIdentity)' != '' And ('%(_LibreWinFormsDrawingPublishIdentity.Name)' != 'System.Drawing.Common' Or '%(_LibreWinFormsDrawingPublishIdentity.PublicKeyToken)' != 'c29c9752855ee183')"
+           Text="LibreWinForms requires ProGPU System.Drawing.Common (public key token c29c9752855ee183). Selected publish/bundle asset '%(_LibreWinFormsDrawingPublishIdentity.OriginalItemSpec)' has identity '%(_LibreWinFormsDrawingPublishIdentity.Identity)'. Remove the conflicting selected asset." />
+  </Target>
+
+  <Target Name="_LibreWinFormsValidateDrawingPublishedIdentity"
+          AfterTargets="CopyFilesToPublishDirectory"
+          Condition="'$(IsCrossTargetingBuild)' != 'true' And '$(DesignTimeBuild)' != 'true'">
+    <ItemGroup>
+      <!-- Bundled files are absent here. Never require a loose DLL for them. -->
+      <_LibreWinFormsDrawingPublishedFile Include="@(ResolvedFileToPublish->'$(PublishDir)%(RelativePath)')"
+          Condition="('%(ResolvedFileToPublish.Filename)%(ResolvedFileToPublish.Extension)' == 'System.Drawing.Common.dll' Or $([System.String]::Copy('%(ResolvedFileToPublish.FusionName)').ToLowerInvariant().StartsWith('system.drawing.common,')) Or '%(ResolvedFileToPublish.ReferenceIdentity)' == 'System.Drawing.Common' Or $([System.String]::Copy('%(ResolvedFileToPublish.ReferenceIdentity)').ToLowerInvariant().StartsWith('system.drawing.common,')) Or '%(ResolvedFileToPublish.RelativePath)' == 'System.Drawing.Common.dll' Or $([System.String]::Copy('%(ResolvedFileToPublish.RelativePath)').Replace('\', '/').ToLowerInvariant().EndsWith('/system.drawing.common.dll'))) And ('%(ResolvedFileToPublish.CopyToPublishDirectory)' == 'Always' Or '%(ResolvedFileToPublish.CopyToPublishDirectory)' == 'PreserveNewest' Or '%(ResolvedFileToPublish.CopyToPublishDirectory)' == 'IfDifferent')" />
+    </ItemGroup>
+    <Error Code="LWFDRAW002" Condition="'@(_LibreWinFormsDrawingPublishedFile)' != '' And !Exists('%(_LibreWinFormsDrawingPublishedFile.Identity)')"
+           Text="The selected LibreWinForms drawing published output is missing: %(_LibreWinFormsDrawingPublishedFile.Identity)." />
+    <GetAssemblyIdentity AssemblyFiles="@(_LibreWinFormsDrawingPublishedFile->Distinct())">
+      <Output TaskParameter="Assemblies" ItemName="_LibreWinFormsDrawingPublishedIdentity" />
+    </GetAssemblyIdentity>
+    <Error Code="LWFDRAW001"
+           Condition="'@(_LibreWinFormsDrawingPublishedIdentity)' != '' And ('%(_LibreWinFormsDrawingPublishedIdentity.Name)' != 'System.Drawing.Common' Or '%(_LibreWinFormsDrawingPublishedIdentity.PublicKeyToken)' != 'c29c9752855ee183')"
+           Text="LibreWinForms published output '%(_LibreWinFormsDrawingPublishedIdentity.OriginalItemSpec)' has incompatible drawing identity '%(_LibreWinFormsDrawingPublishedIdentity.Identity)'; expected ProGPU System.Drawing.Common (public key token c29c9752855ee183)." />
+  </Target>
+</Project>

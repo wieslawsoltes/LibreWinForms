@@ -25,9 +25,7 @@ public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindo
     private readonly Lock _windowSync = new();
     private readonly HashSet<SilkLibreWindow> _windows = [];
     private readonly ProGpuReversibleDrawingStore _reversibleDrawing = new();
-    private IProGpuDragInputSink? _dragInputSink;
-    private ProGpuDragInput _lastDragInput;
-    private int _dragKeyState;
+    private readonly ProGpuDragInputRouter _dragInput;
 
     public SilkWindowService(ProGpuDispatcher dispatcher, ILibreHandleRegistry handles)
         : this(dispatcher, handles, new SilkMonitorService())
@@ -42,6 +40,7 @@ public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindo
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         _handles = handles ?? throw new ArgumentNullException(nameof(handles));
         _monitors = monitors ?? throw new ArgumentNullException(nameof(monitors));
+        _dragInput = new(_handles);
     }
 
     public ILibreWindow Create(in LibreWindowCreateOptions options, ILibreWindowEvents events)
@@ -65,6 +64,8 @@ public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindo
             operations = _reversibleDrawing.Snapshot();
         }
 
+        _dragInput.Register(window);
+
         try
         {
             if (operations.Count > 0)
@@ -79,6 +80,47 @@ public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindo
             window.Dispose();
             throw;
         }
+    }
+
+    /// <summary>
+    /// Reads actual native geometry for an existing window owned by this service,
+    /// on that window's creating dispatcher thread. Does not create, attach,
+    /// activate or change a window. Unsupported, foreign or retired handles return
+    /// false with a default snapshot. Native desktop points and backing scale are
+    /// returned unchanged; they are not converted to managed source coordinates.
+    /// </summary>
+    public bool TryGetNativeGeometrySnapshot(LibreHandle handle, out NativeWindowGeometrySnapshot snapshot)
+    {
+        snapshot = default;
+        if (handle.IsNull || handle.Kind != LibreHandleKind.Window
+            || !_handles.TryGet(handle, out SilkLibreWindow? window))
+        {
+            return false;
+        }
+
+        lock (_windowSync)
+        {
+            if (!_windows.Contains(window))
+                return false;
+        }
+
+        // Do not hold the inventory lock while calling native code, and do not
+        // dispatch a foreign-thread request to another window's message pump.
+        if (!window.TryGetNativeGeometrySnapshot(this, handle, out NativeWindowGeometrySnapshot current)
+            || !_handles.TryGet(handle, out SilkLibreWindow? registered)
+            || !ReferenceEquals(registered, window))
+        {
+            return false;
+        }
+
+        lock (_windowSync)
+        {
+            if (!_windows.Contains(window))
+                return false;
+        }
+
+        snapshot = current;
+        return true;
     }
 
     internal void ToggleReversibleDrawing(ProGpuReversibleDrawingOperation operation)
@@ -103,92 +145,20 @@ public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindo
         {
             _windows.Remove(window);
         }
+
+        _dragInput.Unregister(window);
     }
 
-    internal ProGpuDragInput BeginDrag(IProGpuDragInputSink sink)
-    {
-        ArgumentNullException.ThrowIfNull(sink);
-        lock (_windowSync)
-        {
-            if (_dragInputSink is not null)
-            {
-                throw new InvalidOperationException("A Silk drag operation is already active.");
-            }
+    ProGpuDragInput IProGpuDragInputSource.BeginDrag(LibreHandle sourceWindow, IProGpuDragInputSink sink)
+        => _dragInput.BeginDrag(sourceWindow, sink);
 
-            _dragInputSink = sink;
-            return _lastDragInput;
-        }
-    }
+    void IProGpuDragInputSource.EndDrag(IProGpuDragInputSink sink) => _dragInput.EndDrag(sink);
 
-    ProGpuDragInput IProGpuDragInputSource.BeginDrag(IProGpuDragInputSink sink) => BeginDrag(sink);
-
-    internal void EndDrag(IProGpuDragInputSink sink)
-    {
-        lock (_windowSync)
-        {
-            if (ReferenceEquals(_dragInputSink, sink))
-            {
-                _dragInputSink = null;
-            }
-        }
-    }
-
-    void IProGpuDragInputSource.EndDrag(IProGpuDragInputSink sink) => EndDrag(sink);
+    internal ProGpuDragCancellation? PrepareDragPointerCancellation(SilkLibreWindow window)
+        => _dragInput.PreparePointerCancellation(window);
 
     internal bool RecordDragInput(SilkLibreWindow window, in LibreInputEvent inputEvent)
-    {
-        ProGpuDragInput input;
-        IProGpuDragInputSink? sink;
-        lock (_windowSync)
-        {
-            int button = inputEvent.Button switch
-            {
-                LibrePointerButton.Primary => 0x0001,
-                LibrePointerButton.Secondary => 0x0002,
-                LibrePointerButton.Middle => 0x0010,
-                _ => 0,
-            };
-            if (inputEvent.Kind == LibreInputEventKind.PointerDown)
-            {
-                _dragKeyState |= button;
-            }
-            else if (inputEvent.Kind == LibreInputEventKind.PointerUp)
-            {
-                _dragKeyState &= ~button;
-            }
-
-            _dragKeyState &= ~(0x0004 | 0x0008 | 0x0020);
-            if (inputEvent.Modifiers.HasFlag(LibreInputModifiers.Shift)) _dragKeyState |= 0x0004;
-            if (inputEvent.Modifiers.HasFlag(LibreInputModifiers.Control)) _dragKeyState |= 0x0008;
-            if (inputEvent.Modifiers.HasFlag(LibreInputModifiers.Alt)) _dragKeyState |= 0x0020;
-
-            ProGpuDragInputKind kind = inputEvent.Kind == LibreInputEventKind.KeyDown
-                && inputEvent.Key == LibreKey.Escape
-                    ? ProGpuDragInputKind.Escape
-                    : ProGpuDragInputKind.Pointer;
-            if (inputEvent.Kind is LibreInputEventKind.PointerDown
-                or LibreInputEventKind.PointerUp
-                or LibreInputEventKind.PointerMove)
-            {
-                LibreRectangle bounds = window.Bounds;
-                _lastDragInput = new ProGpuDragInput(
-                    kind,
-                    new LibrePoint(
-                        checked(bounds.X + inputEvent.Position.X),
-                        checked(bounds.Y + inputEvent.Position.Y)),
-                    _dragKeyState);
-            }
-            else
-            {
-                _lastDragInput = _lastDragInput with { Kind = kind, KeyState = _dragKeyState };
-            }
-
-            input = _lastDragInput;
-            sink = _dragInputSink;
-        }
-
-        return sink?.Input(input) == true;
-    }
+        => _dragInput.Record(window, inputEvent);
 
     internal void RefreshReversibleDrawing(SilkLibreWindow window)
     {
@@ -280,7 +250,7 @@ public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindo
         => !owner.IsNull && owner.Kind == LibreHandleKind.Window;
 }
 
-internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
+internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, INativePopupAdmissionHost, INativeCharacterTarget, IProGpuDragInputWindow, INativePointerTarget
 {
     private readonly SilkWindowService _service;
     private readonly ProGpuDispatcher _dispatcher;
@@ -289,7 +259,9 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private readonly ILibreWindowEvents _events;
     private readonly IWindow _window;
     private readonly SilkWindowController _controller;
+    private readonly NativePopupAdmission? _popupAdmission;
     private readonly LibreWindowCoordinateMode _coordinateMode;
+    private readonly bool _scaleOnDpiChange;
     private readonly bool _inputTransparent;
     private readonly ContainerVisual _paintRoot = new();
     private readonly DrawingVisual _fallbackPaintVisual = new();
@@ -299,9 +271,18 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     private readonly Dictionary<LibreHandle, DrawingVisual> _paintLayers = [];
     private readonly ProGpuAdornerStore _adorners;
     private IInputContext? _input;
+    private NativePointerInput? _nativePointerInput;
+    private NativeCharacterSequence? _characters;
+    private GlfwCharacterInput? _characterInput;
     private volatile WgpuContext? _wgpuContext;
     private Compositor? _compositor;
+    private WgpuContext? _unpublishedContext;
+    private Compositor? _unpublishedCompositor;
+    private readonly WindowRenderBoundary _renderBoundary;
+    private readonly Action _renderFrame;
+    private bool _initializingRenderer;
     private bool _paintQueued;
+    private float _lastPaintDpi = 96f;
     private bool _presentationQueued;
     private LibreRectangle? _dirtyRectangle;
     private LibreHandle _owner;
@@ -335,8 +316,11 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _handles = handles;
         _monitors = monitors;
         _events = events;
+        _renderBoundary = new WindowRenderBoundary(DrainRetiredNativeWindow);
+        _renderFrame = RenderFrame;
         _adorners = new ProGpuAdornerStore(_adornerRoot);
         _coordinateMode = options.CoordinateMode;
+        _scaleOnDpiChange = options.ScaleOnDpiChange;
         _inputTransparent = options.Options.HasFlag(LibreWindowOptions.InputTransparent);
         ValidateSizeConstraints(options.MinimumSize, options.MaximumSize);
         ValidateOpacity(options.Opacity);
@@ -369,6 +353,12 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _window = Silk.NET.Windowing.Window.Create(silkOptions);
         _controller = new SilkWindowController(_window);
         _controller.SetIsPopup(options.Options.HasFlag(LibreWindowOptions.Popup));
+        if (options.Options.HasFlag(LibreWindowOptions.Popup))
+        {
+            _popupAdmission = new NativePopupAdmission(this);
+            _controller.SetTopMost(options.Options.HasFlag(LibreWindowOptions.TopMost));
+        }
+
         _showInTaskbar = options.ShowInTaskbar;
         _canClose = options.CanClose;
         _canMinimize = options.CanMinimize;
@@ -378,28 +368,37 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _maximumSize = options.MaximumSize;
         Handle = handles.Allocate(this, LibreHandleKind.Window);
         AttachEvents();
-        _window.Initialize();
-        ApplyControllerBorder(ResolveBorder(options.Options));
-        _controller.SetCanClose(_canClose);
-        _controller.SetCanMinimize(_canMinimize);
-        _controller.SetCanMaximize(_canMaximize);
-        _controller.SetOpacity(_opacity);
-        _controller.SetShowInTaskbar(_showInTaskbar);
-        _reportedDpiScale = DpiScale;
-        _reportedFramebufferScale = FramebufferScale;
-        ApplySizeConstraints();
-        SetNativeBounds(LibreWindowCoordinates.ToNative(
-            options.Bounds,
-            _coordinateMode,
-            _reportedDpiScale,
-            _reportedFramebufferScale));
-        _initializing = false;
-
-        Owner = options.Owner;
-        _dispatcher.Register(this);
-        if (options.Options.HasFlag(LibreWindowOptions.Visible))
+        try
         {
-            Show();
+            _window.Initialize();
+            ApplyControllerBorder(ResolveBorder(options.Options));
+            _controller.SetCanClose(_canClose);
+            _controller.SetCanMinimize(_canMinimize);
+            _controller.SetCanMaximize(_canMaximize);
+            _controller.SetOpacity(_opacity);
+            _controller.SetShowInTaskbar(_showInTaskbar);
+            _reportedDpiScale = DpiScale;
+            _reportedFramebufferScale = FramebufferScale;
+            ApplySizeConstraints();
+            SetNativeBounds(LibreWindowCoordinates.ToNative(
+                options.Bounds,
+                _coordinateMode,
+                _reportedDpiScale,
+                _reportedFramebufferScale));
+            _initializing = false;
+
+            Owner = options.Owner;
+            _dispatcher.Register(this);
+            if (options.Options.HasFlag(LibreWindowOptions.Visible))
+            {
+                Show();
+            }
+        }
+        catch (Exception failure)
+        {
+            try { ReleaseNativeWindow(); }
+            catch (Exception cleanupFailure) { failure.Data[nameof(SilkLibreWindow)] = cleanupFailure; }
+            throw;
         }
     }
 
@@ -410,6 +409,34 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     internal ProGpuDispatcher Dispatcher => _dispatcher;
 
     internal bool IsDisposed => _disposed;
+
+    bool IProGpuDragInputWindow.IsDisposed => _disposed;
+    bool IProGpuDragInputWindow.CheckAccess() => _dispatcher.CheckAccess();
+
+    internal bool TryGetNativeGeometrySnapshot(
+        SilkWindowService service,
+        LibreHandle handle,
+        out NativeWindowGeometrySnapshot snapshot)
+    {
+        snapshot = default;
+        if (!CanReadNativeGeometry(service, handle)
+            || !_controller.TryGetGeometrySnapshot(out NativeWindowGeometrySnapshot current)
+            || !CanReadNativeGeometry(service, handle))
+        {
+            return false;
+        }
+
+        snapshot = current;
+        return true;
+    }
+
+    private bool CanReadNativeGeometry(SilkWindowService service, LibreHandle handle)
+        => ReferenceEquals(_service, service)
+            && Handle == handle
+            && _dispatcher.CheckAccess()
+            && !_initializing
+            && !_disposed
+            && !_closed;
 
     public LibreWindowCoordinateMode CoordinateMode => _coordinateMode;
 
@@ -426,13 +453,19 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
 
     public LibreHandle Owner
     {
-        get => _owner;
+        get => _popupAdmission?.Owner ?? _owner;
         set
         {
             VerifyAccess();
             if (value == Handle)
             {
                 throw new ArgumentException("A window cannot own itself.", nameof(value));
+            }
+
+            if (_popupAdmission is not null)
+            {
+                _popupAdmission.SetOwner(value);
+                return;
             }
 
             NativeWindowHandle nativeOwner = NativeWindowHandle.Empty;
@@ -614,12 +647,25 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     public void SetZOrder(LibreWindowZOrder value)
     {
         VerifyAccess();
-        _controller.SetZOrder(value switch
+        NativeWindowZOrder order = value switch
         {
             LibreWindowZOrder.Front => NativeWindowZOrder.Front,
             LibreWindowZOrder.Back => NativeWindowZOrder.Back,
             _ => throw new ArgumentOutOfRangeException(nameof(value), value, "Unknown window z-order operation."),
-        });
+        };
+        if (_popupAdmission is not null
+            && NativePopupAdmission.RequiresNonactivatingFront(NativeHandle.Kind, value))
+        {
+            // The pinned Win32 SetZOrder omits SWP_NOACTIVATE. Setting the same
+            // topmost rank uses its existing nonactivating SetWindowPos path.
+            if (!_controller.SetTopMost(TopMost))
+                throw new PlatformNotSupportedException("The native host rejected nonactivating popup ordering.");
+            return;
+        }
+
+        bool accepted = _controller.SetZOrder(order);
+        if (_popupAdmission is not null && !accepted)
+            throw new PlatformNotSupportedException("The native host rejected popup ordering.");
     }
 
     public void SetCursor(LibreCursorShape shape)
@@ -684,7 +730,10 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     public void Show()
     {
         VerifyAccess();
-        _window.IsVisible = true;
+        if (_popupAdmission is not null)
+            _popupAdmission.Show();
+        else
+            _window.IsVisible = true;
     }
 
     public void Hide()
@@ -696,6 +745,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     public void Activate()
     {
         VerifyAccess();
+        if (_popupAdmission is not null)
+            throw new InvalidOperationException("A nonactivating popup cannot take native focus.");
         _window.Focus();
     }
 
@@ -705,35 +756,126 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         _window.Close();
     }
 
-    public void Dispose()
+    public void Dispose() => ReleaseNativeWindow();
+
+    void INativePopupAdmissionHost.VerifyAccess() => VerifyAccess();
+
+    bool INativePopupAdmissionHost.TryResolveOwner(LibreHandle owner, out NativeWindowHandle nativeOwner)
+    {
+        if (_handles.TryGet(owner, out SilkLibreWindow? silkOwner))
+        {
+            if (silkOwner.IsDisposed || !silkOwner.Dispatcher.CheckAccess())
+            {
+                nativeOwner = NativeWindowHandle.Empty;
+                return false;
+            }
+
+            return SilkWindowService.TryResolveNativeOwner(_handles, owner, out nativeOwner);
+        }
+
+        if (!SilkWindowService.TryResolveNativeOwner(_handles, owner, out nativeOwner))
+            return false;
+        // The external registry proves a live native identity, not its X11
+        // display-thread serialization. Do not borrow an unqualified XID.
+        if (nativeOwner.Kind == NativeWindowKind.X11)
+        {
+            nativeOwner = NativeWindowHandle.Empty;
+            return false;
+        }
+
+        return true;
+    }
+
+    bool INativePopupAdmissionHost.PrepareOwner(NativeWindowHandle owner)
+        => NativePopupWindow.TryPrepareOwner(owner, _window);
+
+    bool INativePopupAdmissionHost.ClearOwner() => _controller.SetParent(NativeWindowHandle.Empty);
+
+    bool INativePopupAdmissionHost.ShowOwned(NativeWindowHandle owner, Action showWithoutActivation)
+        => NativePopupWindow.TryShowOwned(owner, _window, showWithoutActivation);
+
+    void INativePopupAdmissionHost.ShowWithoutActivation()
+    {
+        EnsureRenderer();
+        // The actual provider owns nonactivation and callback-safe native identity.
+        // An owned panel must never enter the GLFW visibility path.
+        NativePopupWindow.ShowWithoutActivation(_window);
+    }
+
+    void INativePopupAdmissionHost.Discard() => ReleaseNativeWindow();
+
+    private void ReleaseNativeWindow()
     {
         if (_disposed)
-        {
             return;
-        }
-
         VerifyAccess();
         _disposed = true;
-        _service.Unregister(this);
-        _dispatcher.Unregister(this);
-        _input?.Dispose();
-        foreach (DrawingVisual visual in _paintLayers.Values)
+        Exception? firstFailure = null;
+        void Release(Action release)
         {
-            visual.Context.Clear();
+            try { release(); }
+            catch (Exception failure) { firstFailure ??= failure; }
         }
 
+        // A rejected/partially initialized window must never leave a native
+        // surface, character callback or logical handle behind, even if another
+        // cleanup operation or a user callback fails.
+        Release(() => _service.Unregister(this));
+        Release(() => _dispatcher.Unregister(this));
+        // Hide without destroying a surface that failed GPU cleanup may still own.
+        Release(() => _window.IsVisible = false);
+        Release(() => _nativePointerInput?.Dispose());
+        Release(() => _characterInput?.Dispose());
+        Release(() => _input?.Dispose());
+        Release(_controller.Dispose);
+        // Logical source teardown is complete, but the native view can still be
+        // leased or inside a callback. The dispatcher retains it until the
+        // provider confirms retirement, including after an initial failure.
+        Release(() => _dispatcher.RetireNativeWindow(_window, ReleaseRenderingResources,
+            CanReleaseRenderingResources));
+        Release(() => _handles.Release(Handle));
+        Release(RaiseClosed);
+        if (firstFailure is not null)
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(firstFailure).Throw();
+    }
+
+    private void ReleaseRenderingResources()
+    {
+        // PaintRequested may retire the window while its Graphics/frame still
+        // records into these visuals. Clear only after that scope completes.
+        foreach (DrawingVisual visual in _paintLayers.Values)
+            visual.Context.Clear();
         _paintLayers.Clear();
         _adorners.Clear();
         _fallbackPaintVisual.Context.Clear();
         _transientPaintVisual.Context.Clear();
         _reversiblePaintVisual.Context.Clear();
         _paintRoot.ClearChildren();
+
+        ReleaseUnpublishedRenderer();
+        // A failed compositor still owns its device. Retain that exact context
+        // rather than destroying a dependency of failed cleanup.
         _compositor?.Dispose();
+        _compositor = null;
         _wgpuContext?.Dispose();
-        _controller.Dispose();
-        _window.Dispose();
-        _handles.Release(Handle);
-        RaiseClosed();
+        _wgpuContext = null;
+    }
+
+    private void ReleaseUnpublishedRenderer()
+    {
+        _unpublishedCompositor?.Dispose();
+        _unpublishedCompositor = null;
+        _unpublishedContext?.Dispose();
+        _unpublishedContext = null;
+    }
+
+    private bool CanReleaseRenderingResources()
+        => !_renderBoundary.IsActive && !_initializingRenderer;
+
+    private void DrainRetiredNativeWindow()
+    {
+        if (_disposed)
+            _dispatcher.DrainNativeWindowRetirements();
     }
 
     internal void RequestPaint(LibreRectangle? dirtyRectangle)
@@ -762,9 +904,11 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         LibreRectangle windowBounds = Bounds;
         if (windowBounds.Width > 0 && windowBounds.Height > 0 && operations.Count > 0)
         {
+            float dpi = DrawingDpi;
             using Graphics graphics = Graphics.FromProGpuDrawingContext(
                 _reversiblePaintVisual.Context,
-                new RectangleF(0f, 0f, windowBounds.Width, windowBounds.Height));
+                new RectangleF(0f, 0f, windowBounds.Width, windowBounds.Height),
+                Matrix4x4.Identity, dpi, dpi);
             graphics.SetClip(new RectangleF(0f, 0f, windowBounds.Width, windowBounds.Height));
 
             foreach (ProGpuReversibleDrawingOperation operation in operations)
@@ -855,28 +999,35 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     public void PresentPendingPaint()
     {
         VerifyAccess();
+        if (_renderBoundary.IsActive)
+            return;
         const int maxImmediateAttempts = 3;
         for (int attempt = 0;
-             attempt < maxImmediateAttempts && (_paintQueued || _presentationQueued);
+             !_disposed && attempt < maxImmediateAttempts && (_paintQueued || _presentationQueued);
              attempt++)
         {
             _window.DoRender();
         }
     }
 
+    private float DrawingDpi => _coordinateMode == LibreWindowCoordinateMode.DevicePixels
+        ? LibreWindowCoordinates.ToDeviceDpi(DpiScale) : 96f;
+
     internal Graphics CreateGraphics(
         LibrePoint origin,
         LibreRectangle clipRectangle)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        EnsureRenderer();
         WgpuContext targetContext = _wgpuContext
             ?? throw new InvalidOperationException("The ProGPU window drawing context is not initialized.");
         DrawingContext recording = new();
         int infrastructureCommandCount = 0;
+        float dpi = DrawingDpi;
         Graphics graphics = Graphics.FromProGpuDrawingContext(
             recording,
             ToDrawingRectangle(clipRectangle),
             Matrix4x4.CreateTranslation(origin.X, origin.Y, 0f),
+            dpi, dpi,
             targetContext,
             intention => FlushGraphics(recording, infrastructureCommandCount, intention),
             () => CompleteGraphics(recording, infrastructureCommandCount));
@@ -902,15 +1053,18 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
             throw new ArgumentOutOfRangeException(nameof(bounds), "Adorner dimensions cannot be negative.");
         }
 
+        EnsureRenderer();
         WgpuContext targetContext = _wgpuContext
             ?? throw new InvalidOperationException("The ProGPU window drawing context is not initialized.");
         DrawingContext recording = new();
+        float dpi = DrawingDpi;
         Graphics graphics = Graphics.FromProGpuDrawingContext(
             recording,
             new RectangleF(0f, 0f, bounds.Width, bounds.Height),
             Matrix4x4.Identity,
+            dpi, dpi,
             targetContext,
-            () => CompleteAdornerGraphics(adorner, bounds, clipRectangle, recording));
+            completed: () => CompleteAdornerGraphics(adorner, bounds, clipRectangle, recording));
         graphics.SetClip(new RectangleF(
             clipRectangle.X - bounds.X,
             clipRectangle.Y - bounds.Y,
@@ -1123,7 +1277,12 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         }
 
         _window.DoEvents();
+        _characters?.Flush();
+        if (_disposed)
+            return;
         _window.DoUpdate();
+        if (_disposed)
+            return;
         if ((_paintQueued || _presentationQueued) && Visible)
         {
             _window.DoRender();
@@ -1303,7 +1462,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         bool dpiChanged)
     {
         bool preserveLogicalSize = _coordinateMode == LibreWindowCoordinateMode.Logical;
-        if (!preserveLogicalSize && !dpiChanged)
+        if (!preserveLogicalSize && _scaleOnDpiChange && !dpiChanged)
         {
             return;
         }
@@ -1313,10 +1472,10 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
             _coordinateMode,
             oldDpiScale,
             oldFramebufferScale);
-        int desiredWidth = preserveLogicalSize
+        int desiredWidth = preserveLogicalSize || !_scaleOnDpiChange
             ? oldManagedSize.Width
             : ScaleForDpi(oldManagedSize.Width, newDpiScale, oldDpiScale);
-        int desiredHeight = preserveLogicalSize
+        int desiredHeight = preserveLogicalSize || !_scaleOnDpiChange
             ? oldManagedSize.Height
             : ScaleForDpi(oldManagedSize.Height, newDpiScale, oldDpiScale);
         LibreRectangle nativeSize = LibreWindowCoordinates.ToNative(
@@ -1385,83 +1544,154 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     {
         _controller.Attach();
         ApplyInputTransparency();
-        _wgpuContext = new WgpuContext();
-        _wgpuContext.Initialize(_window);
-        _compositor = new Compositor(
-            _wgpuContext,
-            _wgpuContext.SwapChainFormat,
-            CompositorOptions.Default with
-            {
-                EnableGpuHitTesting = false,
-                PrimarySampleCount = 1,
-            });
-        _input = _window.CreateInput();
+        // A source dropdown can precreate its hidden native handle before
+        // assigning its live owner. Defer only its renderer, not native/input
+        // setup, so normal display can acquire the owner's device-domain cache.
+        if (_popupAdmission is null)
+            EnsureRenderer();
+        _input = NativeWindowInput.CreateInput(_window);
+        nint characterWindow = _window.Native?.Glfw ?? 0;
+        _characters = NativeCharacterSequence.Current;
+        if (NativePointerInput.RequiresGlfwCharacters(_input, _popupAdmission is not null, characterWindow))
+        {
+            _characterInput = new GlfwCharacterInput(new GlfwCharacterCallbacks(characterWindow), characterWindow,
+                _characters, this, Timestamp);
+        }
+
         ApplyCursor();
         foreach (IKeyboard keyboard in _input.Keyboards)
         {
             keyboard.KeyDown += OnKeyDown;
             keyboard.KeyUp += OnKeyUp;
-            keyboard.KeyChar += OnKeyChar;
         }
 
-        foreach (IMouse mouse in _input.Mice)
+        if (_input is INativePointerInputContext nativePointer)
         {
-            mouse.MouseDown += OnMouseDown;
-            mouse.MouseUp += OnMouseUp;
-            mouse.MouseMove += OnMouseMove;
-            mouse.Scroll += OnMouseScroll;
+            _nativePointerInput = new NativePointerInput(nativePointer, this);
+        }
+        else
+        {
+            foreach (IMouse mouse in _input.Mice)
+            {
+                mouse.MouseDown += OnMouseDown;
+                mouse.MouseUp += OnMouseUp;
+                mouse.MouseMove += OnMouseMove;
+                mouse.Scroll += OnMouseScroll;
+            }
         }
     }
 
-    private unsafe void ApplyInputTransparency()
+    private void EnsureRenderer()
+    {
+        VerifyAccess();
+        if (_wgpuContext is not null)
+            return;
+        if (_initializingRenderer)
+            throw new InvalidOperationException("Window rendering cannot initialize reentrantly.");
+        if (_unpublishedContext is not null || _unpublishedCompositor is not null)
+            throw new InvalidOperationException("Dispose the source window after failed renderer cleanup before creating another renderer.");
+
+        _initializingRenderer = true;
+        Exception? initializationFailure = null;
+        try
+        {
+            WgpuContext context = new();
+            _unpublishedContext = context;
+            // Native ownership and render-device ownership are distinct. Only
+            // borrow an actual live same-service, same-dispatcher Silk owner;
+            // external native registrations do not expose a rendering device.
+            if (_popupAdmission is not null && !Owner.IsNull
+                && _handles.TryGet(Owner, out SilkLibreWindow? owner))
+            {
+                if (!ReferenceEquals(owner._service, _service)
+                    || !ReferenceEquals(owner._dispatcher, _dispatcher))
+                    throw new InvalidOperationException("A popup render owner must belong to this service and dispatcher.");
+                owner.VerifyAccess();
+                WgpuContext ownerContext = owner._wgpuContext
+                    ?? throw new InvalidOperationException("The popup owner's renderer is not initialized.");
+                context.InitializeSharedDevice(_window, ownerContext);
+            }
+            else
+            {
+                // Preserve standalone rendering for an explicit pre-owner
+                // Graphics request or an admitted external native owner.
+                context.Initialize(_window);
+            }
+
+            Compositor compositor = new(context, context.SwapChainFormat,
+                CompositorOptions.Default with { EnableGpuHitTesting = false, PrimarySampleCount = 1 });
+            _unpublishedCompositor = compositor;
+            VerifyAccess();
+            _compositor = compositor;
+            _wgpuContext = context;
+            _unpublishedCompositor = null;
+            _unpublishedContext = null;
+        }
+        catch (Exception failure)
+        {
+            initializationFailure = failure;
+            // Failed cleanup remains source-owned for Dispose/dispatcher retry;
+            // do not discard an unpublished device or its native surface lease.
+            try { ReleaseUnpublishedRenderer(); }
+            catch (Exception) { /* Exact unpublished owners remain available for disposal retry. */ }
+            throw;
+        }
+        finally
+        {
+            _initializingRenderer = false;
+            // Explicit pre-owner Graphics/Show initialization may run outside
+            // rendering. Its rejected source/native callbacks must unwind too.
+            try { DrainRetiredNativeWindow(); }
+            catch (Exception) when (initializationFailure is not null)
+            {
+                // Keep initialization primary; the queue retains failed owners.
+            }
+        }
+    }
+
+    private void ApplyInputTransparency()
     {
         if (!_inputTransparent)
         {
             return;
         }
 
-        try
-        {
-            // GLFW 3.4 exposes mouse pass-through as a window attribute, but
-            // Silk.NET's generated enum predates the public constant.
-            const int glfwMousePassthrough = 0x0002000D;
-            Silk.NET.GLFW.Glfw glfw = Silk.NET.GLFW.GlfwProvider.GLFW.Value;
-            glfw.SetWindowAttrib(
-                (Silk.NET.GLFW.WindowHandle*)_window.Handle,
-                (Silk.NET.GLFW.WindowAttributeSetter)glfwMousePassthrough,
-                true);
-        }
-        catch (Exception exception) when (
-            exception is DllNotFoundException
-            or EntryPointNotFoundException
-            or BadImageFormatException
-            or Silk.NET.GLFW.GlfwException
-            or TypeInitializationException)
-        {
-            throw new PlatformNotSupportedException(
-                "The active Silk.NET windowing backend does not provide input-transparent popup windows.",
-                exception);
-        }
+        NativeWindowInput.SetInputTransparent(_window, true);
     }
 
-    private unsafe void OnRender(double delta)
+    private void OnRender(double delta)
     {
         _ = delta;
-        if ((!_paintQueued && !_presentationQueued) || _wgpuContext is null || _compositor is null)
+        if (_disposed)
+            return;
+        _renderBoundary.Run(_renderFrame);
+    }
+
+    private void RenderFrame()
+    {
+        if (_disposed || (!_paintQueued && !_presentationQueued))
         {
             return;
         }
 
-        bool repaint = _paintQueued;
+        EnsureRenderer();
+        WgpuContext context = _wgpuContext!;
+        Compositor compositor = _compositor!;
+
+        float targetDpi = DrawingDpi;
+        bool dpiChanged = _lastPaintDpi != targetDpi;
+        bool repaint = _paintQueued || dpiChanged;
         _paintQueued = false;
         _presentationQueued = false;
         LibreRectangle surfaceBounds = GetSurfaceBounds();
         if (repaint)
         {
-            LibreRectangle dirty = _dirtyRectangle ?? surfaceBounds;
+            // A retained command contains its converted glyph size. A different
+            // target resolution invalidates every layer, even on a partial paint.
+            LibreRectangle dirty = dpiChanged ? surfaceBounds : _dirtyRectangle ?? surfaceBounds;
             _dirtyRectangle = null;
             _transientPaintVisual.Context.Clear();
-            using (WgpuContext.PushCurrent(_wgpuContext))
+            using (WgpuContext.PushCurrent(context))
             {
                 ProGpuRetainedPaintFrame frame = new(
                     _paintRoot,
@@ -1471,23 +1701,40 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
                     _reversiblePaintVisual,
                     _paintLayers,
                     surfaceBounds,
-                    dirty);
+                    dirty,
+                    targetDpi);
+                Exception? paintFailure = null;
                 try
                 {
                     _events.PaintRequested(frame);
                 }
+                catch (Exception failure) { paintFailure = failure; throw; }
                 finally
                 {
-                    frame.Complete();
+                    try { frame.Complete(); }
+                    catch (Exception) when (paintFailure is not null)
+                    {
+                        // Preserve the application's paint failure. Source
+                        // resource cleanup still runs at the outer boundary.
+                    }
                 }
+
+                if (!OwnsRenderResources(context, compositor))
+                    return;
+                _lastPaintDpi = targetDpi;
             }
         }
 
+        if (!OwnsRenderResources(context, compositor))
+            return;
         _paintRoot.Size = new Vector2(surfaceBounds.Width, surfaceBounds.Height);
         _adornerRoot.Size = new Vector2(surfaceBounds.Width, surfaceBounds.Height);
         _paintRoot.Invalidate();
-        PresentFrame(_wgpuContext, _compositor, surfaceBounds);
+        PresentFrame(context, compositor, surfaceBounds);
     }
+
+    private bool OwnsRenderResources(WgpuContext context, Compositor compositor)
+        => !_disposed && ReferenceEquals(_wgpuContext, context) && ReferenceEquals(_compositor, compositor);
 
     private unsafe void PresentFrame(
         WgpuContext context,
@@ -1566,7 +1813,14 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
 
     private void OnClosing()
     {
-        if (!_events.Closing())
+        if (_disposed)
+            return;
+        bool accepted = _events.Closing();
+        // Source closing callbacks can dispose synchronously even when they
+        // return cancellation. Never touch the retired provider in that case.
+        if (_disposed)
+            return;
+        if (!accepted)
         {
             _window.IsClosing = false;
             return;
@@ -1585,12 +1839,6 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
     {
         _ = scanCode;
         EmitInput(LibreInputEventKind.KeyUp, key: MapKey(key), modifiers: ReadModifiers(keyboard));
-    }
-
-    private void OnKeyChar(IKeyboard keyboard, char character)
-    {
-        _ = keyboard;
-        EmitInput(LibreInputEventKind.TextInput, text: character.ToString());
     }
 
     private void OnMouseDown(IMouse mouse, MouseButton button)
@@ -1687,6 +1935,34 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
 
     private void DeliverInput(in LibreInputEvent inputEvent)
     {
+        if (inputEvent.Kind == LibreInputEventKind.PointerCancel)
+        {
+            ProGpuDragCancellation? cancellation = _service.PrepareDragPointerCancellation(this);
+            LibreInputEvent captured = inputEvent;
+            ProGpuDragCancellation.Deliver(
+                () => _characters?.Flush(),
+                () => { if (!_disposed) _events.Input(captured); },
+                cancellation);
+            return;
+        }
+
+        _characters?.Flush();
+        DeliverInputAfterCharacters(inputEvent);
+    }
+
+    private void DeliverInputAfterCharacters(in LibreInputEvent inputEvent)
+    {
+        if (_disposed)
+            return;
+        if (inputEvent.Kind is LibreInputEventKind.PointerLeave or LibreInputEventKind.PointerCancel)
+        {
+            // A policy/leave notification is source-state retirement, not a
+            // fresh drag sample or keyboard modifier snapshot. Disabled windows
+            // must still retire their own state through the same source handle.
+            _events.Input(inputEvent);
+            return;
+        }
+
         if (_service.RecordDragInput(this, inputEvent))
         {
             return;
@@ -1696,6 +1972,31 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant
         {
             _events.Input(inputEvent);
         }
+    }
+
+    bool INativePointerTarget.IsCurrent(NativePointerInput subscription)
+        => !_disposed && !_initializing && _dispatcher.CheckAccess()
+            && ReferenceEquals(_nativePointerInput, subscription) && subscription.Owns(_input)
+            && _handles.TryGet(Handle, out SilkLibreWindow? window) && ReferenceEquals(window, this);
+
+    LibrePoint INativePointerTarget.MapPoint(double x, double y)
+        => LibreWindowCoordinates.ToManagedPoint(x, y, _coordinateMode, DpiScale, FramebufferScale);
+
+    void INativePointerTarget.FlushCharacters() => _characters?.Flush();
+
+    ProGpuDragCancellation? INativePointerTarget.PrepareCancellation()
+        => _service.PrepareDragPointerCancellation(this);
+
+    void INativePointerTarget.Input(in LibreInputEvent input) => DeliverInputAfterCharacters(input);
+
+    bool INativeCharacterTarget.IsAlive => !_disposed && _enabled;
+
+    void INativeCharacterTarget.Input(in LibreInputEvent input)
+    {
+        // The sequence has already retired its pending generation. Do not
+        // recursively flush a character produced by a nested application callback.
+        if (!_disposed && _enabled && !_service.RecordDragInput(this, input))
+            _events.Input(input);
     }
 
     private LibreInputModifiers ReadModifiers()

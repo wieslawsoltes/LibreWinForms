@@ -23,6 +23,7 @@ internal static class Program
         Application.EnableVisualStyles();
         Application.SetHighDpiMode(HighDpiMode.SystemAware);
         ApplicationConfiguration.Initialize();
+        LibreWinForms.TestContracts.CanonicalApiContracts.VerifyAll();
         VerifyHexEditorInputScrollContracts();
         VerifyHexEditorControlContracts();
         VerifyHexEditorMenuContracts();
@@ -693,6 +694,7 @@ internal static class Program
 
     private sealed class DoubleBufferedProbeControl : Control
     {
+        [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public bool IsDoubleBuffered
         {
             get => DoubleBuffered;

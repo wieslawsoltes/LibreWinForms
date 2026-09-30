@@ -27,7 +27,38 @@ require_text README.md "## Getting Started: Switch From WinForms To LibreWinForm
 require_text README.md "## NuGet Packages"
 require_text README.md "default GitHub branch is \`librewinforms-progpu-port\`"
 require_text README.md "LibreWinForms.Sdk"
-require_text README.md "LibreWinForms.Sdk/0.1.0-preview.63"
+require_text eng/librewinforms-package-list.sh '  LibreWinForms.ApplicationIsolation'
+require_text README.md '"msbuild-sdks": {'
+require_text README.md '"LibreWinForms.Sdk": "0.1.0-preview.65"'
+require_text README.md '<Project Sdk="LibreWinForms.Sdk">'
+require_text README.md 'preserve your existing `sdk` settings'
+reject_text README.md '<Project Sdk="LibreWinForms.Sdk/'
+require_text .github/ISSUE_TEMPLATE/bug_report.yml 'name: LibreWinForms bug report'
+require_text .github/ISSUE_TEMPLATE/bug_report.yml 'label: LibreWinForms and .NET versions'
+require_text .github/ISSUE_TEMPLATE/bug_report.yml 'dotnet --info'
+require_text .github/ISSUE_TEMPLATE/bug_report.yml 'Windows, macOS, and Linux'
+require_text .github/ISSUE_TEMPLATE/bug_report.yml 'label: Platform and environment'
+require_text .github/ISSUE_TEMPLATE/bug_report.yml 'label: Expected and actual behavior'
+require_text .github/ISSUE_TEMPLATE/bug_report.yml 'label: Steps and minimal reproduction'
+require_text .github/ISSUE_TEMPLATE/bug_report.yml 'fully qualified test name'
+require_text .github/ISSUE_TEMPLATE/bug_report.yml 'Windows access is not required'
+require_text .github/ISSUE_TEMPLATE/bug_report.yml 'label: Logs and diagnostics'
+require_text .github/ISSUE_TEMPLATE/feature_request.yml 'name: LibreWinForms API or feature request'
+require_text .github/ISSUE_TEMPLATE/feature_request.yml 'fully qualified type/member'
+require_text .github/ISSUE_TEMPLATE/feature_request.yml 'accessibility, localization'
+require_text .github/ISSUE_TEMPLATE/config.yml 'blank_issues_enabled: true'
+reject_text .github/ISSUE_TEMPLATE/config.yml 'contact_links:'
+for template in .github/ISSUE_TEMPLATE/bug_report.yml .github/ISSUE_TEMPLATE/feature_request.yml; do
+  reject_text "${template}" 'github.com/dotnet/'
+  reject_text "${template}" '.NET Framework'
+  reject_text "${template}" '.NET Core 3.1'
+done
+for template in bug_report_designer.yml internal-tracking-issue.md localization-issue-report.yml test_issue.yaml; do
+  if [[ -e "${repo_root}/.github/ISSUE_TEMPLATE/${template}" ]]; then
+    echo "Unexpected inherited issue template: ${template}." >&2
+    exit 1
+  fi
+done
 require_text README.md "LibreWinForms.System.Windows.Forms"
 require_text README.md "LibreWinForms.WindowsFormsIntegration"
 require_text README.md "### Bridge Packages"
@@ -38,7 +69,7 @@ require_text docs/librewinforms-release.md "LibreWinForms.Sdk"
 require_text docs/librewinforms-release.md "LIBREWINFORMS_PROGPU_PACKAGE_VERSION"
 require_text docs/librewinforms-release.md "LIBREWINFORMS_CANONICAL_WFI_PACKAGE_SOURCE"
 require_text docs/librewinforms-release.md "LIBREWINFORMS_CANONICAL_WFI_COMMIT"
-require_text docs/librewinforms-release.md "0.1.0-preview.63"
+require_text docs/librewinforms-release.md "0.1.0-preview.65"
 require_text docs/librewinforms-release.md "gh release create --generate-notes"
 require_text docs/librewinforms-release.md "librewinforms-v<version>"
 require_text README.md "fails if a stale or unexpected current-version"
@@ -57,7 +88,7 @@ require_text src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj "<Description>SDK pa
 require_text src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj "<PackageTags>librewinforms;winforms;sdk;progpu;silk.net;cross-platform;source-built</PackageTags>"
 require_text src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj "<PackageReadmeFile>README.md</PackageReadmeFile>"
 require_text src/LibreWinForms.Sdk/Sdk/Sdk.props '<LibreWinFormsUseCanonicalRuntime Condition="'\''$(LibreWinFormsUseCanonicalRuntime)'\'' == '\'''\''">true</LibreWinFormsUseCanonicalRuntime>'
-require_text src/LibreWinForms.Sdk/Sdk/Sdk.props '>0.1.0-preview.63</LibreWinFormsProGpuPackageVersion>'
+require_text src/LibreWinForms.Sdk/Sdk/Sdk.props '>0.1.0-preview.65</LibreWinFormsProGpuPackageVersion>'
 require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'LibreWinForms.Sdk is canonical-only'
 reject_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'LibreWinForms.Compatibility.System.Windows.Forms'
 reject_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'WindowsFormsHost.EnableWindowsFormsInterop'
@@ -117,9 +148,11 @@ require_text .github/workflows/librewinforms-ci.yml "LibreWinForms Build"
 require_text .github/workflows/librewinforms-ci.yml "Stage immutable LibreWPF bridge packages"
 require_text .github/workflows/librewinforms-ci.yml "Build canonical WindowsFormsIntegration from LibreWPF source"
 require_text .github/workflows/librewinforms-ci.yml "./eng/librewinforms-build-canonical-wfi.sh"
-require_text .github/workflows/librewinforms-ci.yml "librewpf-v0.1.0-preview.63"
-require_text .github/workflows/librewinforms-ci.yml "LIBREWINFORMS_CANONICAL_WFI_REF: librewpf-v0.1.0-preview.63"
-require_text .github/workflows/librewinforms-release.yml "default: librewpf-v0.1.0-preview.63"
+# CI and release use the same published LibreWPF bridge version.
+require_text .github/workflows/librewinforms-ci.yml "librewpf-v0.1.0-preview.65"
+require_text .github/workflows/librewinforms-ci.yml "LIBREWINFORMS_CANONICAL_WFI_REF: librewpf-v0.1.0-preview.65"
+require_text .github/workflows/librewinforms-release.yml 'progpu_version="${version}"'
+require_text .github/workflows/librewinforms-release.yml 'canonical_wfi_ref="librewpf-v${bridge_version}"'
 require_text .github/workflows/librewinforms-ci.yml "LIBREWINFORMS_PROGPU_PACKAGE_VERSION"
 require_text .github/workflows/librewinforms-ci.yml 'LIBREWINFORMS_CANONICAL_WFI_PACKAGE_SOURCE='
 reject_text .github/workflows/librewinforms-ci.yml 'LIBREWINFORMS_COMPATIBILITY_PROGPU_PACKAGE_VERSION'
@@ -127,6 +160,8 @@ require_text .github/workflows/librewinforms-ci.yml "Run package-mode SDK smoke"
 reject_text .github/workflows/librewinforms-ci.yml 'src/test/compatibility/LibreWinForms.Portable.Tests/LibreWinForms.Portable.Tests.csproj'
 require_text .github/workflows/librewinforms-docs.yml "LibreWinForms Docs"
 require_text .github/workflows/librewinforms-docs.yml "docs/**"
+require_text .github/workflows/librewinforms-docs.yml ".github/ISSUE_TEMPLATE/**"
+require_text .github/workflows/librewinforms-docs.yml "include-hidden-files: true"
 require_text .github/workflows/librewinforms-public-package-smoke.yml "LibreWinForms Public Package Smoke"
 require_text .github/workflows/librewinforms-public-package-smoke.yml '<Project Sdk="LibreWinForms.Sdk/${LIBREWINFORMS_VERSION}">'
 require_text .github/workflows/librewinforms-public-package-smoke.yml "<TargetFramework>net11.0</TargetFramework>"

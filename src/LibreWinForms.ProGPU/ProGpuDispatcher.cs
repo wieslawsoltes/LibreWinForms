@@ -4,6 +4,7 @@
 using System.Collections.Concurrent;
 using System.Runtime.ExceptionServices;
 using LibreWinForms.Platform;
+using Silk.NET.Windowing;
 
 namespace LibreWinForms.ProGPU;
 
@@ -21,11 +22,17 @@ public sealed class ProGpuDispatcher : ILibreDispatcher, ILibreThreadDispatcherP
     private readonly AutoResetEvent _wake = new(initialState: false);
     private readonly Lock _participantsLock = new();
     private readonly List<IProGpuLoopParticipant> _participants = [];
+    private readonly NativeWindowRetirementQueue _nativeRetirements;
     private volatile bool _exitRequested;
     private bool _disposed;
 
-    public ProGpuDispatcher()
+    public ProGpuDispatcher() : this(new NativeWindowRetirementQueue())
     {
+    }
+
+    internal ProGpuDispatcher(NativeWindowRetirementQueue nativeRetirements)
+    {
+        _nativeRetirements = nativeRetirements ?? throw new ArgumentNullException(nameof(nativeRetirements));
         _provider = this;
         _threadDispatchers = new ConcurrentDictionary<int, ProGpuDispatcher>();
         _threadDispatchers.TryAdd(_threadId, this);
@@ -33,6 +40,7 @@ public sealed class ProGpuDispatcher : ILibreDispatcher, ILibreThreadDispatcherP
 
     private ProGpuDispatcher(ProGpuDispatcher provider)
     {
+        _nativeRetirements = new NativeWindowRetirementQueue();
         _provider = provider;
         _threadDispatchers = provider._threadDispatchers;
     }
@@ -64,6 +72,8 @@ public sealed class ProGpuDispatcher : ILibreDispatcher, ILibreThreadDispatcherP
             return;
         }
 
+        // A failed release must leave the dispatcher registered and wakeable.
+        released.EnsureNativeRetirementsComplete();
         if (!_threadDispatchers.TryGetValue(released.ManagedThreadId, out ProGpuDispatcher? registered)
             || !ReferenceEquals(registered, released)
             || !_threadDispatchers.TryRemove(released.ManagedThreadId, out registered)
@@ -151,6 +161,9 @@ public sealed class ProGpuDispatcher : ILibreDispatcher, ILibreThreadDispatcherP
             return;
         }
 
+        foreach (ProGpuDispatcher dispatcher in _threadDispatchers.Values)
+            dispatcher.EnsureNativeRetirementsComplete();
+
         _disposed = true;
         foreach (ProGpuDispatcher dispatcher in _threadDispatchers.Values)
         {
@@ -185,28 +198,60 @@ public sealed class ProGpuDispatcher : ILibreDispatcher, ILibreThreadDispatcherP
 
     internal void Wake() => _wake.Set();
 
+    internal void RetireNativeWindow(IWindow window, Action? releaseRenderingResources = null,
+        Func<bool>? canReleaseRenderingResources = null)
+    {
+        VerifyAccess();
+        _nativeRetirements.Retire(window, releaseRenderingResources, canReleaseRenderingResources);
+    }
+
+    internal void DrainNativeWindowRetirements()
+    {
+        VerifyAccess();
+        _nativeRetirements.Drain();
+    }
+
     public void PumpOnce()
     {
         VerifyAccess();
-        while (_work.TryDequeue(out Action? callback))
+        Exception? pumpFailure = null;
+        try
         {
-            callback();
-        }
+            while (_work.TryDequeue(out Action? callback))
+            {
+                callback();
+            }
 
-        IProGpuLoopParticipant[] participants;
-        lock (_participantsLock)
-        {
-            participants = [.. _participants];
-        }
+            IProGpuLoopParticipant[] participants;
+            lock (_participantsLock)
+            {
+                participants = [.. _participants];
+            }
 
-        foreach (IProGpuLoopParticipant participant in participants)
-        {
-            participant.Pump();
-        }
+            foreach (IProGpuLoopParticipant participant in participants)
+            {
+                participant.Pump();
+            }
 
-        if (_work.IsEmpty)
+            if (_work.IsEmpty)
+            {
+                _wake.WaitOne(millisecondsTimeout: participants.Length == 0 ? 10 : 1);
+            }
+        }
+        catch (Exception failure)
         {
-            _wake.WaitOne(millisecondsTimeout: participants.Length == 0 ? 10 : 1);
+            pumpFailure = failure;
+            throw;
+        }
+        finally
+        {
+            // Native polling and its managed callbacks have unwound. Retirement
+            // does not poll again and must also run when a source callback fails.
+            try { _nativeRetirements.Drain(); }
+            catch (Exception cleanup) when (pumpFailure is not null)
+            {
+                pumpFailure.Data[nameof(NativeWindowRetirementQueue)] = cleanup;
+            }
         }
     }
 
@@ -226,9 +271,18 @@ public sealed class ProGpuDispatcher : ILibreDispatcher, ILibreThreadDispatcherP
             return;
         }
 
+        EnsureNativeRetirementsComplete();
         _disposed = true;
         _exitRequested = true;
         _wake.Set();
         _wake.Dispose();
+    }
+
+    private void EnsureNativeRetirementsComplete()
+    {
+        if (CheckAccess())
+            _nativeRetirements.Drain();
+        if (_nativeRetirements.HasPending)
+            throw new InvalidOperationException("Complete native window retirement on its source thread before releasing the dispatcher.");
     }
 }

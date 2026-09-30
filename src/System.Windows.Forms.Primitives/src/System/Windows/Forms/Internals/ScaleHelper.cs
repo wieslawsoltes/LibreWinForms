@@ -5,6 +5,9 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms.Primitives.Resources;
 using Microsoft.Win32;
+#if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -31,6 +34,9 @@ internal static partial class ScaleHelper
     private static Size? s_logicalSmallSystemIconSize;
 #if LIBREWINFORMS_PORTABLE
     private static HighDpiMode s_portableHighDpiMode = HighDpiMode.DpiUnaware;
+    private static readonly object s_portableDpiLock = new();
+    private static bool s_portableDpiConfigured;
+    private static bool s_portableDpiConfiguring;
 #endif
 
     /// <summary>
@@ -56,11 +62,12 @@ internal static partial class ScaleHelper
     private static void InitializeStatics()
     {
 #if LIBREWINFORMS_PORTABLE
-        // A monitor becomes authoritative when the first top-level portable window is
-        // created. Controls still start at WinForms' design DPI and are updated from
-        // that window before HandleCreated is raised.
+        // All aware modes capture the primary display's initial DPI, matching
+        // GetDpiForSystem. PMv2 scales source fonts relative to this reference.
         s_processPerMonitorAware = s_portableHighDpiMode is HighDpiMode.PerMonitor or HighDpiMode.PerMonitorV2;
-        InitialSystemDpi = OneHundredPercentLogicalDpi;
+        InitialSystemDpi = s_portableHighDpiMode is HighDpiMode.SystemAware or HighDpiMode.PerMonitor or HighDpiMode.PerMonitorV2
+            ? GetPortableSystemDpi()
+            : OneHundredPercentLogicalDpi;
 #else
         s_processPerMonitorAware = GetPerMonitorAware();
         InitialSystemDpi = GetSystemDpi();
@@ -105,6 +112,35 @@ internal static partial class ScaleHelper
         }
 #endif
     }
+
+#if LIBREWINFORMS_PORTABLE
+    internal static LibreWindowCoordinateMode PortableCoordinateMode
+        => s_portableHighDpiMode is HighDpiMode.SystemAware or HighDpiMode.PerMonitor or HighDpiMode.PerMonitorV2
+            ? LibreWindowCoordinateMode.DevicePixels : LibreWindowCoordinateMode.Logical;
+
+    // Canonical font realization uses the captured screen reference, not the
+    // current window DPI: PMv2 has already scaled the source Font itself.
+    internal static int PortableScreenDpi => InitialSystemDpi;
+
+    internal static IReadOnlyList<LibreMonitor> GetPortableMonitors()
+        => LibrePlatform.Current.Monitors.GetMonitors()
+            .Select(monitor => LibreMonitorCoordinates.ToManaged(monitor, PortableCoordinateMode)).ToArray();
+
+    internal static LibreMonitor GetPortableMonitor(LibreRectangle bounds)
+        => LibreMonitorSelection.GetNearest(GetPortableMonitors(), bounds);
+
+    private static int GetPortableSystemDpi()
+    {
+        IReadOnlyList<LibreMonitor> monitors = LibrePlatform.Current.Monitors.GetMonitors();
+        foreach (LibreMonitor monitor in monitors)
+        {
+            if (monitor.IsPrimary)
+                return LibreWindowCoordinates.ToDeviceDpi(monitor.DpiScale);
+        }
+
+        throw new InvalidOperationException("A primary monitor is required to initialize the system DPI.");
+    }
+#endif
 
     /// <summary>
     ///  Returns a boolean to specify if we should enable processing of WM_DPICHANGED and related messages
@@ -476,9 +512,29 @@ internal static partial class ScaleHelper
     internal static bool SetProcessHighDpiMode(HighDpiMode highDpiMode)
     {
 #if LIBREWINFORMS_PORTABLE
-        s_portableHighDpiMode = highDpiMode;
-        InitializeStatics();
-        return true;
+        lock (s_portableDpiLock)
+        {
+            if (s_portableDpiConfigured || s_portableDpiConfiguring)
+            {
+                return false;
+            }
+
+            s_portableDpiConfiguring = true;
+            try
+            {
+                int initialDpi = highDpiMode is HighDpiMode.SystemAware or HighDpiMode.PerMonitor or HighDpiMode.PerMonitorV2
+                    ? GetPortableSystemDpi() : OneHundredPercentLogicalDpi;
+                s_portableHighDpiMode = highDpiMode;
+                s_processPerMonitorAware = highDpiMode is HighDpiMode.PerMonitor or HighDpiMode.PerMonitorV2;
+                InitialSystemDpi = initialDpi;
+                s_portableDpiConfigured = true;
+                return true;
+            }
+            finally
+            {
+                s_portableDpiConfiguring = false;
+            }
+        }
 #else
         bool success = false;
 

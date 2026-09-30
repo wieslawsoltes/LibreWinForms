@@ -214,6 +214,9 @@ public unsafe partial class Control :
     private static readonly int s_namePropertyProperty = PropertyStore.CreateKey();
     private static readonly int s_backBrushProperty = PropertyStore.CreateKey();
     private static readonly int s_fontHeightProperty = PropertyStore.CreateKey();
+#if LIBREWINFORMS_PORTABLE
+    private static readonly int s_fontHeightDpiProperty = PropertyStore.CreateKey();
+#endif
     private static readonly int s_currentAmbientFontProperty = PropertyStore.CreateKey();
 
     private static readonly int s_backColorProperty = PropertyStore.CreateKey();
@@ -414,8 +417,9 @@ public unsafe partial class Control :
         if (_width != 0 && _height != 0)
         {
 #if LIBREWINFORMS_PORTABLE
-            _clientWidth = _width;
-            _clientHeight = _height;
+            Padding insets = PortableWindowAdornments;
+            _clientWidth = Math.Max(0, _width - insets.Horizontal);
+            _clientHeight = Math.Max(0, _height - insets.Vertical);
 #else
             RECT rect = default;
 
@@ -1198,13 +1202,15 @@ public unsafe partial class Control :
         set
         {
             Control root = GetPortableTopLevelControl();
-            if (value)
+            if (value && root._portableCapturedControl != this)
             {
                 root._portableCapturedControl = this;
+                root._portablePointerCaptureVersion++;
             }
-            else if (root._portableCapturedControl == this)
+            else if (!value && root._portableCapturedControl == this)
             {
                 root._portableCapturedControl = null;
+                root._portablePointerCaptureVersion++;
             }
 
             root.RefreshPortableCursor();
@@ -1966,8 +1972,8 @@ public unsafe partial class Control :
     public virtual bool Focused
 #if LIBREWINFORMS_PORTABLE
         => IsHandleCreated
-            && GetPortableTopLevelControl()._portableWindowFocused
-            && GetPortableTopLevelControl()._portableFocusedControl == this;
+            && GetPortableFocusRoot()._portableWindowFocused
+            && GetPortableFocusRoot()._portableFocusedControl == this;
 #else
         => IsHandleCreated && PInvoke.GetFocus() == InternalHandle;
 #endif
@@ -2026,7 +2032,7 @@ public unsafe partial class Control :
 
             if (Properties.ContainsKey(s_fontHeightProperty))
             {
-                Properties.AddValue(s_fontHeightProperty, (value is null) ? -1 : value.Height);
+                Properties.AddValue(s_fontHeightProperty, (value is null) ? -1 : GetFontHeightForTarget(value));
             }
 
             // Font is an ambient property. We need to layout our parent because Font may
@@ -2139,14 +2145,29 @@ public unsafe partial class Control :
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            int dpi = PortableFontDpi;
+            if (Properties.GetValueOrDefault<int>(s_fontHeightDpiProperty) != dpi)
+            {
+                Properties.AddValue(s_fontHeightDpiProperty, dpi);
+                Properties.AddValue(s_fontHeightProperty, -1);
+            }
+#endif
             if (Properties.TryGetValue(s_fontHeightProperty, out int fontHeight) && fontHeight != -1)
             {
                 return fontHeight;
             }
 
+#if LIBREWINFORMS_PORTABLE
+            if (ScaledControlFont is { } scaledFont)
+            {
+                return Properties.AddValue(s_fontHeightProperty, GetFontHeightForTarget(scaledFont));
+            }
+#endif
+
             if (TryGetExplicitlySetFont(out Font? font))
             {
-                return Properties.AddValue(s_fontHeightProperty, font.Height);
+                return Properties.AddValue(s_fontHeightProperty, GetFontHeightForTarget(font));
             }
 
             // Ask the parent if it has the font height.
@@ -2160,14 +2181,35 @@ public unsafe partial class Control :
             // If we still have a bad value, then get the actual font height.
             if (localFontHeight == -1)
             {
-                localFontHeight = Font.Height;
+                localFontHeight = GetFontHeightForTarget(Font);
                 Properties.AddValue(s_fontHeightProperty, localFontHeight);
             }
 
             return localFontHeight;
         }
-        set => Properties.AddValue(s_fontHeightProperty, value);
+        set
+        {
+#if LIBREWINFORMS_PORTABLE
+            Properties.AddValue(s_fontHeightDpiProperty, PortableFontDpi);
+#endif
+            Properties.AddValue(s_fontHeightProperty, value);
+        }
     }
+
+    internal static int GetFontHeightForTarget(Font font)
+#if LIBREWINFORMS_PORTABLE
+        // Unlike FontCache's GDI em-height rounding, canonical Font.Height
+        // rounds only the final GDI+ line metric at the screen reference DPI.
+        => (int)Math.Ceiling(font.GetHeight(PortableFontDpi));
+#else
+        => font.Height;
+#endif
+
+#if LIBREWINFORMS_PORTABLE
+    internal int PortableFontHeight => FontHeight;
+
+    private static int PortableFontDpi => ScaleHelper.InitialSystemDpi;
+#endif
 
     /// <summary>
     ///  The foreground color of the control.
@@ -3123,7 +3165,7 @@ public unsafe partial class Control :
             _scaledControlFont = value;
             if (Properties.ContainsKey(s_fontHeightProperty))
             {
-                Properties.AddValue(s_fontHeightProperty, (value is null) ? -1 : value.Height);
+                Properties.AddValue(s_fontHeightProperty, (value is null) ? -1 : GetFontHeightForTarget(value));
             }
         }
     }
@@ -3482,7 +3524,9 @@ public unsafe partial class Control :
 
                     // The side effect of this initial state is that adding new controls may clear the accelerator
                     // state (has been this way forever)
-#if !LIBREWINFORMS_PORTABLE
+#if LIBREWINFORMS_PORTABLE
+                    TopMostParent.ChangePortableUIState(PInvoke.UIS_SET, PInvoke.UISF_HIDEACCEL);
+#else
                     uint actionMask = PInvoke.UISF_HIDEACCEL << 16;
                     PInvokeCore.SendMessage(
                         TopMostParent,
@@ -3530,7 +3574,10 @@ public unsafe partial class Control :
                     // if we're in the hidden state, we need to manufacture an update message so everyone knows it.
                     // The side effect of this initial state is that adding new controls may clear the focus cue state
                     // state (has been this way forever)
-#if !LIBREWINFORMS_PORTABLE
+#if LIBREWINFORMS_PORTABLE
+                    TopMostParent.ChangePortableUIState(PInvoke.UIS_SET,
+                        PInvoke.UISF_HIDEACCEL | PInvoke.UISF_HIDEFOCUS);
+#else
                     int actionMask = (int)(PInvoke.UISF_HIDEACCEL | PInvoke.UISF_HIDEFOCUS) << 16;
                     PInvokeCore.SendMessage(TopMostParent,
                         PInvokeCore.WM_CHANGEUISTATE,
@@ -4728,31 +4775,34 @@ public unsafe partial class Control :
 #if LIBREWINFORMS_PORTABLE
         _ = Handle;
         Control root = this;
-        int originX = 0;
-        int originY = 0;
+        Padding ownInsets = PortableNonClientInsets;
+        int originX = ownInsets.Left;
+        int originY = ownInsets.Top;
         while (root.ParentInternal is { } parent)
         {
-            originX = checked(originX + root._x);
-            originY = checked(originY + root._y);
+            Padding parentInsets = parent.PortableNonClientInsets;
+            originX = checked(originX + root._x + parentInsets.Left);
+            originY = checked(originY + root._y + parentInsets.Top);
             root = parent;
         }
 
         _ = root.Handle;
-        Rectangle visibleClip = new(originX, originY, _clientWidth, _clientHeight);
+        Rectangle visibleClip = new(new Point(originX, originY), PortableClientRectangle.Size);
         Control descendant = this;
         int ancestorOriginX = originX;
         int ancestorOriginY = originY;
         while (descendant.ParentInternal is { } ancestor)
         {
-            ancestorOriginX = checked(ancestorOriginX - descendant._x);
-            ancestorOriginY = checked(ancestorOriginY - descendant._y);
+            Padding descendantInsets = descendant.PortableNonClientInsets;
+            ancestorOriginX = checked(ancestorOriginX - descendant._x - descendantInsets.Left);
+            ancestorOriginY = checked(ancestorOriginY - descendant._y - descendantInsets.Top);
             visibleClip = Rectangle.Intersect(
                 visibleClip,
                 new Rectangle(
                     ancestorOriginX,
                     ancestorOriginY,
-                    ancestor._clientWidth,
-                    ancestor._clientHeight));
+                    ancestor.PortableClientRectangle.Width,
+                    ancestor.PortableClientRectangle.Height));
             descendant = ancestor;
         }
 
@@ -4789,7 +4839,34 @@ public unsafe partial class Control :
             CreateParams cp = CreateParams;
             SetState(States.Mirrored, (cp.ExStyle & (int)WINDOW_EX_STYLE.WS_EX_LAYOUTRTL) != 0);
             _window.CreateHandle(cp);
-            OnHandleCreated(EventArgs.Empty);
+            _portableWindowUIState = ParentInternal is { IsHandleCreated: true } cueParent
+                ? cueParent._portableWindowUIState : 0;
+            LibreHandle createdHandle = _window.PortableHandle;
+            ILibreWindow? createdWindow = _window.PortableWindow;
+            if (createdWindow is null && IsHandleCreated)
+            {
+                UpdateBounds(_x, _y, _width, _height);
+            }
+
+            if (createdWindow is not null && IsHandleCreated)
+            {
+                // StartPosition changes the creation request, not the source Location.
+                // Providers may suppress move callbacks while constructing their window.
+                // Read the actual typed position before publishing HandleCreated. Keep
+                // source sizes: PMv2 pre-sizes the native surface before canonical autoscaling.
+                LibreRectangle bounds = createdWindow.Bounds;
+                if (_window.PortableHandle == createdHandle && ReferenceEquals(_window.PortableWindow, createdWindow))
+                {
+                    UpdateBounds(bounds.X, bounds.Y, _width, _height, _clientWidth, _clientHeight);
+                }
+            }
+
+            // LocationChanged may dispose or replace the native generation.
+            if (IsHandleCreated && _window.PortableHandle == createdHandle
+                && ReferenceEquals(_window.PortableWindow, createdWindow))
+            {
+                OnHandleCreated(EventArgs.Empty);
+            }
         }
         finally
         {
@@ -4942,7 +5019,27 @@ public unsafe partial class Control :
     ///  Sends the specified message to the default window procedure.
     /// </summary>
     [EditorBrowsable(EditorBrowsableState.Advanced)]
-    protected virtual void DefWndProc(ref Message m) => _window.DefWndProc(ref m);
+    protected virtual void DefWndProc(ref Message m)
+    {
+#if LIBREWINFORMS_PORTABLE
+        if (TryProcessPortableUIState(ref m))
+        {
+            return;
+        }
+
+        // DefWindowProc forwards unhandled context-menu messages to the parent.
+        // Logical portable children have no native default window procedure;
+        // retain the original source WndProc/virtual WmContextMenu policy.
+        if (m.Msg == PInvokeCore.WM_CONTEXTMENU && ParentInternal is { IsDisposed: false, Disposing: false } parent)
+        {
+            Message forwarded = Message.Create(parent.Handle, m.Msg, m.WParam, m.LParam);
+            parent.WndProc(ref forwarded);
+            m.Result = forwarded.Result;
+            return;
+        }
+#endif
+        _window.DefWndProc(ref m);
+    }
 
     /// <summary>
     ///  Destroys the handle associated with this control. Inheriting classes should
@@ -5461,7 +5558,11 @@ public unsafe partial class Control :
 #if LIBREWINFORMS_PORTABLE
         if (CanFocus)
         {
-            GetPortableTopLevelControl().SetPortableFocus(this);
+            Control root = GetPortableTopLevelControl();
+            if (root is ToolStripDropDown dropDown && !ReferenceEquals(this, dropDown))
+                dropDown.FocusPortableHostedControl(this);
+            else
+                root.SetPortableFocus(this);
         }
 #else
         if (CanFocus)
@@ -6796,13 +6897,18 @@ public unsafe partial class Control :
         AdjustWindowRectExForDpi(ref rect, style, bMenu, exStyle, DeviceDpiInternal);
     }
 
+#if LIBREWINFORMS_PORTABLE
+    private void AdjustWindowRectExForDpi(ref RECT rect, WINDOW_STYLE style, bool bMenu, WINDOW_EX_STYLE exStyle, int dpi)
+#else
     private static void AdjustWindowRectExForDpi(ref RECT rect, WINDOW_STYLE style, bool bMenu, WINDOW_EX_STYLE exStyle, int dpi)
+#endif
     {
 #if LIBREWINFORMS_PORTABLE
-        // Portable ILibreWindow bounds currently describe the drawable client surface.
-        // Native decoration insets belong to the window backend, so there is no Win32
-        // non-client rectangle to add here.
-        return;
+        Padding insets = PortableWindowAdornments;
+        rect.left -= insets.Left;
+        rect.top -= insets.Top;
+        rect.right += insets.Right;
+        rect.bottom += insets.Bottom;
 #else
         if ((ScaleHelper.IsThreadPerMonitorV2Aware || ScaleHelper.IsScalingRequired) && OsVersion.IsWindows10_1703OrGreater())
         {
@@ -7200,6 +7306,9 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected virtual void OnEnabledChanged(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        NotifyPortableHostedFocusLifetime();
+#endif
         if (GetAnyDisposingInHierarchy())
         {
             return;
@@ -7587,6 +7696,9 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected virtual void OnVisibleChanged(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        NotifyPortableHostedFocusLifetime();
+#endif
         bool visible = Visible;
         if (visible)
         {
@@ -7642,6 +7754,9 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected virtual void OnParentChanged(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        NotifyPortableHostedFocusLifetime(retiring: true);
+#endif
         if (Events[s_parentEvent] is EventHandler eh)
         {
             eh(this, e);
@@ -7883,6 +7998,9 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected virtual void OnHandleDestroyed(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        NotifyPortableHostedFocusLifetime(retiring: true);
+#endif
         ((EventHandler?)Events[s_handleDestroyedEvent])?.Invoke(this, e);
 
 #if LIBREWINFORMS_PORTABLE
@@ -8359,7 +8477,7 @@ public unsafe partial class Control :
     protected virtual void OnPaintBackground(PaintEventArgs pevent)
     {
 #if LIBREWINFORMS_PORTABLE
-        PaintBackground(pevent, ClientRectangle);
+        PaintBackground(pevent, PortableClientRectangle);
 #else
         // We need the true client rectangle as clip rectangle causes problems on "Windows Classic" theme.
         PInvokeCore.GetClientRect(new HandleRef<HWND>(_window, InternalHandle), out RECT rect);
@@ -9437,9 +9555,13 @@ public unsafe partial class Control :
         {
             if (ke!.SuppressKeyPress)
             {
+#if LIBREWINFORMS_PORTABLE
+                SuppressPortableKeyPress();
+#else
                 RemovePendingMessages(PInvokeCore.WM_CHAR, PInvokeCore.WM_CHAR);
                 RemovePendingMessages(PInvokeCore.WM_SYSCHAR, PInvokeCore.WM_SYSCHAR);
                 RemovePendingMessages(PInvokeCore.WM_IME_CHAR, PInvokeCore.WM_IME_CHAR);
+#endif
             }
 
             return ke.Handled;
@@ -9501,15 +9623,29 @@ public unsafe partial class Control :
     {
         Keys keyCode = (Keys)(nint)msg.WParamInternal & Keys.KeyCode;
 
+#if LIBREWINFORMS_PORTABLE
+        if (keyCode is Keys.LMenu or Keys.RMenu)
+            keyCode = Keys.Menu;
+#endif
         if (keyCode is not Keys.F10 and not Keys.Menu and not Keys.Tab)
         {
             return;  // PERF: don't WM_QUERYUISTATE if we don't have to.
         }
 
 #if LIBREWINFORMS_PORTABLE
-        TopMostParent.UpdatePortableUICues(
-            showKeyboard: keyCode is Keys.F10 or Keys.Menu,
-            showFocus: keyCode == Keys.Tab);
+        Control topMostParent = TopMostParent;
+        uint current = _portableWindowUIState;
+        if (current == 0)
+        {
+            current = topMostParent._portableWindowUIState;
+        }
+
+        uint toClear = current & (keyCode == Keys.Tab ? PInvoke.UISF_HIDEFOCUS : PInvoke.UISF_HIDEACCEL);
+        if (toClear != 0)
+        {
+            topMostParent.ChangePortableUIState(PInvoke.UIS_CLEAR, toClear);
+        }
+
         return;
 #else
         Control? topMostParent = null;
@@ -9571,43 +9707,6 @@ public unsafe partial class Control :
         }
 #endif
     }
-
-#if LIBREWINFORMS_PORTABLE
-    private void UpdatePortableUICues(bool showKeyboard, bool showFocus)
-    {
-        UICues cues = UICues.None;
-
-        if (showKeyboard
-            && (_uiCuesState & UICuesStates.KeyboardMask) != UICuesStates.KeyboardShow)
-        {
-            _uiCuesState &= ~UICuesStates.KeyboardMask;
-            _uiCuesState |= UICuesStates.KeyboardShow;
-            cues |= UICues.ChangeKeyboard | UICues.ShowKeyboard;
-        }
-
-        if (showFocus
-            && (_uiCuesState & UICuesStates.FocusMask) != UICuesStates.FocusShow)
-        {
-            _uiCuesState &= ~UICuesStates.FocusMask;
-            _uiCuesState |= UICuesStates.FocusShow;
-            cues |= UICues.ChangeFocus | UICues.ShowFocus;
-        }
-
-        if ((cues & UICues.Changed) != 0)
-        {
-            OnChangeUICues(new UICuesEventArgs(cues));
-            Invalidate();
-        }
-
-        if (ChildControls is { } children)
-        {
-            for (int i = 0; i < children.Count; i++)
-            {
-                children[i].UpdatePortableUICues(showKeyboard, showFocus);
-            }
-        }
-    }
-#endif
 
     /// <summary>
     ///  Raises the event associated with key with the event data of
@@ -10754,7 +10853,9 @@ public unsafe partial class Control :
                 _window.SetPortableBounds(new LibreRectangle(x, y, width, height));
             }
 
-            UpdateBounds(x, y, width, height, width, height);
+            Padding insets = PortableClientSizeInsets;
+            UpdateBounds(x, y, width, height,
+                Math.Max(0, width - insets.Horizontal), Math.Max(0, height - insets.Vertical));
 #else
             if (!IsHandleCreated)
             {
@@ -10830,10 +10931,15 @@ public unsafe partial class Control :
 
     internal Size SizeFromClientSizeInternal(Size size)
     {
+#if LIBREWINFORMS_PORTABLE
+        Padding insets = PortableWindowAdornments;
+        return size + new Size(insets.Horizontal, insets.Vertical);
+#else
         RECT rect = new(size);
         CreateParams cp = CreateParams;
         AdjustWindowRectExForControlDpi(ref rect, (WINDOW_STYLE)cp.Style, false, (WINDOW_EX_STYLE)cp.ExStyle);
         return rect.Size;
+#endif
     }
 
     private void SetHandle(IntPtr value)
@@ -11008,6 +11114,11 @@ public unsafe partial class Control :
 #if LIBREWINFORMS_PORTABLE
         if (value == Visible)
         {
+            // Effective visibility includes the parent. Preserve the caller's
+            // own visibility choice even while that parent is hidden, just as
+            // the native path does. Otherwise hidden hosted menu controls can
+            // reappear over the actual menu items when the parent is shown.
+            SetState(States.Visible, value);
             return;
         }
 
@@ -11017,6 +11128,7 @@ public unsafe partial class Control :
         }
 
         SetState(States.Visible, value);
+        bool visibilityCommitted = false;
         try
         {
             if (value)
@@ -11026,12 +11138,13 @@ public unsafe partial class Control :
 
             if (IsHandleCreated)
             {
-                _window.SetPortableVisibility(value);
+                _window.SetPortableVisibility(value, out visibilityCommitted);
             }
         }
         catch
         {
-            SetState(States.Visible, !value);
+            if (!visibilityCommitted && !IsDisposed)
+                SetState(States.Visible, !value);
             throw;
         }
 
@@ -11453,7 +11566,7 @@ public unsafe partial class Control :
 
         if (Properties.ContainsKey(s_fontHeightProperty))
         {
-            Properties.AddValue(s_fontHeightProperty, scaledFont.Height);
+            Properties.AddValue(s_fontHeightProperty, GetFontHeightForTarget(scaledFont));
         }
 
         if (!raiseOnFontChangedEvent)
@@ -11499,6 +11612,9 @@ public unsafe partial class Control :
     internal void SetPortableWindowEnabled(bool enabled)
         => GetPortableTopLevelControl()._window.SetPortableEnabled(enabled);
 
+    internal LibreWindowCoordinateMode PortableWindowCoordinateMode
+        => GetPortableTopLevelControl()._window.PortableCoordinateMode;
+
     internal void SetPortableWindowTitle(string title)
         => _window.SetPortableTitle(title);
 
@@ -11507,6 +11623,9 @@ public unsafe partial class Control :
 
     internal void SetPortableWindowTopMost(bool topMost)
         => _window.SetPortableTopMost(topMost);
+
+    internal void SetPortablePopupOwner(Form owner)
+        => _window.SetPortablePopupOwner(owner);
 
     internal void SetPortableWindowOpacity(double opacity)
         => _window.SetPortableOpacity(opacity);
@@ -11531,7 +11650,7 @@ public unsafe partial class Control :
     internal void UpdatePortablePresentationScale(double scale)
     {
         Control root = GetPortableTopLevelControl();
-        if (root is Form form
+        if (ScaleHelper.IsThreadPerMonitorV2Aware && root is Form form
             && root._window.PortableCoordinateMode == LibreWindowCoordinateMode.DevicePixels)
         {
             LibreRectangle suggested = root._window.PortableBounds;
@@ -11564,12 +11683,14 @@ public unsafe partial class Control :
     private void InvalidatePortable(Rectangle dirtyRectangle)
     {
         Control root = this;
-        int offsetX = 0;
-        int offsetY = 0;
+        Padding insets = PortableNonClientInsets;
+        int offsetX = insets.Left;
+        int offsetY = insets.Top;
         while (root.ParentInternal is { } parent)
         {
-            offsetX = checked(offsetX + root._x);
-            offsetY = checked(offsetY + root._y);
+            Padding parentInsets = parent.PortableNonClientInsets;
+            offsetX = checked(offsetX + root._x + parentInsets.Left);
+            offsetY = checked(offsetY + root._y + parentInsets.Top);
             root = parent;
         }
 
@@ -11641,13 +11762,7 @@ public unsafe partial class Control :
         {
             if (layer.Graphics is { } graphics)
             {
-                using PaintEventArgs paintEvent = new(
-                    graphics,
-                    localClip,
-                    DrawingEventFlags.SaveState | DrawingEventFlags.GraphicsStateUnclean);
-                PaintWithErrorHandling(paintEvent, PaintLayerBackground);
-                paintEvent.ResetGraphics();
-                PaintWithErrorHandling(paintEvent, PaintLayerForeground);
+                PaintPortableClientAndFrame(graphics, localClip);
             }
         }
 
@@ -11656,6 +11771,9 @@ public unsafe partial class Control :
             return;
         }
 
+        Rectangle client = PortableClientBoundsInWindow;
+        client.Offset(absoluteLocation);
+        Rectangle childClip = Rectangle.Intersect(absoluteClip, client);
         // WinForms index zero is the top of z-order, so retain back-to-front.
         for (int index = children.Count - 1; index >= 0; index--)
         {
@@ -11663,9 +11781,9 @@ public unsafe partial class Control :
             child.PaintPortableRetainedControlTree(
                 frame,
                 new Point(
-                    checked(absoluteLocation.X + child._x),
-                    checked(absoluteLocation.Y + child._y)),
-                absoluteClip);
+                    checked(client.X + child._x),
+                    checked(client.Y + child._y)),
+                childClip);
         }
     }
 
@@ -11693,13 +11811,7 @@ public unsafe partial class Control :
         {
             graphics.TranslateTransform(absoluteLocation.X, absoluteLocation.Y);
             graphics.SetClip(localClip, System.Drawing.Drawing2D.CombineMode.Intersect);
-            using PaintEventArgs paintEvent = new(
-                graphics,
-                localClip,
-                DrawingEventFlags.SaveState | DrawingEventFlags.GraphicsStateUnclean);
-            PaintWithErrorHandling(paintEvent, PaintLayerBackground);
-            paintEvent.ResetGraphics();
-            PaintWithErrorHandling(paintEvent, PaintLayerForeground);
+            PaintPortableClientAndFrame(graphics, localClip);
         }
         finally
         {
@@ -11711,6 +11823,9 @@ public unsafe partial class Control :
             return;
         }
 
+        Rectangle client = PortableClientBoundsInWindow;
+        client.Offset(absoluteLocation);
+        Rectangle childClip = Rectangle.Intersect(absoluteClip, client);
         // WinForms index zero is the top of z-order, so record back-to-front.
         for (int index = children.Count - 1; index >= 0; index--)
         {
@@ -11718,9 +11833,9 @@ public unsafe partial class Control :
             child.PaintPortableControlTree(
                 graphics,
                 new Point(
-                    checked(absoluteLocation.X + child._x),
-                    checked(absoluteLocation.Y + child._y)),
-                absoluteClip);
+                    checked(client.X + child._x),
+                    checked(client.Y + child._y)),
+                childClip);
         }
     }
 
@@ -11779,6 +11894,11 @@ public unsafe partial class Control :
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected void UpdateBounds(int x, int y, int width, int height)
     {
+#if LIBREWINFORMS_PORTABLE
+        Padding insets = PortableClientSizeInsets;
+        UpdateBounds(x, y, width, height,
+            Math.Max(0, width - insets.Horizontal), Math.Max(0, height - insets.Vertical));
+#else
         // reverse-engineer the AdjustWindowRectEx call to figure out the appropriate clientWidth and clientHeight
         RECT rect = default;
         CreateParams cp = CreateParams;
@@ -11787,6 +11907,7 @@ public unsafe partial class Control :
         int clientWidth = width - rect.Width;
         int clientHeight = height - rect.Height;
         UpdateBounds(x, y, width, height, clientWidth, clientHeight);
+#endif
     }
 
     /// <summary>
@@ -11984,6 +12105,11 @@ public unsafe partial class Control :
             return;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        // An existing EDIT window can have different actual client insets from
+        // AdjustWindowRectEx's pre-handle sizing estimate (notably WS_BORDER).
+        UpdateBounds(_x, _y, _width, _height);
+#endif
         CreateParams cp = CreateParams;
         WINDOW_STYLE currentStyle = WindowStyle;
         WINDOW_EX_STYLE currentExtendedStyle = ExtendedWindowStyle;
@@ -13528,6 +13654,13 @@ public unsafe partial class Control :
             case PInvokeCore.WM_UPDATEUISTATE:
                 WmUpdateUIState(ref m);
                 break;
+
+#if LIBREWINFORMS_PORTABLE
+            case PInvokeCore.WM_QUERYUISTATE:
+            case PInvokeCore.WM_CHANGEUISTATE:
+                DefWndProc(ref m);
+                break;
+#endif
 
             case PInvokeCore.WM_PARENTNOTIFY:
                 WmParentNotify(ref m);

@@ -5,6 +5,7 @@ using System.Windows.Forms.Analyzers;
 using System.Windows.Forms.CSharp.Analyzers.Diagnostics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace System.Windows.Forms.CSharp.Generators.ApplicationConfiguration;
 
@@ -71,6 +72,66 @@ internal class ApplicationConfigurationGenerator : IIncrementalGenerator
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
+        // LibreWinForms.Sdk already owns this configuration policy, including
+        // its explicit caller-owned GenerateApplicationConfiguration=false case.
+        // Keep all diagnostic analyzers active without generating a second entrypoint.
+        IncrementalValueProvider<bool> sdkOwnsConfiguration = context.AnalyzerConfigOptionsProvider.Select(
+            (options, _) => IsEnabled(options, "LibreWinFormsSdkOwnsApplicationConfiguration"));
+
+        // Only supplement the SDK's actual global partial class. Do not parse
+        // unrelated upstream defaults or claim caller-owned initialization.
+        var sdkDefaultFont = context.AnalyzerConfigOptionsProvider.Select(
+            (options, _) =>
+            {
+                if (!IsEnabled(options, "LibreWinFormsSdkOwnsApplicationConfiguration")
+                    || !IsEnabled(options, "LibreWinFormsSdkGeneratesApplicationConfiguration"))
+                {
+                    return (Font: (string?)null, Diagnostic: (Diagnostic?)null);
+                }
+
+                ProjectFileReader.TryReadFont(options, out ApplicationConfig.FontDescriptor? font, out Diagnostic? diagnostic);
+                return (Font: font?.ToString(), Diagnostic: diagnostic);
+            });
+        context.RegisterSourceOutput(sdkDefaultFont, (context, font) =>
+        {
+            if (font.Diagnostic is not null)
+            {
+                context.ReportDiagnostic(font.Diagnostic);
+            }
+            else if (font.Font is not null)
+            {
+                context.AddSource("LibreWinForms.ApplicationDefaultFont.g.cs",
+                    ApplicationConfigurationInitializeBuilder.GenerateSdkDefaultFont(font.Font));
+            }
+        });
+
+        // Reuse upstream enum parsing/defaults only for the SDK-owned class.
+        // Its call site preserves the canonical DPI-before-default-font order.
+        var sdkHighDpiMode = context.AnalyzerConfigOptionsProvider.Select(
+            (options, _) =>
+            {
+                if (!IsEnabled(options, "LibreWinFormsSdkOwnsApplicationConfiguration")
+                    || !IsEnabled(options, "LibreWinFormsSdkGeneratesApplicationConfiguration"))
+                {
+                    return (Mode: (HighDpiMode?)null, Diagnostic: (Diagnostic?)null);
+                }
+
+                bool valid = ProjectFileReader.TryReadHighDpiMode(options, out HighDpiMode mode, out Diagnostic? diagnostic);
+                return (Mode: valid ? (HighDpiMode?)mode : null, Diagnostic: diagnostic);
+            });
+        context.RegisterSourceOutput(sdkHighDpiMode, (context, configuration) =>
+        {
+            if (configuration.Diagnostic is not null)
+            {
+                context.ReportDiagnostic(configuration.Diagnostic);
+            }
+            else if (configuration.Mode is { } mode)
+            {
+                context.AddSource("LibreWinForms.ApplicationHighDpiMode.g.cs",
+                    ApplicationConfigurationInitializeBuilder.GenerateSdkHighDpiMode(mode));
+            }
+        });
+
         IncrementalValueProvider<OutputKind> outputKindProvider = context.CompilationProvider.Select((compilation, _)
             => compilation.Options.OutputKind);
 
@@ -92,18 +153,31 @@ internal class ApplicationConfigurationGenerator : IIncrementalGenerator
                     ApplicationConfigDiagnostics: data.Right.Diagnostic));
 
         context.RegisterSourceOutput(
-            inputs,
+            inputs.Combine(sdkOwnsConfiguration),
             (context, source)
-                => Execute(
+            =>
+            {
+                if (source.Right)
+                {
+                    return;
+                }
+
+                Execute(
                     context: context,
-                    hasSupportedSyntaxNode: source.ProjectNamespaces.Length > 0,
-                    projectNamespace: source.ProjectNamespaces.Length > 0
-                        ? source.ProjectNamespaces[0]
+                    hasSupportedSyntaxNode: source.Left.ProjectNamespaces.Length > 0,
+                    projectNamespace: source.Left.ProjectNamespaces.Length > 0
+                        ? source.Left.ProjectNamespaces[0]
                         : null,
-                    outputKind: source.OutputKind,
-                    applicationConfig: source.ApplicationConfig,
-                    applicationConfigDiagnostics: source.ApplicationConfigDiagnostics));
+                    outputKind: source.Left.OutputKind,
+                    applicationConfig: source.Left.ApplicationConfig,
+                    applicationConfigDiagnostics: source.Left.ApplicationConfigDiagnostics);
+            });
     }
+
+    private static bool IsEnabled(AnalyzerConfigOptionsProvider options, string propertyName) =>
+        options.GetMSBuildProperty(propertyName, out string? value)
+        && bool.TryParse(value, out bool enabled)
+        && enabled;
 
     public static bool IsSupportedSyntaxNode(SyntaxNode syntaxNode) =>
         syntaxNode is InvocationExpressionSyntax

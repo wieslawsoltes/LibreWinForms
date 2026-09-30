@@ -282,6 +282,15 @@ public partial class Form : ContainerControl
                     InnerMostActiveContainerControl.FocusActiveControlInternal();
                 }
 
+#if LIBREWINFORMS_PORTABLE
+                // Focus callbacks may synchronously confirm another native
+                // owner or destroy/hide this form before activation completes.
+                if (TopLevel && (!ReferenceEquals(s_portableActiveForm, this)
+                    || _formState[s_formStateIsActive] == 0 || !Visible || IsDisposed || Disposing))
+                {
+                    return;
+                }
+#endif
                 OnActivated(EventArgs.Empty);
             }
             else
@@ -303,15 +312,47 @@ public partial class Form : ContainerControl
 #endif
 
 #if LIBREWINFORMS_PORTABLE
-    internal static void SetPortableActiveForm(Form? form)
+    internal bool IsPortableActivationOwner => ReferenceEquals(s_portableActiveForm, this);
+
+    internal void UpdatePortableActivation(bool focused)
     {
-        if (form is null)
+        if (!focused)
         {
-            s_portableActiveForm = null;
+            if (ReferenceEquals(s_portableActiveForm, this))
+            {
+                s_portableActiveForm = null;
+            }
+
+            Active = false;
+            return;
         }
-        else if (!form.IsDisposed)
+
+        Form? previous = s_portableActiveForm;
+        s_portableActiveForm = this;
+        if (previous is not null && !ReferenceEquals(previous, this))
         {
-            s_portableActiveForm = form;
+            try
+            {
+                previous.SetPortableWindowFocus(focused: false);
+            }
+            catch
+            {
+                // Do not retain a half-activated successor after a user event
+                // throws, or overwrite another owner confirmed reentrantly.
+                if (ReferenceEquals(s_portableActiveForm, this))
+                {
+                    SetPortableWindowFocus(focused: false);
+                }
+
+                throw;
+            }
+        }
+
+        if (ReferenceEquals(s_portableActiveForm, this) && Visible && IsHandleCreated && !IsDisposed && !Disposing)
+        {
+            // Reuse the canonical state, validation/focus and public events.
+            // No synthetic HWND activation or component-manager notification.
+            Active = true;
         }
     }
 #endif
@@ -2964,7 +3005,6 @@ public partial class Form : ContainerControl
             else
             {
 #if LIBREWINFORMS_PORTABLE
-                SetPortableActiveForm(this);
                 ActivatePortableWindow();
 #else
                 PInvoke.SetForegroundWindow(this);
@@ -4410,14 +4450,11 @@ public partial class Form : ContainerControl
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected override void OnHandleDestroyed(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        SetPortableWindowFocus(focused: false);
+#endif
         base.OnHandleDestroyed(e);
         _formStateEx[s_formStateExUseMdiChildProc] = 0;
-#if LIBREWINFORMS_PORTABLE
-        if (s_portableActiveForm == this)
-        {
-            s_portableActiveForm = null;
-        }
-#endif
 
         // Remove the form from OpenForms collection only if we're not recreating the handle of this form
         // (e.g., when ShowInTaskbar or RightToLeft properties get changed).
@@ -4572,6 +4609,12 @@ public partial class Form : ContainerControl
     [EditorBrowsable(EditorBrowsableState.Advanced)]
     protected override void OnVisibleChanged(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        if (!Visible)
+        {
+            SetPortableWindowFocus(focused: false);
+        }
+#endif
         UpdateRenderSizeGrip();
         MdiParentInternal?.UpdateMdiWindowListStrip();
 
@@ -6609,6 +6652,11 @@ public partial class Form : ContainerControl
             return;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        // MenuStrip is painted by the canonical control tree. Portable Form
+        // handles have no Win32 HMENU to remove or native menu bar to redraw.
+        _formStateEx[s_formStateExUpdateMenuHandlesDeferred] = 0;
+#else
         if (_ctlClient is null || !_ctlClient.IsHandleCreated)
         {
             PInvoke.SetMenu(this, HMENU.Null);
@@ -6668,6 +6716,7 @@ public partial class Form : ContainerControl
 
         PInvoke.DrawMenuBar(this);
         _formStateEx[s_formStateExUpdateMenuHandlesDeferred] = 0;
+#endif
     }
 
     // Call this function instead of UpdateStyles() when the form's client-size must

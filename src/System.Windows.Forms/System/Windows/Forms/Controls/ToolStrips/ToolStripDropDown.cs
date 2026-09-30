@@ -888,11 +888,15 @@ public partial class ToolStripDropDown : ToolStrip
     {
         if (TopMost)
         {
+#if LIBREWINFORMS_PORTABLE
+            SetPortableWindowTopMost(topMost);
+#else
             PInvoke.SetWindowPos(
                 this,
                 topMost ? HWND.HWND_TOPMOST : HWND.HWND_NOTOPMOST,
                 0, 0, 0, 0,
                 SET_WINDOW_POS_FLAGS.SWP_NOMOVE | SET_WINDOW_POS_FLAGS.SWP_NOSIZE | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE);
+#endif
         }
     }
 
@@ -900,6 +904,9 @@ public partial class ToolStripDropDown : ToolStrip
     {
         if (disposing)
         {
+#if LIBREWINFORMS_PORTABLE
+            ReleasePortableActivation(disposing: true);
+#endif
             SourceControlInternal = null;
         }
 
@@ -910,6 +917,21 @@ public partial class ToolStripDropDown : ToolStrip
     {
         ToolStrip? toplevelOwnerToolStrip = GetToplevelOwnerToolStrip();
         toplevelOwnerToolStrip?.MenuAutoExpand = false;
+    }
+
+    private void CancelAutoExpand(ToolStripDropDownCloseReason reason)
+    {
+        ToolStrip? topLevelToolStrip = GetToplevelOwnerToolStrip();
+        ToolStrip? parentToolStrip = OwnerItem?.ParentInternal;
+        // Horizontal keyboard navigation retains automatic expansion. Escape
+        // and Alt clear it in SelectPreviousToolStrip/RestoreFocusInternal.
+        if (reason == ToolStripDropDownCloseReason.AppClicked
+            || reason == ToolStripDropDownCloseReason.ItemClicked
+            || (reason == ToolStripDropDownCloseReason.CloseCalled && topLevelToolStrip == parentToolStrip)
+            || (reason == ToolStripDropDownCloseReason.AppFocusChange && topLevelToolStrip == parentToolStrip))
+        {
+            CancelAutoExpand();
+        }
     }
 
     internal override bool CanProcessMnemonic() =>
@@ -937,17 +959,17 @@ public partial class ToolStripDropDown : ToolStrip
     {
         base.CreateHandle();
 
-#if !LIBREWINFORMS_PORTABLE
         if (TopLevel)
         {
+#if !LIBREWINFORMS_PORTABLE
             ReparentToDropDownOwnerWindow();
+#endif
 
             if (!AutoClose || !WorkingAreaConstrained)
             {
                 ApplyTopMost(true);
             }
         }
-#endif
 
         if (DesignMode)
         {
@@ -1257,10 +1279,14 @@ public partial class ToolStripDropDown : ToolStrip
                 // sent selection
                 if (!OwnerToolStrip.IsDropDown)
                 {
+#if LIBREWINFORMS_PORTABLE
+                    SetPortableKeyboardContinuation(OwnerToolStrip);
+#else
                     if (ToolStripManager.ModalMenuFilter.GetActiveToolStrip() != OwnerToolStrip)
                     {
                         ToolStripManager.ModalMenuFilter.SetActiveToolStrip(OwnerToolStrip);
                     }
+#endif
 
                     // escape should cancel auto expansion
                     OwnerToolStrip.MenuAutoExpand = false;
@@ -1332,10 +1358,14 @@ public partial class ToolStripDropDown : ToolStrip
 
                     if (toplevelToolStrip is not null && rootItem is not null)
                     {
+#if LIBREWINFORMS_PORTABLE
+                        SetPortableKeyboardContinuation(toplevelToolStrip);
+#else
                         if (ToolStripManager.ModalMenuFilter.GetActiveToolStrip() != toplevelToolStrip)
                         {
                             ToolStripManager.ModalMenuFilter.SetActiveToolStrip(toplevelToolStrip);
                         }
+#endif
 
                         toplevelToolStrip.SelectNextToolStripItem(rootItem, forward);
                     }
@@ -1668,24 +1698,7 @@ public partial class ToolStripDropDown : ToolStrip
                             // setting to not visible. Dismiss our child drop downs, reset, set ourselves visible false.
                             DismissActiveDropDowns();
 
-                            // Make sure we cancel auto expansion on the root
-                            ToolStrip? topLevelToolStrip = GetToplevelOwnerToolStrip();
-                            ToolStrip? parentToolStrip = OwnerItem?.ParentInternal;
-
-                            // We don't consider reason == ToolStripDropDownCloseReason.Keyboard here.
-                            // DropDown needs to be closed when Alt or ESC is pressed,
-                            // but these two keys are handled in ToolStrip.RestoreFocusInternal()
-                            // and ToolStripDropDown.SelectPreviousToolStrip() respectively,
-                            // and ToolStrip.MenuAutoExpand of top level tool strip will be set false there.
-                            // Left and Right keys may also close dropdown, but we don't need to
-                            // set ToolStrip.MenuAutoExpand of top level tool strip to be false in such cases.
-                            if ((reason == ToolStripDropDownCloseReason.AppClicked) ||
-                                (reason == ToolStripDropDownCloseReason.ItemClicked) ||
-                                (reason == ToolStripDropDownCloseReason.CloseCalled && topLevelToolStrip == parentToolStrip) ||
-                                (reason == ToolStripDropDownCloseReason.AppFocusChange && topLevelToolStrip == parentToolStrip))
-                            {
-                                CancelAutoExpand();
-                            }
+                            CancelAutoExpand(reason);
 
                             // if this came through via a click event we should actually
                             // dismiss everyone in the chain. Other windows will receive a
@@ -1693,13 +1706,7 @@ public partial class ToolStripDropDown : ToolStrip
                             // design since the item wasn't clicked on that window.
                             if (reason == ToolStripDropDownCloseReason.ItemClicked)
                             {
-                                // Preserve the SourceControl value up the chain.
-                                _saveSourceControl = true;
-                                DismissAll();
-
-                                // make sure that when we roll up, our owner item's selection is cleared.
-                                ToolStripItem? rootOwnerItem = GetToplevelOwnerItem();
-                                rootOwnerItem?.Unselect();
+                                DismissItemClickedChain();
 
                                 ToolStripManager.ModalMenuFilter.RemoveActiveToolStrip(this);
                                 ToolStripManager.ModalMenuFilter.ExitMenuMode();
@@ -1934,6 +1941,15 @@ public partial class ToolStripDropDown : ToolStrip
     }
 
     #region DropDownSpecific
+    private void DismissItemClickedChain()
+    {
+        // Preserve the SourceControl value while the original command is
+        // delivered, and retain ordinary cancelable closure of each ancestor.
+        _saveSourceControl = true;
+        DismissAll();
+        GetToplevelOwnerItem()?.Unselect();
+    }
+
     internal void DismissAll()
     {
         ToolStripDropDown toplevel = GetFirstDropDown();

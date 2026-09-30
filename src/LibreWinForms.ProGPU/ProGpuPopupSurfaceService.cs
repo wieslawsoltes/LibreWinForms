@@ -135,6 +135,11 @@ public sealed class ProGpuPopupSurfaceService : ILibrePopupSurfaceService, IDisp
             throw new ArgumentOutOfRangeException(nameof(request), "Popup DPI scale must be finite and in the range (0, 8].");
         }
 
+        if (request.CoordinateMode is not (LibreWindowCoordinateMode.Logical or LibreWindowCoordinateMode.DevicePixels))
+        {
+            throw new ArgumentOutOfRangeException(nameof(request), "Unknown popup coordinate mode.");
+        }
+
         if (request.DismissalPolicy != LibrePopupDismissalPolicy.Explicit)
         {
             throw new PlatformNotSupportedException(
@@ -164,6 +169,7 @@ public sealed class ProGpuPopupSurfaceService : ILibrePopupSurfaceService, IDisp
         private readonly PopupKey _key;
         private readonly bool _inputTransparent;
         private readonly double _dpiScale;
+        private readonly LibreWindowCoordinateMode _coordinateMode;
         private bool _disposed;
 
         internal Session(
@@ -176,6 +182,7 @@ public sealed class ProGpuPopupSurfaceService : ILibrePopupSurfaceService, IDisp
             _key = key;
             _inputTransparent = request.InputTransparent;
             _dpiScale = request.DpiScale;
+            _coordinateMode = request.CoordinateMode;
             LibreSize fixedSize = new(request.ScreenBounds.Width, request.ScreenBounds.Height);
             LibreWindowOptions options = LibreWindowOptions.TopMost
                 | LibreWindowOptions.ToolWindow
@@ -191,7 +198,7 @@ public sealed class ProGpuPopupSurfaceService : ILibrePopupSurfaceService, IDisp
                     request.ScreenBounds,
                     options,
                     request.Owner,
-                    LibreWindowCoordinateMode.Logical,
+                    request.CoordinateMode,
                     request.DpiScale,
                     LibreWindowState.Normal,
                     ShowInTaskbar: false,
@@ -207,6 +214,7 @@ public sealed class ProGpuPopupSurfaceService : ILibrePopupSurfaceService, IDisp
 
         internal bool CanUpdate(in LibrePopupSurfaceRequest request)
             => _inputTransparent == request.InputTransparent
+                && _coordinateMode == request.CoordinateMode
                 && Math.Abs(_dpiScale - request.DpiScale) < 0.0001;
 
         internal void Update(in LibrePopupSurfaceRequest request)

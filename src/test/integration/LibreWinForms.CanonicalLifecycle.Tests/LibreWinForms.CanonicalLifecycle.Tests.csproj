@@ -3,6 +3,7 @@
   <PropertyGroup>
     <TargetFramework>$(NetCurrent)</TargetFramework>
     <AssemblyName>LibreWinForms.CanonicalLifecycle.Tests</AssemblyName>
+    <Product>LibreWinForms canonical API contracts</Product>
     <Nullable>enable</Nullable>
     <IsTestProject>true</IsTestProject>
     <OutputType>Exe</OutputType>
@@ -13,6 +14,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="../../../../packaging/LibreWinForms.Sdk.SourceFirstSmoke/CanonicalApiContracts.cs" Link="CanonicalApiContracts.cs" />
+    <Compile Include="../../../LibreWinForms.ProGPU/ProGpuTextRendererService.cs" Link="ProGpuTextRendererService.cs" />
+    <Compile Include="../../../LibreWinForms.ProGPU/NativePointerInput.cs" Link="NativePointerInput.cs" />
+    <Compile Include="../../../LibreWinForms.ProGPU/ProGpuDragCancellation.cs" Link="ProGpuDragCancellation.cs" />
+    <Compile Include="../../../LibreWinForms.ProGPU/tests/NativePointerTestContext.cs" Link="NativePointerTestContext.cs" />
+    <Compile Include="../../../Common/src/TextRendererMargins.cs" Link="TextRendererMargins.cs" />
     <PackageReference Include="AwesomeAssertions" />
     <PackageReference Include="Microsoft.DotNet.XUnitV3Extensions" />
     <ProjectReference Include="..\..\..\LibreWinForms.Platform\LibreWinForms.Platform.csproj" />

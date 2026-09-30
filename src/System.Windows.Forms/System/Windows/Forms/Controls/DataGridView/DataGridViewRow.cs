@@ -154,7 +154,7 @@ public partial class DataGridViewRow : DataGridViewBand
         {
             if (s_defaultHeight == -1)
             {
-                s_defaultHeight = Control.DefaultFont.Height + 9;
+                s_defaultHeight = Control.GetFontHeightForTarget(Control.DefaultFont) + 9;
             }
 
             return s_defaultHeight;

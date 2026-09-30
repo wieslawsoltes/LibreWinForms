@@ -6,6 +6,11 @@ LibreWinForms preview releases publish one canonical WinForms package set:
 - `LibreWinForms.System.Windows.Forms`
 - `LibreWinForms.ProGPU`
 - `LibreWinForms.WindowsFormsIntegration`
+- `LibreWinForms.ApplicationIsolation`
+
+The optional isolation launcher is included in the source-first package inventory,
+manifest and release bundle. It is not yet published to NuGet; adding it to this
+inventory does not itself publish a release or qualify visible application UI.
 
 The same bundle contains the exact ten-package ProGPU drawing closure built
 from the pinned submodule. It never publishes
@@ -17,8 +22,8 @@ from the pinned submodule. It never publishes
 and runtime source before packing LibreWinForms:
 
 ```bash
-LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.63 \
-LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.63 \
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.65 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.65 \
 LIBREWINFORMS_CANONICAL_WFI_SOURCE_ROOT=/path/to/LibreWPF \
 LIBREWINFORMS_CANONICAL_WFI_EXPECTED_COMMIT=<librewpf-commit> \
 ./eng/librewinforms-build-canonical-wfi.sh
@@ -33,8 +38,8 @@ NuGet-based; this source handoff is a release qualification path.
 Pack the release from a separate canonical-WFI output directory:
 
 ```bash
-LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.63 \
-LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.63 \
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.65 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.65 \
 LIBREWINFORMS_CANONICAL_WFI_PACKAGE_SOURCE=/path/to/LibreWPF/artifacts/packages/CanonicalWinForms \
 LIBREWINFORMS_CANONICAL_WFI_COMMIT=<librewpf-commit> \
 ./eng/librewinforms-pack.sh
@@ -85,7 +90,11 @@ SharpDevelop remains the real downstream integration driver.
 handoff, stages the immutable LibreWPF SDK feed, packs, smoke-tests, and uploads
 the bundle. `LibreWinForms Release` accepts a `canonical_wfi_ref` plus the
 LibreWPF SDK `bridge_ref`; release rehearsals should use exact commits, while
-coordinated tags use `librewpf-v<version>`.
+coordinated tags use `librewpf-v<version>`. An aligned tag also derives the
+ProGPU drawing package version from its own version unless an explicit
+`progpu_version` override is supplied. The canonical WFI and bridge refs both
+default to the matching immutable LibreWPF tag; a source-branch default must
+not silently enter a public tag release.
 
 After NuGet indexing, dispatch `LibreWinForms Public Package Smoke`. It restores
 only from NuGet.org and builds the unchanged `LibreWinForms.Sdk`, `net11.0`,

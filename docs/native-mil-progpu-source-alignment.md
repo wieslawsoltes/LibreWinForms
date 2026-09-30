@@ -1,5 +1,31 @@
 # Native MIL ProGPU source alignment
 
+## Shared drawing and Windows bitmap dependency
+
+The next canonical LibreWinForms/LibreWPF alignment selects the exact ProGPU
+source head `08f4343ef15328ba742cdcf11f8eb2daeefb5f7b` from
+[ProGPU #188](https://github.com/wieslawsoltes/ProGPU/pull/188). It retains the
+existing managed print-controller lifecycle from `b05fa397` and the independently
+reviewed device-scoped texture-retirement fix, while adding typed Windows GDI
+bitmap transport. No public package version, compiler/adapter default, renderer
+fallback, or existing source-test selector changes in this alignment.
+
+The exact-head Windows job passed all 94 selected contracts, including 30 GDI
+bitmap cases and the real native 1/4/8/24/32-bit bottom-up and 24-bit top-down
+round trips. This is not a whole producer Build result: Build
+[36248366666](https://github.com/wieslawsoltes/ProGPU/actions/runs/36248366666)
+must complete successfully and ProGPU #188 must merge before this dependency
+alignment is merged or released. Its draft PR may run independent source checks
+while that producer finishes; native artifact staging still requires the whole
+exact producer Build to succeed. Canceled/failed superseded producers are not
+acceptable artifact sources.
+
+After this repository's exact-head source, package and visible-consumer gates
+pass and its PR merges, LibreWPF #174 must pin that merged LibreWinForms revision
+and the same exact ProGPU source head. Its equality guard, native payload hashes
+and four Windows STA clipboard ownership cases remain mandatory. GDI bitmap
+success does not itself qualify OLE clipboard ownership or the source application.
+
 ## Native semantic-scene CPU stage dependency
 
 The canonical LibreWPF/LibreWinForms source graph must pin one exact ProGPU

@@ -21,7 +21,7 @@ using Xunit;
 
 namespace LibreWinForms.CanonicalLifecycle.Tests;
 
-public class CanonicalLifecycleTests
+public partial class CanonicalLifecycleTests
 {
     private delegate int AddValues(int left, int right);
 
@@ -2955,7 +2955,9 @@ public class CanonicalLifecycleTests
         panel.Controls.Add(editor);
         panel.Controls.SetChildIndex(editor, 0);
 
-        editor.Bounds.Should().Be(new Rectangle(60, 60, 180, editor.PreferredHeight));
+        // Native scaling excludes and restores the two-pixel source frame:
+        // (120 - 4) * 1.5 + 4 = 178, without moving the scrolled origin.
+        editor.Bounds.Should().Be(new Rectangle(60, 60, 178, editor.PreferredHeight));
         panel.Controls[0].Should().BeSameAs(editor);
     }
 
@@ -3407,7 +3409,7 @@ public class CanonicalLifecycleTests
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
 
-        SystemInformation.GetBorderSizeForDpi(192).Should().Be(new Size(22, 26));
+        SystemInformation.GetBorderSizeForDpi(192).Should().Be(new Size(11, 13));
         SystemInformation.ScreenOrientation.Should().Be(ScreenOrientation.Angle270);
         SystemInformation.SizingBorderWidth.Should().Be(7);
         SystemInformation.SmallCaptionButtonSize.Should().Be(new Size(31, 33));
@@ -3500,6 +3502,8 @@ public class CanonicalLifecycleTests
 
         platform.TextMeasureCount.Should().BeGreaterThan(0);
         platform.TextDrawCount.Should().BeGreaterThan(1);
+        platform.TextDrawStrings.Should().OnlyContain(text => text == "group" || text == "link");
+        platform.TextDrawStrings.Should().Contain("group").And.Contain("link");
         groupBox.IsHandleCreated.Should().BeFalse();
         linkLabel.IsHandleCreated.Should().BeFalse();
     }
@@ -4095,9 +4099,9 @@ public class CanonicalLifecycleTests
         platform.SawCreateGraphicsTranslatedFill.Should().BeTrue();
         inputException.Should().BeNull();
         inputEvents.Should().ContainInOrder(
+            nameof(child.GotFocus),
             nameof(child.MouseEnter),
             nameof(child.MouseMove),
-            nameof(child.GotFocus),
             nameof(child.MouseDown),
             nameof(child.Click),
             nameof(child.MouseUp),
@@ -4106,6 +4110,7 @@ public class CanonicalLifecycleTests
             nameof(child.KeyPress),
             nameof(child.KeyUp),
             nameof(child.LostFocus));
+        inputEvents.Count(value => value == nameof(child.GotFocus)).Should().Be(1);
         mouseLocation.Should().Be(new Point(5, 6));
         mousePosition.Should().Be(new Point(57, 74));
         focusedDuringGotFocus.Should().BeTrue();
@@ -4834,6 +4839,8 @@ public class CanonicalLifecycleTests
                 firstDialog.Owner.Should().Be(owner);
 
                 firstDialog.Activate();
+                platform.SendFormInput(firstDialog, LibreInputEventKind.FocusGained);
+                Form.ActiveForm.Should().BeSameAs(firstDialog);
                 nestedResult = nestedDialog.ShowDialog();
                 events.Add("nested-returned");
                 firstRestoredAfterNested = platform.IsWindowEnabled(firstDialog);
@@ -4853,6 +4860,8 @@ public class CanonicalLifecycleTests
                 events.Add("owner-shown");
                 platform.TrackForm(owner);
                 owner.Activate();
+                platform.SendFormInput(owner, LibreInputEventKind.FocusGained);
+                Form.ActiveForm.Should().BeSameAs(owner);
                 ownerChild.Enabled = false;
                 ownerPlatformEnabledAfterChildDisable = platform.IsWindowEnabled(owner);
                 ownerChild.Enabled = true;
@@ -4919,7 +4928,7 @@ public class CanonicalLifecycleTests
                 1,
                 true,
                 32,
-                "Primary display"),
+                "Primary display") { NativeCoordinateScale = 1 },
             new LibreMonitor(
                 "secondary",
                 new(-1280, 0, 1280, 1024),
@@ -4927,7 +4936,7 @@ public class CanonicalLifecycleTests
                 1.5,
                 false,
                 30,
-                "Secondary display"));
+                "Secondary display") { NativeCoordinateScale = 1.5 });
 
         Screen[] screens = Screen.AllScreens;
         screens.Should().HaveCount(2);
@@ -5014,25 +5023,31 @@ public class CanonicalLifecycleTests
     [Fact]
     public void PerMonitorV2_UsesDevicePixelCoordinatesAndRaisesCanonicalDpiEvents()
     {
+        if (RunDpiCaseInNewProcess())
+        {
+            return;
+        }
+
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
         platform.SetMonitors(new LibreMonitor(
             "primary",
             new(0, 0, 1920, 1080),
             new(0, 0, 1920, 1040),
             2.0,
-            true));
+            true) { NativeCoordinateScale = 1 });
         platform.SetInitialPresentationScales(dpiScale: 2.0, framebufferScale: 2.0);
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2).Should().BeTrue();
 
-        using Form form = new()
-        {
-            AutoScaleMode = AutoScaleMode.Dpi,
-            AutoScaleDimensions = new SizeF(96, 96),
-            StartPosition = FormStartPosition.Manual,
-            Bounds = new Rectangle(10, 20, 400, 300),
-        };
+        using Form form = new();
+        // Designer initialization defers autoscaling until all design bounds exist.
+        form.SuspendLayout();
+        form.AutoScaleMode = AutoScaleMode.Dpi;
+        form.AutoScaleDimensions = new SizeF(96, 96);
+        form.StartPosition = FormStartPosition.Manual;
+        form.Bounds = new Rectangle(10, 20, 400, 300);
         using Control child = new() { Bounds = new Rectangle(20, 30, 100, 40) };
         form.Controls.Add(child);
+        form.ResumeLayout(true);
 
         int initialFormDpi = 0;
         int initialChildDpi = 0;
@@ -5085,7 +5100,7 @@ public class CanonicalLifecycleTests
         }
         finally
         {
-            Application.SetHighDpiMode(HighDpiMode.DpiUnaware).Should().BeTrue();
+            Application.SetHighDpiMode(HighDpiMode.DpiUnaware).Should().BeFalse();
         }
 
         platform.LastCoordinateMode.Should().Be(LibreWindowCoordinateMode.DevicePixels);
@@ -5109,23 +5124,29 @@ public class CanonicalLifecycleTests
     [Fact]
     public void PerMonitorV2_SeparatesWindowsDpiFromFramebufferScale()
     {
+        if (RunDpiCaseInNewProcess())
+        {
+            return;
+        }
+
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
         platform.SetMonitors(new LibreMonitor(
             "primary",
             new(0, 0, 1920, 1080),
             new(0, 0, 1920, 1040),
             2.0,
-            true));
+            true) { NativeCoordinateScale = 1 });
         platform.SetInitialPresentationScales(dpiScale: 2.0, framebufferScale: 1.0);
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2).Should().BeTrue();
 
-        using Form form = new()
-        {
-            AutoScaleMode = AutoScaleMode.Dpi,
-            AutoScaleDimensions = new SizeF(96, 96),
-            StartPosition = FormStartPosition.Manual,
-            Bounds = new Rectangle(10, 20, 400, 300),
-        };
+        using Form form = new();
+        // Match the generated designer transaction at the actual system DPI.
+        form.SuspendLayout();
+        form.AutoScaleMode = AutoScaleMode.Dpi;
+        form.AutoScaleDimensions = new SizeF(96, 96);
+        form.StartPosition = FormStartPosition.Manual;
+        form.Bounds = new Rectangle(10, 20, 400, 300);
+        form.ResumeLayout(true);
         Rectangle initialManagedBounds = default;
         LibreRectangle initialNativeBounds = default;
 
@@ -5143,7 +5164,7 @@ public class CanonicalLifecycleTests
         }
         finally
         {
-            Application.SetHighDpiMode(HighDpiMode.DpiUnaware).Should().BeTrue();
+            Application.SetHighDpiMode(HighDpiMode.DpiUnaware).Should().BeFalse();
         }
 
         initialManagedBounds.Should().Be(new Rectangle(10, 20, 800, 600));
@@ -5284,7 +5305,8 @@ public class CanonicalLifecycleTests
     public void ContextMenuStripUsesCanonicalPortablePopupLifecycleAndTypedCloseReasons()
     {
         _ = UseHeadlessPlatform(autoCloseWindows: false);
-        using Control owner = new();
+        using Form owner = new() { ShowIcon = false };
+        owner.Show();
         using ContextMenuStrip menu = new();
         int opening = 0;
         int opened = 0;
@@ -5412,6 +5434,9 @@ public class CanonicalLifecycleTests
         child.Controls.Add(descendant);
         form.Controls.Add(child);
         form.Show();
+        Rectangle initialBounds = new(820, 430, 280, 180);
+        form.Bounds.Should().Be(initialBounds, "CenterScreen placement is published during native creation");
+        platform.LastWindowBounds.Should().Be(new LibreRectangle(820, 430, 280, 180));
         platform.SendInput(LibreInputEventKind.FocusGained);
         child.Focus().Should().BeTrue();
 
@@ -5470,7 +5495,7 @@ public class CanonicalLifecycleTests
         form.IsHandleCreated.Should().BeTrue();
         form.Created.Should().BeTrue();
         form.Visible.Should().BeTrue();
-        form.Bounds.Should().Be(new Rectangle(20, 30, 280, 180));
+        form.Bounds.Should().Be(initialBounds);
         form.StartPosition.Should().Be(FormStartPosition.CenterScreen);
         child.Handle.Should().Be(recreatedChildHandle);
         descendant.Handle.Should().Be(descendantHandle);
@@ -5871,6 +5896,7 @@ public class CanonicalLifecycleTests
         private int _dispatcherPostCount;
         private int _managedThreadId;
         private Action? _timerCallback;
+        private readonly Dictionary<int, Action> _timerCallbacks = [];
         private int _timerGeneration;
 
         internal HeadlessPlatform(bool autoCloseWindows = true)
@@ -5890,7 +5916,8 @@ public class CanonicalLifecycleTests
                 UnsupportedLibreNativeGraphicsInteropService.Instance,
                 this,
                 this,
-                this,
+                Environment.GetEnvironmentVariable("LIBREWINFORMS_TEST_RETAINED_TEXT") == "1"
+                    ? new RetainedTextRendererProbe() : this,
                 this,
                 this,
                 this,
@@ -5925,6 +5952,7 @@ public class CanonicalLifecycleTests
             DragDropHandler = null;
             DragDropTargets.Clear();
             ClipboardData = null;
+            RejectClipboardWrites = false;
             ClipboardPersist = false;
             ClipboardRetryTimes = 0;
             ClipboardRetryDelay = 0;
@@ -5938,9 +5966,16 @@ public class CanonicalLifecycleTests
             }
 
             WindowsCreated = 0;
+            LastWindowOptions = default;
+            RejectPopupCreation = false;
+            PopupShowFailure = null;
+            PopupOwnerAssigned = null;
+            WindowCreating = null;
+            InitialWindowLocation = null;
             LastWindowBounds = default;
             LastNativeWindowBounds = default;
             LastDirtyRectangle = default;
+            BorderSizeValue = new(11, 13);
             PresentCount = 0;
             PresentationInvalidationCount = 0;
             LastPresentationScale = 1.0;
@@ -5979,11 +6014,17 @@ public class CanonicalLifecycleTests
             VisualStyleEdgeDrawCount = 0;
             VisualStyleTextDrawCount = 0;
             TextDrawCount = 0;
+            TextDrawStrings.Clear();
+            TextBoxDraws.Clear();
             TextMeasureCount = 0;
             LastTextBounds = default;
             LastTextFormat = default;
+            LastDrawnTextFont = null;
+            LastDrawnTextColor = default;
+            LastDrawnTextClip = default;
             LastMeasuredText = string.Empty;
             _timerCallback = null;
+            _timerCallbacks.Clear();
             _timerGeneration = 0;
             TimerStartCount = 0;
             TimerStopCount = 0;
@@ -6024,6 +6065,8 @@ public class CanonicalLifecycleTests
         internal HashSet<LibreHandle> DragDropTargets { get; } = [];
 
         internal ILibreDataTransfer? ClipboardData { get; private set; }
+
+        internal bool RejectClipboardWrites { get; set; }
 
         internal bool ClipboardPersist { get; private set; }
 
@@ -6244,15 +6287,22 @@ public class CanonicalLifecycleTests
         internal int VisualStyleEdgeDrawCount { get; private set; }
         internal int VisualStyleTextDrawCount { get; private set; }
         internal int TextDrawCount { get; private set; }
+        internal List<TextBoxPaintCall> TextBoxDraws { get; } = [];
         internal int TextMeasureCount { get; private set; }
         internal Rectangle LastTextBounds { get; private set; }
         internal LibreTextFormat LastTextFormat { get; private set; }
+        internal CanonicalTextFontDescriptor? LastDrawnTextFont { get; private set; }
+        internal Color LastDrawnTextColor { get; private set; }
+        internal RectangleF LastDrawnTextClip { get; private set; }
         internal string LastMeasuredText { get; private set; } = string.Empty;
+        internal float? LastMeasuredDpi { get; private set; }
+        internal ILibreTextRendererService? ActualTextRenderer { get; set; }
 
         public bool HighContrast => false;
         public Font GetMenuFont(int dpi)
             => new(FontFamily.GenericMonospace, dpi == 0 ? 11f : 17f);
-        public LibreSize BorderSize => new(11, 13);
+        internal LibreSize BorderSizeValue { get; set; } = new(11, 13);
+        public LibreSize BorderSize => BorderSizeValue;
         public LibreSize FixedFrameBorderSize => new(3, 3);
         public LibreSize Border3DSize => new(2, 2);
         public int VerticalScrollBarWidth => 17;
@@ -6629,6 +6679,14 @@ public class CanonicalLifecycleTests
 
         public void SetData(ILibreDataTransfer data, bool persist, int retryTimes, int retryDelay)
         {
+            if (RejectClipboardWrites)
+            {
+                // Match the canonical Clipboard.SetDataObject native-write failure.
+#pragma warning disable CA2201 // The clipboard failure contract deliberately uses ExternalException.
+                throw new System.Runtime.InteropServices.ExternalException("Test clipboard is unavailable.");
+#pragma warning restore CA2201
+            }
+
             ClipboardData = data;
             ClipboardPersist = persist;
             ClipboardRetryTimes = retryTimes;
@@ -6644,15 +6702,25 @@ public class CanonicalLifecycleTests
             LastTimerRepeating = repeating;
             _timerCallback = callback;
             int generation = ++_timerGeneration;
+            _timerCallbacks.Add(generation, callback);
             return new HeadlessTimerRegistration(this, generation);
         }
 
         internal void FireTimer()
             => (_timerCallback ?? throw new InvalidOperationException("No headless timer is active."))();
 
+        internal void FireTimers()
+        {
+            // Menu expansion and item-hover timers can be active together.
+            // Keep the legacy last-timer helper for its single-timer fixtures.
+            foreach ((int generation, Action callback) in _timerCallbacks.ToArray())
+                if (_timerCallbacks.ContainsKey(generation)) callback();
+        }
+
         private void StopTimer(int generation)
         {
             TimerStopCount++;
+            _timerCallbacks.Remove(generation);
             if (generation != _timerGeneration)
             {
                 return;
@@ -6663,10 +6731,14 @@ public class CanonicalLifecycleTests
 
         public ILibreWindow Create(in LibreWindowCreateOptions options, ILibreWindowEvents events)
         {
+            if (RejectPopupCreation && options.Options.HasFlag(LibreWindowOptions.Popup))
+                throw new PlatformNotSupportedException("popup admission rejected");
             WindowsCreated++;
+            LastWindowOptions = options;
             LastCoordinateMode = options.CoordinateMode;
             LastWindowOwner = options.Owner;
             _lastWindow = new HeadlessWindow(this, options, events);
+            WindowCreating?.Invoke(events);
             return _lastWindow;
         }
 
@@ -6726,8 +6798,8 @@ public class CanonicalLifecycleTests
         internal void TrackForm(Form form)
             => _formHandles[form] = GetWindowHandle(form);
 
-        internal LibreHandle GetWindowHandle(Form form)
-            => new(form.Handle, LibreHandleKind.Window);
+        internal LibreHandle GetWindowHandle(Control control)
+            => new(control.Handle, LibreHandleKind.Window);
 
         internal LibreHandle GetFormerWindowHandle(Form form)
             => _formHandles[form];
@@ -6738,10 +6810,58 @@ public class CanonicalLifecycleTests
             return window!.Enabled;
         }
 
-        internal LibreHandle GetWindowOwner(Form form)
+        internal LibreHandle GetWindowOwner(Control form)
         {
             Handles.TryGet(GetWindowHandle(form), out HeadlessWindow? window).Should().BeTrue();
             return window!.Owner;
+        }
+
+        internal LibreWindowCreateOptions LastWindowOptions { get; private set; }
+
+        internal Control? LastWindowControl
+            => _lastWindow is { } window ? Control.FromHandle(window.Handle.Value) : null;
+
+        internal bool RejectPopupCreation { get; set; }
+
+        internal Exception? PopupShowFailure { get; set; }
+
+        internal Action? PopupOwnerAssigned { get; set; }
+
+        internal Action<ILibreWindowEvents>? WindowCreating { get; set; }
+
+        internal LibrePoint? InitialWindowLocation { get; set; }
+
+        internal ILibreWindowEvents GetWindowEvents(Control control)
+        {
+            Handles.TryGet(GetWindowHandle(control), out HeadlessWindow? window).Should().BeTrue();
+            return window!.Events;
+        }
+
+        internal List<string> TextDrawStrings { get; } = [];
+
+        internal bool IsWindowVisible(Control control)
+        {
+            Handles.TryGet(GetWindowHandle(control), out HeadlessWindow? window).Should().BeTrue();
+            return window!.Visible;
+        }
+
+        internal bool IsWindowTopMost(Control control)
+        {
+            Handles.TryGet(GetWindowHandle(control), out HeadlessWindow? window).Should().BeTrue();
+            return window!.TopMost;
+        }
+
+        internal void SendControlInput(Control control, in LibreInputEvent input)
+        {
+            Handles.TryGet(GetWindowHandle(control), out HeadlessWindow? window).Should().BeTrue();
+            window!.SendInput(input);
+        }
+
+        internal void SendFormInput(Form form, LibreInputEventKind kind)
+        {
+            Handles.TryGet(GetWindowHandle(form), out HeadlessWindow? window).Should().BeTrue();
+            window!.SendInput(new LibreInputEvent(kind, 1, LibreInputModifiers.None,
+                LibreKey.Unknown, null, default, default, LibrePointerButton.None));
         }
 
         internal void SendInput(
@@ -6803,7 +6923,7 @@ public class CanonicalLifecycleTests
         }
 
         private static IReadOnlyList<LibreMonitor> CreateDefaultMonitorInventory()
-            => [new("headless", new(0, 0, 1920, 1080), new(0, 0, 1920, 1040), 1, true)];
+            => [new("headless", new(0, 0, 1920, 1080), new(0, 0, 1920, 1040), 1, true) { NativeCoordinateScale = 1 }];
 
         public void Invalidate(LibreHandle target, LibreRectangle dirtyRectangle)
         {
@@ -7074,9 +7194,26 @@ public class CanonicalLifecycleTests
             Color backColor,
             LibreTextFormat format)
         {
+            if (ActualTextRenderer is { } actual)
+            {
+                LastDrawnTextFont = font is null ? null : CanonicalTextFontDescriptor.Capture(font);
+                actual.DrawText(graphics, text, font, bounds, foreColor, backColor, format);
+                return;
+            }
+
             TextDrawCount++;
+            TextDrawStrings.Add(text);
             font.Should().NotBeNull();
-            if (text == "portable")
+            if ((format & (LibreTextFormat.TextBoxControl | LibreTextFormat.NoPrefix))
+                == (LibreTextFormat.TextBoxControl | LibreTextFormat.NoPrefix))
+            {
+                format.HasFlag(LibreTextFormat.NoPadding).Should().BeTrue();
+                bounds.Width.Should().BeGreaterThan(0);
+                bounds.Height.Should().BeGreaterThan(0);
+                backColor.Should().Be(Color.Empty);
+                TextBoxDraws.Add(new(text, CanonicalTextFontDescriptor.Capture(font!), bounds, foreColor, format, graphics.ClipBounds));
+            }
+            else if (text == "portable")
             {
                 bounds.Should().Be(new Rectangle(4, 5, 60, 18));
                 foreColor.Should().Be(Color.Navy);
@@ -7105,17 +7242,19 @@ public class CanonicalLifecycleTests
             {
                 bounds.Width.Should().BeGreaterThan(0);
                 bounds.Height.Should().BeGreaterThan(0);
-                format.Should().Be(LibreTextFormat.WordBreak | LibreTextFormat.HidePrefix);
+                format.Should().Be(LibreTextFormat.WordBreak | LibreTextFormat.HidePrefix | LibreTextFormat.NoPadding);
             }
             else
             {
-                text.Should().BeOneOf("group", "link");
                 bounds.Width.Should().BeGreaterThan(0);
                 bounds.Height.Should().BeGreaterThan(0);
             }
 
             LastTextBounds = bounds;
             LastTextFormat = format;
+            LastDrawnTextFont = CanonicalTextFontDescriptor.Capture(font!);
+            LastDrawnTextColor = foreColor;
+            LastDrawnTextClip = graphics.ClipBounds;
             using var marker = new SolidBrush(foreColor);
             graphics.FillRectangle(marker, bounds.X, bounds.Y, 1, 1);
         }
@@ -7127,13 +7266,19 @@ public class CanonicalLifecycleTests
             Size proposedSize,
             LibreTextFormat format)
         {
+            if (ActualTextRenderer is { } actual)
+            {
+                return actual.MeasureText(graphics, text, font, proposedSize, format);
+            }
+
             TextMeasureCount++;
             font.Should().NotBeNull();
             LastTextFormat = format;
             LastMeasuredText = text;
+            LastMeasuredDpi = graphics?.DpiY;
             if (text == "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
             {
-                graphics.Should().BeNull();
+                graphics.Should().NotBeNull();
                 proposedSize.Should().Be(new Size(int.MaxValue, int.MaxValue));
                 format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
                 return new Size(416, font!.Height);
@@ -7141,7 +7286,7 @@ public class CanonicalLifecycleTests
 
             if (text == "0")
             {
-                graphics.Should().BeNull();
+                graphics.Should().NotBeNull();
                 proposedSize.Should().Be(new Size(int.MaxValue, int.MaxValue));
                 format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
                 return new Size(8, font!.Height);
@@ -7149,15 +7294,15 @@ public class CanonicalLifecycleTests
 
             if (text == "j^")
             {
-                graphics.Should().BeNull();
-                proposedSize.Should().Be(new Size(short.MaxValue, (int)(font!.Height * 1.25)));
+                graphics.Should().NotBeNull();
+                proposedSize.Should().Be(new Size(short.MaxValue, (int)(Math.Ceiling(font!.GetHeight(graphics!)) * 1.25)));
                 format.Should().Be(LibreTextFormat.SingleLine);
                 return new Size(12, font.Height);
             }
 
             if (DateTime.TryParse(text, CultureInfo.CurrentCulture, DateTimeStyles.None, out _))
             {
-                graphics.Should().BeNull();
+                graphics.Should().NotBeNull();
                 proposedSize.Should().Be(new Size(int.MaxValue, int.MaxValue));
                 format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
                 return new Size(72, font!.Height);
@@ -7165,7 +7310,7 @@ public class CanonicalLifecycleTests
 
             if (text is "button" or "check" or "radio")
             {
-                graphics.Should().BeNull();
+                graphics.Should().NotBeNull();
                 format.Should().HaveFlag(LibreTextFormat.TextBoxControl);
                 return new Size(text.Length * 7, font!.Height);
             }
@@ -7185,15 +7330,17 @@ public class CanonicalLifecycleTests
                 return new Size(text.Length * 7, font!.Height);
             }
 
-            if (graphics is null
-                && proposedSize == Size.Empty
+            if (proposedSize == Size.Empty
                 && format.HasFlag(LibreTextFormat.NoPadding)
                 && format.HasFlag(LibreTextFormat.NoPrefix))
             {
                 return new Size(Math.Max(1, text.Length * 7), font!.Height);
             }
 
-            if (graphics is null && text != "headless")
+            // Source screen measurement now has an explicit DPI-bearing Graphics.
+            // Keep the named device-context controls distinct from ordinary text;
+            // nullability is no longer their discriminator.
+            if (text is not ("headless" or "managed"))
             {
                 int availableWidth = proposedSize.Width is > 0 and < int.MaxValue
                     ? proposedSize.Width
@@ -7203,8 +7350,10 @@ public class CanonicalLifecycleTests
                 return new Size(width, font!.Height * lineCount);
             }
 
-            if (graphics is null)
+            if (text == "headless")
             {
+                graphics.Should().NotBeNull();
+                graphics!.DpiY.Should().Be(96f);
                 text.Should().Be("headless");
                 proposedSize.Should().Be(new Size(70, 30));
                 format.Should().Be(LibreTextFormat.SingleLine | LibreTextFormat.NoPadding);
@@ -7212,6 +7361,7 @@ public class CanonicalLifecycleTests
             }
 
             text.Should().Be("managed");
+            graphics.Should().NotBeNull();
             proposedSize.Should().Be(new Size(80, 40));
             format.Should().Be(LibreTextFormat.WordBreak | LibreTextFormat.LeftAndRightPadding);
             return new Size(37, 19);
@@ -7222,6 +7372,7 @@ public class CanonicalLifecycleTests
             private readonly HeadlessPlatform _platform;
             private readonly ILibreWindowEvents _events;
             private readonly LibreWindowCoordinateMode _coordinateMode;
+            private readonly bool _scaleOnDpiChange;
             private readonly DrawingContext _retainedContext = new();
             private readonly Dictionary<LibreHandle, HeadlessRetainedLayer> _retainedLayers = [];
             private bool _disposed;
@@ -7238,6 +7389,8 @@ public class CanonicalLifecycleTests
             private bool _canClose;
             private bool _canMinimize;
             private bool _canMaximize;
+            private readonly bool _isPopup;
+            private LibreHandle _owner;
             private double _opacity = 1d;
 
             internal HeadlessWindow(
@@ -7247,15 +7400,23 @@ public class CanonicalLifecycleTests
             {
                 _platform = platform;
                 _events = events;
+                _isPopup = options.Options.HasFlag(LibreWindowOptions.Popup);
                 _coordinateMode = options.CoordinateMode;
+                _scaleOnDpiChange = options.ScaleOnDpiChange;
                 _dpiScale = platform._initialDpiScale ?? options.InitialDpiScale;
                 _framebufferScale = platform._initialFramebufferScale ?? options.InitialDpiScale;
+                LibreRectangle initialBounds = options.Bounds;
+                if (platform.InitialWindowLocation is { } location)
+                {
+                    initialBounds = new LibreRectangle(location.X, location.Y, initialBounds.Width, initialBounds.Height);
+                }
+
                 _nativeBounds = LibreWindowCoordinates.ToNative(
-                    options.Bounds,
+                    initialBounds,
                     _coordinateMode,
                     _dpiScale,
                     _framebufferScale);
-                _platform.LastWindowBounds = options.Bounds;
+                _platform.LastWindowBounds = initialBounds;
                 _platform.LastNativeWindowBounds = _nativeBounds;
                 Title = options.Title;
                 _state = options.InitialState;
@@ -7279,6 +7440,8 @@ public class CanonicalLifecycleTests
 
             public LibreHandle Handle { get; }
 
+            internal ILibreWindowEvents Events => _events;
+
             public string Title
             {
                 get => _title;
@@ -7290,7 +7453,16 @@ public class CanonicalLifecycleTests
                 }
             }
 
-            public LibreHandle Owner { get; set; }
+            public LibreHandle Owner
+            {
+                get => _owner;
+                set
+                {
+                    _owner = value;
+                    if (_isPopup && !value.IsNull)
+                        _platform.PopupOwnerAssigned?.Invoke();
+                }
+            }
 
             public LibreRectangle Bounds
             {
@@ -7432,6 +7604,20 @@ public class CanonicalLifecycleTests
 
             public void Show()
             {
+                if (_isPopup && _platform.PopupShowFailure is Exception failure)
+                {
+                    try
+                    {
+                        Dispose();
+                    }
+                    catch (Exception cleanupFailure)
+                    {
+                        failure.Data["PopupCleanupFailure"] = cleanupFailure;
+                    }
+
+                    throw failure;
+                }
+
                 Visible = true;
                 if (_platform._autoCloseWindows)
                 {
@@ -7584,10 +7770,10 @@ public class CanonicalLifecycleTests
                 double oldDpiScale = _dpiScale;
                 _dpiScale = dpiScale;
                 _framebufferScale = framebufferScale;
-                int desiredWidth = _coordinateMode == LibreWindowCoordinateMode.DevicePixels
+                int desiredWidth = _coordinateMode == LibreWindowCoordinateMode.DevicePixels && _scaleOnDpiChange
                     ? ScaleForDpi(oldManagedBounds.Width, dpiScale, oldDpiScale)
                     : oldManagedBounds.Width;
-                int desiredHeight = _coordinateMode == LibreWindowCoordinateMode.DevicePixels
+                int desiredHeight = _coordinateMode == LibreWindowCoordinateMode.DevicePixels && _scaleOnDpiChange
                     ? ScaleForDpi(oldManagedBounds.Height, dpiScale, oldDpiScale)
                     : oldManagedBounds.Height;
                 if (_coordinateMode == LibreWindowCoordinateMode.Logical)

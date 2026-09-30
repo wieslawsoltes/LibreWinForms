@@ -66,6 +66,109 @@ public sealed class ProGpuPopupSurfaceServiceTests
         window.DisposeCount.Should().Be(1);
     }
 
+    [Theory]
+    [InlineData(LibreWindowCoordinateMode.DevicePixels, 1d, 2080, 2080, 1004, 146, 31)]
+    [InlineData(LibreWindowCoordinateMode.Logical, 1d, 2080, 4160, 2008, 292, 62)]
+    [InlineData(LibreWindowCoordinateMode.DevicePixels, 2d, 2080, 1040, 502, 73, 16)]
+    [InlineData(LibreWindowCoordinateMode.Logical, 2d, 2080, 2080, 1004, 146, 31)]
+    [InlineData(LibreWindowCoordinateMode.DevicePixels, 1d, -2080, -2080, 1004, 146, 31)]
+    public void PopupPreservesDeclaredCoordinateModeThroughNativeConversion(
+        LibreWindowCoordinateMode mode, double framebufferScale, int sourceX,
+        int nativeX, int nativeY, int nativeWidth, int nativeHeight)
+    {
+        using ProGpuDispatcher dispatcher = new();
+        var windows = new FakeWindowService();
+        var adorners = new FakeAdornerService();
+        using var service = new ProGpuPopupSurfaceService(dispatcher, windows, adorners);
+        LibrePopupSurfaceRequest request = new(
+            new LibreHandle((nint)99, LibreHandleKind.Window), new LibrePopupId(7),
+            new LibreRectangle(sourceX, 1004, 146, 31), 2d, true, LibrePopupDismissalPolicy.Explicit)
+        {
+            CoordinateMode = mode
+        };
+
+        using Graphics graphics = service.CreateGraphics(request);
+
+        windows.LastOptions.CoordinateMode.Should().Be(mode);
+        windows.LastOptions.InitialDpiScale.Should().Be(2d);
+        windows.LastOptions.Bounds.Should().Be(request.ScreenBounds);
+        // This is the actual shared backend conversion, not a copied ratio or a
+        // source bound used as the expected native result. Native desktop units
+        // differ between Windows (framebuffer scale 1) and Retina Cocoa (2).
+        LibreWindowCoordinates.ToNative(windows.LastOptions.Bounds,
+            windows.LastOptions.CoordinateMode, 2d, framebufferScale)
+            .Should().Be(new LibreRectangle(nativeX, nativeY, nativeWidth, nativeHeight));
+        adorners.LastBounds.Should().Be(new LibreRectangle(0, 0, 146, 31));
+        windows.Created.Single().ActivateCount.Should().Be(0);
+    }
+
+    [Fact]
+    public void LegacyPopupRequestRetainsSixValueConstructionAndDeconstruction()
+    {
+        LibrePopupSurfaceRequest request = new(new((nint)99, LibreHandleKind.Window),
+            new(7), new(10, 20, 30, 40), 2d, true, LibrePopupDismissalPolicy.Explicit);
+        var (owner, popup, bounds, scale, transparent, dismissal) = request;
+
+        owner.Should().Be(request.Owner);
+        popup.Should().Be(request.Popup);
+        bounds.Should().Be(request.ScreenBounds);
+        scale.Should().Be(2d);
+        transparent.Should().BeTrue();
+        dismissal.Should().Be(LibrePopupDismissalPolicy.Explicit);
+        request.CoordinateMode.Should().Be(LibreWindowCoordinateMode.Logical);
+        default(LibrePopupSurfaceRequest).CoordinateMode.Should().Be(LibreWindowCoordinateMode.Logical);
+    }
+
+    [Fact]
+    public void UnknownPopupModeRejectsBeforeMutatingAnExistingSurface()
+    {
+        using ProGpuDispatcher dispatcher = new();
+        var windows = new FakeWindowService();
+        using var service = new ProGpuPopupSurfaceService(dispatcher, windows, new FakeAdornerService());
+        LibrePopupSurfaceRequest request = new(new((nint)99, LibreHandleKind.Window),
+            new(7), new(10, 20, 30, 40), 2d, true, LibrePopupDismissalPolicy.Explicit);
+        using Graphics graphics = service.CreateGraphics(request);
+        FakeWindow window = windows.Created.Single();
+        Action invalid = () => service.CreateGraphics(request with
+        {
+            CoordinateMode = (LibreWindowCoordinateMode)99,
+            ScreenBounds = new(100, 200, 300, 400)
+        });
+
+        invalid.Should().Throw<ArgumentOutOfRangeException>();
+
+        windows.Created.Should().ContainSingle();
+        window.Bounds.Should().Be(request.ScreenBounds);
+        window.Visible.Should().BeTrue();
+        window.DisposeCount.Should().Be(0);
+    }
+
+    [Fact]
+    public void PopupCoordinateModeChangeReplacesTheSurfaceInsteadOfReinterpretingItsBounds()
+    {
+        using ProGpuDispatcher dispatcher = new();
+        var windows = new FakeWindowService();
+        using var service = new ProGpuPopupSurfaceService(dispatcher, windows, new FakeAdornerService());
+        LibrePopupSurfaceRequest request = new(new((nint)99, LibreHandleKind.Window),
+            new(7), new(10, 20, 30, 40), 2d, true, LibrePopupDismissalPolicy.Explicit);
+        using Graphics first = service.CreateGraphics(request);
+        FakeWindow original = windows.Created.Single();
+
+        request = request with { CoordinateMode = LibreWindowCoordinateMode.DevicePixels };
+        using Graphics replacement = service.CreateGraphics(request);
+
+        windows.Created.Should().HaveCount(2);
+        original.DisposeCount.Should().Be(1);
+        windows.LastOptions.CoordinateMode.Should().Be(LibreWindowCoordinateMode.DevicePixels);
+        FakeWindow current = windows.Created.Last();
+        using Graphics update = service.CreateGraphics(request with { ScreenBounds = new(-50, 60, 70, 80) });
+        windows.Created.Should().HaveCount(2);
+        current.Bounds.Should().Be(new LibreRectangle(-50, 60, 70, 80));
+        current.LastMinimumSize.Should().Be(new LibreSize(70, 80));
+        current.LastMaximumSize.Should().Be(new LibreSize(70, 80));
+        current.DisposeCount.Should().Be(0);
+    }
+
     [Fact]
     public void UnsupportedAutomaticDismissalFailsBeforeCreatingAWindow()
     {

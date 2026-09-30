@@ -10,7 +10,9 @@ using System.Text;
 using System.Windows.Forms.Layout;
 using Windows.Win32.System.Variant;
 using Windows.Win32.UI.Accessibility;
+#if !LIBREWINFORMS_PORTABLE
 using Windows.Win32.UI.Controls.RichEdit;
+#endif
 
 namespace System.Windows.Forms;
 
@@ -222,6 +224,13 @@ public abstract partial class TextBoxBase : Control
             return true;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        if (!returnedValue && ProcessPortableClipboardShortcut(keyData))
+        {
+            return true;
+        }
+#endif
+
         return returnedValue;
     }
 
@@ -388,7 +397,12 @@ public abstract partial class TextBoxBase : Control
     [Browsable(false)]
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     [SRDescription(nameof(SR.TextBoxCanUndoDescr))]
-    public bool CanUndo => IsHandleCreated && (int)PInvokeCore.SendMessage(this, PInvokeCore.EM_CANUNDO) != 0;
+    public bool CanUndo => IsHandleCreated &&
+#if LIBREWINFORMS_PORTABLE
+        SendPortableUndoMessage(PInvokeCore.EM_CANUNDO) != 0;
+#else
+        (int)PInvokeCore.SendMessage(this, PInvokeCore.EM_CANUNDO) != 0;
+#endif
 
     /// <summary>
     ///  Returns the parameters needed to create the handle. Inheriting classes
@@ -882,6 +896,14 @@ public abstract partial class TextBoxBase : Control
             // to keep the old cached values in case the Text is changed again making the cached values
             // valid again.
             AdjustSelectionStartAndEnd(_selectionStart, _selectionLength, out start, out end, -1);
+#if LIBREWINFORMS_PORTABLE
+            // EM_GETSEL exposes an ordered range even when Select supplied a
+            // negative length. Keep the cached anchor/direction unchanged.
+            if (end < start)
+            {
+                Swap(ref start, ref end);
+            }
+#endif
             length = end - start;
         }
         else
@@ -944,7 +966,9 @@ public abstract partial class TextBoxBase : Control
 
                 if (IsHandleCreated)
                 {
+#if !LIBREWINFORMS_PORTABLE
                     PInvokeCore.SendMessage(this, PInvokeCore.EM_SETREADONLY, (WPARAM)(BOOL)value);
+#endif
                     EnsureReadonlyBackgroundColor(value);
                 }
 
@@ -1001,6 +1025,9 @@ public abstract partial class TextBoxBase : Control
     /// </summary>
     internal virtual void SetSelectedTextInternal(string? text, bool clearUndo)
     {
+#if LIBREWINFORMS_PORTABLE
+        ReplacePortableSelection(text ?? string.Empty, userInput: false, modified: !clearUndo);
+#else
         if (!IsHandleCreated)
         {
             CreateHandle();
@@ -1028,6 +1055,7 @@ public abstract partial class TextBoxBase : Control
 
         // Re-enable user input.
         PInvokeCore.SendMessage(this, PInvokeCore.EM_LIMITTEXT, (WPARAM)_maxLength);
+#endif
     }
 
     /// <summary>
@@ -1092,7 +1120,9 @@ public abstract partial class TextBoxBase : Control
             if (value != base.Text)
             {
                 base.Text = value;
-#if !LIBREWINFORMS_PORTABLE
+#if LIBREWINFORMS_PORTABLE
+                Modified = false;
+#else
                 if (IsHandleCreated)
                 {
                     // clear the modified flag
@@ -1126,6 +1156,9 @@ public abstract partial class TextBoxBase : Control
 
             if (!WindowText.Equals(value))
             {
+#if LIBREWINFORMS_PORTABLE
+                ClearPortableUndo();
+#endif
                 _textBoxFlags[s_codeUpdateText] = true;
                 try
                 {
@@ -1291,7 +1324,11 @@ public abstract partial class TextBoxBase : Control
     {
         if (IsHandleCreated)
         {
+#if LIBREWINFORMS_PORTABLE
+            SendPortableUndoMessage(PInvokeCore.EM_EMPTYUNDOBUFFER);
+#else
             PInvokeCore.SendMessage(this, PInvokeCore.EM_EMPTYUNDOBUFFER);
+#endif
         }
     }
 
@@ -1304,7 +1341,14 @@ public abstract partial class TextBoxBase : Control
     /// <summary>
     ///  Copies the current selection in the text box to the Clipboard.
     /// </summary>
-    public void Copy() => PInvokeCore.SendMessage(this, PInvokeCore.WM_COPY);
+    public void Copy()
+    {
+#if LIBREWINFORMS_PORTABLE
+        SendPortableClipboardMessage(PInvokeCore.WM_COPY);
+#else
+        PInvokeCore.SendMessage(this, PInvokeCore.WM_COPY);
+#endif
+    }
 
     protected override AccessibleObject CreateAccessibilityInstance() => new TextBoxBaseAccessibleObject(this);
 
@@ -1329,7 +1373,14 @@ public abstract partial class TextBoxBase : Control
     /// <summary>
     ///  Moves the current selection in the text box to the Clipboard.
     /// </summary>
-    public void Cut() => PInvokeCore.SendMessage(this, PInvokeCore.WM_CUT);
+    public void Cut()
+    {
+#if LIBREWINFORMS_PORTABLE
+        SendPortableClipboardMessage(PInvokeCore.WM_CUT);
+#else
+        PInvokeCore.SendMessage(this, PInvokeCore.WM_CUT);
+#endif
+    }
 
     /// <summary>
     ///  Returns the text end position (one past the last input character). This property is virtual to allow MaskedTextBox
@@ -1416,6 +1467,9 @@ public abstract partial class TextBoxBase : Control
 
     protected override void OnHandleDestroyed(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        ClearPortableUndo();
+#endif
         _textBoxFlags[s_modified] = Modified;
         _textBoxFlags[s_setSelectionOnHandleCreated] = true;
         // Update text selection cached values to be restored when recreating the handle.
@@ -1426,7 +1480,14 @@ public abstract partial class TextBoxBase : Control
     /// <summary>
     ///  Replaces the current selection in the text box with the contents of the Clipboard.
     /// </summary>
-    public void Paste() => PInvokeCore.SendMessage(this, PInvokeCore.WM_PASTE);
+    public void Paste()
+    {
+#if LIBREWINFORMS_PORTABLE
+        SendPortableClipboardMessage(PInvokeCore.WM_PASTE);
+#else
+        PInvokeCore.SendMessage(this, PInvokeCore.WM_PASTE);
+#endif
+    }
 
     protected override bool ProcessDialogKey(Keys keyData)
     {
@@ -1496,26 +1557,57 @@ public abstract partial class TextBoxBase : Control
     /// </summary>
     protected override void OnMouseUp(MouseEventArgs mevent)
     {
+#if LIBREWINFORMS_PORTABLE
+        if (_portableMouseUpIsCurrent?.Invoke() == false)
+            return;
+#endif
         if (mevent is not null && mevent.Button == MouseButtons.Left)
         {
-            if (!ValidationCancelled && IsMousePointerDirectlyOver(mevent.Location))
+            if (!ValidationCancelled && IsMousePointerDirectlyOver(mevent.Location)
+#if LIBREWINFORMS_PORTABLE
+                && (!_portableMouseUpDoubleClick.HasValue || _portableMouseUpClickEligible)
+#endif
+                )
             {
-                if (!_doubleClickFired)
+#if LIBREWINFORMS_PORTABLE
+                bool doubleClickFired = _portableMouseUpDoubleClick ?? _doubleClickFired;
+#else
+                bool doubleClickFired = _doubleClickFired;
+#endif
+                if (!doubleClickFired)
                 {
                     OnClick(mevent);
+#if LIBREWINFORMS_PORTABLE
+                    if (_portableMouseUpIsCurrent?.Invoke() == false)
+                        return;
+#endif
                     OnMouseClick(mevent);
                 }
                 else
                 {
+#if LIBREWINFORMS_PORTABLE
+                    if (!_portableMouseUpDoubleClick.HasValue)
+#endif
                     _doubleClickFired = false;
                     OnDoubleClick(mevent);
+#if LIBREWINFORMS_PORTABLE
+                    if (_portableMouseUpIsCurrent?.Invoke() == false)
+                        return;
+#endif
                     OnMouseDoubleClick(mevent);
                 }
             }
 
+#if LIBREWINFORMS_PORTABLE
+            if (!_portableMouseUpDoubleClick.HasValue)
+#endif
             _doubleClickFired = false;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        if (_portableMouseUpIsCurrent?.Invoke() == false)
+            return;
+#endif
         // Because the code has been like that since long time, we assume that mevent is not null.
         base.OnMouseUp(mevent!);
     }
@@ -1586,7 +1678,11 @@ public abstract partial class TextBoxBase : Control
     /// </summary>
     public virtual int GetCharIndexFromPosition(Point pt)
     {
+#if LIBREWINFORMS_PORTABLE
+        int index = (int)SendPortableTextQuery(PInvokeCore.EM_CHARFROMPOS, 0, PARAM.FromPoint(pt));
+#else
         int index = (int)PInvokeCore.SendMessage(this, PInvokeCore.EM_CHARFROMPOS, 0, PARAM.FromPoint(pt));
+#endif
         index = PARAM.LOWORD(index);
 
         if (index < 0)
@@ -1616,7 +1712,12 @@ public abstract partial class TextBoxBase : Control
     ///  you pass the index of a overflowed character, GetLineFromCharIndex would
     ///  return 1 and not 0.
     /// </summary>
-    public virtual int GetLineFromCharIndex(int index) => (int)PInvokeCore.SendMessage(this, PInvokeCore.EM_LINEFROMCHAR, (WPARAM)index);
+    public virtual int GetLineFromCharIndex(int index) =>
+#if LIBREWINFORMS_PORTABLE
+        (int)SendPortableTextQuery(PInvokeCore.EM_LINEFROMCHAR, (WPARAM)index);
+#else
+        (int)PInvokeCore.SendMessage(this, PInvokeCore.EM_LINEFROMCHAR, (WPARAM)index);
+#endif
 
     /// <summary>
     ///  Returns the location of the character at the given index.
@@ -1628,7 +1729,11 @@ public abstract partial class TextBoxBase : Control
             return Point.Empty;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        int i = (int)SendPortableTextQuery(PInvokeCore.EM_POSFROMCHAR, (WPARAM)index);
+#else
         int i = (int)PInvokeCore.SendMessage(this, PInvokeCore.EM_POSFROMCHAR, (WPARAM)index);
+#endif
         return new Point(PARAM.SignedLOWORD(i), PARAM.SignedHIWORD(i));
     }
 
@@ -1639,13 +1744,22 @@ public abstract partial class TextBoxBase : Control
     {
         ArgumentOutOfRangeException.ThrowIfNegative(lineNumber);
 
+#if LIBREWINFORMS_PORTABLE
+        return (int)SendPortableTextQuery(PInvokeCore.EM_LINEINDEX, (WPARAM)lineNumber);
+#else
         return (int)PInvokeCore.SendMessage(this, PInvokeCore.EM_LINEINDEX, (WPARAM)lineNumber);
+#endif
     }
 
     /// <summary>
     ///  Returns the index of the first character of the line where the caret is.
     /// </summary>
-    public int GetFirstCharIndexOfCurrentLine() => (int)PInvokeCore.SendMessage(this, PInvokeCore.EM_LINEINDEX, (WPARAM)(-1));
+    public int GetFirstCharIndexOfCurrentLine() =>
+#if LIBREWINFORMS_PORTABLE
+        (int)SendPortableTextQuery(PInvokeCore.EM_LINEINDEX, (WPARAM)(-1));
+#else
+        (int)PInvokeCore.SendMessage(this, PInvokeCore.EM_LINEINDEX, (WPARAM)(-1));
+#endif
 
     /// <summary>
     ///  Ensures that the caret is visible in the TextBox window, by scrolling the
@@ -1665,6 +1779,12 @@ public abstract partial class TextBoxBase : Control
             return;
         }
 
+#if LIBREWINFORMS_PORTABLE
+        // Preserve the real virtual message route (including MaskedTextBox's
+        // refusal of scrolling), without querying USER32 for a portable handle.
+        Message message = Message.Create(Handle, (int)PInvokeCore.EM_SCROLLCARET, 0, 0);
+        WndProc(ref message);
+#else
         using ComScope<IRichEditOle> richEdit = new(null);
 
         if (PInvokeCore.SendMessage(this, PInvokeCore.EM_GETOLEINTERFACE, 0, (void**)richEdit) == 0)
@@ -1714,6 +1834,7 @@ public abstract partial class TextBoxBase : Control
         }
 
         PInvokeCore.SendMessage(this, PInvokeCore.EM_SCROLLCARET);
+#endif
     }
 
     /// <summary>
@@ -1764,6 +1885,7 @@ public abstract partial class TextBoxBase : Control
     private protected virtual void SelectInternal(int selectionStart, int selectionLength, int textLength)
     {
 #if LIBREWINFORMS_PORTABLE
+        _portableUndoCanCoalesce = false;
         AdjustSelectionStartAndEnd(selectionStart, selectionLength, out int start, out int end, textLength);
         _selectionStart = start;
         _selectionLength = end - start;
@@ -2020,7 +2142,12 @@ public abstract partial class TextBoxBase : Control
     /// <summary>
     ///  Undoes the last edit operation in the text box.
     /// </summary>
-    public void Undo() => PInvokeCore.SendMessage(this, PInvokeCore.EM_UNDO);
+    public void Undo() =>
+#if LIBREWINFORMS_PORTABLE
+        SendPortableUndoMessage(PInvokeCore.EM_UNDO);
+#else
+        PInvokeCore.SendMessage(this, PInvokeCore.EM_UNDO);
+#endif
 
     internal virtual void UpdateMaxLength()
     {
@@ -2121,6 +2248,48 @@ public abstract partial class TextBoxBase : Control
     {
         switch (m.MsgInternal)
         {
+#if LIBREWINFORMS_PORTABLE
+            case PInvokeCore.EM_CHARFROMPOS:
+            case PInvokeCore.EM_POSFROMCHAR:
+            case PInvokeCore.EM_LINEFROMCHAR:
+            case PInvokeCore.EM_LINEINDEX:
+                m.Result = QueryPortableTextGeometry(m.MsgInternal, m.WParam, m.LParam);
+                break;
+            case PInvokeCore.EM_SCROLLCARET:
+                if (Focused && IsHandleCreated && !IsDisposed)
+                {
+                    ScrollPortableTextCaretIntoView();
+                }
+
+                m.Result = 0;
+                break;
+            case PInvokeCore.EM_CANUNDO:
+                m.Result = SupportsPortableTextUndo && _portableUndoEdit is not null ? 1 : 0;
+                break;
+            case PInvokeCore.EM_EMPTYUNDOBUFFER:
+                ClearPortableUndo();
+                break;
+            case PInvokeCore.EM_UNDO:
+                bool undone = UndoPortableEdit();
+                m.Result = undone || !Multiline ? 1 : 0;
+                break;
+            case PInvokeCore.WM_UNDO:
+                m.Result = UndoPortableEdit() ? 1 : 0;
+                break;
+            case PInvokeCore.WM_COPY when SupportsPortableTextClipboard:
+                CopyPortableSelection();
+                break;
+            case PInvokeCore.WM_CUT when SupportsPortableTextClipboard:
+                if (!ReadOnly && CopyPortableSelection())
+                {
+                    ReplacePortableSelection(string.Empty, userInput: true, modified: true);
+                }
+
+                break;
+            case PInvokeCore.WM_PASTE when SupportsPortableTextClipboard:
+                PastePortableSelection();
+                break;
+#endif
             case PInvokeCore.WM_LBUTTONDBLCLK:
                 _doubleClickFired = true;
                 base.WndProc(ref m);

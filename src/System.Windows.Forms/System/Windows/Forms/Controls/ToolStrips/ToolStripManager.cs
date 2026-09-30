@@ -720,7 +720,11 @@ public static partial class ToolStripManager
     }
 
     internal static bool IsMenuKey(Keys keyData)
+#if LIBREWINFORMS_PORTABLE
+        => (keyData & Keys.KeyCode) is Keys.Menu or Keys.LMenu or Keys.RMenu or Keys.F10;
+#else
         => (keyData & Keys.KeyCode) is Keys.Menu or Keys.F10;
+#endif
 
     public static bool IsShortcutDefined(Keys shortcut)
     {
@@ -854,14 +858,24 @@ public static partial class ToolStripManager
                 ToolStrip? topMostToolStrip = toolStrip.GetToplevelOwnerToolStrip();
                 if (topMostToolStrip is not null && activeControl is not null)
                 {
+#if LIBREWINFORMS_PORTABLE
+                    Control? rootWindowOfToolStrip = topMostToolStrip.TopLevelControlInternal;
+                    Control? rootWindowOfControl = activeControl.TopLevelControlInternal;
+                    rootWindowsMatch = rootWindowOfToolStrip is not null && ReferenceEquals(rootWindowOfToolStrip, rootWindowOfControl);
+#else
                     HWND rootWindowOfToolStrip = PInvoke.GetAncestor(topMostToolStrip, GET_ANCESTOR_FLAGS.GA_ROOT);
                     HWND rootWindowOfControl = PInvoke.GetAncestor(activeControl, GET_ANCESTOR_FLAGS.GA_ROOT);
                     rootWindowsMatch = rootWindowOfToolStrip == rootWindowOfControl;
+#endif
 
                     if (rootWindowsMatch)
                     {
                         // Double check this is not an MDIContainer type situation...
+#if LIBREWINFORMS_PORTABLE
+                        if (rootWindowOfControl is Form mainForm && mainForm.IsMdiContainer)
+#else
                         if (Control.FromHandle(rootWindowOfControl) is Form mainForm && mainForm.IsMdiContainer)
+#endif
                         {
                             Form? toolStripForm = topMostToolStrip.FindForm();
                             if (toolStripForm != mainForm && toolStripForm is not null)

@@ -14,6 +14,11 @@ public enum LibreInputEventKind
     PointerWheel,
     FocusGained,
     FocusLost,
+    SystemTextInput,
+    // Keep existing wire values stable. These retire pointer state only;
+    // neither event is a keyboard-focus loss or a synthetic mouse release.
+    PointerLeave,
+    PointerCancel,
 }
 
 [Flags]
@@ -172,4 +177,29 @@ public readonly record struct LibreInputEvent(
     string? Text,
     LibrePoint Position,
     LibrePoint Delta,
-    LibrePointerButton Button);
+    LibrePointerButton Button)
+{
+    /// <summary>
+    /// Optional original native pointer metadata. This is not a wheel or click
+    /// policy; canonical coordinates and shortcut modifiers remain separate.
+    /// </summary>
+    public LibreNativePointerMetadata? NativePointer { get; init; }
+}
+
+public enum LibreNativePointerKind { Move, Drag, Down, Up, Enter, Leave, Cancel }
+
+[Flags]
+public enum LibreNativePointerModifiers
+{
+    None = 0, Shift = 1, Control = 2, Alt = 4, Meta = 8,
+    CapsLock = 16, NumericPad = 32, Help = 64, Function = 128,
+}
+
+/// <summary>
+/// Original native view-point coordinates, seconds on the provider's clock,
+/// zero-based native button (-1 for non-button events), click count and flags.
+/// Retaining these values does not synthesize canonical double-click behavior.
+/// </summary>
+public readonly record struct LibreNativePointerMetadata(
+    LibreNativePointerKind Kind, double X, double Y, double Timestamp,
+    int Button, int ClickCount, LibreNativePointerModifiers Modifiers);

@@ -252,7 +252,11 @@ public partial class TextBox : TextBoxBase
     ///  Determines if the control is in password protect mode.
     /// </summary>
     private protected override bool PasswordProtect
+#if LIBREWINFORMS_PORTABLE
+        => _useSystemPasswordChar || _passwordChar != '\0';
+#else
         => PasswordChar != '\0';
+#endif
 
     /// <summary>
     ///  Returns the parameters needed to create the handle. Inheriting classes
@@ -345,6 +349,19 @@ public partial class TextBox : TextBoxBase
         }
         set
         {
+#if LIBREWINFORMS_PORTABLE
+            if (_passwordChar != value)
+            {
+                _passwordChar = value;
+                if (!_useSystemPasswordChar && IsHandleCreated)
+                {
+                    VerifyImeRestrictedModeChanged();
+                    ResetAutoComplete(false);
+                }
+
+                Invalidate();
+            }
+#else
             _passwordChar = value;
             if (!_useSystemPasswordChar)
             {
@@ -363,6 +380,7 @@ public partial class TextBox : TextBoxBase
                     }
                 }
             }
+#endif
         }
     }
 
@@ -480,6 +498,9 @@ public partial class TextBox : TextBoxBase
             if (value != _useSystemPasswordChar)
             {
                 _useSystemPasswordChar = value;
+#if LIBREWINFORMS_PORTABLE
+                Invalidate();
+#endif
 
                 // RecreateHandle will update IME restricted mode.
                 RecreateHandle();
@@ -504,6 +525,9 @@ public partial class TextBox : TextBoxBase
     {
         if (disposing)
         {
+#if LIBREWINFORMS_PORTABLE
+            DisposePortableTextInteraction();
+#endif
             // Reset this just in case, because the SHAutoComplete stuff
             // will subclass this guys wndproc (and nativewindow can't know about it).
             // so this will undo it, but on a dispose we'll be Destroying the window anyway.
@@ -522,6 +546,24 @@ public partial class TextBox : TextBoxBase
     /// </summary>
     protected override bool IsInputKey(Keys keyData)
     {
+#if LIBREWINFORMS_PORTABLE
+        // The native EDIT procedure normally supplies DLGC_WANTARROWS. Admit
+        // only implemented directions; command filters and public key events
+        // still precede the optional portable layout's default navigation.
+        if ((keyData & Keys.KeyCode) is Keys.Left or Keys.Right
+            && (keyData & Keys.Modifiers & ~Keys.Shift) == Keys.None
+            && LibreWinForms.Platform.LibrePlatform.Current.TextRenderer is LibreWinForms.Platform.ILibreTextLayoutService)
+        {
+            return true;
+        }
+
+        if (Multiline && (keyData & Keys.KeyCode) is Keys.Up or Keys.Down
+            && (keyData & Keys.Modifiers & ~Keys.Shift) == Keys.None
+            && LibreWinForms.Platform.LibrePlatform.Current.TextRenderer is LibreWinForms.Platform.ILibreTextRowNavigationService)
+        {
+            return true;
+        }
+#endif
         if (Multiline && (keyData & Keys.Alt) == 0)
         {
             switch (keyData & Keys.KeyCode)
@@ -555,6 +597,9 @@ public partial class TextBox : TextBoxBase
 
     protected override void OnFontChanged(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        ReleasePortableTextLayout();
+#endif
         base.OnFontChanged(e);
         if (AutoCompleteMode != AutoCompleteMode.None)
         {
@@ -568,7 +613,14 @@ public partial class TextBox : TextBoxBase
     /// </summary>
     protected override void OnGotFocus(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        _portableTextFocusVersion++;
+#endif
         base.OnGotFocus(e);
+#if LIBREWINFORMS_PORTABLE
+        ResetPortableCaretBlink();
+        Invalidate();
+#endif
         if (!_selectionSet)
         {
             // We get one shot at selecting when we first get focus. If we don't
@@ -602,6 +654,7 @@ public partial class TextBox : TextBoxBase
 
         SetSelectionOnHandle();
 
+#if !LIBREWINFORMS_PORTABLE
         if (_passwordChar != 0)
         {
             if (!_useSystemPasswordChar)
@@ -609,6 +662,7 @@ public partial class TextBox : TextBoxBase
                 PInvokeCore.SendMessage(this, PInvokeCore.EM_SETPASSWORDCHAR, (WPARAM)_passwordChar);
             }
         }
+#endif
 
         VerifyImeRestrictedModeChanged();
 
@@ -630,6 +684,9 @@ public partial class TextBox : TextBoxBase
 
     protected override void OnHandleDestroyed(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        DisposePortableTextInteraction();
+#endif
         _stringSource?.ReleaseAutoComplete();
         _stringSource = null;
 
@@ -704,10 +761,29 @@ public partial class TextBox : TextBoxBase
     /// </summary>
     private protected override void SelectInternal(int start, int length, int textLen)
     {
+#if LIBREWINFORMS_PORTABLE
+        uint selectionVersion = ++_portableSelectionVersion;
+        // Consume the layout-caret marker before any accessibility/invalidation
+        // callback can select again. A caller selection owns its own affinity.
+        bool applyingCaret = _portableApplyingCaret;
+        _portableApplyingCaret = false;
+#endif
         // If user set selection into text box, mark it so we don't
         // clobber it when we get focus.
         _selectionSet = true;
         base.SelectInternal(start, length, textLen);
+#if LIBREWINFORMS_PORTABLE
+        if (selectionVersion != _portableSelectionVersion || IsDisposed || Disposing)
+            return;
+        if (!applyingCaret)
+        {
+            _portableCaretTrailing = false;
+            _portablePreferredCaretX = null;
+        }
+
+        ResetPortableCaretBlink();
+        Invalidate();
+#endif
     }
 
     /// <summary>

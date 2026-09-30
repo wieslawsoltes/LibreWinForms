@@ -1,0 +1,115 @@
+# Portable system DPI and desktop coordinates
+
+## Contract
+
+The portable source keeps the canonical process DPI policy. The first successful
+`Application.SetHighDpiMode` call wins, including an explicit `DpiUnaware` call.
+Later calls return false without changing that policy. A failed primary-monitor
+query does not consume admission. This follows the documented
+[process setter lifetime](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setprocessdpiawarenesscontext).
+The SDK initialization policy is separate; it must not overwrite a successful
+explicit application choice.
+
+SystemAware captures the primary display's content DPI once, before source
+controls are constructed. Its ordinary Form/ContainerControl DPI autoscaling
+uses that fixed value. Window and popup coordinates use device pixels, while
+later presentation changes do not run the PMv2 source scaling path. Explicit
+unaware modes retain 96-DPI logical coordinates. Existing PMv2 initial scaling,
+per-window events, source ordering and size changes remain separate.
+
+`LibreMonitor.NativeCoordinateScale` declares device pixels per native desktop
+coordinate unit. It is not inferred from content DPI or a video-mode/work-area
+ratio. The actual GLFW Win32/X11 provider declares pixel desktop units. GLFW Cocoa
+uses its backing-coordinate measurement. Unknown providers, including undeclared
+Wayland desktop positioning, leave this capability unavailable; source Screen
+conversion rejects missing or invalid metadata. Existing record constructors are
+unchanged, but custom monitor services using Screen must supply this declaration.
+
+Full monitor bounds and working area are distinct. The GLFW adapter reads monitor
+position and current video-mode extent for full bounds, and the work-area query
+for usable bounds. GLFW documents both as
+[screen coordinates](https://www.glfw.org/docs/latest/monitor_guide.html), not a
+framebuffer pixel measurement. The source Screen APIs convert those declared
+units through the same coordinate policy used by their windows.
+
+## Regression coverage and limits
+
+`CanonicalSystemDpiTests` exercises actual canonical Forms through the typed
+headless platform: primary-versus-nearest selection, fixed initial DPI, canonical
+autoscaling, centering and point round trips, popup coordinates, explicit unaware
+behavior, failed admission and process-policy preservation. Successful DPI facts
+and the existing PMv2 facts run in fresh child processes because the real policy
+cannot be reset. Each child has an exact method selector, a one-test/no-skip
+receipt, an unchanged inner 30-second deadline and an owned 45-second outer bound.
+The full source suite retains its existing ten-minute limit.
+
+The first 401-case run passed 400 with one failed new fixture expectation: the
+fixture assigned bounds after `AutoScaleDimensions` had already triggered layout.
+It is retained as failed evidence. The corrected fixture uses normal designer
+SuspendLayout/ResumeLayout ordering; no product autoscale algorithm was changed
+to satisfy that expectation. Separate backend tests reject pixel-scale inference
+from video modes, preserve distinct full/work-area bounds, and reject malformed
+declared scales.
+
+Final local source validation passed **405/405, zero skips**, including all 390
+existing cases. The source build completed with zero errors (623 warnings,
+including the lock-type style suggestion). The backend compiled with zero
+warnings/errors; its strict monitor selection passed **14/14, zero skips**, and
+the complete backend run passed **113**, with eight existing Linux/Wayland-only
+skips (121 total). An earlier full-backend command supplied the discovered total
+as `--minimum-expected-tests`; that option counts successful cases, so the command
+returned 9 despite no failed tests. That failed command is retained separately;
+the final command expects all 113 applicable successes without changing selection.
+Logs are under the task-owned `artifacts/dropdown-keyboard/log/system-dpi-*` paths.
+These are source-build observations, not a successful package producer or native
+desktop qualification.
+
+The motivating actual Windows 200% capture, reproduced using both PR72 and PR74
+packages, reported source client `(1516,835,560,250)` at 96 DPI versus a PID/title-
+matched HWND client `(3032,1670,1120,500)`. Those are failing baseline observations,
+not qualification of this change. A new exact-package Windows comparison remains
+required. Source/provider tests do not qualify native input, popup UI, physical
+keyboard layouts, or heterogeneous multi-monitor SystemAware virtualization.
+This change does not force PMv2, change the backend's default coordinate mode,
+rescale an external driver, or claim complete PerMonitor-v1 behavior.
+
+The integrated SDK/runtime source head `9add89167` reran all 405 canonical cases
+with zero failures/skips. Its 25 fresh-process initialization composition
+controls also passed, including explicit DpiUnaware and PerMonitorV2 choices
+before the generated SystemAware call. Current source DLLs were hash-verified
+in new consumer output directories; original installed package artifacts were
+not replaced. See [SDK DPI evidence](sdk-application-high-dpi-mode.md) for this
+source/package distinction and the still-required full installed matrix.
+
+## Deterministic isolated test output
+
+Exact-head CI run `36280437796` retained twelve parent-test failures: each child
+had actually reported one pass and no failures/skips, but inherited terminal
+color escapes prevented exact summary-line matching. A local run with the CI
+environment and redirected-console color setting reproduced the same failure.
+No product assertion, case count or deadline was relaxed.
+
+The owned test child now requests the runner's supported `--no-ansi` option and
+sets only its own `NO_COLOR`, `TERM` and redirected-console-color environment to
+plain output. The runner option alone did not neutralize an inherited runtime
+setting explicitly permitting redirected Console colors. A new fresh-process
+case supplies that hostile color environment before normalization. The source
+gate retains all 405 existing cases and now requires at least 406; exact one-case
+success, zero failures/skips, original child identity and timeouts remain checks.
+
+The corrected full source run passed **406/406, zero failures/skips**, while the
+parent deliberately inherited CI and forced redirected-console colors. The
+source build completed with zero errors and the same 623 warnings. This proves
+the isolated summary contract locally; the new exact-head hosted Build and
+installed package matrix remain required.
+
+The next hosted Build (`36281860166`) passed the corrected source-test phase but
+its separate Package lane failed in `Pack LibreWinForms`: the SDK's SystemAware
+initialization reached `SilkMonitorService.GetMonitors` without a Linux display.
+The source-first lane already used Xvfb; the second lane also invokes SDK source
+consumers while packing and during its explicit package smoke. That lane now
+installs the same display/GLFW/software-adapter dependencies and wraps each
+consumer-bearing WFI, pack and package-smoke command in `xvfb-run -a`. The product
+still rejects unavailable monitor metadata; no fabricated 96-DPI monitor,
+assertion change, skipped consumer or extended deadline was introduced. Original
+failed evidence is retained and a new whole exact-head Build remains required.

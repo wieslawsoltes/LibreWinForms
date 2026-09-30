@@ -96,6 +96,15 @@ NUGET_PACKAGES="${smoke_root}/backend-packages" "${dotnet}" pack \
   -p:LibreWinFormsProGpuPackageVersion="${progpu_package_version}" \
   -p:ContinuousIntegrationBuild=true
 
+mkdir -p "${repo_root}/artifacts/log"
+sdk_pack_contract_evidence="$(mktemp -d "${repo_root}/artifacts/log/analyzer-contract.ci-pack.XXXXXXXX")"
+# The verifier requires ownership of a new directory; mktemp reserved its name.
+rmdir "${sdk_pack_contract_evidence}"
+python3 "${repo_root}/eng/librewinforms-sdk-analyzer-pack-contract.py" \
+  --dotnet "${dotnet}" \
+  --configuration "${configuration}" \
+  --evidence-directory "${sdk_pack_contract_evidence}"
+
 "${dotnet}" pack \
   "${repo_root}/src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj" \
   --configuration "${configuration}" \
@@ -105,6 +114,14 @@ NUGET_PACKAGES="${smoke_root}/backend-packages" "${dotnet}" pack \
   -p:LibreWinFormsCanonicalPackageVersion="${package_version}" \
   -p:LibreWinFormsProGpuBackendPackageVersion="${backend_package_version}" \
   -p:LibreWinFormsProGpuPackageVersion="${progpu_package_version}" \
+  -p:ContinuousIntegrationBuild=true
+
+"${dotnet}" pack \
+  "${repo_root}/src/LibreWinForms.ApplicationIsolation/LibreWinForms.ApplicationIsolation.csproj" \
+  --configuration "${configuration}" \
+  --output "${package_output}" \
+  -p:PackageVersion="${package_version}" \
+  -p:Version="${package_version}" \
   -p:ContinuousIntegrationBuild=true
 
 if [[ ! -f "${package_file}" ]]; then
@@ -255,6 +272,24 @@ rm -rf "${smoke_root}/canonical-packages" \
        "${smoke_root}/backend-packages" \
        "${smoke_root}/packages"
 
+# Capture the packed analyzers against their original source producer outputs
+# before Project consumers rebuild those paths with different build properties.
+# Retain this digest outside the snapshot; later verification cannot self-trust a
+# rewritten manifest. The existing SDK Project smoke still owns the cold build.
+python3 "${repo_root}/eng/test-librewinforms-analyzer-snapshot.py"
+python3 "${repo_root}/eng/test-librewinforms-analyzer-cache.py"
+python3 "${repo_root}/eng/test-librewinforms-analyzer-scheduling.py"
+echo "Capturing original SDK analyzer producer generation."
+mkdir -p "${repo_root}/artifacts/log"
+analyzer_evidence_root="$(mktemp -d "${repo_root}/artifacts/log/analyzer-contract.XXXXXXXX")"
+analyzer_manifest_sha256="$(python3 "${repo_root}/eng/librewinforms-analyzer-contract.py" \
+  --package-source "${package_output}" \
+  --sdk-version "${sdk_package_version}" \
+  --configuration "${configuration}" \
+  --capture-producer \
+  --evidence-directory "${analyzer_evidence_root}/producer")"
+printf '%s\n' "${analyzer_manifest_sha256}" >"${analyzer_evidence_root}/capture-manifest.sha256"
+
 sdk_smoke_source="${repo_root}/packaging/LibreWinForms.Sdk.SourceFirstSmoke"
 sdk_smoke_root="${smoke_root}/sdk-project"
 sdk_smoke_project="${sdk_smoke_root}/LibreWinForms.Sdk.SourceFirstSmoke.csproj"
@@ -272,6 +307,7 @@ sed "s#LibreWinForms.Sdk/0.1.0-source-first-sdk#LibreWinForms.Sdk/${sdk_package_
   "${sdk_smoke_source}/LibreWinForms.Sdk.SourceFirstSmoke.csproj" \
   >"${sdk_smoke_project}"
 cp "${sdk_smoke_source}/Program.cs" "${sdk_smoke_root}/"
+cp "${sdk_smoke_source}/CanonicalApiContracts.cs" "${sdk_smoke_root}/"
 cp "${repo_root}/NuGet.config" "${sdk_smoke_config}"
 "${dotnet}" nuget add source "${package_output}" \
   --name LibreWinFormsSourceFirstSdk \
@@ -364,7 +400,11 @@ if ! grep -Fq 'supports only canonical Project or Package reference modes' "${sd
   exit 1
 fi
 
-rm -rf "${smoke_root}/sdk-packages" "${sdk_smoke_root}"
+# The later Project diagnostic consumers reference these same source projects.
+# Keep their already-owned package paths stable: deleting this cache and restoring
+# identical DLLs elsewhere changes CoreCompileInputs and recompiles the runtime.
+# Package-mode consumers below still restore into their own independent cache.
+rm -rf "${sdk_smoke_root}"
 
 sdk_package_smoke_root="${smoke_root}/sdk-package-project"
 sdk_package_smoke_project="${sdk_package_smoke_root}/LibreWinForms.Sdk.SourceFirstSmoke.csproj"
@@ -383,6 +423,7 @@ sed "s#LibreWinForms.Sdk/0.1.0-source-first-sdk#LibreWinForms.Sdk/${sdk_package_
   "${sdk_smoke_source}/LibreWinForms.Sdk.SourceFirstSmoke.csproj" \
   >"${sdk_package_smoke_project}"
 cp "${sdk_smoke_source}/Program.cs" "${sdk_package_smoke_root}/"
+cp "${sdk_smoke_source}/CanonicalApiContracts.cs" "${sdk_package_smoke_root}/"
 cp "${repo_root}/NuGet.config" "${sdk_package_smoke_config}"
 "${dotnet}" nuget add source "${package_output}" \
   --name LibreWinFormsSourceFirstSdkPackages \
@@ -447,6 +488,56 @@ NUGET_PACKAGES="${smoke_root}/sdk-package-packages" "${dotnet}" run \
   --no-build \
   --no-restore \
   "${sdk_package_smoke_properties[@]}"
+
+# Compile the optional typed observer against these same fresh Package products.
+# This never launches either desktop consumer and cannot skip the observer.
+python3 "${repo_root}/eng/librewinforms-popup-observer-package.py" \
+  --dotnet "${dotnet}" \
+  --feed "${package_output}" \
+  --configuration "${configuration}" \
+  --sdk-version "${sdk_package_version}" \
+  --canonical-version "${package_version}" \
+  --backend-version "${backend_package_version}" \
+  --drawing-version "${progpu_package_version}" \
+  --forms-sha256 "${implementation_hash}" \
+  --backend-sha256 "${backend_implementation_hash}" \
+  --drawing-sha256 "${progpu_drawing_source_hash}"
+
+# Use the exact just-produced package closure and consumer output. The Microsoft
+# negative control is restored only into the test's isolated temporary cache.
+python3 "${repo_root}/eng/test-drawing-runtime-identity.py" \
+  --dotnet "${dotnet}" \
+  --framework net11.0 \
+  --progpu-drawing "${sdk_package_smoke_drawing}" \
+  --canonical-directory "${sdk_package_smoke_output}" \
+  --package-feed "${package_output}" \
+  --canonical-version "${package_version}" \
+  --backend-version "${backend_package_version}" \
+  --sdk-version "${sdk_package_version}"
+
+python3 "${repo_root}/eng/test-application-isolation.py" \
+  --dotnet "${dotnet}" \
+  --package-feed "${package_output}" \
+  --package-version "${package_version}" \
+  --sdk-version "${sdk_package_version}" \
+  --progpu-version "${progpu_package_version}"
+
+# Original mandatory Project/Package smokes run first, with their original cold
+# build ownership. The unchanged per-case 300-second diagnostic gate compares
+# the archive with the captured producer bytes both before and after consumers.
+echo "Verifying original SDK analyzer payload and CSharp/VisualBasic source/package diagnostics."
+python3 "${repo_root}/eng/librewinforms-analyzer-contract.py" \
+  --package-source "${package_output}" \
+  --sdk-version "${sdk_package_version}" \
+  --runtime-version "${package_version}" \
+  --parallel-modes \
+  --configuration "${configuration}" \
+  --dotnet "${dotnet}" \
+  --scratch-parent "${smoke_root}" \
+  --project-packages "${smoke_root}/sdk-packages" \
+  --producer-snapshot "${analyzer_evidence_root}/producer" \
+  --producer-manifest-sha256 "${analyzer_manifest_sha256}" \
+  --evidence-directory "${analyzer_evidence_root}/results"
 
 echo "Canonical source-first package validated: ${package_file}"
 echo "Source-first ProGPU backend package validated: ${backend_package_file}"

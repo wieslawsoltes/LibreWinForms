@@ -4,10 +4,10 @@ on:
   pull_request:
     branches:
       - librewinforms-progpu-port
-      - main
     paths:
       - README.md
       - docs/**
+      - .github/ISSUE_TEMPLATE/**
       - eng/librewinforms-*.sh
       - .github/workflows/librewinforms-*.yml
   push:
@@ -16,6 +16,7 @@ on:
     paths:
       - README.md
       - docs/**
+      - .github/ISSUE_TEMPLATE/**
       - eng/librewinforms-*.sh
       - .github/workflows/librewinforms-*.yml
   workflow_dispatch:
@@ -40,6 +41,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: librewinforms-docs
+          include-hidden-files: true
           path: |
             README.md
             docs/**
+            .github/ISSUE_TEMPLATE/**

@@ -21978,8 +21978,15 @@ public partial class DataGridView
                                 // Forward the key message to the editing control if any
                                 if (EditingControl is not null)
                                 {
+#if LIBREWINFORMS_PORTABLE
+                                    Message forwarded = Message.Create(EditingControl.Handle, m.Msg, m.WParam, m.LParam);
+                                    EditingControl.ProcessPortableKeyMessage(ref forwarded);
+                                    // The next typed TextInput is addressed to the newly
+                                    // focused editor, not queued against the grid's HWND.
+#else
                                     PInvokeCore.SendMessage(EditingControl, m.MsgInternal, m.WParamInternal, m.LParamInternal);
                                     _dataGridViewState1[State1_ForwardCharMessage] = true;
+#endif
                                     return true;
                                 }
                             }
@@ -21994,7 +22001,12 @@ public partial class DataGridView
             _dataGridViewState1[State1_ForwardCharMessage] = false;
             if (EditingControl is not null)
             {
+#if LIBREWINFORMS_PORTABLE
+                Message forwarded = Message.Create(EditingControl.Handle, m.Msg, m.WParam, m.LParam);
+                EditingControl.ProcessPortableKeyMessage(ref forwarded);
+#else
                 PInvokeCore.SendMessage(EditingControl, m.MsgInternal, m.WParamInternal, m.LParamInternal);
+#endif
                 return true;
             }
         }
