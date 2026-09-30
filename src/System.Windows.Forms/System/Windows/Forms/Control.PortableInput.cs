@@ -621,7 +621,12 @@ public unsafe partial class Control
         switch (inputEvent.Kind)
         {
             case LibreInputEventKind.PointerMove:
-                target.OnMouseMove(new MouseEventArgs(s_portableMouseButtons, 0, location.X, location.Y, 0));
+                MouseEventArgs move = new(s_portableMouseButtons, 0, location.X, location.Y, 0);
+                PortablePointerDispatchContext moveContext = new(this, target);
+                if (!target.GetStyle(ControlStyles.UserMouse)
+                    && (!target.ProcessPortableMouseMoveDefault(move, moveContext) || !moveContext.IsCurrent))
+                    return;
+                target.OnMouseMove(move);
                 break;
             case LibreInputEventKind.PointerDown:
                 SetPortableButtonState(button, isDown: true);
@@ -631,9 +636,11 @@ public unsafe partial class Control
                     // GotFocus can close the popup or replace either source
                     // handle. Do not finish this press in a retired control.
                     if (!IsCurrentPortablePointerInput(inputVersion, receivingHandle)
-                        || !IsCurrentPortablePointerTarget(target, targetHandle))
+                        || !IsCurrentPortablePointerTarget(target, targetHandle)
+                        || _portablePointerCaptureVersion != captureVersion)
                     {
-                        if (_portablePointerInputVersion == inputVersion && ReferenceEquals(s_portablePointerRoot, this))
+                        if (_portablePointerInputVersion == inputVersion && _portablePointerCaptureVersion == captureVersion
+                            && ReferenceEquals(s_portablePointerRoot, this))
                             SetPortableButtonState(button, isDown: false);
                         return;
                     }
@@ -658,7 +665,14 @@ public unsafe partial class Control
                 uint pressVersion = _portablePointerPressVersion;
                 try
                 {
-                    target.OnMouseDown(new MouseEventArgs(button, clicks, location.X, location.Y, 0));
+                    MouseEventArgs down = new(button, clicks, location.X, location.Y, 0);
+                    PortablePointerDispatchContext downContext = new(this, target);
+                    // Like WmMouseDown/WmMouseMove's DefWndProc, edit-control
+                    // defaults precede even a derived override's first line.
+                    if (!target.GetStyle(ControlStyles.UserMouse)
+                        && (!target.ProcessPortableMouseDownDefault(down, downContext) || !downContext.IsCurrent))
+                        return;
+                    target.OnMouseDown(down);
                     // The native WndProc samples this style after MouseDown,
                     // not at the later release. A callback may change it, but
                     // cannot classify a newer reentrant press on this one's behalf.
@@ -801,6 +815,43 @@ public unsafe partial class Control
     internal virtual void InvokePortableMouseUp(MouseEventArgs e, bool? nativeDoubleClick,
         bool nativeClickEligible, Func<bool>? isCurrentRelease)
         => OnMouseUp(e);
+
+    internal virtual bool ProcessPortableMouseDownDefault(MouseEventArgs e, in PortablePointerDispatchContext context)
+        => true;
+
+    internal virtual bool ProcessPortableMouseMoveDefault(MouseEventArgs e, in PortablePointerDispatchContext context)
+        => true;
+
+    // Value-owned callback scope: checking it never creates a handle or borrows
+    // a delegate whose closure could accidentally follow a replacement press.
+    internal readonly struct PortablePointerDispatchContext
+    {
+        private readonly Control _source;
+        private readonly Control _target;
+        private readonly LibreHandle _sourceHandle;
+        private readonly LibreHandle _targetHandle;
+        private readonly uint _inputVersion;
+        private readonly uint _pressVersion;
+        private readonly uint _captureVersion;
+
+        internal PortablePointerDispatchContext(Control source, Control target)
+        {
+            _source = source;
+            _target = target;
+            _sourceHandle = source._window.PortableHandle;
+            _targetHandle = target._window.PortableHandle;
+            _inputVersion = source._portablePointerInputVersion;
+            _pressVersion = source._portablePointerPressVersion;
+            _captureVersion = source._portablePointerCaptureVersion;
+        }
+
+        internal bool IsCurrent => IsCurrentPress && _source._portablePointerInputVersion == _inputVersion;
+
+        internal bool IsCurrentPress => _source._portablePointerPressVersion == _pressVersion
+            && _source._portablePointerCaptureVersion == _captureVersion
+            && _source.IsCurrentPortablePointerInput(_source._portablePointerInputVersion, _sourceHandle)
+            && _target.IsHandleCreated && _source.IsCurrentPortablePointerTarget(_target, _targetHandle);
+    }
 
     private static bool IsNativePointerButton(in LibreInputEvent input, LibreNativePointerKind kind,
         out LibreNativePointerMetadata native)
