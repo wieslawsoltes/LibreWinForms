@@ -1,5 +1,17 @@
 # Agent Guidance
 
+## Repository and branch ownership
+
+LibreWinForms work branches and pull requests target `librewinforms-progpu-port`,
+the default branch of `wieslawsoltes/LibreWinForms`, not `main` or
+`dotnet/winforms`. Start new work from `origin/librewinforms-progpu-port` and
+explicitly select the fork and PR base in GitHub commands. Existing work
+transferred from `main` retains its original commits; do not rewrite or delete
+that history. Release preparation uses the qualified default-branch commit.
+LibreWPF work targets `progpu-rendering-port`; ProGPU continues to use `main`.
+Preserve exact pinned submodule commits rather than replacing them with an
+unqualified branch tip.
+
 Window paint and presentation retain exact renderer/native ownership until the
 outer source frame unwinds, including retained Graphics completion and acquired
 texture/view release. Nested pumps return pending retirement, never destroy an
