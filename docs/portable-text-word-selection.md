@@ -149,14 +149,49 @@ fails the observation and retains its receipt, not an invented selection.
 The inventory is now 24 cases with unchanged 30-second observation, 60-second
 reference-process and ten-minute Windows-job bounds. Existing native module,
 CTYPE1, raw logical attribute, source-partition, callback and selection controls
-remain intact. The new cases have not been executed locally or qualified by a
-hosted receipt yet. They are prerequisites for defining a faithful portable EDIT
-classifier, not production capability admission. Microsoft's
+remain intact. The new cases were not executed locally. They are prerequisites
+for defining a faithful portable EDIT classifier, not production capability
+admission. Microsoft's
 [SCRIPT_PROPERTIES contract](https://learn.microsoft.com/en-us/windows/win32/api/usp10/ns-usp10-script_properties)
 distinguishes languages requiring `fWordStop` information from whitespace-based
 placement; [ScriptBreak](https://learn.microsoft.com/en-us/windows/win32/api/usp10/nf-usp10-scriptbreak)
 requires whole native items rather than smaller formatting runs. These public
 contracts inform the discriminants without establishing EDIT's implementation.
+
+The 24-case reference passed Windows job `110178653752` of Build `36802156343`
+at PR head `639fe6938027c6e2565ae84968e1010b8ed665d8` (integration checkout
+`fa6818a1fc31cb736dbf115e30500d6c231ec64f`). Receipt SHA-256 is
+`647da7cdd14bfad8c5b4567b553bcbfa5ceacfde3c3823524abc0271ad430a0b`.
+It retains all 398 coordinate requests: 388 observed gestures, ten explicitly
+unavailable coordinates, and 5,076 ms elapsed. The original 20 cases still have
+326 observed gestures. Probe/project/helper source hashes match the exact PR
+head with Windows CRLF; the execution and receipt retain matching process identity.
+This successful reference is not evidence that the whole Build passed.
+
+All four added cases actually report the copied `fNeedsWordBreaking` property.
+The observed attributes and EDIT selections are nevertheless distinct:
+
+| Case | `fWordStop` positions | `fSoftBreak` positions | Observed double-press selections |
+| --- | --- | --- | --- |
+| Thai adjacent | 0, 4, 7, 11 | 0, 4, 7, 11 | `[0,4]`, `[4,7]`, `[7,11]`, `[11,15]` |
+| Thai spaced | 0, 4, 12 | 0, 4, 8, 12 | `[0,4]`, `[4,8]`, `[8,12]`, `[12,16]` |
+| Lao adjacent | 0 | 0 | `[0,15]` throughout all 14 available gestures |
+| Khmer adjacent | 0, 2, 4, 8, 9, 11, 13, 17 | 18 | `[0,18]` throughout all 16 gestures |
+
+In the Thai spaced case, actual hit index 8 selects the preceding `[4,8]` range;
+hit 9 selects `[8,12]`. Dragging left preserves the original selection end, and
+returning to the anchor restores its original range. Both quarters requested at
+Lao UTF-16 index 13 are unavailable; no native steps or substitute carets were
+invented. Cluster-coordinate requests may resolve to a different native index.
+
+Khmer disproves selecting `fWordStop` merely because `fNeedsWordBreaking` is true:
+its interior word stops do not delimit EDIT's observed selection. These cases
+distinguish the two native flag inventories, but do not establish a general
+portable selection algorithm, dictionary equivalence or mixed-script policy.
+In particular, ProGPU's existing generic UAX #14/cluster services are not proof
+of the Thai dictionary-dependent boundaries observed here. Keep the production
+word-boundary capability unselected until its real complete-source classifier
+and original-generation lifetime contract are implemented and qualified.
 
 ## Owned boundary source seam
 
