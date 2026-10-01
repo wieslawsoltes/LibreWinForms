@@ -258,6 +258,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
     private readonly ILibreMonitorService _monitors;
     private readonly ILibreWindowEvents _events;
     private readonly IWindow _window;
+    private readonly bool _usesOwnedCocoaPopup;
+    private string _title;
     private readonly SilkWindowController _controller;
     private readonly NativePopupAdmission? _popupAdmission;
     private readonly LibreWindowCoordinateMode _coordinateMode;
@@ -322,6 +324,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         _coordinateMode = options.CoordinateMode;
         _scaleOnDpiChange = options.ScaleOnDpiChange;
         _inputTransparent = options.Options.HasFlag(LibreWindowOptions.InputTransparent);
+        _usesOwnedCocoaPopup = SourceWindowFactory.UsesOwnedCocoaPopup(OperatingSystem.IsMacOS(), options.Options);
+        _title = options.Title;
         ValidateSizeConstraints(options.MinimumSize, options.MaximumSize);
         ValidateOpacity(options.Opacity);
         _paintRoot.AddChild(_fallbackPaintVisual);
@@ -350,7 +354,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
             WindowBorder = ToSilkWindowBorder(ResolveBorder(options.Options)),
         };
 
-        _window = Silk.NET.Windowing.Window.Create(silkOptions);
+        _window = SourceWindowFactory.Create(_usesOwnedCocoaPopup, silkOptions, dispatcher.Wake);
         _controller = new SilkWindowController(_window);
         _controller.SetIsPopup(options.Options.HasFlag(LibreWindowOptions.Popup));
         if (options.Options.HasFlag(LibreWindowOptions.Popup))
@@ -371,11 +375,15 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         try
         {
             _window.Initialize();
-            ApplyControllerBorder(ResolveBorder(options.Options));
+            ApplyControllerBorder(_usesOwnedCocoaPopup ? LibreWindowBorder.Hidden : ResolveBorder(options.Options));
+            if (_usesOwnedCocoaPopup)
+                ApplyNativeOption(() => _controller.SetTopMost(silkOptions.TopMost), "topmost level");
+            // Ordinary chrome capabilities remain optional. A borderless panel
+            // has no close/minimize/maximize buttons or taskbar item to configure.
             _controller.SetCanClose(_canClose);
             _controller.SetCanMinimize(_canMinimize);
             _controller.SetCanMaximize(_canMaximize);
-            _controller.SetOpacity(_opacity);
+            ApplyNativeOption(() => _controller.SetOpacity(_opacity), "opacity");
             _controller.SetShowInTaskbar(_showInTaskbar);
             _reportedDpiScale = DpiScale;
             _reportedFramebufferScale = FramebufferScale;
@@ -397,7 +405,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         catch (Exception failure)
         {
             try { ReleaseNativeWindow(); }
-            catch (Exception cleanupFailure) { failure.Data[nameof(SilkLibreWindow)] = cleanupFailure; }
+            catch (Exception cleanupFailure) { OwnedPopupConfiguration.AttachCleanup(failure, cleanupFailure, nameof(SilkLibreWindow)); }
             throw;
         }
     }
@@ -442,12 +450,14 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
 
     public string Title
     {
-        get => _window.Title;
+        get => _usesOwnedCocoaPopup ? _title : _window.Title;
         set
         {
             VerifyAccess();
             ArgumentNullException.ThrowIfNull(value);
-            _window.Title = value;
+            if (!_usesOwnedCocoaPopup)
+                _window.Title = value;
+            _title = value;
         }
     }
 
@@ -525,8 +535,10 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
                 return;
             }
 
+            if (!_usesOwnedCocoaPopup)
+                _enabled = value;
+            ApplyNativeOption(() => _controller.SetEnabled(value), "input permission");
             _enabled = value;
-            _controller.SetEnabled(value);
             if (!value)
             {
                 DeliverInput(new LibreInputEvent(
@@ -548,7 +560,10 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         set
         {
             VerifyAccess();
-            _window.TopMost = value;
+            if (_usesOwnedCocoaPopup)
+                ApplyNativeOption(() => _controller.SetTopMost(value), "topmost level");
+            else
+                _window.TopMost = value;
         }
     }
 
@@ -639,8 +654,10 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
                 return;
             }
 
+            if (!_usesOwnedCocoaPopup)
+                _opacity = value;
+            ApplyNativeOption(() => _controller.SetOpacity(value), "opacity");
             _opacity = value;
-            _controller.SetOpacity(value);
         }
     }
 
@@ -660,6 +677,12 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
             // topmost rank uses its existing nonactivating SetWindowPos path.
             if (!_controller.SetTopMost(TopMost))
                 throw new PlatformNotSupportedException("The native host rejected nonactivating popup ordering.");
+            return;
+        }
+
+        if (_usesOwnedCocoaPopup)
+        {
+            ApplyNativeOption(() => _controller.SetZOrder(order), "nonactivating ordering");
             return;
         }
 
@@ -692,9 +715,15 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
     {
         VerifyAccess();
         ValidateSizeConstraints(minimum, maximum);
+        if (!_usesOwnedCocoaPopup)
+        {
+            _minimumSize = minimum;
+            _maximumSize = maximum;
+        }
+
+        ApplySizeConstraints(minimum, maximum);
         _minimumSize = minimum;
         _maximumSize = maximum;
-        ApplySizeConstraints();
     }
 
     public double FramebufferScale => DisplayScaleResolver.ResolveWindowFramebufferScale(_window);
@@ -1349,8 +1378,24 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
 
     private void SetNativeBounds(LibreRectangle bounds)
     {
-        _window.Position = new Vector2D<int>(bounds.X, bounds.Y);
-        _window.Size = new Vector2D<int>(Math.Max(1, bounds.Width), Math.Max(1, bounds.Height));
+        ApplyNativeOption(() =>
+        {
+            // The owned provider reads actual geometry after each mutation and
+            // rejects failed/stale native identity; do not publish requested bounds.
+            _window.Position = new Vector2D<int>(bounds.X, bounds.Y);
+            _window.Size = new Vector2D<int>(Math.Max(1, bounds.Width), Math.Max(1, bounds.Height));
+            return true;
+        }, "content geometry");
+    }
+
+    private void ApplyNativeOption(Func<bool> configure, string option)
+    {
+        if (_usesOwnedCocoaPopup)
+            OwnedPopupConfiguration.Apply(configure,
+                () => !_disposed && !_closed && _window.IsInitialized && !_window.IsClosing,
+                ReleaseNativeWindow, option);
+        else
+            _ = configure();
     }
 
     private double ResolveMonitorDpiScale()
@@ -1488,7 +1533,11 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
             _updatingPresentationGeometry = true;
             try
             {
-                _window.Size = new Vector2D<int>(Math.Max(1, nativeSize.Width), Math.Max(1, nativeSize.Height));
+                ApplyNativeOption(() =>
+                {
+                    _window.Size = new Vector2D<int>(Math.Max(1, nativeSize.Width), Math.Max(1, nativeSize.Height));
+                    return true;
+                }, "presentation size");
             }
             finally
             {
@@ -1501,22 +1550,25 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         => checked((int)Math.Round(value * newDpiScale / oldDpiScale, MidpointRounding.AwayFromZero));
 
     private void ApplySizeConstraints()
+        => ApplySizeConstraints(_minimumSize, _maximumSize);
+
+    private void ApplySizeConstraints(LibreSize minimum, LibreSize maximum)
     {
         LibreRectangle nativeMinimum = LibreWindowCoordinates.ToNative(
-            new LibreRectangle(0, 0, _minimumSize.Width, _minimumSize.Height),
+            new LibreRectangle(0, 0, minimum.Width, minimum.Height),
             _coordinateMode,
             _reportedDpiScale,
             _reportedFramebufferScale);
         LibreRectangle nativeMaximum = LibreWindowCoordinates.ToNative(
-            new LibreRectangle(0, 0, _maximumSize.Width, _maximumSize.Height),
+            new LibreRectangle(0, 0, maximum.Width, maximum.Height),
             _coordinateMode,
             _reportedDpiScale,
             _reportedFramebufferScale);
-        _controller.SetSizeConstraints(
+        ApplyNativeOption(() => _controller.SetSizeConstraints(
             new NativeWindowSize(nativeMinimum.Width, nativeMinimum.Height),
             new NativeWindowSize(
-                _maximumSize.Width == 0 ? int.MaxValue : nativeMaximum.Width,
-                _maximumSize.Height == 0 ? int.MaxValue : nativeMaximum.Height));
+                maximum.Width == 0 ? int.MaxValue : nativeMaximum.Width,
+                maximum.Height == 0 ? int.MaxValue : nativeMaximum.Height)), "content size constraints");
     }
 
     private static void ValidateSizeConstraints(LibreSize minimum, LibreSize maximum)
@@ -1542,7 +1594,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
 
     private void OnLoad()
     {
-        _controller.Attach();
+        ApplyNativeOption(_controller.Attach, "native controller");
         ApplyInputTransparency();
         // A source dropdown can precreate its hidden native handle before
         // assigning its live owner. Defer only its renderer, not native/input
