@@ -95,11 +95,11 @@ public sealed class NativePointerInputTests
     [Theory]
     [InlineData(NativePointerScrollUnit.Lines)]
     [InlineData(NativePointerScrollUnit.Points)]
-    public void NativeScrollRemainsExplicitlyUnadmitted(NativePointerScrollUnit unit)
+    public void NativeScrollWithoutPhaseProtocolRemainsExplicitlyUnadmitted(NativePointerScrollUnit unit)
     {
         using Fixture f = new();
         Assert.Throws<PlatformNotSupportedException>(() => f.Provider.Emit(Packet(NativePointerEventKind.Scroll)
-            with { ScrollY = .25, ScrollUnit = unit, ScrollProtocol = NativePointerScrollProtocol.AppKit, ScrollPhase = 1 }));
+            with { ScrollY = .25, ScrollUnit = unit, ScrollPhase = 1 }));
         Assert.Empty(f.Target.Inputs); Assert.Equal(0, f.Target.Flushes);
         Assert.Equal(0, f.Target.Mappings);
     }
@@ -150,6 +150,49 @@ public sealed class NativePointerInputTests
         };
         Assert.Throws<ArgumentException>(() => f.Provider.Emit(packet));
         Assert.Empty(f.Target.Inputs); Assert.Equal(0, f.Target.Flushes); Assert.Equal(0, f.Target.Mappings);
+    }
+
+    [Theory]
+    [InlineData(1U, 0U)]
+    [InlineData(2U, 0U)]
+    [InlineData(4U, 0U)]
+    [InlineData(8U, 0U)]
+    [InlineData(16U, 0U)]
+    [InlineData(32U, 0U)]
+    [InlineData(0U, 1U)]
+    [InlineData(0U, 2U)]
+    [InlineData(0U, 4U)]
+    [InlineData(0U, 8U)]
+    [InlineData(0U, 16U)]
+    public void NativeAppKitPhasesRetainTheirExactIdentity(uint phase, uint momentum)
+    {
+        using Fixture f = new();
+        f.Provider.Emit(Packet(NativePointerEventKind.Scroll) with
+        {
+            ScrollProtocol = NativePointerScrollProtocol.AppKit,
+            ScrollPhase = phase, MomentumPhase = momentum, ScrollY = -.25
+        });
+        LibreNativeScrollMetadata raw = Assert.Single(f.Target.Inputs).NativeScroll!.Value;
+        Assert.Equal(phase, raw.Phase); Assert.Equal(momentum, raw.MomentumPhase); Assert.Equal(-.25, raw.Y);
+    }
+
+    [Theory]
+    [InlineData(3U, 0U)]
+    [InlineData(64U, 0U)]
+    [InlineData(0U, 3U)]
+    [InlineData(0U, 32U)]
+    [InlineData(0U, 64U)]
+    [InlineData(1U, 1U)]
+    public void InvalidNativeAppKitPhasesCannotFlushOrMap(uint phase, uint momentum)
+    {
+        using Fixture f = new();
+        Assert.Throws<ArgumentException>(() => f.Provider.Emit(Packet(NativePointerEventKind.Scroll) with
+        {
+            ScrollProtocol = NativePointerScrollProtocol.AppKit,
+            ScrollPhase = phase, MomentumPhase = momentum, ScrollY = -8, ScrollUnit = NativePointerScrollUnit.Points
+        }));
+        Assert.Empty(f.Target.Inputs); Assert.Equal(0, f.Target.Flushes); Assert.Equal(0, f.Target.Mappings);
+        Assert.Equal(0, f.Target.PointScaleReads);
     }
 
     [Fact]
@@ -318,8 +361,9 @@ public sealed class NativePointerInputTests
         internal List<LibreInputEvent> Inputs { get; } = [];
         internal int Flushes { get; private set; }
         internal int Mappings { get; private set; }
+        internal int PointScaleReads { get; private set; }
         public bool IsCurrent(NativePointerInput subscription) => Current && ReferenceEquals(subscription, Subscription);
-        public double NativePointScale => 2;
+        public double NativePointScale { get { PointScaleReads++; return 2; } }
         public LibrePoint MapPoint(double x, double y)
         {
             Mappings++;

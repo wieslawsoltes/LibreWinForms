@@ -56,8 +56,11 @@ the captured source point transform for precise points. Admit every requested
 axis before moving either, retain fractional tails only for the exact stream,
 generation, target and numeric frame, and retire only the old carry on callback
 failure. Validate original pointer metadata before source/global state changes.
-AppKit phases/momentum still require target leases and cancellation semantics;
-keep that rejection, unknown consumers and owned factory/modality gates explicit.
+AppKit phases retain source-owned gesture identity: normal input hit-tests anew,
+momentum pins weak exact target/consumer handles, and stale tails never retarget.
+Cancel retires fractions before callbacks; End permits its final delta and exact
+normal-to-momentum handoff. Pointer Leave is not momentum cancellation. Reject
+untagged/combined/unknown phases, and keep unknown consumer and factory/modality gates.
 See docs/native-scroll-source-input.md; bounded source passes are not desktop parity.
 
 Native pointer drag cancellation binds the actual source-window object, handle

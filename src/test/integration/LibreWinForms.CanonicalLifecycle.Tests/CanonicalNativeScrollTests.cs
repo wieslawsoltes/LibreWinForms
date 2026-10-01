@@ -106,14 +106,15 @@ public partial class CanonicalLifecycleTests
     }
 
     [Fact]
-    public void NativeScroll_PhasesRemainExplicitBeforeCharactersOrSource()
+    public void NativeScroll_UntaggedPhasesRemainExplicitBeforeCharactersOrSource()
     {
         RunNativeScroll((_, _, panel, provider, target) =>
         {
             int flushed = 0;
             target.Flushing = () => flushed++;
             Assert.Throws<PlatformNotSupportedException>(() => provider.Emit(
-                ScrollPacket(NativePointerScrollUnit.Points, 0, -8) with { ScrollPhase = 1 }));
+                ScrollPacket(NativePointerScrollUnit.Points, 0, -8) with
+                { ScrollPhase = 1, ScrollProtocol = NativePointerScrollProtocol.Unspecified }));
             Assert.Equal(0, flushed);
             Assert.Equal(Point.Empty, panel.AutoScrollPosition);
         });

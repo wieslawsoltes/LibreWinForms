@@ -221,4 +221,23 @@ public sealed class LibreNativeScrollStream { }
 /// </summary>
 public readonly record struct LibreNativeScrollMetadata(
     double X, double Y, LibreNativeScrollUnit Unit, LibreNativeScrollProtocol Protocol,
-    uint Phase, uint MomentumPhase, double PointScale, LibreNativeScrollStream Stream, ulong Generation);
+    uint Phase, uint MomentumPhase, double PointScale, LibreNativeScrollStream Stream, ulong Generation)
+{
+    /// <summary>Validates quantities and the explicitly declared native phase protocol.</summary>
+    public void Validate()
+    {
+        if (Stream is null || !double.IsFinite(X) || !double.IsFinite(Y)
+            || !double.IsFinite(PointScale) || PointScale <= 0
+            || Unit is < LibreNativeScrollUnit.Lines or > LibreNativeScrollUnit.Points
+            || Protocol is < LibreNativeScrollProtocol.Unspecified or > LibreNativeScrollProtocol.AppKit)
+            throw new ArgumentException("Invalid native scroll metadata.");
+        if (Protocol == LibreNativeScrollProtocol.Unspecified && (Phase != 0 || MomentumPhase != 0))
+            throw new PlatformNotSupportedException("Native scroll phases require an explicit protocol.");
+        // The AppKit SDK declares these individual values. Bitwise combinations,
+        // simultaneous normal/momentum and momentum MayBegin have no contract.
+        if (Phase is not (0 or 1 or 2 or 4 or 8 or 16 or 32)
+            || MomentumPhase is not (0 or 1 or 2 or 4 or 8 or 16)
+            || (Phase != 0 && MomentumPhase != 0))
+            throw new ArgumentException("Invalid AppKit scroll phases.");
+    }
+}
