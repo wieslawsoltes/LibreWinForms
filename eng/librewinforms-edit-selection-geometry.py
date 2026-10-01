@@ -289,12 +289,12 @@ def verify_shaping(receipt):
             or any(receipt.get(key) is not False for key in ("EditRendererIdentityQualified",
                 "EditFallbackIdentityQualified", "DesktopQualified", "PhysicalInputQualified"))
             or receipt.get("FontPolicy") != "selected-HFONT-only; no fallback attempted"
-            or receipt.get("RequestedPixelSizes") != [20, 21]
+            or receipt.get("RequestedPixelSizes") != [19, 21]
             or not 0 <= receipt["ElapsedMilliseconds"] <= 30000):
         raise ValueError("Incomplete or incorrectly qualified independent shaping receipt")
     inputs = {name: value for name, value in GEOMETRY_INPUTS.items() if "lam-alef" in name}
     cases = receipt["Cases"]
-    if [(case["requestedPixelSize"], case["name"]) for case in cases] != [(size, name) for size in (20, 21) for name in inputs]:
+    if [(case["requestedPixelSize"], case["name"]) for case in cases] != [(size, name) for size in (19, 21) for name in inputs]:
         raise ValueError("Independent size/direction/source controls changed")
     fonts = receipt["FontBytesBySha256"]
     for key, value in fonts.items():
@@ -302,7 +302,7 @@ def verify_shaping(receipt):
         if not hash_text(key) or not 1 <= len(raw) <= 32 * 1024 * 1024 or hashlib.sha256(raw).hexdigest() != key:
             raise ValueError("Selected diagnostic font bytes changed")
     used_fonts, parities = set(), {name: set() for name in inputs}
-    normalized = {20: [], 21: []}
+    normalized = {19: [], 21: []}
     for case in cases:
         name, size = case["name"], case["requestedPixelSize"]
         source, seams = inputs[name]

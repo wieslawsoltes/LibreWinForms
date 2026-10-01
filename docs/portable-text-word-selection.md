@@ -404,7 +404,7 @@ this case. The ordinary source EDIT geometry gate remains off.
 `selection-geometry.json.shaping.json` sidecar. The original nine-case receipt
 is completely flushed first and retains its unchanged inputs and observations.
 The sidecar observes eight additional owned EDITs: the four lam-alef inputs at
-20 and 21 pixels, each retaining eleven directed selections, owned carets, full
+19 and 21 pixels, each retaining eleven directed selections, owned carets, full
 source/hit scans and independent-clear print buffers through the same helpers.
 Both receipts share the original 30-second observer budget; the process/job
 deadlines and combined 128-MiB limit are unchanged. Compact sidecar JSON uses
@@ -422,6 +422,14 @@ remain run-local; no inferred EDIT alignment or bidi affinity is applied.
 The size controls must actually observe both odd and even target-cluster
 advances in each input, and actual shared lam-alef cluster ownership; requested
 font sizes alone do not satisfy those checks.
+
+The first hosted capture (Build `36934863159`, Windows job `110612634176`)
+completed all eight observations in 6.136 seconds but correctly failed this
+parity gate: both initial sizes, 20 and 21, measured 11-pixel target advances.
+The captured exact Arial bytes above contain glyph 1019 hdmx widths 10 and 11
+at 19 and 21 ppem. These records motivate the corrected input pair; they do
+not replace actual `ScriptPlace` evidence. The same strict odd/even gate,
+eight-case count, original 20-pixel primary inputs and all budgets remain.
 
 `GetTextFaceW`, actual selected `GetFontData` bytes/hash, `GetTextMetricsW` and
 `ScriptGetFontProperties` identify the selected diagnostic face and missing-glyph

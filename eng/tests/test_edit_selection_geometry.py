@@ -195,9 +195,9 @@ class ShapingGeometryReceiptTests(unittest.TestCase):
         receipt = dict(Schema="native-edit-shaping-diagnostics-v1", Completed=True, Errors=[],
             IndependentOfEdit=True, EditRendererIdentityQualified=False, EditFallbackIdentityQualified=False,
             DesktopQualified=False, PhysicalInputQualified=False, HostShown=True, OwnedWindowOnly=True,
-            FontPolicy="selected-HFONT-only; no fallback attempted", RequestedPixelSizes=[20, 21],
+            FontPolicy="selected-HFONT-only; no fallback attempted", RequestedPixelSizes=[19, 21],
             FontBytesBySha256={font["sha256"]: font["bytes"]}, ElapsedMilliseconds=100, Cases=[])
-        for size in (20, 21):
+        for size in (19, 21):
             for original in cases:
                 source = original["requestedUtf16"]
                 length = len(source)
@@ -205,7 +205,7 @@ class ShapingGeometryReceiptTests(unittest.TestCase):
                 count = length - 1
                 clusters = [cp if cp <= a else cp - 1 for cp in range(length)]
                 advances = [1] * count
-                advances[a] = 11 if size == 20 else 12
+                advances[a] = 10 if size == 19 else 11
                 width = sum(advances)
                 analysis = dict(Flags=1024, State=1)
                 run = dict(start=0, end=length, sourceUtf16=source, inputAnalysis=copy.deepcopy(analysis),
@@ -283,8 +283,14 @@ class ShapingGeometryReceiptTests(unittest.TestCase):
             run["advanceWidth"] += 1
             run["hits"].append(dict(x=run["advanceWidth"] + 1, hResult=0, cp=0, trailing=0))
             target["advanceWidth"] += 1
-            target["parity"] = 1
+            target["parity"] = 0
         with self.assertRaisesRegex(ValueError, "odd/even"):
+            OBSERVER.verify_shaping(value)
+
+    def test_previous_equal_advance_size_pair_is_not_the_new_inventory(self):
+        value = self.receipt()
+        value["RequestedPixelSizes"] = [20, 21]
+        with self.assertRaises(ValueError):
             OBSERVER.verify_shaping(value)
 
     def test_additive_edit_pixels_still_use_original_strict_verifier(self):

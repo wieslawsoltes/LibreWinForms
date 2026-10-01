@@ -16,7 +16,9 @@ internal static partial class WordSelectionReference
         public bool EditRendererIdentityQualified => false;
         public bool EditFallbackIdentityQualified => false;
         public string FontPolicy => "selected-HFONT-only; no fallback attempted";
-        public int[] RequestedPixelSizes => [20, 21];
+        // The captured Arial hdmx records distinguish these sizes. The verifier
+        // still requires actual ScriptPlace odd/even advances, not table claims.
+        public int[] RequestedPixelSizes => [19, 21];
         public List<Dictionary<string, object?>> Cases { get; } = [];
         public Dictionary<string, byte[]> FontBytesBySha256 { get; } = [];
         public List<string> Errors { get; } = [];
