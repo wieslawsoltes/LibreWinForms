@@ -49,8 +49,8 @@ state. Actual source property changes retire the identity before callbacks,
 including a change away and back to the same Value, range or increment. Enabled
 transitions do the same. A real RightToLeft transition uses Control's existing
 handle recreation, invalidating the shared exact-handle carry before public
-RightToLeftChanged events; no new ScrollBar override is needed. The shared dispatcher retains weak
-consumer identity, source/target handles, stream/generation, units, point-scale,
+RightToLeftChanged events; no new ScrollBar override is needed. The shared
+dispatcher retains weak consumer identity, source/target handles, stream/generation, units, point-scale,
 gesture cancellation and momentum routing; this consumer adds no polling.
 
 The expected final frame/tail is published before source events. An actual
@@ -72,3 +72,27 @@ the exact callback bound, unsupported Points/cross-axis/child hosts, mutable
 Scroll/EndScroll values, disposal, nested callback failures and momentum pinning.
 Hosted/native/GPU/desktop qualification is separate; no such execution or
 ordinary editor/native factory admission follows from this source change.
+
+## Focused managed receipt
+
+On 2026-10-02 the actual Forms source and canonical lifecycle test project were
+rebuilt independently with `BuildProjectReferences=false` and `--no-restore`,
+using isolated copied caches and read-only dependency outputs from qualified
+ProGPU `60347a5f1026b8f95582535e6b7cfc8431a04499`. Forms completed with 648
+warnings and zero errors; the test project completed with zero warnings/errors.
+The explicit `*NativeScrollBar_*` selector then passed all 33 cases, zero skips,
+in 479 ms, with the existing two-minute timeout. Source and test-output copies
+of `System.Windows.Forms.dll` both hashed to
+`361a695f13d967da9b33b52dbf6a2bd21202c657f28737aef41231d0b880cb75`.
+
+The first 31-case run preserved its two failures: the fixture incorrectly
+expected VScrollBar's ignored RightToLeft setter to reverse scrolling and retire
+carry. Correcting that fixture to the actual VScrollBar getter and using
+HScrollBar for a real RTL transition produced 31/31; the final run also includes
+two source virtual-getter reentrancy controls. Local logs remain under the
+isolated worktree's `artifacts/scrollbar-*.log`; no original failure was erased.
+
+The existing hosted source-first lane selects these 33 cases explicitly with
+fail-on-skip and the same timeout, and its full canonical minimum increases by
+33. No native runtime artifact was staged, no dependency graph or native/GPU/VM
+build was run, and this is not hosted, coherent full-graph or native UI evidence.
