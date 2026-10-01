@@ -6,6 +6,47 @@ ProGPU context/compositor, dispatcher and typed input/paint events. It does not
 construct a `Form`, use a bitmap overlay, replace the renderer, or synthesize
 managed menu input.
 
+## Source-owned Cocoa factory
+
+On macOS only, the actual Popup source path now calls
+`NativePopupWindow.CreateCocoaPopupWindow` with the creating
+`ProGpuDispatcher.Wake` callback. Ordinary macOS windows and all other platforms
+keep the original Silk factory. A failed owned factory never falls back to GLFW.
+The source projects only its native-host requirements: hidden creation, an empty
+native title, NoAPI with context control disabled, normal state and no border.
+Desktop position/size, topmost intent, transparency and scheduling options remain
+unchanged. Source title metadata is retained without titling the native panel.
+Ownerless hidden precreation does not manufacture a managed parent; the existing
+typed preparation/show path binds and verifies the actual native owner.
+
+Topmost level, opacity, content constraints, geometry, input permission and visible
+nonactivating ordering must succeed on the owned provider. ProGPU owns exact native
+option readback and actual geometry publication. Rejection, a thrown provider error
+or reentrant close retires the same source window and cannot publish successful
+source state. Failed cleanup stays attached to the original failure, with pending
+native/render owners retained by the dispatcher. Ordinary optional window chrome
+capabilities keep their existing behavior; unsupported button/taskbar decoration
+is not mistaken for failed owned opacity or content-size admission.
+
+The source owner remains the native poller. The popup participant only invokes the
+existing provider DoEvents/DoUpdate drain, and its wake callback schedules source
+work without another global poll. NativeWindowInput still supplies the one typed
+pointer context (and no fake keyboard), cancellation and original event metadata.
+The merged source [scroll contract](native-scroll-source-input.md) and menu/list
+consumers retain point/line quantities and source gesture ownership. Unsupported
+custom dropdown/list scroll policies remain explicit errors, not fabricated wheel
+notches. Renderer initialization still precedes Show and borrows the actual owner's
+device; source retirement still waits for the presentation surface/view lease.
+
+This factory/option connection is authored against ProGPU
+`f22b5b3f3416e16421ab6b2952b2eef1864d781e` (owned panel option support).
+The checked-in older dependency is not qualified for these required options;
+its replacement and the exact complete producer/consumer Builds remain required
+before publishing this integration. The new managed factory/option tests and
+source-wiring guard are authored evidence, not executed native/UI evidence.
+No native runtime was rebuilt or staged. Automatic modality, real AppKit popup
+input/presentation and complete package/application qualification remain separate.
+
 Hidden ownerless creation is staging only. Before display, a popup requires a
 live typed owner. Hidden owner changes call the pinned ProGPU
 `NativePopupWindow.TryPrepareOwner` with the actual `IWindow` before publishing
@@ -38,8 +79,8 @@ Input-transparent source windows call `NativeWindowInput.SetInputTransparent`
 with the actual `IWindow`. The shared provider confirms GLFW pass-through using
 `Native.Glfw`, or preserves independent transparency/enabled intent for an owned
 Cocoa panel. An opaque panel handle is never cast to GLFW. Native rejection follows
-the existing constructor cleanup path. This does not enable the owned factory or
-change character/precision-scroll policy; desktop click routing remains a separate
+the existing constructor cleanup path. The owned factory retains this provider
+path without changing character/precision-scroll policy; desktop click routing remains a separate
 application check.
 
 ## Platform boundaries
@@ -55,8 +96,8 @@ application check.
   boundary. The ordinary controller's `SetParent` is not used for popup owner
   assignment because `addChildWindow` can show the window. This does not add an
   automatic AppKit modal-session admission. The typed API also supports hidden
-  source-scheduled owned-panel binding, but the Forms constructor still selects
-  its existing factory until native input/scroll integration is complete.
+  source-scheduled owned-panel binding, now selected by the macOS Popup factory
+  above. Automatic native modality and application qualification remain separate.
 - Other native window kinds remain rejected by the existing ProGPU capability.
 
 Native popup admission does not supply canonical menu keyboard routing,
