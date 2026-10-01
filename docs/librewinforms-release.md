@@ -12,8 +12,9 @@ The optional isolation launcher is included in the source-first package inventor
 manifest and release bundle. It is not yet published to NuGet; adding it to this
 inventory does not itself publish a release or qualify visible application UI.
 
-The same bundle contains the exact ten-package ProGPU drawing closure built
-from the pinned submodule. It never publishes
+The same bundle contains the complete ProGPU drawing closure built
+from the pinned submodule, including `ProGPU.Backend.Dawn` and
+`ProGPU.Backend.Native`. It never publishes
 `LibreWinForms.Compatibility.System.Windows.Forms`.
 
 ## Canonical WFI source handoff
@@ -85,6 +86,23 @@ WinForms lifecycle coverage; LibreWPF owns mixed WPF/WinForms hosting; and
 SharpDevelop remains the real downstream integration driver.
 
 ## CI and publishing
+
+Both package-producing jobs in `LibreWinForms Build` stage the pinned ProGPU
+native payload before packing. The source-first job checks out only the existing
+LibreWPF staging helper at immutable commit
+`d8a3a153bfd3d180023d119001e94da50c2eeca1`, verifies that helper checkout and the
+actual ProGPU checkout against Forms' recorded gitlink, and invokes the helper
+unchanged. Staging requires a complete successful `Build` for that exact ProGPU
+commit, never just a successful native job or an artifact from another revision.
+The destination is the Forms-owned `external/ProGPU/artifacts/progpu-native/package`,
+which the native package project already consumes; no package runtime override,
+duplicated runtime registry or synthetic native payload is introduced. The visible
+matrix consumes the resulting package artifact and does not repack it.
+
+`SourceFirstNativeStagingTests` executes the workflow's actual staging body with
+recording-only local stubs, checking identity, ordering and failure propagation.
+These offline controls do not download runtimes or qualify the producer Build,
+package consumers or native UI.
 
 `LibreWinForms Build` checks out canonical LibreWPF WFI source, runs the source
 handoff, stages the immutable LibreWPF SDK feed, packs, smoke-tests, and uploads
