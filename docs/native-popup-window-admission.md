@@ -40,9 +40,9 @@ device; source retirement still waits for the presentation surface/view lease.
 
 This factory/option connection is authored against ProGPU
 `f22b5b3f3416e16421ab6b2952b2eef1864d781e` (owned panel option support).
-The checked-in older dependency is not qualified for these required options;
-its replacement and the exact complete producer/consumer Builds remain required
-before publishing this integration. The new managed factory/option tests and
+The checked-in dependency now pins that exact pending-qualification source;
+the exact complete producer/consumer Builds remain required before publishing
+this integration. The new managed factory/option tests and
 source-wiring guard are authored evidence, not executed native/UI evidence.
 No native runtime was rebuilt or staged. Automatic modality, real AppKit popup
 input/presentation and complete package/application qualification remain separate.
