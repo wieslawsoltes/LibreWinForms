@@ -55,6 +55,16 @@ factory/required-option contracts plus all existing NativePopupAdmission,
 NativeWindowRetirementQueue and NativePointerInput cases. No source-wide build,
 native-window creation, GPU run, VM, native rebuild or package staging was used.
 
+After the committed cleanup-diagnostic preservation fix, only the cached backend
+and test projects were rebuilt with project-reference builds disabled. Backend
+compilation had zero warnings/errors; the test compilation retained the same two
+unrelated IDE0017 warnings. The same four focused classes passed 132 cases with
+zero failures/skips under the original 30-second bound, including an exception
+whose virtual Data getter throws. Original native failures remain primary even
+when cleanup diagnostics cannot be attached. The receipt is
+`artifacts/cocoa-source-post-commit/cocoa-source-post-commit.trx`. This does not
+qualify real AppKit, legacy scroll compatibility, automatic modality or packages.
+
 Hidden ownerless creation is staging only. Before display, a popup requires a
 live typed owner. Hidden owner changes call the pinned ProGPU
 `NativePopupWindow.TryPrepareOwner` with the actual `IWindow` before publishing
