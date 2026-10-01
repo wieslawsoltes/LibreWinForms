@@ -6,13 +6,11 @@ using System.Drawing;
 
 namespace System.Windows.Forms;
 
-public partial class TextBox
+public partial class MaskedTextBox
 {
     internal override Padding PortableWindowAdornments => PortableEditFrame.GetWindowAdornments(BorderStyle);
 
     internal override Padding PortableNonClientInsets => PortableEditFrame.GetNonClientInsets(BorderStyle);
-
-    private Rectangle PortableTextViewport => PortableEditFrame.GetTextViewport(PortableClientRectangle, BorderStyle);
 
     internal override void PaintPortableNonClient(PaintEventArgs e)
         => PortableEditFrame.PaintNonClient(e.Graphics, Size, BorderStyle);
@@ -22,7 +20,6 @@ public partial class TextBox
 
     protected override void OnBorderStyleChanged(EventArgs e)
     {
-        ReleasePortableTextLayout();
         Padding insets = PortableNonClientInsets;
         Invalidate(new Rectangle(-insets.Left, -insets.Top, Width, Height));
         base.OnBorderStyleChanged(e);

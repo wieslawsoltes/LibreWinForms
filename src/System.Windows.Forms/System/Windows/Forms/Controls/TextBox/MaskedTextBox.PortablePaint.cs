@@ -11,7 +11,7 @@ public partial class MaskedTextBox
 {
     protected override void OnPaint(PaintEventArgs e)
     {
-        Rectangle bounds = ClientRectangle;
+        Rectangle bounds = PortableEditFrame.GetTextViewport(PortableClientRectangle, BorderStyle);
         if (bounds.Width > 0 && bounds.Height > 0)
         {
             // TextMaskFormat describes public output, not the displayed mask.

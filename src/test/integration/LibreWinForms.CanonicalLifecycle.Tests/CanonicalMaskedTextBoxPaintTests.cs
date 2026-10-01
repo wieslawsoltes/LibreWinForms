@@ -60,6 +60,7 @@ public partial class CanonicalLifecycleTests
         HorizontalAlignment alignment, RightToLeft direction, LibreTextFormat horizontal)
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        platform.BorderSizeValue = new(1, 1);
         using PaintableMaskedTextBox editor = new()
         {
             Mask = "&&&",
@@ -89,6 +90,7 @@ public partial class CanonicalLifecycleTests
     public void PortableMaskedPaintNeverTransportsPasswordSource(bool nullMask, bool systemPassword, string display)
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        platform.BorderSizeValue = new(1, 1);
         using PaintableMaskedTextBox editor = new()
         {
             Mask = nullMask ? string.Empty : "00-00",
@@ -114,6 +116,7 @@ public partial class CanonicalLifecycleTests
     public void PortableMaskedPaintUsesCanonicalPromptVisibility(bool readOnly, bool hidePrompt, string display)
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        platform.BorderSizeValue = new(1, 1);
         using PaintableMaskedTextBox editor = new()
         {
             Mask = "00-00", Text = "12", ReadOnly = readOnly, HidePromptOnLeave = hidePrompt
@@ -153,6 +156,7 @@ public partial class CanonicalLifecycleTests
     public void PortableMaskedPaintChangesInvalidateContentWithoutInventingTextEvents()
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        platform.BorderSizeValue = new(1, 1);
         using Form form = new() { ClientSize = new Size(200, 100), ShowIcon = false };
         using MaskedTextBox editor = new() { Mask = "00-00", Text = "12", HidePromptOnLeave = true };
         using Button other = new() { Bounds = new Rectangle(0, 50, 100, 25) };
