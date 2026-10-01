@@ -361,6 +361,33 @@ Baskerville `fi` strings did not actually form ligatures and are not evidence
 for that contract. Original Windows lam-alef caret/hit/selected-ink observations
 are still required before implementing or selecting ordinary EDIT interaction.
 
+The existing original `NativeTextBoxReference` now has a separate
+`--selection-geometry` invocation. It reuses the owned EDIT geometry observer
+from the pinned ProGPU source and the Forms probe's existing owner, message,
+selection and source-position helpers. Its original five emoji/joiner/combining/
+bidi inputs and directed requests stay unchanged. Four additional inputs use
+explicit Arial 20-pixel fonts: lam-alef alone and `alpha \u0644\u0627 beta `,
+each in LTR and RTL. Requested source seams are `[0,1,2]` and `[6,7,8]`; no
+caret or selected-pixel positions are asserted in advance.
+The original cases retain all 19 observations. Each new case records 11 directed
+selection observations with complete native hit scans; it does not require a
+distinct terminal source-position pair to manufacture a gesture coordinate.
+
+Each input retains all directed selections, before/after-scroll states, raw
+`EM_POSFROMCHAR` results, every integer `EM_CHARFROMPOS` result in its native row,
+actual owned caret coordinates and two independently cleared `WM_PRINTCLIENT`
+byte buffers. The borrowed HFONT/LOGFONT, managed descriptor and original
+`GetFontData` bytes/hash identify the base font. Fallback font identity remains
+explicitly unqualified. Only the added inputs use a 300-by-60 target to stay
+within the unchanged 128-MiB receipt bound; the original five targets remain
+480-by-140. The 30-second observer, 60-second process and ten-minute job deadlines
+are unchanged. The existing Windows reference job retains separate CreateNew
+word and geometry receipts and verifies loaded-module/source hashes, exact
+font bytes, source identity, callback order, caret ownership, full hit scans and
+both pixel buffers. Ten offline corruption controls and a zero-warning/error
+cross-build of the original Microsoft Windows probe pass locally. The new
+Windows observations have not yet run and do not qualify an interior-caret rule.
+
 ## Password source selection
 
 An admitted password double press uses canonical `SelectAll` once, before the

@@ -1,0 +1,185 @@
+#!/usr/bin/env python3
+"""Synthetic geometry receipt corruption controls, never Windows measurements."""
+import base64
+import copy
+import hashlib
+import importlib.util
+from pathlib import Path
+import unittest
+
+spec = importlib.util.spec_from_file_location("edit_geometry", Path(__file__).resolve().parents[1] / "librewinforms-edit-selection-geometry.py")
+OBSERVER = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(OBSERVER)
+
+
+class SelectionGeometryReceiptTests(unittest.TestCase):
+    def base_receipt(self, source="text"):
+        return {"cases": [{"requestedText": source, "requestedUtf16": OBSERVER.utf16(source),
+                            "scriptBreak": {"flags": 0x40}}]}
+
+    def receipt(self):
+        value = self.base_receipt()
+        value.update(schema="native-edit-selection-geometry-v1", hostShown=True, ownedWindowOnly=True,
+                     fallbackFontIdentityQualified=False, expectedCases=len(OBSERVER.GEOMETRY_INPUTS), geometryComplete=True,
+                     caretSamples=278, unavailableCaretSamples=0, cases=[])
+        descriptor = dict(Height=-11, Width=0, Escapement=0, Orientation=0, Weight=400,
+                          Italic=0, Underline=0, StrikeOut=0, CharSet=1, OutPrecision=0,
+                          ClipPrecision=0, Quality=0, PitchAndFamily=0, FaceName="schema-only")
+        for name, (source, seams) in OBSERVER.GEOMETRY_INPUTS.items():
+            units = OBSERVER.utf16(source)
+            length = len(units)
+            case = self.base_receipt(source)["cases"][0]
+            case.update(Name=name, RightToLeft=(name.endswith("-rtl")), requestedSeams=seams,
+                        observations=[], metadata={"handle": 17, "nativeClass": "EDIT", "deviceDpi": 96,
+                            "clientSize": {"Width": 2, "Height": 2}, "fallbackFontIdentityQualified": False,
+                            "ownedCaretSamples": 38, "systemColors": [{"index": i, "colorRef": 0x112233}
+                                for i in (5, 8, 13, 14, 15, 18)],
+                            "baseFont": {"handle": 23, "borrowed": True, "fallbackIdentityQualified": False,
+                                "descriptor": copy.deepcopy(descriptor), "byteCount": 16,
+                                "bytes": base64.b64encode(bytes(16)).decode(), "sha256": hashlib.sha256(bytes(16)).hexdigest(),
+                                "DeviceDpi": 96}})
+            if "lam-alef" in name:
+                case["metadata"]["ownedCaretSamples"] = 22
+                case["metadata"]["requestedFont"] = {"family": "Arial", "size": 20, "unit": "Pixel", "style": "Regular"}
+                case["metadata"]["baseFont"]["descriptor"]["FaceName"] = "Arial"
+                case["metadata"]["baseFont"]["managed"] = {"Name": "Arial", "Size": 20, "unit": "Pixel", "style": "Regular"}
+            if name.endswith("-rtl"):
+                case["scriptBreak"]["flags"] |= 0x100
+            a, b, c = seams
+            requested = [(f"collapsed-{p}", p, p) for p in (0, a, b, c, length)]
+            for start, end in ((a, b), (b, c), (a, c)):
+                requested += [(f"forward-{start}-{end}", start, end), (f"reverse-{end}-{start}", end, start)]
+            gestures = [] if "lam-alef" in name else [(label, 0, 0) for label in (
+                    "first-down", "first-up", "double-down", "drag-last", "drag-first-reversal",
+                    "drag-anchor-reversal", "drag-last-again", "final-up")]
+            for index, (label, anchor, active) in enumerate(requested + gestures):
+                start, end = sorted((anchor, active))
+                text = b"".join(unit.to_bytes(2, "little") for unit in units[start:end]).decode("utf-16-le", "surrogatepass")
+                state = {"Selection": {"Start": start, "End": end, "ManagedStart": start,
+                            "ManagedLength": end - start, "SelectedText": text, "Focused": True},
+                    "Caret": {"Available": True, "UnavailableReason": None, "GuiQuerySucceeded": True,
+                        "GuiError": 0, "CaretOwner": 17, "FocusOwner": 17, "Flags": 0,
+                        "Rectangle": {"Left": 0, "Top": 0, "Right": 1, "Bottom": 2},
+                        "PointQuerySucceeded": True, "PointError": 0, "Point": {"X": 0, "Y": 0}},
+                    "Client": {"Left": 0, "Top": 0, "Right": 2, "Bottom": 2},
+                    "Format": {"Left": 0, "Top": 0, "Right": 2, "Bottom": 2}, "FirstVisibleRaw": 0,
+                    "Positions": [{"Index": p, "Raw": 0 if p < length else -1,
+                        "Point": {"X": 0, "Y": 0} if p < length else None} for p in range(length + 1)],
+                    "Hits": [{"X": x, "Y": 0, "Raw": x, "Character": x, "Line": 0} for x in range(2)]}
+                for key in ("HorizontalScroll", "VerticalScroll"):
+                    state[key] = {"Available": False, "Error": 0, "Minimum": 0, "Maximum": 0,
+                                  "Page": 0, "Position": 0, "TrackPosition": 0}
+                request = {"kind": "set-selection", "requestedAnchor": anchor, "requestedActive": active, "result": 0}
+                if index >= 11:
+                    request = {"kind": "gesture", "message": [0x201, 0x202, 0x203, 0x200, 0x200, 0x200, 0x200, 0x202][index - 11],
+                               "callbacks": [{"name": callback, "step": label} for callback in ("WndProc-enter", "WndProc-return")]}
+                raw = bytes((0x12, 0x34, 0x56, 0xA5)) * 4
+                pixels = {"Width": 2, "Height": 2, "Stride": 8, "Format": "BGRX8-top-down-original-bytes",
+                          "Bytes": base64.b64encode(raw).decode(), "Sha256": hashlib.sha256(raw).hexdigest(),
+                          "ClearControlBytes": base64.b64encode(raw).decode(), "ClearControlSha256": hashlib.sha256(raw).hexdigest(),
+                          "RgbIndependentOfClear": True, "RgbClearDifferences": 0, "FirstPrintResult": 0, "SecondPrintResult": 0}
+                case["observations"].append({"name": label, "request": request, "beforeScroll": copy.deepcopy(state),
+                    "scrollCaretResult": 0, "afterScroll": copy.deepcopy(state), "pixels": pixels})
+            value["cases"].append(case)
+        return value
+
+
+    def test_complete_nine_case_geometry_and_original_order(self):
+        receipt = self.receipt()
+        OBSERVER.verify_geometry(receipt)
+        self.assertEqual([case["Name"] for case in receipt["cases"]][:5],
+                         ["emoji-context", "supplementary-emoji-zwj", "surrogate-combining", "bidi-ltr", "bidi-rtl"])
+        self.assertEqual(receipt["caretSamples"], 278)
+
+    def test_missing_case_and_rewritten_source_fail(self):
+        for mutation in (lambda value: value["cases"].pop(),
+                         lambda value: value["cases"][-1].update(requestedText="other"),
+                         lambda value: value["cases"][-1].update(RightToLeft=False),
+                         lambda value: value["cases"][-1].update(requestedSeams=[6, 8, 9])):
+            value = self.receipt()
+            mutation(value)
+            with self.assertRaises(ValueError):
+                OBSERVER.verify_geometry(value)
+
+    def test_font_bytes_and_exact_requested_font_cannot_be_substituted(self):
+        for mutate in (lambda font: font.update(sha256="a" * 64),
+                       lambda font: font.update(byteCount=15),
+                       lambda font: font["descriptor"].update(FaceName="Other"),
+                       lambda font: font["managed"].update(Size=21)):
+            value = self.receipt()
+            mutate(value["cases"][-1]["metadata"]["baseFont"])
+            with self.assertRaises(ValueError):
+                OBSERVER.verify_geometry(value)
+
+    def test_original_directed_selection_request_and_public_source_are_exact(self):
+        for key in ("requestedAnchor", "requestedActive"):
+            value = self.receipt()
+            value["cases"][-1]["observations"][5]["request"][key] = 0
+            with self.assertRaises(ValueError):
+                OBSERVER.verify_geometry(value)
+        value = self.receipt()
+        value["cases"][-1]["observations"][5]["afterScroll"]["Selection"]["SelectedText"] = "other"
+        with self.assertRaises(ValueError):
+            OBSERVER.verify_geometry(value)
+
+    def test_unavailable_caret_stays_explicit(self):
+        value = self.receipt()
+        caret = value["cases"][-1]["observations"][0]["afterScroll"]["Caret"]
+        caret.update(Available=False, UnavailableReason="No owned caret", Rectangle=None, Point=None, CaretOwner=0)
+        value["unavailableCaretSamples"] = 1
+        value["geometryComplete"] = False
+        value["cases"][-1]["metadata"]["ownedCaretSamples"] -= 1
+        OBSERVER.verify_geometry(value)
+        value["geometryComplete"] = True
+        with self.assertRaises(ValueError):
+            OBSERVER.verify_geometry(value)
+
+    def test_native_source_positions_and_full_hit_scan_cannot_be_filtered(self):
+        for field in ("Positions", "Hits"):
+            value = self.receipt()
+            value["cases"][-1]["observations"][0]["afterScroll"][field].pop()
+            with self.assertRaises(ValueError):
+                OBSERVER.verify_geometry(value)
+
+    def test_native_raw_position_and_hit_identity_cannot_be_changed(self):
+        for field, replacement in (("Positions", {"Point": {"X": 1, "Y": 0}}),
+                                   ("Hits", {"Character": 7})):
+            value = self.receipt()
+            value["cases"][-1]["observations"][0]["afterScroll"][field][0].update(replacement)
+            with self.assertRaises(ValueError):
+                OBSERVER.verify_geometry(value)
+
+    def test_pixel_bytes_hash_and_clear_control_are_independent(self):
+        for field in ("Bytes", "ClearControlBytes"):
+            value = self.receipt()
+            value["cases"][-1]["observations"][0]["pixels"][field] = base64.b64encode(bytes(16)).decode()
+            with self.assertRaises(ValueError):
+                OBSERVER.verify_geometry(value)
+        value = self.receipt()
+        pixels = value["cases"][-1]["observations"][0]["pixels"]
+        raw = bytes(16)
+        pixels.update(ClearControlBytes=base64.b64encode(raw).decode(),
+                      ClearControlSha256=hashlib.sha256(raw).hexdigest())
+        with self.assertRaises(ValueError):
+            OBSERVER.verify_geometry(value)
+
+    def test_geometry_does_not_assert_half_advance_or_trailing_snap(self):
+        value = self.receipt()
+        caret = value["cases"][-1]["observations"][2]["afterScroll"]["Caret"]
+        caret["Point"]["X"] = 7
+        caret["Rectangle"].update(Left=7, Right=8)
+        OBSERVER.verify_geometry(value)
+
+    def test_callback_delivery_and_caret_owner_are_required(self):
+        value = self.receipt()
+        value["cases"][0]["observations"][11]["request"]["callbacks"].pop()
+        with self.assertRaises(ValueError):
+            OBSERVER.verify_geometry(value)
+        value = self.receipt()
+        value["cases"][-1]["observations"][0]["afterScroll"]["Caret"]["CaretOwner"] = 19
+        with self.assertRaises(ValueError):
+            OBSERVER.verify_geometry(value)
+
+
+if __name__ == "__main__":
+    unittest.main()

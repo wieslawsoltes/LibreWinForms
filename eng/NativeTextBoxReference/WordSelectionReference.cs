@@ -11,7 +11,7 @@ using System.Windows.Forms;
 
 // This is an observation of the original EDIT implementation, not an alternate
 // word breaker. Coordinates come from EM_POSFROMCHAR; no text width is guessed.
-internal static class WordSelectionReference
+internal static partial class WordSelectionReference
 {
     private const uint MouseMove = 0x0200, LeftDown = 0x0201, LeftUp = 0x0202, LeftDouble = 0x0203;
     private const uint GetSelection = 0x00B0, PositionFromCharacter = 0x00D6, CharacterFromPosition = 0x00D7;
