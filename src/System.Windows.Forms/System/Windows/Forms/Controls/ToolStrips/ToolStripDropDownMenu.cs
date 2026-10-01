@@ -536,6 +536,9 @@ public partial class ToolStripDropDownMenu : ToolStripDropDown
 
     protected override void OnLayout(LayoutEventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        InvalidatePortableItemScrollLayout();
+#endif
         if (!IsDisposed)
         {
             // We always layout as if we don't need scroll buttons.
@@ -745,7 +748,7 @@ public partial class ToolStripDropDownMenu : ToolStripDropDown
                 }
                 else
                 {
-                    ToolStripItem itemTop = Items[_indexOfFirstDisplayedItem - 1];
+                    ToolStripItem itemTop = Items[AdjacentScrollItemIndex(true, _indexOfFirstDisplayedItem)];
                     ToolStripItem itemBottom = Items[_indexOfFirstDisplayedItem];
                     // We use a delta between the tops, since it takes margin's and padding into account.
                     delta = itemTop.Bounds.Top - itemBottom.Bounds.Top;
@@ -760,7 +763,7 @@ public partial class ToolStripDropDownMenu : ToolStripDropDown
                 }
 
                 ToolStripItem itemTop = Items[_indexOfFirstDisplayedItem];
-                ToolStripItem itemBottom = Items[_indexOfFirstDisplayedItem + 1];
+                ToolStripItem itemBottom = Items[AdjacentScrollItemIndex(false, _indexOfFirstDisplayedItem)];
                 // We use a delta between the tops, since it takes margin's and padding into account.
                 delta = itemBottom.Bounds.Top - itemTop.Bounds.Top;
             }
@@ -769,6 +772,10 @@ public partial class ToolStripDropDownMenu : ToolStripDropDown
         ScrollInternal(delta);
         UpdateScrollButtonLocations();
     }
+
+    // Adjacency belongs to the original Items collection, not a filtered list
+    // of available rows. Both ordinary buttons and native item steps use it.
+    private static int AdjacentScrollItemIndex(bool up, int first) => up ? first - 1 : first + 1;
 
     protected override void SetDisplayedItems()
     {

@@ -89,12 +89,12 @@ public partial class Control
 
         for (Control? current = first; current is not null; current = pinned ? null : current.ParentInternal)
         {
-            if (current is not ScrollableControl consumer)
-                continue;
+            Control consumer = current;
             PortablePointerDispatchContext dispatch = new(this, consumer);
             if (!dispatch.IsCurrent)
                 return;
-            if (!consumer.TryGetPortableScrollFrame(scroll.X != 0, scroll.Y != 0, out var frame))
+            PortableScrollFrame? frame = consumer.CapturePortableScrollFrame(scroll, dispatch);
+            if (frame is null)
                 continue;
             if (!dispatch.IsCurrent)
                 return;
@@ -102,19 +102,16 @@ public partial class Control
             double x = 0, y = 0;
             if (_portableNativeScrollCarry is { } carry
                 && carry.SourceHandle == sourceHandle && carry.TargetHandle == consumer._window.PortableHandle
-                && carry.Target.TryGetTarget(out ScrollableControl? previous) && ReferenceEquals(previous, consumer)
+                && carry.Target.TryGetTarget(out Control? previous) && ReferenceEquals(previous, consumer)
                 && ReferenceEquals(carry.Stream, scroll.Stream) && carry.Generation == scroll.Generation
                 && ReferenceEquals(carry.Fractions, gesture.Fractions)
-                && carry.Unit == scroll.Unit && carry.PointScale == scroll.PointScale && carry.Frame == frame)
+                && carry.Unit == scroll.Unit && carry.PointScale == scroll.PointScale && frame.Matches(carry.Frame))
             {
                 x = carry.X;
                 y = carry.Y;
             }
 
-            double dx = scroll.X * (scroll.Unit == LibreNativeScrollUnit.Points ? scroll.PointScale : frame.SmallX);
-            double dy = scroll.Y * (scroll.Unit == LibreNativeScrollUnit.Points ? scroll.PointScale : frame.SmallY);
-            (int nextX, double remainderX) = AccumulatePortableScroll(frame.X, frame.MinX, dx, x);
-            (int nextY, double remainderY) = AccumulatePortableScroll(frame.Y, frame.MinY, dy, y);
+            PortableScrollPlan plan = frame.Plan(scroll, x, y);
             if (!dispatch.IsCurrent || !ReferenceEquals(_portableNativeScrollGesture, gesture))
                 return;
 
@@ -123,13 +120,14 @@ public partial class Control
             // carry; this old packet never writes it back after those callbacks.
             PortableNativeScrollCarry published = new(new(consumer), sourceHandle, consumer._window.PortableHandle,
                 scroll.Stream, scroll.Generation, gesture.Fractions, scroll.Unit, scroll.PointScale,
-                frame with { X = nextX, Y = nextY }, remainderX, remainderY);
+                plan.Frame, plan.RemainderX, plan.RemainderY);
             if (gesture.Momentum && !pinned)
                 gesture.Pin(target, consumer);
             _portableNativeScrollCarry = published;
             try
             {
-                consumer.ApplyPortableNativeScroll(nextX, nextY, dispatch);
+                if (!plan.Apply(consumer, dispatch) && ReferenceEquals(_portableNativeScrollCarry, published))
+                    _portableNativeScrollCarry = null;
             }
             catch
             {
@@ -144,7 +142,7 @@ public partial class Control
         throw new PlatformNotSupportedException("No source scroll consumer supports every requested native axis.");
     }
 
-    private static (int Position, double Remainder) AccumulatePortableScroll(int position, int minimum, double delta, double remainder)
+    internal static (int Position, double Remainder) AccumulatePortableScroll(int position, int minimum, double delta, double remainder)
     {
         if (!double.IsFinite(delta))
             throw new ArgumentException("Native scroll exceeds its source metric range.", nameof(delta));
@@ -163,10 +161,10 @@ public partial class Control
     }
 
     private sealed record PortableNativeScrollCarry(
-        WeakReference<ScrollableControl> Target, LibreHandle SourceHandle, LibreHandle TargetHandle,
+        WeakReference<Control> Target, LibreHandle SourceHandle, LibreHandle TargetHandle,
         LibreNativeScrollStream Stream, ulong Generation, PortableNativeScrollFractions Fractions,
         LibreNativeScrollUnit Unit, double PointScale,
-        ScrollableControl.PortableScrollFrame Frame, double X, double Y);
+        PortableScrollFrame Frame, double X, double Y);
 
     private sealed class PortableNativeScrollFractions { }
 
@@ -178,7 +176,7 @@ public partial class Control
         private readonly LibreNativeScrollProtocol _protocol;
         private WeakReference<Control>? _target;
         private LibreHandle _targetHandle;
-        private WeakReference<ScrollableControl>? _consumer;
+        private WeakReference<Control>? _consumer;
         private LibreHandle _consumerHandle;
 
         internal PortableNativeScrollGesture(Control source, in LibreNativeScrollMetadata scroll, bool momentum,
@@ -200,7 +198,7 @@ public partial class Control
             => source._window.PortableHandle == _sourceHandle && ReferenceEquals(scroll.Stream, _stream)
                 && scroll.Generation == _generation && scroll.Protocol == _protocol;
 
-        internal void Pin(Control target, ScrollableControl consumer)
+        internal void Pin(Control target, Control consumer)
         {
             _target = new(target);
             _targetHandle = target._window.PortableHandle;
@@ -212,10 +210,29 @@ public partial class Control
             => _target is not null && _target.TryGetTarget(out Control? target)
                 && target.IsHandleCreated && source.IsCurrentPortablePointerTarget(target, _targetHandle) ? target : null;
 
-        internal ScrollableControl? GetConsumer(Control source, Control target)
-            => _consumer is not null && _consumer.TryGetTarget(out ScrollableControl? consumer)
+        internal Control? GetConsumer(Control source, Control target)
+            => _consumer is not null && _consumer.TryGetTarget(out Control? consumer)
                 && consumer.IsHandleCreated && source.IsCurrentPortablePointerTarget(consumer, _consumerHandle)
                 && (ReferenceEquals(consumer, target) || consumer.Contains(target)) ? consumer : null;
+    }
+
+    // Source consumers own units, exact numeric/layout frames and their guarded
+    // write plan. The dispatcher owns only transport, gesture and carry lifetime.
+    internal virtual PortableScrollFrame? CapturePortableScrollFrame(in LibreNativeScrollMetadata scroll,
+        in PortablePointerDispatchContext dispatch) => null;
+
+    internal abstract class PortableScrollFrame
+    {
+        internal abstract bool Matches(PortableScrollFrame previous);
+        internal abstract PortableScrollPlan Plan(in LibreNativeScrollMetadata scroll, double x, double y);
+    }
+
+    internal abstract class PortableScrollPlan(PortableScrollFrame frame, double x, double y)
+    {
+        internal PortableScrollFrame Frame { get; } = frame;
+        internal double RemainderX { get; } = x;
+        internal double RemainderY { get; } = y;
+        internal abstract bool Apply(Control consumer, in PortablePointerDispatchContext dispatch);
     }
 }
 #endif

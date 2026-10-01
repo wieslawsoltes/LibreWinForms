@@ -3253,6 +3253,9 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
 
     internal void OnItemVisibleChanged(ToolStripItemEventArgs e, bool performLayout)
     {
+#if LIBREWINFORMS_PORTABLE
+        InvalidatePortableItemScrollLayout();
+#endif
         // clear cached item states.
         if (e.Item == _lastMouseActiveItem)
         {
@@ -4837,6 +4840,9 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
 
     internal void OnItemAddedInternal(ToolStripItem item)
     {
+#if LIBREWINFORMS_PORTABLE
+        InvalidatePortableItemScrollLayout();
+#endif
         if (ShowItemToolTips)
         {
             KeyboardToolTipStateMachine.Instance.Hook(item, ToolTip);
@@ -4845,6 +4851,9 @@ public partial class ToolStrip : ScrollableControl, IArrangedElement, ISupportTo
 
     internal void OnItemRemovedInternal(ToolStripItem item)
     {
+#if LIBREWINFORMS_PORTABLE
+        InvalidatePortableItemScrollLayout();
+#endif
         KeyboardToolTipStateMachine.Instance.Unhook(item, ToolTip);
     }
 

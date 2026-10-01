@@ -2,33 +2,57 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 #if LIBREWINFORMS_PORTABLE
+using LibreWinForms.Platform;
+
 namespace System.Windows.Forms;
 
 public partial class ScrollableControl
 {
-    internal readonly record struct PortableScrollFrame(int X, int Y, int MinX, int MinY, int SmallX, int SmallY);
+    private readonly record struct AutoScrollFrame(int X, int Y, int MinX, int MinY, int SmallX, int SmallY);
 
-    internal bool TryGetPortableScrollFrame(bool horizontal, bool vertical, out PortableScrollFrame frame)
+    internal override PortableScrollFrame? CapturePortableScrollFrame(in LibreNativeScrollMetadata scroll,
+        in PortablePointerDispatchContext dispatch)
     {
-        frame = default;
         // These are the source's pixel-valued AutoScroll display and actual
         // line increments. Arbitrary ScrollBar.Value units are not pixels.
-        if (!AutoScroll || (horizontal && !HScroll) || (vertical && !VScroll))
-            return false;
+        if (!AutoScroll || (scroll.X != 0 && !HScroll) || (scroll.Y != 0 && !VScroll))
+            return null;
         var client = ClientRectangle;
-        frame = new(_displayRect.X, _displayRect.Y,
+        return new PortableAutoScrollFrame(new(_displayRect.X, _displayRect.Y,
             Math.Min(client.Width - _displayRect.Width, 0), Math.Min(client.Height - _displayRect.Height, 0),
-            HorizontalScroll.SmallChange, VerticalScroll.SmallChange);
-        return true;
+            HorizontalScroll.SmallChange, VerticalScroll.SmallChange));
     }
 
-    internal void ApplyPortableNativeScroll(int x, int y, PortablePointerDispatchContext dispatch)
+    private sealed class PortableAutoScrollFrame(AutoScrollFrame value) : PortableScrollFrame
     {
-        if (!dispatch.IsCurrent)
-            return;
-        SetDisplayRectLocation(x, y);
-        if (dispatch.IsCurrent)
-            SyncScrollbars(AutoScroll);
+        internal AutoScrollFrame Value { get; } = value;
+        internal override bool Matches(PortableScrollFrame previous)
+            => previous is PortableAutoScrollFrame frame && frame.Value == Value;
+
+        internal override PortableScrollPlan Plan(in LibreNativeScrollMetadata scroll, double x, double y)
+        {
+            double dx = scroll.X * (scroll.Unit == LibreNativeScrollUnit.Points ? scroll.PointScale : Value.SmallX);
+            double dy = scroll.Y * (scroll.Unit == LibreNativeScrollUnit.Points ? scroll.PointScale : Value.SmallY);
+            (int nextX, double tailX) = AccumulatePortableScroll(Value.X, Value.MinX, dx, x);
+            (int nextY, double tailY) = AccumulatePortableScroll(Value.Y, Value.MinY, dy, y);
+            return new PortableAutoScrollPlan(new(Value with { X = nextX, Y = nextY }), tailX, tailY);
+        }
+    }
+
+    private sealed class PortableAutoScrollPlan(PortableAutoScrollFrame frame, double x, double y)
+        : PortableScrollPlan(frame, x, y)
+    {
+        internal override bool Apply(Control consumer, in PortablePointerDispatchContext dispatch)
+        {
+            if (!dispatch.IsCurrent)
+                return false;
+            ScrollableControl owner = (ScrollableControl)consumer;
+            owner.SetDisplayRectLocation(frame.Value.X, frame.Value.Y);
+            if (!dispatch.IsCurrent)
+                return false;
+            owner.SyncScrollbars(owner.AutoScroll);
+            return dispatch.IsCurrent;
+        }
     }
 }
 #endif
