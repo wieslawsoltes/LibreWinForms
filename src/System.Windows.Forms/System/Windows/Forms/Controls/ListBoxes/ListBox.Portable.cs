@@ -11,10 +11,12 @@ public partial class ListBox
 {
     private int _portableWheelRemainder;
 
+    private bool IsPortableListMode => _drawMode == DrawMode.Normal && _selectionMode == SelectionMode.One
+        && !_multiColumn && !_horizontalScrollbar && !_useCustomTabOffsets && !_scrollAlwaysVisible;
+
     private void EnsurePortableListMode()
     {
-        if (_drawMode != DrawMode.Normal || _selectionMode != SelectionMode.One || _multiColumn
-            || _horizontalScrollbar || _useCustomTabOffsets || _scrollAlwaysVisible)
+        if (!IsPortableListMode)
         {
             throw new PlatformNotSupportedException(
                 "Portable ListBox rendering and input require normal, single-selection, single-column rows. "
@@ -44,11 +46,14 @@ public partial class ListBox
     private int GetPortableTopIndex()
         => Math.Clamp(_topIndex, 0, Math.Max(0, Items.Count - GetPortableVisibleRowCount()));
 
-    private void SetPortableTopIndex(int index)
+    private void SetPortableTopIndex(int index, PortableListScrollIdentity? scrollIdentity = null)
     {
         int top = Math.Clamp(index, 0, Math.Max(0, Items.Count - GetPortableVisibleRowCount()));
         if (_topIndex != top)
         {
+            // Publish the native plan's expected generation before invalidation
+            // callbacks. Ordinary source writes retire any previous scroll carry.
+            _portableListScrollIdentity = scrollIdentity;
             _topIndex = top;
             Invalidate();
         }
