@@ -6,12 +6,46 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def drawing_package_ids():
+    script = 'source "$1/eng/librewinforms-package-list.sh"; printf "%s\\n" "${librewinforms_preview_progpu_package_ids[@]}"'
+    return subprocess.run(["bash", "-c", script, "drawing-closure", str(ROOT)],
+                          check=True, capture_output=True, text=True).stdout.splitlines()
+
+
+def verify_drawing_source_closure(package_ids):
+    seen = set()
+    for package_id in package_ids:
+        project_name = {"ProGPU.System.Drawing.Common": "System.Drawing.Common",
+                        "ProGPU.SkiaSharp": "SkiaSharp"}.get(package_id, package_id)
+        project = ROOT / "external/ProGPU/src" / project_name / (project_name + ".csproj")
+        for reference in ET.parse(project).findall("./ItemGroup/ProjectReference"):
+            dependency = (project.parent / reference.attrib["Include"].replace("\\", "/")).resolve()
+            dependency_id = ET.parse(dependency).findtext("./PropertyGroup/PackageId") or dependency.stem
+            if dependency_id not in seen:
+                raise ValueError(f"{package_id} requires earlier dependency {dependency_id}")
+        if package_id in seen:
+            raise ValueError(f"Duplicate package {package_id}")
+        seen.add(package_id)
+
+
 class CanonicalNativeStagingTests(unittest.TestCase):
+    def test_release_registry_covers_actual_source_dependencies(self):
+        verify_drawing_source_closure(drawing_package_ids())
+
+    def test_omitting_native_dependency_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "ProGPU.Backend.Native"):
+            verify_drawing_source_closure([p for p in drawing_package_ids() if p != "ProGPU.Backend.Native"])
+
+    def test_omitting_dawn_dependency_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "ProGPU.Backend.Dawn"):
+            verify_drawing_source_closure([p for p in drawing_package_ids() if p != "ProGPU.Backend.Dawn"])
+
     def staging_step(self):
         workflow = (ROOT / ".github/workflows/librewinforms-ci.yml").read_text()
         package = workflow.split("\n  packages:\n", 1)[1]
