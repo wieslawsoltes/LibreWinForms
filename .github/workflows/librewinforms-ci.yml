@@ -325,7 +325,10 @@ jobs:
           set -euo pipefail
           test "$(git -C artifacts/checkouts/wpf-native-staging rev-parse HEAD)" = "${LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT}"
           pinned_progpu_commit="$(git rev-parse HEAD:external/ProGPU)"
-          [[ "${pinned_progpu_commit}" =~ ^[0-9a-f]{40}$ ]]
+          if [[ ! "${pinned_progpu_commit}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Forms must record a full ProGPU gitlink commit before native staging." >&2
+            exit 2
+          fi
           test "$(git -C external/ProGPU rev-parse HEAD)" = "${pinned_progpu_commit}"
           ./artifacts/checkouts/wpf-native-staging/eng/progpu-stage-ci-native-runtimes.sh \
             "${pinned_progpu_commit}" \
