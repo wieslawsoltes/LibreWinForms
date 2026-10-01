@@ -47,7 +47,19 @@ The cause remains unknown. Earlier success on that same engine pin and
 collects evidence on the next normal CI run; it is not a performance fix or a
 rerun of the old producer.
 
-This integration requires the additive engine verifier revision before it can
-be enabled in CI; the dependency pin must be qualified and updated separately.
+Forms Build `36802156343`, job `110178653655`, rejected `--require-method`
+before running Drawing tests: its inherited default-branch ProGPU pin
+`0d33ef68aaf9c9c58685f449e6ab386f5156fce5` predates that wrapper option.
+No trace directory was produced, so this failure supplies no new allocation
+evidence and is not an allocation regression.
+
+The source pin now selects `1565cc29039d6c2df9c7e2ba7dcd3c46c8a2d467`, whose
+whole [ProGPU Build `36783559045`](https://github.com/wieslawsoltes/ProGPU/actions/runs/36783559045)
+completed successfully. Both the prior default-branch pin and the additive
+verifier revision are ancestors of that exact commit; its actual wrapper accepts
+and forwards the required option. This retains all existing engine changes and
+diagnostic requirements without substituting a branch tip or a partial producer.
+The corrected Forms consumer still requires its own successful exact-head CI.
+
 Only static syntax and contract inspection were performed locally. The authored
 controls, full suite and real trace admission await CI.
