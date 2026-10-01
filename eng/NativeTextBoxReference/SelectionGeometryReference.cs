@@ -37,7 +37,7 @@ internal static partial class WordSelectionReference
             6, 7, 8, 6, "Arial")
     ];
 
-    internal static int RunSelectionGeometry(string path)
+    internal static int RunSelectionGeometry(string path, bool captureShaping = false)
     {
         using FileStream file = new(Path.GetFullPath(path), FileMode.CreateNew, FileAccess.Write);
         Stopwatch budget = Stopwatch.StartNew();
@@ -220,7 +220,10 @@ internal static partial class WordSelectionReference
         using var bounded = new GeometryReceiptStream(file, budget);
         JsonSerializer.Serialize(bounded, receipt, new JsonSerializerOptions { WriteIndented = true, IncludeFields = true });
         bounded.Flush();
-        return failure is null ? 0 : 1;
+        // Flush the primary receipt before the optional diagnostic starts. A
+        // failed/late diagnostic cannot replace or truncate original evidence.
+        return failure is not null ? 1 : captureShaping
+            ? RunShapingDiagnostics(path + ".shaping.json", budget, identity) : 0;
     }
 
     private sealed record GeometryCaret(bool Available, string? UnavailableReason, bool GuiQuerySucceeded,

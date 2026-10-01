@@ -12,8 +12,9 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
-        if (args.Length == 4 && args[1] == "PerMonitorV2" && args[2] == "true" && args[3] == "--selection-geometry")
-            return WordSelectionReference.RunSelectionGeometry(args[0]);
+        if ((args.Length == 4 || (args.Length == 5 && args[4] == "--shaping-diagnostics"))
+            && args[1] == "PerMonitorV2" && args[2] == "true" && args[3] == "--selection-geometry")
+            return WordSelectionReference.RunSelectionGeometry(args[0], args.Length == 5);
         if (args.Length == 4 && args[3] == "--word-selection")
             return WordSelectionReference.Run(args[0], args[1], args[2]);
         if (args.Length != 3) throw new ArgumentException("receipt, DPI mode, theme flag required");

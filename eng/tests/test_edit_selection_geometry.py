@@ -185,6 +185,120 @@ class SelectionGeometryReceiptTests(unittest.TestCase):
             OBSERVER.verify_geometry(value)
 
 
+class ShapingGeometryReceiptTests(unittest.TestCase):
+    """Synthetic schema corruption tests, not a manufactured Windows oracle."""
+
+    def receipt(self):
+        primary = SelectionGeometryReceiptTests().receipt()
+        cases = [case for case in primary["cases"] if "lam-alef" in case["Name"]]
+        font = cases[0]["metadata"]["baseFont"]
+        receipt = dict(Schema="native-edit-shaping-diagnostics-v1", Completed=True, Errors=[],
+            IndependentOfEdit=True, EditRendererIdentityQualified=False, EditFallbackIdentityQualified=False,
+            DesktopQualified=False, PhysicalInputQualified=False, HostShown=True, OwnedWindowOnly=True,
+            FontPolicy="selected-HFONT-only; no fallback attempted", RequestedPixelSizes=[20, 21],
+            FontBytesBySha256={font["sha256"]: font["bytes"]}, ElapsedMilliseconds=100, Cases=[])
+        for size in (20, 21):
+            for original in cases:
+                source = original["requestedUtf16"]
+                length = len(source)
+                a, _, c = original["requestedSeams"]
+                count = length - 1
+                clusters = [cp if cp <= a else cp - 1 for cp in range(length)]
+                advances = [1] * count
+                advances[a] = 11 if size == 20 else 12
+                width = sum(advances)
+                analysis = dict(Flags=1024, State=1)
+                run = dict(start=0, end=length, sourceUtf16=source, inputAnalysis=copy.deepcopy(analysis),
+                    shapeAnalysis=copy.deepcopy(analysis), placeAnalysis=copy.deepcopy(analysis),
+                    shapeHResult=0, placeHResult=0, logicalWidthsHResult=0, rawPropertiesFirst=1,
+                    rawPropertiesSecond=8, glyphs=list(range(1, count + 1)), logClusters=clusters,
+                    visualAttributes=[16] * count, missingGlyphIndices=[], advances=advances,
+                    offsets=[dict(Du=0, Dv=0) for _ in range(count)], abc=dict(A=0, B=width, C=0),
+                    advanceWidth=width, logicalWidths=[1] * length,
+                    edges=[dict(cp=cp, trailing=trailing, sourceBoundary=cp + int(trailing), hResult=0, x=0)
+                           for cp in range(length) for trailing in (False, True)],
+                    hits=[dict(x=x, hResult=0, cp=0, trailing=0) for x in range(-1, width + 2)],
+                    targetCluster=dict(sourceStart=a, sourceEnd=c, firstGlyph=a, glyphEnd=a + 1,
+                                       advanceWidth=advances[a], parity=advances[a] % 2))
+                observed_font = dict(borrowedHandle=23, descriptor=copy.deepcopy(font["descriptor"]),
+                    selectedFace="Actual selected face", faceApi="GetTextFaceW", byteCount=font["byteCount"],
+                    sha256=font["sha256"], metrics=dict(Height=size + 2, InternalLeading=2), mapMode=1,
+                    realizedEmHeight=size, managed=dict(Name="Arial", Size=size, unit="Pixel", style="Regular"),
+                    source="WM_GETFONT selected into GetDC(EDIT); GetFontData on that same HDC")
+                observed_font["descriptor"]["Height"] = -size
+                receipt["Cases"].append(dict(name=original["Name"], requestedPixelSize=size,
+                    requestedText=original["requestedText"], requestedUtf16=source,
+                    requestedSeams=original["requestedSeams"], rightToLeft=original["RightToLeft"],
+                    primaryCase=original["Name"], samePrimaryWindow=False, handle=17, nativeClass="EDIT",
+                    deviceDpi=96, clientSize=dict(Width=2, Height=2), systemColors=original["metadata"]["systemColors"],
+                    completed=True, fontRestored=True, dcReleased=True, ownedCaretSamples=22,
+                    fontPropertiesHResult=0, itemizeHResult=0, scriptPropertiesHResult=0, layoutHResult=0,
+                    freeCacheHResult=0, control=0, initialState=int(original["RightToLeft"]), font=observed_font,
+                    fontProperties=dict(ByteSize=16, Blank=0, Default=65535, Invalid=0, Kashida=1),
+                    runs=[run], levels=[1], visualToLogical=[0], logicalToVisual=[0],
+                    observations=copy.deepcopy(original["observations"])))
+        return receipt
+
+    def test_complete_independent_capture_and_actual_measured_parities(self):
+        OBSERVER.verify_shaping(self.receipt())
+
+    def test_original_renderer_and_fallback_identity_cannot_be_claimed(self):
+        for key in ("IndependentOfEdit", "EditRendererIdentityQualified", "EditFallbackIdentityQualified"):
+            value = self.receipt()
+            value[key] = not value[key]
+            with self.assertRaises(ValueError):
+                OBSERVER.verify_shaping(value)
+
+    def test_selected_font_is_not_inferred_from_requested_logfont(self):
+        for mutate in (lambda font: font.update(faceApi="LOGFONT"), lambda font: font.update(selectedFace=""),
+                       lambda font: font.update(sha256="a" * 64), lambda font: font.update(realizedEmHeight=0)):
+            value = self.receipt()
+            mutate(value["Cases"][0]["font"])
+            with self.assertRaises(ValueError):
+                OBSERVER.verify_shaping(value)
+
+    def test_both_affinities_and_complete_integer_hit_scan_are_required(self):
+        for field in ("edges", "hits", "logClusters", "advances"):
+            value = self.receipt()
+            value["Cases"][0]["runs"][0][field].pop()
+            with self.assertRaises(ValueError):
+                OBSERVER.verify_shaping(value)
+
+    def test_missing_glyph_failed_hresult_and_cleanup_are_not_success(self):
+        for mutation in (lambda value: value["Cases"][0]["runs"][0]["glyphs"].__setitem__(0, 65535),
+                         lambda value: value["Cases"][0]["runs"][0].update(shapeHResult=-1),
+                         lambda value: value["Cases"][0].update(fontRestored=False),
+                         lambda value: value["Cases"][0].update(freeCacheHResult=-1)):
+            value = self.receipt()
+            mutation(value)
+            with self.assertRaises(ValueError):
+                OBSERVER.verify_shaping(value)
+
+    def test_second_size_does_not_imply_odd_even_advance_coverage(self):
+        value = self.receipt()
+        for case in value["Cases"][4:]:
+            run = case["runs"][0]
+            target = run["targetCluster"]
+            run["advances"][target["firstGlyph"]] += 1
+            run["advanceWidth"] += 1
+            run["hits"].append(dict(x=run["advanceWidth"] + 1, hResult=0, cp=0, trailing=0))
+            target["advanceWidth"] += 1
+            target["parity"] = 1
+        with self.assertRaisesRegex(ValueError, "odd/even"):
+            OBSERVER.verify_shaping(value)
+
+    def test_additive_edit_pixels_still_use_original_strict_verifier(self):
+        value = self.receipt()
+        value["Cases"][0]["observations"][0]["pixels"]["Sha256"] = "a" * 64
+        with self.assertRaises(ValueError):
+            OBSERVER.verify_shaping(value)
+
+    def test_raw_coordinates_are_not_an_asserted_fraction_or_snap_model(self):
+        value = self.receipt()
+        value["Cases"][0]["runs"][0]["edges"][1]["x"] = 7
+        OBSERVER.verify_shaping(value)
+
+
 class ReferencePhaseExecutionTests(unittest.TestCase):
     """Execute the actual inline phase runner around its classifier-loop binding."""
 

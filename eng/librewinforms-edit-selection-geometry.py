@@ -31,7 +31,7 @@ def utf16(text):
     return [int.from_bytes(data[index:index + 2], "little") for index in range(0, len(data), 2)]
 
 
-def verify(path, binary, process_id):
+def verify(path, binary, process_id, require_shaping=False):
     if not path.is_file() or not 1 <= path.stat().st_size <= 128 * 1024 * 1024:
         raise ValueError("Missing/oversized geometry receipt")
     receipt = json.loads(path.read_text(encoding="utf-8"))
@@ -61,8 +61,18 @@ def verify(path, binary, process_id):
     for case in receipt["cases"]:
         verify_classification(case)
     verify_geometry(receipt)
-    return {"receiptSha256": sha(path), "cases": len(receipt["cases"]),
-            "geometryComplete": receipt["geometryComplete"], "qualified": False}
+    result = {"receiptSha256": sha(path), "cases": len(receipt["cases"]),
+              "geometryComplete": receipt["geometryComplete"], "qualified": False}
+    if require_shaping:
+        sidecar = Path(str(path) + ".shaping.json")
+        if not sidecar.is_file() or not 1 <= sidecar.stat().st_size <= 128 * 1024 * 1024:
+            raise ValueError("Missing/oversized shaping diagnostic sidecar")
+        diagnostics = json.loads(sidecar.read_text(encoding="utf-8"))
+        if diagnostics.get("Identity") != identity:
+            raise ValueError("Independent shaping process identity changed")
+        verify_shaping(diagnostics)
+        result["shapingDiagnostics"] = {"receiptSha256": sha(sidecar), "cases": 8, "qualified": False}
+    return result
 
 
 def verify_classification(case):
@@ -112,16 +122,16 @@ def verify_classification(case):
         raise ValueError("Missing original script terminal boundary")
 
 
-def verify_geometry(receipt):
+def verify_geometry(receipt, inputs=GEOMETRY_INPUTS, font_pixels=20):
     """Validate original evidence structure/bytes; never manufacture geometry."""
     cases = receipt["cases"]
-    if ([case["Name"] for case in cases] != list(GEOMETRY_INPUTS)
+    if ([case["Name"] for case in cases] != list(inputs)
             or receipt.get("ownedWindowOnly") is not True
             or receipt.get("fallbackFontIdentityQualified") is not False):
         raise ValueError("Owned geometry case/identity inventory changed")
     total, unavailable = 0, 0
     for case in cases:
-        source, seams = GEOMETRY_INPUTS[case["Name"]]
+        source, seams = inputs[case["Name"]]
         length = len(utf16(source))
         if (case["requestedText"] != source or case["requestedUtf16"] != utf16(source)
                 or case["requestedSeams"] != seams or case["RightToLeft"] is not case["Name"].endswith("-rtl")):
@@ -146,9 +156,9 @@ def verify_geometry(receipt):
         if len(font_bytes) != font["byteCount"] or hashlib.sha256(font_bytes).hexdigest() != font["sha256"]:
             raise ValueError("Original borrowed base-font bytes changed")
         if "lam-alef" in case["Name"]:
-            if (metadata.get("requestedFont") != {"family": "Arial", "size": 20, "unit": "Pixel", "style": "Regular"}
+            if (metadata.get("requestedFont") != {"family": "Arial", "size": font_pixels, "unit": "Pixel", "style": "Regular"}
                     or descriptor["FaceName"].lower() != "arial"
-                    or font.get("managed") != {"Name": "Arial", "Size": 20, "unit": "Pixel", "style": "Regular"}):
+                    or font.get("managed") != {"Name": "Arial", "Size": font_pixels, "unit": "Pixel", "style": "Regular"}):
                 raise ValueError("Requested Arial identity was substituted")
         elif metadata.get("requestedFont") is not None:
             raise ValueError("Original system-font request changed")
@@ -267,6 +277,140 @@ def verify_geometry(receipt):
     if (receipt["caretSamples"] != total or receipt["unavailableCaretSamples"] != unavailable
             or receipt["geometryComplete"] is not (unavailable == 0)):
         raise ValueError("Caret availability/geometry completeness changed")
+
+
+def verify_shaping(receipt):
+    """Validate raw independent outputs, never fit an EDIT caret/rounding model."""
+    if (receipt.get("Schema") != "native-edit-shaping-diagnostics-v1"
+            or receipt.get("Completed") is not True or receipt.get("Errors") != []
+            or receipt.get("IndependentOfEdit") is not True or receipt.get("HostShown") is not True
+            or receipt.get("OwnedWindowOnly") is not True
+            or any(receipt.get(key) is not False for key in ("EditRendererIdentityQualified",
+                "EditFallbackIdentityQualified", "DesktopQualified", "PhysicalInputQualified"))
+            or receipt.get("FontPolicy") != "selected-HFONT-only; no fallback attempted"
+            or receipt.get("RequestedPixelSizes") != [20, 21]
+            or not 0 <= receipt["ElapsedMilliseconds"] <= 30000):
+        raise ValueError("Incomplete or incorrectly qualified independent shaping receipt")
+    inputs = {name: value for name, value in GEOMETRY_INPUTS.items() if "lam-alef" in name}
+    cases = receipt["Cases"]
+    if [(case["requestedPixelSize"], case["name"]) for case in cases] != [(size, name) for size in (20, 21) for name in inputs]:
+        raise ValueError("Independent size/direction/source controls changed")
+    fonts = receipt["FontBytesBySha256"]
+    for key, value in fonts.items():
+        raw = base64.b64decode(value, validate=True)
+        if not hash_text(key) or not 1 <= len(raw) <= 32 * 1024 * 1024 or hashlib.sha256(raw).hexdigest() != key:
+            raise ValueError("Selected diagnostic font bytes changed")
+    used_fonts, parities = set(), {name: set() for name in inputs}
+    normalized = {20: [], 21: []}
+    for case in cases:
+        name, size = case["name"], case["requestedPixelSize"]
+        source, seams = inputs[name]
+        units = utf16(source)
+        if (case.get("completed") is not True or case.get("error") is not None
+                or case.get("primaryCase") != name or case.get("samePrimaryWindow") is not False
+                or case["requestedText"] != source or case["requestedUtf16"] != units
+                or case["rightToLeft"] is not name.endswith("-rtl") or case["requestedSeams"] != seams
+                or case.get("fontRestored") is not True or case.get("dcReleased") is not True
+                or case["ownedCaretSamples"] != 22
+                or any(case.get(key) != 0 for key in ("fontPropertiesHResult", "itemizeHResult",
+                    "scriptPropertiesHResult", "layoutHResult", "freeCacheHResult"))
+                or case.get("control") != 0 or case.get("initialState") != int(case["rightToLeft"])):
+            raise ValueError("Diagnostic ownership, input or native call status is incomplete")
+        font = case["font"]
+        used_fonts.add(font["sha256"])
+        if (font["sha256"] not in fonts or font.get("faceApi") != "GetTextFaceW"
+                or not isinstance(font.get("selectedFace"), str) or not 1 <= len(font["selectedFace"]) < 256
+                or font.get("source") != "WM_GETFONT selected into GetDC(EDIT); GetFontData on that same HDC"
+                or font.get("mapMode") != 1
+                or font["realizedEmHeight"] != font["metrics"]["Height"] - font["metrics"]["InternalLeading"]
+                or font["realizedEmHeight"] <= 0):
+            raise ValueError("Actual selected font/DC identity is missing")
+        props = case["fontProperties"]
+        if (props.get("ByteSize") != 16 or any(type(props.get(key)) is not int or not 0 <= props[key] <= 65535
+                for key in ("Blank", "Default", "Invalid", "Kashida"))):
+            raise ValueError("Selected-font missing-glyph evidence is missing")
+        end, targets = 0, []
+        runs = case["runs"]
+        for run in runs:
+            start, stop = run["start"], run["end"]
+            length = stop - start
+            if (start != end or not start < stop <= len(units) or run["sourceUtf16"] != units[start:stop]
+                    or any(run.get(key) != 0 for key in ("shapeHResult", "placeHResult", "logicalWidthsHResult"))):
+                raise ValueError("Original independent shaping partition/status changed")
+            end = stop
+            for key in ("inputAnalysis", "shapeAnalysis", "placeAnalysis"):
+                analysis = run[key]
+                if any(type(analysis.get(field)) is not int or not 0 <= analysis[field] <= 65535 for field in ("Flags", "State")):
+                    raise ValueError("Raw SCRIPT_ANALYSIS changed")
+            if run["shapeAnalysis"]["Flags"] & 0x8000:
+                raise ValueError("Glyph-index output was unavailable")
+            if any(type(run.get(key)) is not int or not 0 <= run[key] <= 0xFFFFFFFF
+                   for key in ("rawPropertiesFirst", "rawPropertiesSecond")):
+                raise ValueError("Original script properties missing")
+            glyphs, clusters, attributes = run["glyphs"], run["logClusters"], run["visualAttributes"]
+            count = len(glyphs)
+            if (not 1 <= count <= (length * 3 + 1) // 2 + 16 or len(clusters) != length or len(attributes) != count
+                    or any(type(value) is not int or not 0 <= value <= 65535 for value in glyphs + attributes)
+                    or any(type(value) is not int or not 0 <= value < count for value in clusters)
+                    or props["Default"] in glyphs or run["missingGlyphIndices"] != []):
+                raise ValueError("Selected-font glyph/cluster/fallback evidence is incomplete")
+            advances, width = run["advances"], run["advanceWidth"]
+            if (len(advances) != count or any(type(value) is not int or value < 0 for value in advances)
+                    or width != sum(advances) or not 1 <= width <= 512
+                    or len(run["offsets"]) != count
+                    or any(type(offset.get(key)) is not int for offset in run["offsets"] for key in ("Du", "Dv"))
+                    or any(type(run["abc"].get(key)) is not int for key in ("A", "B", "C"))
+                    or len(run["logicalWidths"]) != length or any(type(value) is not int for value in run["logicalWidths"])):
+                raise ValueError("Native measured advance/offset/width inventory changed")
+            edges = run["edges"]
+            if [(edge["cp"], edge["trailing"]) for edge in edges] != [(cp, trailing) for cp in range(length) for trailing in (False, True)]:
+                raise ValueError("Both native character-edge affinities are required")
+            for edge in edges:
+                if (type(edge["trailing"]) is not bool or edge["hResult"] != 0 or type(edge["x"]) is not int
+                        or edge["sourceBoundary"] != start + edge["cp"] + int(edge["trailing"])):
+                    raise ValueError("Native character edge/source identity changed")
+            hits = run["hits"]
+            if [hit["x"] for hit in hits] != list(range(-1, width + 2)):
+                raise ValueError("Complete integer native run hit scan is required")
+            if any(hit["hResult"] != 0 or type(hit["cp"]) is not int or not -1 <= hit["cp"] <= length
+                   or type(hit["trailing"]) is not int or not 0 <= hit["trailing"] <= length for hit in hits):
+                raise ValueError("Raw native hit/trailing-distance identity changed")
+            if "targetCluster" in run:
+                target = run["targetCluster"]
+                a, _, c = seams
+                first, last = target["firstGlyph"], target["glyphEnd"]
+                if (not start <= a < c <= stop or not 0 <= first < last <= count
+                        or target["sourceStart"] != a or target["sourceEnd"] != c
+                        or [start + i for i, glyph in enumerate(clusters) if glyph == first] != list(range(a, c))
+                        or last != min([glyph for glyph in clusters if glyph > first] + [count])
+                        or target["advanceWidth"] != sum(advances[first:last]) or target["advanceWidth"] <= 0
+                        or target["parity"] != target["advanceWidth"] % 2):
+                    raise ValueError("Actual target-cluster ownership/advance parity changed")
+                targets.append(target)
+        if end != len(units) or len(targets) != 1:
+            raise ValueError("Missing complete source coverage or actual lam-alef shared cluster")
+        parities[name].add(targets[0]["parity"])
+        levels, visual, logical = case["levels"], case["visualToLogical"], case["logicalToVisual"]
+        if (levels != [run["inputAnalysis"]["State"] & 31 for run in runs]
+                or sorted(visual) != list(range(len(runs))) or sorted(logical) != list(range(len(runs)))
+                or any(logical[index] != position for position, index in enumerate(visual))):
+            raise ValueError("Native ScriptLayout maps changed")
+        # Reuse every original ownership/pixel/hit/selection assertion for the
+        # additive EDIT cases. This only adapts field names, never observations.
+        normalized[size].append({"Name": name, "requestedText": source, "requestedUtf16": units,
+            "requestedSeams": seams, "RightToLeft": case["rightToLeft"], "observations": case["observations"],
+            "metadata": {"handle": case["handle"], "nativeClass": case["nativeClass"], "deviceDpi": case["deviceDpi"],
+                "clientSize": case["clientSize"], "fallbackFontIdentityQualified": False,
+                "ownedCaretSamples": case["ownedCaretSamples"], "systemColors": case["systemColors"],
+                "requestedFont": {"family": "Arial", "size": size, "unit": "Pixel", "style": "Regular"},
+                "baseFont": {"handle": font["borrowedHandle"], "borrowed": True, "fallbackIdentityQualified": False,
+                    "descriptor": font["descriptor"], "byteCount": font["byteCount"], "sha256": font["sha256"],
+                    "bytes": fonts[font["sha256"]], "DeviceDpi": case["deviceDpi"], "managed": font["managed"]}}})
+    if used_fonts != set(fonts) or any(values != {0, 1} for values in parities.values()):
+        raise ValueError("Missing observed odd/even advances or extraneous font payloads")
+    for size, observed in normalized.items():
+        verify_geometry({"cases": observed, "ownedWindowOnly": True, "fallbackFontIdentityQualified": False,
+                         "caretSamples": 88, "unavailableCaretSamples": 0, "geometryComplete": True}, inputs, size)
 
 
 def hash_text(value):

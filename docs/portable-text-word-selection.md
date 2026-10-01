@@ -388,6 +388,58 @@ both pixel buffers. Ten offline corruption controls and a zero-warning/error
 cross-build of the original Microsoft Windows probe pass locally. The new
 Windows observations have not yet run and do not qualify an interior-caret rule.
 
+### Independent same-HFONT shaping diagnostics
+
+The later successful original Windows receipt from source `ae28c9abdbe4`,
+SHA-256 `425b20972ca449472d8d7f0652b82d3d79bbd6cd4267aa862726e981437f73b4`,
+retains all nine cases. Bare Arial 20px lam-alef reports caret X values
+13, 7 and 2; mixed LTR source positions 6, 7 and 8 report 55, 60 and 55.
+Those observations do not establish interpolation, integer rounding or a
+portable affinity policy. The captured Arial font SHA-256
+`5f9f2d8104ad5e69e1be8107224063dc8c36f9e24680b2f9be324244c0b424a1`
+has an empty GDEF LigCaretList; a font caret-table reader alone cannot close
+this case. The ordinary source EDIT geometry gate remains off.
+
+`--selection-geometry --shaping-diagnostics` adds a separate CreateNew
+`selection-geometry.json.shaping.json` sidecar. The original nine-case receipt
+is completely flushed first and retains its unchanged inputs and observations.
+The sidecar observes eight additional owned EDITs: the four lam-alef inputs at
+20 and 21 pixels, each retaining eleven directed selections, owned carets, full
+source/hit scans and independent-clear print buffers through the same helpers.
+Both receipts share the original 30-second observer budget; the process/job
+deadlines and per-receipt 128-MiB limit are unchanged. A sidecar failure fails
+the explicitly requested CI capture without erasing the primary receipt.
+
+Each additional EDIT's actual borrowed `WM_GETFONT` is selected into its own
+scoped window DC for `ScriptItemize`, `ScriptShape`, `ScriptPlace`,
+`ScriptGetLogicalWidths`, `ScriptCPtoX`, `ScriptXtoCP` and `ScriptLayout`.
+The observer captures raw analyses/script properties, glyphs, logical clusters,
+visual attributes, advances, offsets, both leading/trailing edges for every
+character, and integer run hits including both outside controls. Native
+`ScriptXtoCP` trailing distances stay integers, not booleans. Run coordinates
+remain run-local; no inferred EDIT alignment or bidi affinity is applied.
+The size controls must actually observe both odd and even target-cluster
+advances in each input, and actual shared lam-alef cluster ownership; requested
+font sizes alone do not satisfy those checks.
+
+`GetTextFaceW`, actual selected `GetFontData` bytes/hash, `GetTextMetricsW` and
+`ScriptGetFontProperties` identify the selected diagnostic face and missing-glyph
+evidence. Font payloads are deduplicated by hash plus exact byte comparison.
+There is no diagnostic font fallback: unsupported-script errors or returned
+default glyphs retain their failure instead of selecting another font. This
+proves only which font the independent call used, not which fallback fonts or
+shaping flags EDIT used internally. Requested LOGFONT and managed family names
+are not substituted for the selected-face query. The new HWND/HFONT is not
+claimed to be the earlier primary case's handle or internal shaping cache.
+
+The contract follows Microsoft's [ScriptShape](https://learn.microsoft.com/en-us/windows/win32/api/usp10/nf-usp10-scriptshape),
+[ScriptPlace](https://learn.microsoft.com/en-us/windows/win32/api/usp10/nf-usp10-scriptplace),
+[ScriptCPtoX](https://learn.microsoft.com/en-us/windows/win32/api/usp10/nf-usp10-scriptcptox)
+and [ScriptXtoCP](https://learn.microsoft.com/en-us/windows/win32/api/usp10/nf-usp10-scriptxtocp)
+interfaces. No engine implementation is copied and no product geometry changes.
+Hosted execution and comparison against the captured original EDIT controls
+remain required before drawing a portable geometry-policy conclusion.
+
 ## Password source selection
 
 An admitted password double press uses canonical `SelectAll` once, before the

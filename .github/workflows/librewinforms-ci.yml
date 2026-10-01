@@ -68,6 +68,7 @@ jobs:
                       'sources': {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
                                   for path in (project, project.parent / 'Program.cs', project.parent / 'WordSelectionReference.cs',
                                                project.parent / 'SelectionGeometryReference.cs',
+                                               project.parent / 'ShapingGeometryReference.cs',
                                                root / 'eng' / 'librewinforms-edit-selection-geometry.py')}}
           def run_phase(name, command, timeout):
               phase = {'name': name, 'command': command, 'timeoutSeconds': timeout}
@@ -215,11 +216,11 @@ jobs:
               manifest['receiptSha256'] = hashlib.sha256(receipt.read_bytes()).hexdigest()
               geometry_receipt = evidence / 'selection-geometry.json'
               run_phase('selection-geometry', ['dotnet', str(output / 'NativeTextBoxReference.dll'),
-                                         str(geometry_receipt), 'PerMonitorV2', 'true', '--selection-geometry'], 60)
+                                         str(geometry_receipt), 'PerMonitorV2', 'true', '--selection-geometry', '--shaping-diagnostics'], 60)
               spec = importlib.util.spec_from_file_location('edit_geometry', root / 'eng' / 'librewinforms-edit-selection-geometry.py')
               geometry = importlib.util.module_from_spec(spec)
               spec.loader.exec_module(geometry)
-              manifest['selectionGeometry'] = geometry.verify(geometry_receipt, output / 'NativeTextBoxReference.dll', phases[-1]['pid'])
+              manifest['selectionGeometry'] = geometry.verify(geometry_receipt, output / 'NativeTextBoxReference.dll', phases[-1]['pid'], require_shaping=True)
               manifest['completed'] = True
           finally:
               (evidence / 'execution.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
