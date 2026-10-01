@@ -39,6 +39,17 @@ public abstract partial class TextBoxBase
     private protected int PortableSelectionActiveEnd
         => Math.Clamp(_selectionStart + _selectionLength, 0, TextLength);
 
+    // A formatted mask can hide its trailing prompts without changing the
+    // saved source anchor. Geometry may only query this exact endpoint when
+    // the currently owned display actually contains it.
+    private protected int PortableSelectionSourceActiveEnd => _selectionStart + _selectionLength;
+
+    private protected void GetPortableSourceSelection(out int anchor, out int length)
+    {
+        anchor = _selectionStart;
+        length = _selectionLength;
+    }
+
     private protected void SelectPortableCaret(int position, bool extend)
     {
         int length = TextLength;

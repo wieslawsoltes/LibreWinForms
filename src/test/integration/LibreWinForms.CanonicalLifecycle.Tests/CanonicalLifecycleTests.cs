@@ -5899,7 +5899,7 @@ public partial class CanonicalLifecycleTests
         private readonly Dictionary<int, Action> _timerCallbacks = [];
         private int _timerGeneration;
 
-        internal HeadlessPlatform(bool autoCloseWindows = true)
+        internal HeadlessPlatform(bool autoCloseWindows = true, ILibreTextRendererService? textRenderer = null)
         {
             _autoCloseWindows = autoCloseWindows;
             _managedThreadId = Environment.CurrentManagedThreadId;
@@ -5916,8 +5916,8 @@ public partial class CanonicalLifecycleTests
                 UnsupportedLibreNativeGraphicsInteropService.Instance,
                 this,
                 this,
-                Environment.GetEnvironmentVariable("LIBREWINFORMS_TEST_RETAINED_TEXT") == "1"
-                    ? new RetainedTextRendererProbe() : this,
+                textRenderer ?? (Environment.GetEnvironmentVariable("LIBREWINFORMS_TEST_RETAINED_TEXT") == "1"
+                    ? new RetainedTextRendererProbe() : this),
                 this,
                 this,
                 this,
