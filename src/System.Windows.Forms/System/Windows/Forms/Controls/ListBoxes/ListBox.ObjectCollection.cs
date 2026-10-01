@@ -422,6 +422,11 @@ public partial class ListBox
 
             _owner.UpdateMaxItemWidth(InnerArray.GetItem(index), true);
             InnerArray.SetItem(index, value);
+#if LIBREWINFORMS_PORTABLE
+            // SetItem does not advance ItemArray.Version. Retire the original
+            // scroll frame before formatting/selection callbacks can pump input.
+            _owner.InvalidatePortableListScrollFrame();
+#endif
 
             // If the native control has been created, and the display text of the new list item object
             // is different to the current text in the native list item, recreate the native list item...
