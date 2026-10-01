@@ -42,10 +42,18 @@ This factory/option connection is authored against ProGPU
 `f22b5b3f3416e16421ab6b2952b2eef1864d781e` (owned panel option support).
 The checked-in dependency now pins that exact pending-qualification source;
 the exact complete producer/consumer Builds remain required before publishing
-this integration. The new managed factory/option tests and
-source-wiring guard are authored evidence, not executed native/UI evidence.
+this integration. The managed factory/option tests and source-wiring guard are
+contract evidence, not native/UI evidence.
 No native runtime was rebuilt or staged. Automatic modality, real AppKit popup
 input/presentation and complete package/application qualification remain separate.
+
+The isolated backend/test Release build against that exact pin passed with zero
+errors and two existing IDE0017 warnings in ProGpuDragDropLifetimeTests. The first
+build identified one new blank-line style error, corrected without suppressing
+the analyzer. A single 30-second/no-skips focused run passed 131 cases: the new
+factory/required-option contracts plus all existing NativePopupAdmission,
+NativeWindowRetirementQueue and NativePointerInput cases. No source-wide build,
+native-window creation, GPU run, VM, native rebuild or package staging was used.
 
 Hidden ownerless creation is staging only. Before display, a popup requires a
 live typed owner. Hidden owner changes call the pinned ProGPU

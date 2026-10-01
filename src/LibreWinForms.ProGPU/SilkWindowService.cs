@@ -720,6 +720,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
             _minimumSize = minimum;
             _maximumSize = maximum;
         }
+
         ApplySizeConstraints(minimum, maximum);
         _minimumSize = minimum;
         _maximumSize = maximum;
