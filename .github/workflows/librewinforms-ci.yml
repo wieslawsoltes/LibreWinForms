@@ -472,6 +472,9 @@ jobs:
     name: Package lane
     runs-on: ubuntu-24.04
     timeout-minutes: 180
+    permissions:
+      contents: read
+      actions: read
     env:
       LIBREWINFORMS_DEV_PACKAGE_VERSION: 0.1.0-preview.65
       LIBREWINFORMS_BRIDGE_PACKAGE_VERSION: 0.1.0-preview.65
@@ -523,6 +526,17 @@ jobs:
           git -C artifacts/checkouts/wpf-canonical/external/ProGPU fetch --depth=1 origin "${qualified_progpu_commit}"
           git -C artifacts/checkouts/wpf-canonical/external/ProGPU checkout --detach "${qualified_progpu_commit}"
           test "$(git -C artifacts/checkouts/wpf-canonical/external/ProGPU rev-parse HEAD)" = "$(git -C external/ProGPU rev-parse HEAD)"
+
+      - name: Stage exact successful ProGPU native runtimes for canonical packaging
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          qualified_progpu_commit="$(git -C external/ProGPU rev-parse HEAD)"
+          ./artifacts/checkouts/wpf-canonical/eng/progpu-stage-ci-native-runtimes.sh \
+            "${qualified_progpu_commit}" \
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-native/package"
 
       - name: Build canonical WindowsFormsIntegration from LibreWPF source
         shell: bash
