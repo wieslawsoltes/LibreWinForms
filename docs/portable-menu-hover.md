@@ -30,6 +30,19 @@ The test timer fixture retains all active registrations for these cases because
 canonical pointer delivery starts both menu-expansion and item-hover timers.
 Its existing single-last-timer helper remains unchanged for earlier tests.
 
+The native-menu-scroll source work exposed an ordering-sensitive fixture setup:
+after the persistent-popup case, the live-menu case showed its popup with the
+pointer already at the future item point. The original ShouldSelectItem policy
+correctly rejects movement at the identical show-time position. An initial failed
+eight-case batch and one controlled rerun were retained; isolated execution passed.
+A fixed predecessor sequence reproduced identical before/after screen coordinates
+`{X=147,Y=113}`. The live-menu fixture now sends actual owner-client pointer input
+before Show, then performs its original item hover. No static cursor reset, direct
+OnMouseMove call, assertion, product selection policy or timer/deadline change is
+used. All eight original controls and the new causal sequence (nine total) pass
+locally with no skips under a two-minute bound. This is source fixture evidence,
+not native desktop or application qualification.
+
 In an unchanged Windows ARM64/Parallels D3D12 desktop diagnostic, the private
 candidate copy opened the child menu and invoked its command through actual
 pointer input. The original 60-second scenario then failed at
