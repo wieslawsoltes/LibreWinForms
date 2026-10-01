@@ -127,6 +127,37 @@ not a passing reference or product gate. The updated verifier retains those
 original cases and checks both new cases, loaded module hashes, complete source
 partitions and raw/decoded classification fields.
 
+The expanded 20-case reference subsequently passed Windows job `109819392226`
+of Build `36694588514` at PR head `4a8ee20fc7798ab1fea30208652fdfa3b2727759`
+(integration checkout `95f27d5250bea5f732aec6fe9dfda1f8271d440c`). Its receipt
+SHA-256 is `fcb4c81e661ff7232bf580efcf79aaf36572a970c63a898ed7447cf70abf6503`:
+326 observed gestures, eight unavailable requests and 3,665 ms elapsed. Every
+observed script run has `needsWordBreaking == false`; the soft-break and word-stop
+flags still coincide. This successful reference does not qualify the failed
+whole Build, a portable classifier or desktop behavior.
+
+Four additional authored discriminants retain all 20 original cases and requests:
+the same Thai phrase twice, adjacent and space-separated, plus adjacent repeated
+Lao and Khmer phrases. Eight original UTF-16 requests per new case use the same
+native position/hit queries, drag/reversal sequence and unavailable-coordinate
+handling. No word endpoint, selectable combining position or dictionary result is
+chosen in advance. Their native runs must actually report `fNeedsWordBreaking`;
+the verifier ties the copied raw property bit to a run covering that case's script
+units, rather than accepting a hard-coded native script ID. Missing evidence
+fails the observation and retains its receipt, not an invented selection.
+
+The inventory is now 24 cases with unchanged 30-second observation, 60-second
+reference-process and ten-minute Windows-job bounds. Existing native module,
+CTYPE1, raw logical attribute, source-partition, callback and selection controls
+remain intact. The new cases have not been executed locally or qualified by a
+hosted receipt yet. They are prerequisites for defining a faithful portable EDIT
+classifier, not production capability admission. Microsoft's
+[SCRIPT_PROPERTIES contract](https://learn.microsoft.com/en-us/windows/win32/api/usp10/ns-usp10-script_properties)
+distinguishes languages requiring `fWordStop` information from whitespace-based
+placement; [ScriptBreak](https://learn.microsoft.com/en-us/windows/win32/api/usp10/nf-usp10-scriptbreak)
+requires whole native items rather than smaller formatting runs. These public
+contracts inform the discriminants without establishing EDIT's implementation.
+
 ## Owned boundary source seam
 
 `ILibreEditWordBoundaryService` explicitly declares that its owned layouts supply

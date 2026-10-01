@@ -94,7 +94,12 @@ jobs:
                           'crlf-multiline', 'surrogate-combining', 'bidi-ltr', 'bidi-rtl', 'password',
                           'read-only', 'wrapped-multiline', 'unicode-spaces', 'symbols',
                           'isolated-breaks-single', 'isolated-breaks-multiline', 'crcrlf-multiline',
-                          'wrapped-longword', 'supplementary-scripts', 'emoji-context']
+                          'wrapped-longword', 'supplementary-scripts', 'emoji-context',
+                          'thai-adjacent', 'thai-spaced', 'lao-adjacent', 'khmer-adjacent']
+              word_breaking_discriminants = {'thai-adjacent': (0x0e00, 0x0e7f),
+                                            'thai-spaced': (0x0e00, 0x0e7f),
+                                            'lao-adjacent': (0x0e80, 0x0eff),
+                                            'khmer-adjacent': (0x1780, 0x17ff)}
               if (result.get('schema') != 'native-edit-word-selection-v1' or result.get('completed') is not True
                   or result.get('desktopQualified') is not False or result.get('physicalInputQualified') is not False
                   or result.get('error') is not None or result.get('expectedCases') != len(expected)
@@ -167,6 +172,18 @@ jobs:
                       next_start = run['end']
                   if next_start != len(utf16):
                       raise RuntimeError('Truncated native script partition: ' + case['Name'])
+                  required = case['Name'] in word_breaking_discriminants
+                  if case.get('RequireWordBreaking') is not required:
+                      raise RuntimeError('Mismatched word-breaking discriminant policy: ' + case['Name'])
+                  if required:
+                      low, high = word_breaking_discriminants[case['Name']]
+                      if (utf16 != case['requestedUtf16'] or analysis['actualText'] != case['requestedText']
+                          or not any(low <= value <= high for value in utf16)
+                          or any(value != 0x20 and not low <= value <= high for value in utf16)
+                          or not any(run['needsWordBreaking'] and
+                                     any(low <= value <= high for value in utf16[run['start']:run['end']])
+                                     for run in runs)):
+                          raise RuntimeError('Missing actual script-family word-breaking evidence: ' + case['Name'])
                   for index, attribute in enumerate(classification['ctype1']):
                       value = attribute['raw']
                       if (attribute['index'] != index or attribute['utf16'] != utf16[index]

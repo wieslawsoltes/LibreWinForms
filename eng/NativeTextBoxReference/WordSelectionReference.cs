@@ -19,7 +19,8 @@ internal static class WordSelectionReference
     private const int MaximumCallbacks = 128;
 
     private sealed record Case(string Name, string Text, int[] Indices,
-        bool Multiline = false, bool Password = false, bool ReadOnly = false, bool RightToLeft = false, bool Wrap = false);
+        bool Multiline = false, bool Password = false, bool ReadOnly = false, bool RightToLeft = false, bool Wrap = false,
+        bool RequireWordBreaking = false);
 
     private static readonly Case[] Cases =
     [
@@ -42,7 +43,18 @@ internal static class WordSelectionReference
         new("crcrlf-multiline", "ab\r\r\ncd ", [1, 2, 3, 4, 5, 6], Multiline: true),
         new("wrapped-longword", "abcdefghijklmnopqrstuvwxyz0123456789 ", [0, 4, 8, 12, 16, 20, 24, 28, 32, 35], Multiline: true, Wrap: true),
         new("supplementary-scripts", "a\U00010400b\U0001D11Ec\U00020000d ", [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
-        new("emoji-context", "a\u2603\uFE0Fb\U0001F469\u200D\U0001F4BBc ", [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+        new("emoji-context", "a\u2603\uFE0Fb\U0001F469\u200D\U0001F4BBc ", [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
+        // Authored complete UTF-16 inputs, not guessed native word endpoints.
+        // Observe the same Thai phrase with and without an explicit space;
+        // Lao and Khmer include their own combining/cluster contexts.
+        new("thai-adjacent", "\u0E20\u0E32\u0E29\u0E32\u0E44\u0E17\u0E22\u0E20\u0E32\u0E29\u0E32\u0E44\u0E17\u0E22 ",
+            [0, 2, 4, 6, 7, 9, 11, 13], RequireWordBreaking: true),
+        new("thai-spaced", "\u0E20\u0E32\u0E29\u0E32\u0E44\u0E17\u0E22 \u0E20\u0E32\u0E29\u0E32\u0E44\u0E17\u0E22 ",
+            [0, 2, 4, 6, 7, 8, 12, 14], RequireWordBreaking: true),
+        new("lao-adjacent", "\u0EAA\u0EB0\u0E9A\u0EB2\u0E8D\u0E94\u0EB5\u0EAA\u0EB0\u0E9A\u0EB2\u0E8D\u0E94\u0EB5 ",
+            [0, 2, 4, 6, 7, 9, 11, 13], RequireWordBreaking: true),
+        new("khmer-adjacent", "\u1797\u17B6\u179F\u17B6\u1781\u17D2\u1798\u17C2\u179A\u1797\u17B6\u179F\u17B6\u1781\u17D2\u1798\u17C2\u179A ",
+            [0, 2, 4, 6, 8, 9, 13, 17], RequireWordBreaking: true)
     ];
 
     internal static int Run(string path, string dpiMode, string themeFlag)
@@ -94,7 +106,8 @@ internal static class WordSelectionReference
                 int completedGestures = 0;
                 // Publish the case before work so failures retain completed gestures.
                 results.Add(new { item.Name, requestedText = item.Text, requestedUtf16 = Utf16(item.Text),
-                    item.Multiline, item.Password, item.ReadOnly, item.RightToLeft, item.Wrap, item.Indices, scriptBreak, gestures });
+                    item.Multiline, item.Password, item.ReadOnly, item.RightToLeft, item.Wrap, item.RequireWordBreaking,
+                    item.Indices, scriptBreak, gestures });
                 foreach (int index in item.Indices)
                 foreach (int quarter in new[] { 1, 3 })
                 {
@@ -118,7 +131,7 @@ internal static class WordSelectionReference
                     string initialText = editor.Text;
                     if (scriptBreak.Count == 0)
                     {
-                        ObserveScriptBreak(initialText, item.RightToLeft, scriptBreak);
+                        ObserveScriptBreak(initialText, item.RightToLeft, item.RequireWordBreaking, scriptBreak);
                         if (nativeTextModules.Count == 0) ObserveNativeTextModules(nativeTextModules);
                     }
                     else if (!Equals(scriptBreak["actualText"], initialText))
@@ -256,7 +269,8 @@ internal static class WordSelectionReference
         if (!foundUniscribe) throw new InvalidOperationException("The loaded Uniscribe module was not observed.");
     }
 
-    private static void ObserveScriptBreak(string text, bool rightToLeft, Dictionary<string, object?> result)
+    private static void ObserveScriptBreak(string text, bool rightToLeft, bool requireWordBreaking,
+        Dictionary<string, object?> result)
     {
         // Independent Uniscribe evidence, NOT a claim that EDIT uses these flags.
         // https://learn.microsoft.com/windows/win32/api/usp10/nf-usp10-scriptstringanalyse
@@ -283,7 +297,7 @@ internal static class WordSelectionReference
             if (text.Length == 0) throw new InvalidOperationException("Break analysis requires nonempty UTF-16 input.");
             var classification = new Dictionary<string, object?>();
             result["classification"] = classification;
-            ObserveScriptClassification(text, rightToLeft, classification);
+            bool hasWordBreakingRun = ObserveScriptClassification(text, rightToLeft, classification);
             int analyseResult = ScriptStringAnalyse(0, text, text.Length, glyphCapacity, -1, flags, 0,
                 0, 0, 0, 0, 0, out analysis);
             result["analyseHResult"] = analyseResult;
@@ -306,6 +320,10 @@ internal static class WordSelectionReference
                 charStop = (value & 4) != 0, wordStop = (value & 8) != 0,
                 invalid = (value & 16) != 0, reserved = value >> 5
             }).ToArray();
+            // Require the actually loaded engine's copied property, not a
+            // script-ID guess. Keep all observed raw attributes on rejection.
+            if (requireWordBreaking && !hasWordBreakingRun)
+                throw new InvalidOperationException("The discriminant did not observe an actual fNeedsWordBreaking run.");
         }
         catch (Exception error)
         {
@@ -342,7 +360,7 @@ internal static class WordSelectionReference
         result["completed"] = true;
     }
 
-    private static void ObserveScriptClassification(string text, bool rightToLeft, Dictionary<string, object?> result)
+    private static bool ObserveScriptClassification(string text, bool rightToLeft, Dictionary<string, object?> result)
     {
         // Independent diagnostic only: eScript identifies a version-dependent
         // native engine, not a portable Unicode script number or EDIT policy.
@@ -378,6 +396,7 @@ internal static class WordSelectionReference
             throw new InvalidOperationException($"ScriptGetProperties failed: 0x{unchecked((uint)propertiesResult):X8}.");
         var runs = new List<object>();
         result["runs"] = runs;
+        bool hasWordBreakingRun = false;
         for (int i = 0; i < count; i++)
         {
             ScriptItem item = items[i];
@@ -391,6 +410,7 @@ internal static class WordSelectionReference
             // bitfields immediately; never free or retain the table pointers.
             uint first = unchecked((uint)Marshal.ReadInt32(properties));
             uint second = unchecked((uint)Marshal.ReadInt32(properties, 4));
+            hasWordBreakingRun |= (first & (1U << 18)) != 0;
             runs.Add(new
             {
                 start = item.Start, end, script, rawAnalysis = item.Analysis, rawState = item.State,
@@ -421,6 +441,7 @@ internal static class WordSelectionReference
             alphabetic = (value & 256) != 0
         }).ToArray();
         result["completed"] = true;
+        return hasWordBreakingRun;
     }
 
     [StructLayout(LayoutKind.Sequential)]
