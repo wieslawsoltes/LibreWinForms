@@ -1982,6 +1982,9 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
     LibrePoint INativePointerTarget.MapPoint(double x, double y)
         => LibreWindowCoordinates.ToManagedPoint(x, y, _coordinateMode, DpiScale, FramebufferScale);
 
+    double INativePointerTarget.NativePointScale
+        => LibreWindowCoordinates.GetPointScale(_coordinateMode, DpiScale, FramebufferScale);
+
     void INativePointerTarget.FlushCharacters() => _characters?.Flush();
 
     ProGpuDragCancellation? INativePointerTarget.PrepareCancellation()

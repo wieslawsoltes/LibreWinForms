@@ -129,6 +129,7 @@ public sealed class ProGpuPointerDragCancellationTests
     [Theory]
     [InlineData(LibreInputEventKind.PointerLeave)]
     [InlineData(LibreInputEventKind.PointerCancel)]
+    [InlineData(LibreInputEventKind.PointerScroll)]
     public void RetirementPacketsAreNeverDragSamples(LibreInputEventKind kind)
     {
         using Fixture f = new();

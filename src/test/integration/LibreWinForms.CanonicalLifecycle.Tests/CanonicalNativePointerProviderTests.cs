@@ -101,6 +101,7 @@ public partial class CanonicalLifecycleTests
                 && ReferenceEquals(Control.FromHandle(_handle), _source);
         public LibrePoint MapPoint(double x, double y)
             => LibreWindowCoordinates.ToManagedPoint(x, y, LibreWindowCoordinateMode.DevicePixels, 1, 1);
+        public double NativePointScale => 1;
         public void FlushCharacters() => Flushing?.Invoke();
         public ProGpuDragCancellation? PrepareCancellation() => null;
         public void Input(in LibreInputEvent input)

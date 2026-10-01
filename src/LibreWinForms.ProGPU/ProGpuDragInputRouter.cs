@@ -108,8 +108,9 @@ internal sealed class ProGpuDragInputRouter(ILibreHandleRegistry handles) : IPro
 
     internal bool Record(IProGpuDragInputWindow window, in LibreInputEvent inputEvent)
     {
-        // Retirement is never a sample, including direct internal callers.
-        if (inputEvent.Kind is LibreInputEventKind.PointerLeave or LibreInputEventKind.PointerCancel)
+        // Retirement and native scrolling are not drag samples, including
+        // direct internal callers. Scrolling keeps its own source consumer.
+        if (inputEvent.Kind is LibreInputEventKind.PointerLeave or LibreInputEventKind.PointerCancel or LibreInputEventKind.PointerScroll)
             return false;
 
         ProGpuDragInput input;
