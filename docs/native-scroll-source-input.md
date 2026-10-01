@@ -18,6 +18,9 @@ popup menu consumer is documented in [native menu scrolling](native-menu-scroll.
 The canonical ListBox and actual ComboBox popup list use the separate
 [row-aligned list contract](native-list-scroll.md), with row-count Lines and
 source-pixel Points retained until a complete source row is accumulated.
+Standalone childless ScrollBar controls have a separate [Lines-only source
+contract](native-scrollbar-lines.md), retaining whole SmallChange operations and
+source Scroll events without a Value-to-point conversion.
 
 `ScrollableControl` with AutoScroll has an existing pixel-valued display rectangle
 and per-axis source `SmallChange`. Native Lines multiply by that actual axis's
@@ -133,7 +136,7 @@ This bounded integration receipt is not a full build, package or native UI gate.
 
 ## Remaining admission
 
-Standalone ScrollBar, non-menu ToolStripDropDown, editor/grid native-scroll policies
+ScrollBar Points/child-host contracts, non-menu ToolStripDropDown, editor/grid native-scroll policies
 and unsupported list modes
 remain explicit where their source units do not match AutoScroll's pixel contract.
 Owned factory selection, automatic modality, application rendering and complete

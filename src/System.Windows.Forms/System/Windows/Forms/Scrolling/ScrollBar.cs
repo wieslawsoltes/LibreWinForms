@@ -214,6 +214,9 @@ public abstract partial class ScrollBar : Control
             {
                 ArgumentOutOfRangeException.ThrowIfNegative(value);
 
+#if LIBREWINFORMS_PORTABLE
+                InvalidatePortableScrollBarFrame();
+#endif
                 _largeChange = value;
                 UpdateScrollInfo();
             }
@@ -234,6 +237,9 @@ public abstract partial class ScrollBar : Control
         {
             if (_maximum != value)
             {
+#if LIBREWINFORMS_PORTABLE
+                InvalidatePortableScrollBarFrame();
+#endif
                 if (_minimum > value)
                 {
                     _minimum = value;
@@ -264,6 +270,9 @@ public abstract partial class ScrollBar : Control
         {
             if (_minimum != value)
             {
+#if LIBREWINFORMS_PORTABLE
+                InvalidatePortableScrollBarFrame();
+#endif
                 if (_maximum < value)
                 {
                     _maximum = value;
@@ -302,6 +311,9 @@ public abstract partial class ScrollBar : Control
             {
                 ArgumentOutOfRangeException.ThrowIfNegative(value);
 
+#if LIBREWINFORMS_PORTABLE
+                InvalidatePortableScrollBarFrame();
+#endif
                 _smallChange = value;
                 UpdateScrollInfo();
             }
@@ -357,6 +369,12 @@ public abstract partial class ScrollBar : Control
                 }
 
                 int oldValue = _value;
+#if LIBREWINFORMS_PORTABLE
+                // A native setter token is consumed before any callback. A
+                // nested ordinary Value assignment cannot inherit that token.
+                _portableScrollBarIdentity = _portableScrollBarPendingValueIdentity;
+                _portableScrollBarPendingValueIdentity = null;
+#endif
                 _value = value;
                 UpdateScrollInfo();
                 OnValueChanged(EventArgs.Empty);
@@ -493,6 +511,9 @@ public abstract partial class ScrollBar : Control
 
     protected override void OnEnabledChanged(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        InvalidatePortableScrollBarFrame();
+#endif
         if (Enabled)
         {
             UpdateScrollInfo();
