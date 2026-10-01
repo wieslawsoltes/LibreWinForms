@@ -11,6 +11,33 @@ public partial class Control
     private PortableNativeScrollCarry? _portableNativeScrollCarry;
     private PortableNativeScrollGesture? _portableNativeScrollGesture;
 
+    private void PreflightPortableScrollBarLines(in LibreInputEvent input)
+    {
+        LibreNativeScrollMetadata scroll = input.NativeScroll!.Value;
+        bool momentum = scroll.MomentumPhase != 0;
+        uint phase = momentum ? scroll.MomentumPhase : scroll.Phase;
+        if (phase == 16)
+            return; // Cancellation executes no line operations, regardless of its vector.
+        Control? target;
+        if (momentum && phase != 1)
+        {
+            PortableNativeScrollGesture? gesture = _portableNativeScrollGesture;
+            if (gesture is not { Momentum: true, Ended: false } || !gesture.Matches(this, scroll))
+                return; // Stale tails must not acquire a new target even for preflight.
+            Control? pinned = gesture.GetTarget(this);
+            target = pinned is null ? null : gesture.GetConsumer(this, pinned);
+        }
+        else
+        {
+            target = PortableHitTest(new(input.Position.X, input.Position.Y));
+        }
+        // Only an actual standalone bar is admitted by this consumer. Its
+        // preflight reads source fields; it does not capture a frame, create a
+        // handle, change hover/input state or publish a gesture/fraction.
+        if (target is ScrollBar bar)
+            bar.ValidatePortableScrollBarLines(scroll);
+    }
+
     private static void ValidatePortableNativeScroll(in LibreInputEvent input)
     {
         if (input.NativeScroll is not { } scroll

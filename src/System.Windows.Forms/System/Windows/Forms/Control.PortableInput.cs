@@ -56,7 +56,10 @@ public unsafe partial class Control
     {
         Control root = GetPortableTopLevelControl();
         if (inputEvent.Kind == LibreInputEventKind.PointerScroll)
+        {
             ValidatePortableNativeScroll(inputEvent);
+            root.PreflightPortableScrollBarLines(inputEvent);
+        }
         if (inputEvent.Kind == LibreInputEventKind.PointerLeave)
         {
             // Pointer exit is not gesture cancellation: AppKit continues to
