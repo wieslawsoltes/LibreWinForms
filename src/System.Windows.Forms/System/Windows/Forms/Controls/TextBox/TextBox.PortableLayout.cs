@@ -139,7 +139,13 @@ public partial class TextBox
         bool hadLayout = _portableTextLayout is not null;
         ILibreTextLayout? layout = GetPortableTextLayout(e.Graphics, text, flags);
         if (layout is null) return false;
-        LibreTextCaret caret = layout.GetCaret(placeholder ? 0 : PortableSelectionActiveEnd, _portableCaretTrailing);
+        // No caret is drawn for a placeholder or an unfocused editor. Do not
+        // make those frames depend on a modern caret stop for an exact EDIT
+        // selection endpoint inside a shaped cluster.
+        // A focused blinking caret retains its bounds even in the hidden
+        // phase, so the next tick can invalidate that same real rectangle.
+        bool needsCaret = !placeholder && Focused;
+        LibreTextCaret caret = needsCaret ? GetPortableLayoutCaret(layout) : default;
         float caretWidth = Math.Max(1, SystemInformation.CaretWidth);
         if (_portableEnsureCaretVisible && Focused && !placeholder)
         {
@@ -176,8 +182,9 @@ public partial class TextBox
             finally { e.Graphics.Restore(state); }
         }
 
-        _portableCaretBounds = new RectangleF(caret.Position.X + origin.X, caret.Position.Y + origin.Y,
-            caretWidth, caret.Height);
+        _portableCaretBounds = needsCaret
+            ? new RectangleF(caret.Position.X + origin.X, caret.Position.Y + origin.Y, caretWidth, caret.Height)
+            : RectangleF.Empty;
         if (Focused && Enabled && !placeholder && _portableCaretVisible)
         {
             using var ink = new SolidBrush(ForeColor);
@@ -211,13 +218,27 @@ public partial class TextBox
 
         ILibreTextLayout layout = GetPortableInputLayout()
             ?? throw new PlatformNotSupportedException("Caret scrolling requires a retained text-layout provider.");
-        LibreTextCaret caret = layout.GetCaret(PortableSelectionActiveEnd, _portableCaretTrailing);
+        LibreTextCaret caret = GetPortableLayoutCaret(layout);
         if (EnsurePortableCaretVisible(caret, Math.Max(1, SystemInformation.CaretWidth)))
         {
             // Publish the offset before notification: a handler can repaint,
             // hit-test, replace text, or dispose the control synchronously.
             Invalidate();
         }
+    }
+
+    private LibreTextCaret GetPortableLayoutCaret(ILibreTextLayout layout)
+    {
+        int position = PortableSelectionActiveEnd;
+        LibreTextCaret caret = layout.GetCaret(position, _portableCaretTrailing);
+        // A legacy EDIT boundary is not necessarily a modern grapheme stop.
+        // Keep the original selection; a nearest stop is not its caret geometry.
+        // This explicit rejection remains until the retained provider owns that
+        // interior source geometry, without source-local rounding or shaping.
+        if (LibrePlatform.Current.TextRenderer is ILibreEditWordBoundaryService &&
+            layout is ILibreEditWordBoundaryLayout && caret.TextPosition != position)
+            throw new NotSupportedException("The retained layout has no exact caret geometry for this original EDIT source endpoint.");
+        return caret;
     }
 
     private ILibreTextLayout? GetPortableInputLayout(PortablePointerDispatchContext? pointerContext = null)

@@ -5920,6 +5920,9 @@ public partial class CanonicalLifecycleTests
                 {
                     "1" => new RetainedTextRendererProbe(),
                     "edit-words" => new ObservedEditWordRendererProbe(),
+#if LIBREWINFORMS_NATIVE_EDIT_WORD_BOUNDARIES
+                    "native-edit-words" => new NativeEditWordRendererProbe(),
+#endif
                     _ => this,
                 },
                 this,

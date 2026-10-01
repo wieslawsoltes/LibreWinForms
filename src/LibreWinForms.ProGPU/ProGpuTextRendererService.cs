@@ -33,12 +33,33 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
             graphics, text, font, layoutSize, selected));
     }
 
-    private sealed class RetainedLayout(global::ProGPU.SystemDrawing.DrawingTextLayout layout) : ILibreTextLayout, ILibreTextRowNavigation, ILibreTextSourceGeometry
+    private sealed class RetainedLayout(global::ProGPU.SystemDrawing.DrawingTextLayout layout)
+#if LIBREWINFORMS_NATIVE_EDIT_WORD_BOUNDARIES
+        : ILibreTextLayout, ILibreTextRowNavigation, ILibreEditWordBoundaryLayout
+#else
+        : ILibreTextLayout, ILibreTextRowNavigation, ILibreTextSourceGeometry
+#endif
     {
         private global::ProGPU.SystemDrawing.DrawingTextLayout? _layout = layout;
         private int _selectionStart = -1;
         private int _selectionLength = -1;
         private RectangleF[] _selection = [];
+#if LIBREWINFORMS_NATIVE_EDIT_WORD_BOUNDARIES
+        private LibreEditWordBoundaries? _wordBoundaries;
+
+        public LibreEditWordBoundaries GetWordBoundaries()
+        {
+            var current = Layout;
+            if (_wordBoundaries is { } boundaries) return boundaries;
+            var result = current.GetEditWordBoundaries(out var snapshot);
+            boundaries = ProGpuEditWordBoundaryCapture.Copy(result, snapshot, current.TextLength);
+            ObjectDisposedException.ThrowIf(!ReferenceEquals(current, _layout), this);
+            // Cache only a completely validated, source-owned inventory. The
+            // Drawing generation caches explicit failures and binding errors.
+            _wordBoundaries = boundaries;
+            return boundaries;
+        }
+#endif
         private global::ProGPU.SystemDrawing.DrawingTextLayout Layout
             => _layout ?? throw new ObjectDisposedException(nameof(RetainedLayout));
 
@@ -91,6 +112,9 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         {
             _layout = null;
             _selection = [];
+#if LIBREWINFORMS_NATIVE_EDIT_WORD_BOUNDARIES
+            _wordBoundaries = null;
+#endif
         }
 
         private static LibreTextCaret Convert(global::ProGPU.Text.TextCaretStop caret)

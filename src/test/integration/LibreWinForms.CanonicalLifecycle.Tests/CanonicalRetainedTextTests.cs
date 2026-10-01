@@ -424,7 +424,7 @@ public partial class CanonicalLifecycleTests
         public int GetRowIndexFromTextPosition(int textPosition) => ((ILibreTextSourceGeometry)layout).GetRowIndexFromTextPosition(textPosition);
         public int GetCaretRowIndex(int textPosition, bool trailing) => ((ILibreTextSourceGeometry)layout).GetCaretRowIndex(textPosition, trailing);
         public PointF GetSourcePositionPoint(int textPosition) => ((ILibreTextSourceGeometry)layout).GetSourcePositionPoint(textPosition);
-        public LibreTextCaret GetCaret(int position, bool trailing = false) => layout.GetCaret(position, trailing);
+        public virtual LibreTextCaret GetCaret(int position, bool trailing = false) => layout.GetCaret(position, trailing);
         public LibreTextCaret MoveCaret(int position, bool trailing, int direction) => layout.MoveCaret(position, trailing, direction);
         public LibreTextCaret GetRowBoundary(int position, bool trailing, bool end)
             => ((ILibreTextRowNavigation)layout).GetRowBoundary(position, trailing, end);

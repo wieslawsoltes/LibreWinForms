@@ -407,7 +407,12 @@ public partial class CanonicalLifecycleTests
     private static Point ObservedWordPoint(RetainedTextRendererProbe probe, int hit)
     {
         RetainedLayoutProbe layout = probe.Layouts.Last();
-        Point point = TextPointerCaretPoint(layout, hit);
+        // A caret at a shared wrap/hard-row edge can belong to another affinity
+        // or round just outside its row. Use the original owning source frame,
+        // and an interior point in its actual retained line-height band.
+        PointF source = layout.GetSourcePositionPoint(hit);
+        float height = layout.GetCaret(hit).Height;
+        Point point = Point.Round(new PointF(source.X + 1, source.Y + height * .5f + 1));
         Assert.Equal(hit, layout.HitTest(new(point.X - 1, point.Y - 1)).TextPosition);
         return point;
     }
@@ -423,6 +428,7 @@ public partial class CanonicalLifecycleTests
         internal LibreEditWordBoundaries Boundaries { get; set; } = new(new[] { 0 }, 0);
         internal bool OmitBoundaryCapability { get; set; }
         internal int? ReportedRowCount { get; set; }
+        internal int? SubstituteCaretPosition { get; set; }
         internal int BoundaryQueries { get; set; }
         internal Action? AfterBoundaryQuery { get; set; }
 
@@ -437,6 +443,13 @@ public partial class CanonicalLifecycleTests
         : RetainedLayoutProbe(layout), ILibreEditWordBoundaryLayout
     {
         int ILibreTextSourceGeometry.RowCount => owner.ReportedRowCount ?? RowCount;
+
+        public override LibreTextCaret GetCaret(int position, bool trailing = false)
+        {
+            LibreTextCaret caret = base.GetCaret(position, trailing);
+            return owner.SubstituteCaretPosition is { } substitute
+                ? caret with { TextPosition = substitute } : caret;
+        }
 
         public LibreEditWordBoundaries GetWordBoundaries()
         {

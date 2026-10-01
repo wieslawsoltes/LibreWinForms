@@ -216,6 +216,57 @@ copies its boundary memory into the layout and does not enable the actual ProGPU
 provider. They have not been executed locally. The PR remains draft until the
 real provider and its focused regressions connect this seam to ordinary controls.
 
+## Retained native provider connection (explicit source-build checkpoint)
+
+`LibreWinFormsEnableNativeEditWordBoundaries=true` compiles the provider adapter
+against ProGPU's retained `DrawingTextLayout.GetEditWordBoundaries` API. It is
+off by default: the current qualified submodule is unchanged. The adapter queries
+only its original owned drawing layout, copies the complete validated UTF-16
+inventory once, and retires that cache with the layout. It never accepts another
+source string/direction, reshapes a prefix, filters a grapheme-interior boundary,
+or falls back after native rejection. `ProGpuEditWordBoundaryException.Result`
+preserves the exact typed native status/error. The adapter never promotes a
+rejected property domain or invents inventories for unqualified observations.
+
+The ordinary `ProGpuTextRendererService` still does **not** declare
+`ILibreEditWordBoundaryService`. Only explicit source fixtures declare it. The
+build opt-in is an implementation checkpoint, not complete TextBox support; it
+must be exercised against exact dependency source and then removed/enabled as
+part of qualified dependency integration, not left as a substitute release gate.
+
+`ProGpuEditWordBoundaryCaptureTests` checks the actual adapter source with the
+opt-in enabled: 18 device-free cases cover owned memory, complete inventories,
+interior UTF-16 positions, malformed publication and precise rejection. These
+are transport/implementation controls, not new independent Microsoft cases.
+`CanonicalNativeEditWordBoundaryTests` authors actual source-dispatch tests
+through the real provider (generation reuse/retirement, original ASCII drag,
+unknown-symbol atomic rejection and password-source exclusion). Those native
+tests require a qualified owned runtime and have not been run locally.
+
+Interior selection **indices** remain exact, but interior selection **geometry**
+is not qualified. The retained modern interaction can return a nearest
+caret stop and selects whole intersected cluster selection boxes. The original Win11
+emoji inventory contains position 7; the separately observed Server2025 joiner
+inventory contains position 4. Neither may be converted into another index.
+Source painting avoids a caret query when no caret is needed; when caret painting
+or explicit scrolling actually requires one, an EDIT-capable provider returning
+a different endpoint now rejects instead of silently publishing that geometry.
+The selection and original layout remain retained. The actual formatted/font
+generation tested here returns source indices 7 and 4 unchanged; that is not
+native geometric parity. Six authored actual-source cases preserve indices
+through dispatch/paint/scroll and separately reject explicitly substituted provider
+stops; they do not assert nearest-stop or whole-cluster geometry as native
+EDIT parity. Local ARM64 managed-source validation against ProGPU's exact retained
+API commit `ce48bd4a05fd7230c317203e60fee194a262b838` passed all 18 adapter controls
+and all 30 source cases (the original 24 plus these six), without failures/skips.
+The canonical source build used SDK `11.0.100-preview.5.26302.115`, the explicit
+opt-in and `NetCurrent=net10.0`; it completed with zero errors and existing source
+warnings. The two original multiline hit fixtures now choose an interior point
+from their retained owning source-row frame, preserving every original expected
+hit/range rather than rounding a caret onto another row edge. None of this used
+the native classifier, GPU, a VM or staged runtime. Actual hit-to-interior placement,
+partial selected ink, caret/scroll mapping and native UI remain required.
+
 ## Password source selection
 
 An admitted password double press uses canonical `SelectAll` once, before the
