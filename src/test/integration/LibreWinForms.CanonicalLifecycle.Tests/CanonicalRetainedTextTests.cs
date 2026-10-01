@@ -15,6 +15,22 @@ namespace LibreWinForms.CanonicalLifecycle.Tests;
 public partial class CanonicalLifecycleTests
 {
     [Fact]
+    public void PortableRetainedTextDeclaresSourceGeometryOnReturnedLayout()
+    {
+        if (RunDpiCaseInNewProcess(retainedTextLayout: true)) return;
+        RunRetainedEditor((_, _, editor, probe) =>
+        {
+            editor.Text = "source\r\ngeometry";
+            editor.Record();
+            ILibreTextSourceGeometry geometry = probe.Layouts.Last()
+                .Should().BeAssignableTo<ILibreTextSourceGeometry>().Subject;
+            geometry.RowCount.Should().Be(2);
+            geometry.GetRowSourceStart(1).Should().Be(8);
+            geometry.GetRowIndexFromTextPosition(8).Should().Be(1);
+        });
+    }
+
+    [Fact]
     public void PortableRetainedTextHardBreakRowsHaveCaretsButNoDrawableGlyphs()
     {
         if (RunDpiCaseInNewProcess(retainedTextLayout: true)) return;
@@ -397,7 +413,10 @@ public partial class CanonicalLifecycleTests
             LastText = text;
             LastFontUnit = font.Unit;
             LastFontSize = font.Size;
-            RetainedLayoutProbe layout = CreateLayoutProbe(_renderer.CreateLayout(graphics, text, font, size, format), text);
+            ILibreTextLayout retained = _renderer.CreateLayout(graphics, text, font, size, format);
+            retained.Should().BeAssignableTo<ILibreTextSourceGeometry>(
+                "the actual renderer declares ILibreTextSourceGeometryService");
+            RetainedLayoutProbe layout = CreateLayoutProbe(retained, text);
             Layouts.Add(layout);
             AfterCreateLayout?.Invoke();
             return layout;
@@ -411,7 +430,8 @@ public partial class CanonicalLifecycleTests
             => _renderer.MeasureText(graphics, text, font, size, format);
     }
 
-    private class RetainedLayoutProbe(ILibreTextLayout layout) : ILibreTextLayout, ILibreTextRowNavigation, ILibreEditTextInteractionLayout
+    private class RetainedLayoutProbe(ILibreTextLayout layout) : ILibreTextLayout, ILibreTextRowNavigation,
+        ILibreTextSourceGeometry, ILibreEditTextInteractionLayout
     {
         internal Action? AfterHitTest { get; set; }
         internal Action? AfterDispose { get; set; }

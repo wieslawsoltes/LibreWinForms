@@ -34,7 +34,8 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
     }
 
     private sealed class RetainedLayout(global::ProGPU.SystemDrawing.DrawingTextLayout layout)
-        : ILibreTextLayout, ILibreTextRowNavigation, ILibreEditWordBoundaryLayout, ILibreEditTextInteractionLayout
+        : ILibreTextLayout, ILibreTextRowNavigation, ILibreTextSourceGeometry,
+          ILibreEditWordBoundaryLayout, ILibreEditTextInteractionLayout
     {
         private global::ProGPU.SystemDrawing.DrawingTextLayout? _layout = layout;
         private int _selectionStart = -1;
