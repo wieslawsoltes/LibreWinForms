@@ -50,6 +50,16 @@ only an actual keyboardless native popup may omit GLFW character ownership. Keep
 factory selection and legacy wheel policy unchanged. See docs/native-pointer-source-input.md;
 source adapter tests are not native popup/desktop qualification.
 
+Native scroll quantities reach a distinct source event, never invented legacy
+wheel ticks. ScrollableControl uses its actual per-axis SmallChange for lines and
+the captured source point transform for precise points. Admit every requested
+axis before moving either, retain fractional tails only for the exact stream,
+generation, target and numeric frame, and retire only the old carry on callback
+failure. Validate original pointer metadata before source/global state changes.
+AppKit phases/momentum still require target leases and cancellation semantics;
+keep that rejection, unknown consumers and owned factory/modality gates explicit.
+See docs/native-scroll-source-input.md; bounded source passes are not desktop parity.
+
 Native pointer drag cancellation binds the actual source-window object, handle
 generation and registration lease before callbacks. Commit terminal state before
 source/character retirement can pump input, then notify only the captured old

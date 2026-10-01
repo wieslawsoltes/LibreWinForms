@@ -55,8 +55,11 @@ public unsafe partial class Control
     internal void DispatchPortableInput(in LibreInputEvent inputEvent)
     {
         Control root = GetPortableTopLevelControl();
+        if (inputEvent.Kind == LibreInputEventKind.PointerScroll)
+            ValidatePortableNativeScroll(inputEvent);
         if (inputEvent.Kind == LibreInputEventKind.PointerLeave)
         {
+            root._portableNativeScrollCarry = null;
             // Retire before callbacks and never mutate their replacement hover.
             // Leaving the native view does not release a held drag/capture.
             root._portablePointerInputVersion++;
@@ -145,6 +148,7 @@ public unsafe partial class Control
             case LibreInputEventKind.PointerDown:
             case LibreInputEventKind.PointerUp:
             case LibreInputEventKind.PointerWheel:
+            case LibreInputEventKind.PointerScroll:
                 root.DispatchPortablePointer(inputEvent);
                 break;
         }
@@ -189,6 +193,7 @@ public unsafe partial class Control
         root._portablePressedButton = MouseButtons.None;
         root._portableNativePress = null;
         root._portableCompletedNativeClick = null;
+        root._portableNativeScrollCarry = null;
         if (s_portableButtonOwners is { } owners)
         {
             for (int index = 0; index < owners.Length; index++)
@@ -694,6 +699,9 @@ public unsafe partial class Control
                 break;
             case LibreInputEventKind.PointerWheel:
                 DispatchPortableMouseWheel(target, s_portableMousePosition, inputEvent.Delta.Y);
+                break;
+            case LibreInputEventKind.PointerScroll:
+                DispatchPortableNativeScroll(target, inputEvent);
                 break;
         }
     }

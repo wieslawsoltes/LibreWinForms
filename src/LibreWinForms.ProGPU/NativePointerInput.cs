@@ -11,6 +11,7 @@ internal interface INativePointerTarget
 {
     bool IsCurrent(NativePointerInput subscription);
     LibrePoint MapPoint(double x, double y);
+    double NativePointScale => throw new PlatformNotSupportedException("This source has no native point-vector mapping.");
     void FlushCharacters();
     ProGpuDragCancellation? PrepareCancellation();
     void Input(in LibreInputEvent input);
@@ -23,6 +24,7 @@ internal sealed class NativePointerInput : IDisposable
     private readonly int _thread = Environment.CurrentManagedThreadId;
     private INativePointerTarget? _target;
     private ulong _delivery;
+    private readonly LibreNativeScrollStream _scrollStream = new();
 
     internal NativePointerInput(INativePointerInputContext context, INativePointerTarget target)
     {
@@ -67,7 +69,7 @@ internal sealed class NativePointerInput : IDisposable
         // A saved callback cannot replay an old packet outside that scope.
         if (_context.CurrentEvent is not NativePointerEvent current || current != value) return;
         ulong delivery = unchecked(++_delivery);
-        LibreInputEvent input = Translate(value, target);
+        LibreInputEvent input = Translate(value, target, generation);
         if (!IsCurrent(target, generation, delivery)) return;
         if (input.Kind == LibreInputEventKind.PointerCancel)
         {
@@ -83,19 +85,28 @@ internal sealed class NativePointerInput : IDisposable
         if (IsCurrent(target, generation, delivery)) target.Input(input);
     }
 
-    private static LibreInputEvent Translate(in NativePointerEvent value, INativePointerTarget target)
+    private LibreInputEvent Translate(in NativePointerEvent value, INativePointerTarget target, ulong generation)
     {
-        if (value.Kind == NativePointerEventKind.Scroll)
-            throw new PlatformNotSupportedException("Native pointer scroll has no admitted canonical MouseWheel policy.");
+        bool scroll = value.Kind == NativePointerEventKind.Scroll;
         bool buttonEvent = value.Kind is NativePointerEventKind.Down or NativePointerEventKind.Up or NativePointerEventKind.Drag;
         if (value.Kind is < NativePointerEventKind.Move or > NativePointerEventKind.Cancel
             || !double.IsFinite(value.X) || !double.IsFinite(value.Y)
             || !double.IsFinite(value.Timestamp) || value.Timestamp < 0
             || ((int)value.Modifiers & ~255) != 0 || value.ClickCount < 0
             || (buttonEvent ? value.Button is < 0 or >= 64 : value.Button != -1 || value.ClickCount != 0)
-            || value.ScrollX != 0 || value.ScrollY != 0 || value.ScrollPhase != 0 || value.MomentumPhase != 0
-            || value.ScrollUnit != NativePointerScrollUnit.Lines || value.ScrollProtocol != NativePointerScrollProtocol.Unspecified)
-            throw new ArgumentException("Invalid native non-scroll pointer metadata.", nameof(value));
+            || (!scroll && (value.ScrollX != 0 || value.ScrollY != 0 || value.ScrollPhase != 0 || value.MomentumPhase != 0
+                || value.ScrollUnit != NativePointerScrollUnit.Lines || value.ScrollProtocol != NativePointerScrollProtocol.Unspecified)))
+            throw new ArgumentException("Invalid native pointer metadata.", nameof(value));
+        if (scroll)
+        {
+            if (!double.IsFinite(value.ScrollX) || !double.IsFinite(value.ScrollY)
+                || value.ScrollUnit is < NativePointerScrollUnit.Lines or > NativePointerScrollUnit.Points
+                || value.ScrollProtocol is < NativePointerScrollProtocol.Unspecified or > NativePointerScrollProtocol.AppKit)
+                throw new ArgumentException("Invalid native scroll metadata.", nameof(value));
+            if (value.ScrollPhase != 0 || value.MomentumPhase != 0)
+                throw new PlatformNotSupportedException("Native scroll phases require source gesture/target ownership.");
+        }
+
         if ((value.Kind is NativePointerEventKind.Down or NativePointerEventKind.Up) && value.Button > 4)
             throw new PlatformNotSupportedException("The native button has no canonical source button identity.");
 
@@ -108,6 +119,7 @@ internal sealed class NativePointerInput : IDisposable
             NativePointerEventKind.Enter => LibreNativePointerKind.Enter,
             NativePointerEventKind.Leave => LibreNativePointerKind.Leave,
             NativePointerEventKind.Cancel => LibreNativePointerKind.Cancel,
+            NativePointerEventKind.Scroll => LibreNativePointerKind.Scroll,
             _ => throw new ArgumentException("Unknown native pointer kind.", nameof(value)),
         };
         LibreInputEventKind canonicalKind = kind switch
@@ -116,17 +128,24 @@ internal sealed class NativePointerInput : IDisposable
             LibreNativePointerKind.Up => LibreInputEventKind.PointerUp,
             LibreNativePointerKind.Leave => LibreInputEventKind.PointerLeave,
             LibreNativePointerKind.Cancel => LibreInputEventKind.PointerCancel,
+            LibreNativePointerKind.Scroll => LibreInputEventKind.PointerScroll,
             _ => LibreInputEventKind.PointerMove,
         };
         LibrePointerButton button = canonicalKind is LibreInputEventKind.PointerDown or LibreInputEventKind.PointerUp
             ? (LibrePointerButton)(value.Button + 1) : LibrePointerButton.None;
         long timestamp = checked((long)Math.Round(value.Timestamp * TimeSpan.TicksPerSecond));
+        double pointScale = scroll && value.ScrollUnit == NativePointerScrollUnit.Points ? target.NativePointScale : 1;
+        if (!double.IsFinite(pointScale) || pointScale <= 0)
+            throw new ArgumentException("Native scroll requires a finite positive source point scale.", nameof(value));
         LibrePoint position = target.MapPoint(value.X, value.Y);
         return new(canonicalKind, timestamp, (LibreInputModifiers)((int)value.Modifiers & 15),
             LibreKey.Unknown, null, position, default, button)
         {
             NativePointer = new(kind, value.X, value.Y, value.Timestamp, value.Button, value.ClickCount,
                 (LibreNativePointerModifiers)value.Modifiers),
+            NativeScroll = scroll ? new(value.ScrollX, value.ScrollY, (LibreNativeScrollUnit)value.ScrollUnit,
+                (LibreNativeScrollProtocol)value.ScrollProtocol, value.ScrollPhase, value.MomentumPhase,
+                pointScale, _scrollStream, generation) : null,
         };
     }
 

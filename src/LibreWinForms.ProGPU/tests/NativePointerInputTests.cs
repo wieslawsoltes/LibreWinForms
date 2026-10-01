@@ -104,6 +104,54 @@ public sealed class NativePointerInputTests
         Assert.Equal(0, f.Target.Mappings);
     }
 
+    [Theory]
+    [InlineData(NativePointerScrollUnit.Lines, 1)]
+    [InlineData(NativePointerScrollUnit.Points, 2)]
+    public void NativeScrollRetainsBothAxesAndSubscriptionGeneration(NativePointerScrollUnit unit, double scale)
+    {
+        using Fixture f = new();
+        NativePointerEvent packet = Packet(NativePointerEventKind.Scroll) with
+        {
+            ScrollX = -.125, ScrollY = 16777217.25, ScrollUnit = unit,
+            ScrollProtocol = NativePointerScrollProtocol.AppKit
+        };
+        f.Provider.Emit(packet);
+        LibreInputEvent input = Assert.Single(f.Target.Inputs);
+        Assert.Equal(LibreInputEventKind.PointerScroll, input.Kind);
+        Assert.Equal(default, input.Delta);
+        Assert.Equal(LibreNativePointerKind.Scroll, input.NativePointer!.Value.Kind);
+        LibreNativeScrollMetadata scroll = input.NativeScroll!.Value;
+        Assert.Equal(packet.ScrollX, scroll.X); Assert.Equal(packet.ScrollY, scroll.Y);
+        Assert.Equal(unit.ToString(), scroll.Unit.ToString());
+        Assert.Equal(LibreNativeScrollProtocol.AppKit, scroll.Protocol);
+        Assert.Equal(0U, scroll.Phase); Assert.Equal(0U, scroll.MomentumPhase);
+        Assert.Equal(scale, scroll.PointScale); Assert.Equal(f.Provider.InputGeneration, scroll.Generation);
+        f.Provider.InputGeneration++;
+        f.Provider.Emit(packet);
+        Assert.Same(scroll.Stream, f.Target.Inputs[1].NativeScroll!.Value.Stream);
+        Assert.NotEqual(scroll.Generation, f.Target.Inputs[1].NativeScroll!.Value.Generation);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void InvalidNativeScrollDoesNotFlushOrMap(int invalid)
+    {
+        using Fixture f = new();
+        NativePointerEvent packet = Packet(NativePointerEventKind.Scroll);
+        packet = invalid switch
+        {
+            0 => packet with { ScrollX = double.NaN },
+            1 => packet with { ScrollY = double.PositiveInfinity },
+            2 => packet with { ScrollUnit = (NativePointerScrollUnit)99 },
+            _ => packet with { ScrollProtocol = (NativePointerScrollProtocol)99 }
+        };
+        Assert.Throws<ArgumentException>(() => f.Provider.Emit(packet));
+        Assert.Empty(f.Target.Inputs); Assert.Equal(0, f.Target.Flushes); Assert.Equal(0, f.Target.Mappings);
+    }
+
     [Fact]
     public void UnsupportedExtraButtonDoesNotBecomeAButtonlessClick()
     {
@@ -271,6 +319,7 @@ public sealed class NativePointerInputTests
         internal int Flushes { get; private set; }
         internal int Mappings { get; private set; }
         public bool IsCurrent(NativePointerInput subscription) => Current && ReferenceEquals(subscription, Subscription);
+        public double NativePointScale => 2;
         public LibrePoint MapPoint(double x, double y)
         {
             Mappings++;

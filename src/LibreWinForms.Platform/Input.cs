@@ -19,6 +19,8 @@ public enum LibreInputEventKind
     // neither event is a keyboard-focus loss or a synthetic mouse release.
     PointerLeave,
     PointerCancel,
+    // Lossless source scrolling is distinct from legacy integer MouseWheel.
+    PointerScroll,
 }
 
 [Flags]
@@ -184,9 +186,11 @@ public readonly record struct LibreInputEvent(
     /// policy; canonical coordinates and shortcut modifiers remain separate.
     /// </summary>
     public LibreNativePointerMetadata? NativePointer { get; init; }
+
+    public LibreNativeScrollMetadata? NativeScroll { get; init; }
 }
 
-public enum LibreNativePointerKind { Move, Drag, Down, Up, Enter, Leave, Cancel }
+public enum LibreNativePointerKind { Move, Drag, Down, Up, Enter, Leave, Cancel, Scroll }
 
 [Flags]
 public enum LibreNativePointerModifiers
@@ -203,3 +207,18 @@ public enum LibreNativePointerModifiers
 public readonly record struct LibreNativePointerMetadata(
     LibreNativePointerKind Kind, double X, double Y, double Timestamp,
     int Button, int ClickCount, LibreNativePointerModifiers Modifiers);
+
+public enum LibreNativeScrollUnit { Lines, Points }
+public enum LibreNativeScrollProtocol { Unspecified, AppKit }
+
+/// <summary>One provider subscription's identity, independent of native handles.</summary>
+public sealed class LibreNativeScrollStream { }
+
+/// <summary>
+/// Original signed native scroll quantities and phase protocol. PointScale maps
+/// native view points to the source coordinate frame; line counts are unscaled.
+/// Stream and Generation bind fractional state to the original live input owner.
+/// </summary>
+public readonly record struct LibreNativeScrollMetadata(
+    double X, double Y, LibreNativeScrollUnit Unit, LibreNativeScrollProtocol Protocol,
+    uint Phase, uint MomentumPhase, double PointScale, LibreNativeScrollStream Stream, ulong Generation);

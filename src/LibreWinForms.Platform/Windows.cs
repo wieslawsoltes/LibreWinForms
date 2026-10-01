@@ -182,6 +182,10 @@ public sealed class LibreWindowIcon
 /// <summary>Checked conversion between native logical window units and managed coordinates.</summary>
 public static class LibreWindowCoordinates
 {
+    /// <summary>Maps native point vectors without integer rounding or translated positions.</summary>
+    public static double GetPointScale(LibreWindowCoordinateMode mode, double dpiScale, double framebufferScale)
+        => ResolveManagedScale(mode, dpiScale, framebufferScale);
+
     /// <summary>Maps native pointer precision directly to the canonical integer point.</summary>
     public static LibrePoint ToManagedPoint(double x, double y,
         LibreWindowCoordinateMode mode, double dpiScale, double framebufferScale)
