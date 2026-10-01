@@ -15,6 +15,9 @@ arithmetic; the plan publishes its expected frame/tails before callbacks and rep
 incomplete writes so only its old carry is retired. Consumer identities remain weak
 Control references. AutoScroll keeps its original numeric policy below; the actual
 popup menu consumer is documented in [native menu scrolling](native-menu-scroll.md).
+The canonical ListBox and actual ComboBox popup list use the separate
+[row-aligned list contract](native-list-scroll.md), with row-count Lines and
+source-pixel Points retained until a complete source row is accumulated.
 
 `ScrollableControl` with AutoScroll has an existing pixel-valued display rectangle
 and per-axis source `SmallChange`. Native Lines multiply by that actual axis's
@@ -118,9 +121,20 @@ The headless service and typed native test provider exercise source contracts;
 they do not create an owned Cocoa panel, native input context, renderer or GPU.
 No native product build, package staging, pin change, observer, VM or UI run occurred.
 
+After the independently committed menu and ListBox consumers were merged with
+ancestry preserved, the owned Forms/test projects were rebuilt with
+`--no-restore -p:BuildProjectReferences=false`. Forms again had zero errors (633
+existing warnings); tests had zero warnings/errors. One combined source run passed
+all 94 selected cases with zero skips in 1.66 seconds under the unchanged two-minute
+bound: 15 menu, 29 list, 41 shared native-scroll and nine hover cases (including the
+documented source-movement fixture repair). Product and copied-test Forms DLL SHA256
+both were `a8282a5b4c4cd77d1f6e5419f69ca321b4c42731674d8573072dee3eb406e20e`.
+This bounded integration receipt is not a full build, package or native UI gate.
+
 ## Remaining admission
 
-Standalone ScrollBar, non-menu ToolStripDropDown and editor/list/grid native-scroll policies
+Standalone ScrollBar, non-menu ToolStripDropDown, editor/grid native-scroll policies
+and unsupported list modes
 remain explicit where their source units do not match AutoScroll's pixel contract.
 Owned factory selection, automatic modality, application rendering and complete
 native popup/desktop qualification stay gated. No opaque handle cast, keyboard
