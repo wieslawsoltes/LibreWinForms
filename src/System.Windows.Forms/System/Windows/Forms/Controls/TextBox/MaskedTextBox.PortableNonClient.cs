@@ -10,7 +10,8 @@ public partial class MaskedTextBox
 {
     internal override Padding PortableWindowAdornments => PortableEditFrame.GetWindowAdornments(BorderStyle);
 
-    internal override Padding PortableNonClientInsets => PortableEditFrame.GetNonClientInsets(BorderStyle);
+    internal override Padding PortableNonClientInsets => BorderStyle == BorderStyle.FixedSingle
+        ? Padding.Empty : PortableWindowAdornments;
 
     internal override void PaintPortableNonClient(PaintEventArgs e)
         => PortableEditFrame.PaintNonClient(e.Graphics, Size, BorderStyle);

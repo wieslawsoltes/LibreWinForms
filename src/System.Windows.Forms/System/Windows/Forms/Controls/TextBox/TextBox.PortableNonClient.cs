@@ -10,7 +10,10 @@ public partial class TextBox
 {
     internal override Padding PortableWindowAdornments => PortableEditFrame.GetWindowAdornments(BorderStyle);
 
-    internal override Padding PortableNonClientInsets => PortableEditFrame.GetNonClientInsets(BorderStyle);
+    // Preserve virtual adornments for non-client styles. FixedSingle's border
+    // belongs to EDIT client content and does not query adornments here.
+    internal override Padding PortableNonClientInsets => BorderStyle == BorderStyle.FixedSingle
+        ? Padding.Empty : PortableWindowAdornments;
 
     private Rectangle PortableTextViewport => PortableEditFrame.GetTextViewport(PortableClientRectangle, BorderStyle);
 

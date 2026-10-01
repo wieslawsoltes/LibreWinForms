@@ -22,11 +22,6 @@ internal static class PortableEditFrame
         return new Padding(border.Width, border.Height, border.Width, border.Height);
     }
 
-    // Native EDIT handles WS_BORDER as client content. Its pre-handle size
-    // estimate still uses AdjustWindowRectEx; WS_EX_CLIENTEDGE stays non-client.
-    internal static Padding GetNonClientInsets(BorderStyle style)
-        => style == BorderStyle.FixedSingle ? Padding.Empty : GetWindowAdornments(style);
-
     internal static Rectangle GetTextViewport(Rectangle client, BorderStyle style)
     {
         int factor = style switch { BorderStyle.FixedSingle => 2, BorderStyle.Fixed3D => 1, _ => 0 };
