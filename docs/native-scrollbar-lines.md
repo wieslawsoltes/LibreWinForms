@@ -27,9 +27,10 @@ clamps at Minimum; increment clamps at Maximum-LargeChange+1. An ordinary public
 Value above that page endpoint is not silently normalized before a decrement.
 LargeChange=0 also gives the actual SmallChange=0 and keeps valid public values.
 Native arithmetic uses a wide intermediate; source metrics already overflowed
-by the existing public getters remain explicitly unsupported. RightToLeft uses
-the existing ScrollBar source reversal in **both** orientations; native user
-inversion is not applied again.
+by the existing public getters remain explicitly unsupported. Direction uses
+the actual source RightToLeft getter: HScrollBar may reverse, while VScrollBar
+always returns No and intentionally ignores its setter. Native user inversion
+is not applied again.
 
 An explicit absolute 1024-line quantity bound limits source callback work per
 packet. It is checked read-only at the actual source hit target, or the existing
@@ -46,7 +47,9 @@ round an exact 1024 input up to 1025 operations in floating-point arithmetic.
 The carry frame owns only an ownerless identity and exact numeric/direction
 state. Actual source property changes retire the identity before callbacks,
 including a change away and back to the same Value, range or increment. Enabled
-and RightToLeft transitions do the same. The shared dispatcher retains weak
+transitions do the same. A real RightToLeft transition uses Control's existing
+handle recreation, invalidating the shared exact-handle carry before public
+RightToLeftChanged events; no new ScrollBar override is needed. The shared dispatcher retains weak
 consumer identity, source/target handles, stream/generation, units, point-scale,
 gesture cancellation and momentum routing; this consumer adds no polling.
 
@@ -54,6 +57,8 @@ The expected final frame/tail is published before source events. An actual
 native Value assignment consumes its identity token before ValueChanged or
 accessibility callbacks, so nested ordinary assignments cannot inherit it.
 Every Scroll/Value callback tail rechecks dispatch and exact source state.
+The virtual RightToLeft getter is also a callback boundary: both frame identity
+and dispatch are rechecked after reading it, before an old Scroll can be raised.
 Handler-written NewValue continues through the actual setter, but retires the
 original plan's fractions. Direct source mutation, disposal or nested input
 stops obsolete writes and EndScroll; already applied values are not rolled back.

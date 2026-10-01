@@ -16,13 +16,14 @@ public partial class CanonicalLifecycleTests
     [Theory]
     [InlineData(false, false, 44)]
     [InlineData(true, false, 44)]
-    [InlineData(false, true, 56)]
+    [InlineData(false, true, 44)] // VScrollBar intentionally ignores its RTL setter.
     [InlineData(true, true, 56)]
     public void NativeScrollBar_WholeLinesUseSmallChangeAndSourceScrollOrder(bool horizontal, bool rtl, int expected)
     {
         RunNativeScrollBar(horizontal, (platform, form, bar, provider, _) =>
         {
             bar.RightToLeft = rtl ? RightToLeft.Yes : RightToLeft.No;
+            Assert.Equal(horizontal && rtl ? RightToLeft.Yes : RightToLeft.No, bar.RightToLeft);
             var events = new List<(ScrollEventType Type, int Old, int New, ScrollOrientation Orientation)>();
             var values = new List<int>();
             int wheel = 0;
@@ -31,11 +32,12 @@ public partial class CanonicalLifecycleTests
             bar.MouseWheel += (_, _) => wheel++;
             provider.Emit(BarPacket(horizontal, 2));
             Assert.Equal(expected, bar.Value);
-            ScrollEventType type = rtl ? ScrollEventType.SmallIncrement : ScrollEventType.SmallDecrement;
+            bool reversed = horizontal && rtl;
+            ScrollEventType type = reversed ? ScrollEventType.SmallIncrement : ScrollEventType.SmallDecrement;
             ScrollOrientation orientation = horizontal ? ScrollOrientation.HorizontalScroll : ScrollOrientation.VerticalScroll;
             Assert.Equal(new[] { type, type, ScrollEventType.EndScroll }, events.Select(e => e.Type));
             Assert.All(events, e => Assert.Equal(orientation, e.Orientation));
-            Assert.Equal(new[] { rtl ? 53 : 47, expected }, values);
+            Assert.Equal(new[] { reversed ? 53 : 47, expected }, values);
             Assert.Equal(0, wheel);
         });
     }
@@ -88,9 +90,10 @@ public partial class CanonicalLifecycleTests
     [InlineData(6)] // Enabled away/back
     public void NativeScrollBar_SourceChangesCannotResurrectFractions(int change)
     {
-        RunNativeScrollBar(false, (_, _, bar, provider, _) =>
+        bool horizontal = change == 5; // VScrollBar's RTL setter is an explicit no-op.
+        RunNativeScrollBar(horizontal, (_, _, bar, provider, _) =>
         {
-            provider.Emit(BarPacket(false, -.75));
+            provider.Emit(BarPacket(horizontal, -.75));
             switch (change)
             {
                 case 0: bar.Value = 51; bar.Value = 50; break;
@@ -101,9 +104,10 @@ public partial class CanonicalLifecycleTests
                 case 5: bar.RightToLeft = RightToLeft.Yes; bar.RightToLeft = RightToLeft.No; break;
                 case 6: bar.Enabled = false; bar.Enabled = true; break;
             }
-            provider.Emit(BarPacket(false, -.5));
+
+            provider.Emit(BarPacket(horizontal, -.5));
             Assert.Equal(50, bar.Value);
-            provider.Emit(BarPacket(false, -.5));
+            provider.Emit(BarPacket(horizontal, -.5));
             Assert.Equal(53, bar.Value);
         });
     }
@@ -132,6 +136,10 @@ public partial class CanonicalLifecycleTests
         {
             provider.Emit(BarPacket(false, -.75) with { MomentumPhase = momentum ? 1U : 0U });
             LibreInputEvent accepted = target.LastInput;
+            // Leave the direct target's hover without cancelling its stream.
+            // A late budget check would now emit MouseEnter before rejection.
+            platform.SendControlInput(form, new(LibreInputEventKind.PointerMove, 2, LibreInputModifiers.None,
+                LibreKey.Unknown, null, new(220, 170), default, LibrePointerButton.None));
             int callbacks = 0;
             bar.Scroll += (_, _) => callbacks++;
             bar.ValueChanged += (_, _) => callbacks++;
@@ -332,15 +340,55 @@ public partial class CanonicalLifecycleTests
         });
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void NativeScrollBar_VirtualSourceReadCannotPublishAnObsoleteScroll(bool nested)
+    {
+        var custom = new NativeScrollBarDirectionProbe();
+        RunNativeScrollBar(true, (_, _, bar, provider, _) =>
+        {
+            provider.Emit(BarPacket(true, -.75));
+            int reads = 0, callbacks = 0;
+            bar.Scroll += (_, _) => callbacks++;
+            custom.Reading = () =>
+            {
+                if (++reads != 3) return; // Capture, initial guard, pre-Scroll guard.
+                custom.Reading = null;
+                if (nested) provider.Emit(BarPacket(true, -.5));
+                else { bar.Value = 51; bar.Value = 50; }
+            };
+            provider.Emit(BarPacket(true, -1.25));
+            Assert.Equal(3, reads);
+            Assert.Equal(0, callbacks);
+            Assert.Equal(50, bar.Value);
+            provider.Emit(BarPacket(true, -.5));
+            Assert.Equal(nested ? 53 : 50, bar.Value);
+            provider.Emit(BarPacket(true, -.5));
+            Assert.Equal(53, bar.Value);
+        }, custom);
+    }
+
+    private sealed class NativeScrollBarDirectionProbe : HScrollBar
+    {
+        internal Action? Reading { get; set; }
+        public override RightToLeft RightToLeft
+        {
+            get { Reading?.Invoke(); return base.RightToLeft; }
+            set => base.RightToLeft = value;
+        }
+    }
+
     private static NativePointerEvent BarPacket(bool horizontal, double lines)
         => ScrollPacket(NativePointerScrollUnit.Lines, horizontal ? lines : 0, horizontal ? 0 : lines);
 
     private static void RunNativeScrollBar(bool horizontal,
-        Action<HeadlessPlatform, Form, ScrollBar, NativePointerTestContext, SourcePointerTarget> action)
+        Action<HeadlessPlatform, Form, ScrollBar, NativePointerTestContext, SourcePointerTarget> action,
+        ScrollBar? suppliedBar = null)
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
         using Form form = new() { ClientSize = new Size(240, 200), AutoScaleMode = AutoScaleMode.None, ShowIcon = false };
-        using ScrollBar bar = horizontal ? new HScrollBar() : new VScrollBar();
+        using ScrollBar bar = suppliedBar ?? (horizontal ? new HScrollBar() : new VScrollBar());
         bar.Bounds = horizontal ? new Rectangle(10, 10, 180, 25) : new Rectangle(10, 10, 25, 140);
         bar.Minimum = 0;
         bar.Maximum = 100;

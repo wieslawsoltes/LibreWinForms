@@ -16,12 +16,6 @@ public abstract partial class ScrollBar
 
     private void InvalidatePortableScrollBarFrame() => _portableScrollBarIdentity = null;
 
-    protected override void OnRightToLeftChanged(EventArgs e)
-    {
-        InvalidatePortableScrollBarFrame();
-        base.OnRightToLeftChanged(e);
-    }
-
     private bool CanConsumePortableScrollBarLines(in LibreNativeScrollMetadata scroll)
         => Enabled && !HasChildren && scroll.Unit == LibreNativeScrollUnit.Lines
             && (_scrollOrientation == ScrollOrientation.HorizontalScroll ? scroll.Y == 0 : scroll.X == 0);
@@ -64,8 +58,15 @@ public abstract partial class ScrollBar
     }
 
     private bool IsCurrentPortableScrollBarFrame(PortableScrollBarFrame frame)
-        => Enabled && !HasChildren && ReferenceEquals(_portableScrollBarIdentity, frame.Identity)
-            && ReadPortableScrollBarValues() == frame.Values;
+    {
+        if (!Enabled || HasChildren || !ReferenceEquals(_portableScrollBarIdentity, frame.Identity))
+            return false;
+        PortableScrollBarValues values = ReadPortableScrollBarValues();
+        // RightToLeft is virtual. Its getter may change source state or pump
+        // input; even an away/back mutation must not validate an old identity.
+        return Enabled && !HasChildren && ReferenceEquals(_portableScrollBarIdentity, frame.Identity)
+            && values == frame.Values;
+    }
 
     private void SetPortableScrollBarValue(int value, PortableScrollBarIdentity identity)
     {
@@ -99,8 +100,8 @@ public abstract partial class ScrollBar
             int lines = checked((int)(whole + carry));
             double tail = fraction - carry;
             bool positive = delta != 0 ? delta > 0 : remainder > 0;
-            // Preserve ScrollBar.DoScroll's source RTL reversal for both
-            // orientations; native deltas already contain user inversion.
+            // Preserve DoScroll's actual RightToLeft policy. VScrollBar's
+            // getter is always No; native deltas already contain user inversion.
             bool increment = positive == (values.Direction == RightToLeft.Yes);
             int next = values.Value;
             for (int index = 0; index < Math.Abs(lines); index++)
@@ -122,7 +123,7 @@ public abstract partial class ScrollBar
             PortablePointerDispatchContext context = dispatch;
             PortableScrollBarFrame current = before;
             bool redirected = false;
-            if (!dispatch.IsCurrent || !owner.IsCurrentPortableScrollBarFrame(current))
+            if (!IsCurrent())
                 return false;
             for (int index = 0; index < lines; index++)
             {
@@ -130,26 +131,29 @@ public abstract partial class ScrollBar
                 if (!Scroll(increment ? ScrollEventType.SmallIncrement : ScrollEventType.SmallDecrement, proposed))
                     return false;
             }
+
             if (lines != 0 && !Scroll(ScrollEventType.EndScroll, current.Values.Value))
                 return false;
             // Handler-adjusted NewValue remains authoritative, but cannot
             // retain fractions computed for the original numeric plan.
-            return !redirected && dispatch.IsCurrent && owner.IsCurrentPortableScrollBarFrame(expected);
+            return !redirected && context.IsCurrent && owner.IsCurrentPortableScrollBarFrame(expected) && context.IsCurrent;
+
+            bool IsCurrent() => context.IsCurrent && owner.IsCurrentPortableScrollBarFrame(current) && context.IsCurrent;
 
             bool Scroll(ScrollEventType type, int proposed)
             {
-                if (!context.IsCurrent || !owner.IsCurrentPortableScrollBarFrame(current))
+                if (!IsCurrent())
                     return false;
                 ScrollEventArgs args = new(type, current.Values.Value, proposed, current.Values.Orientation);
                 owner.OnScroll(args);
-                if (!context.IsCurrent || !owner.IsCurrentPortableScrollBarFrame(current))
+                if (!IsCurrent())
                     return false;
                 redirected |= args.NewValue != proposed;
                 int previous = current.Values.Value;
                 owner.SetPortableScrollBarValue(args.NewValue, expected.Identity);
                 current = new(previous == args.NewValue ? current.Identity : expected.Identity,
                     current.Values with { Value = args.NewValue });
-                return context.IsCurrent && owner.IsCurrentPortableScrollBarFrame(current);
+                return IsCurrent();
             }
         }
     }

@@ -31,6 +31,7 @@ public partial class Control
         {
             target = PortableHitTest(new(input.Position.X, input.Position.Y));
         }
+
         // Only an actual standalone bar is admitted by this consumer. Its
         // preflight reads source fields; it does not capture a frame, create a
         // handle, change hover/input state or publish a gesture/fraction.
