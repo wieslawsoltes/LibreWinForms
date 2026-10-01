@@ -239,6 +239,11 @@ jobs:
     name: Canonical source and ProGPU submodule lane
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+    env:
+      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: d8a3a153bfd3d180023d119001e94da50c2eeca1
 
     steps:
       - name: Checkout
@@ -276,6 +281,9 @@ jobs:
       - name: Validate Drawing trace integration contracts
         run: python3 eng/tests/test_drawing_trace_gate.py
 
+      - name: Validate source-first native staging contracts
+        run: python3 -B eng/tests/test_canonical_native_staging.py SourceFirstNativeStagingTests
+
       - name: Install Linux display and software WebGPU adapter
         shell: bash
         run: |
@@ -300,6 +308,32 @@ jobs:
         env:
           LIBREWINFORMS_DRAWING_TRACE: "1"
         run: ./eng/librewinforms-source-first.sh
+
+      - name: Checkout immutable LibreWPF native staging helper
+        uses: actions/checkout@v4
+        with:
+          repository: wieslawsoltes/LibreWPF
+          ref: ${{ env.LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT }}
+          path: artifacts/checkouts/wpf-native-staging
+          sparse-checkout: eng/progpu-stage-ci-native-runtimes.sh
+          sparse-checkout-cone-mode: false
+
+      - name: Stage exact successful ProGPU native runtimes for source-first packaging
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git -C artifacts/checkouts/wpf-native-staging rev-parse HEAD)" = "${LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT}"
+          pinned_progpu_commit="$(git rev-parse HEAD:external/ProGPU)"
+          if [[ ! "${pinned_progpu_commit}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Forms must record a full ProGPU gitlink commit before native staging." >&2
+            exit 2
+          fi
+          test "$(git -C external/ProGPU rev-parse HEAD)" = "${pinned_progpu_commit}"
+          ./artifacts/checkouts/wpf-native-staging/eng/progpu-stage-ci-native-runtimes.sh \
+            "${pinned_progpu_commit}" \
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-native/package"
 
       - name: Pack and consume canonical source-first package
         shell: bash
