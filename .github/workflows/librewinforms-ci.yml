@@ -69,7 +69,7 @@ jobs:
                                   for path in (project, project.parent / 'Program.cs', project.parent / 'WordSelectionReference.cs',
                                                project.parent / 'SelectionGeometryReference.cs',
                                                root / 'eng' / 'librewinforms-edit-selection-geometry.py')}}
-          def run(name, command, timeout):
+          def run_phase(name, command, timeout):
               phase = {'name': name, 'command': command, 'timeoutSeconds': timeout}
               phases.append(phase)
               with (evidence / (name + '.log')).open('wb') as log:
@@ -86,10 +86,10 @@ jobs:
               if phase['exitCode'] != 0:
                   raise RuntimeError(name + ' exited ' + str(phase['exitCode']))
           try:
-              run('build', ['dotnet', 'build', str(project), '-c', 'Release', '-o', str(output), '-m:1',
+              run_phase('build', ['dotnet', 'build', str(project), '-c', 'Release', '-o', str(output), '-m:1',
                             '-nodeReuse:false', '-p:UseSharedCompilation=false',
                             '-p:BaseIntermediateOutputPath=' + str(evidence / 'obj') + os.sep], 180)
-              run('reference', ['dotnet', str(output / 'NativeTextBoxReference.dll'),
+              run_phase('reference', ['dotnet', str(output / 'NativeTextBoxReference.dll'),
                                 str(receipt), 'PerMonitorV2', 'true', '--word-selection'], 60)
               if not receipt.is_file() or not 1 <= receipt.stat().st_size <= 16 * 1024 * 1024:
                   raise RuntimeError('Missing, empty or oversized native EDIT receipt')
@@ -214,7 +214,7 @@ jobs:
                       raise RuntimeError('Truncated native gesture: ' + case['Name'])
               manifest['receiptSha256'] = hashlib.sha256(receipt.read_bytes()).hexdigest()
               geometry_receipt = evidence / 'selection-geometry.json'
-              run('selection-geometry', ['dotnet', str(output / 'NativeTextBoxReference.dll'),
+              run_phase('selection-geometry', ['dotnet', str(output / 'NativeTextBoxReference.dll'),
                                          str(geometry_receipt), 'PerMonitorV2', 'true', '--selection-geometry'], 60)
               spec = importlib.util.spec_from_file_location('edit_geometry', root / 'eng' / 'librewinforms-edit-selection-geometry.py')
               geometry = importlib.util.module_from_spec(spec)

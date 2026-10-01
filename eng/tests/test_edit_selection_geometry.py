@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """Synthetic geometry receipt corruption controls, never Windows measurements."""
 import base64
+import ast
 import copy
 import hashlib
 import importlib.util
 from pathlib import Path
+import tempfile
+import textwrap
+from types import SimpleNamespace
 import unittest
 
 spec = importlib.util.spec_from_file_location("edit_geometry", Path(__file__).resolve().parents[1] / "librewinforms-edit-selection-geometry.py")
@@ -179,6 +183,64 @@ class SelectionGeometryReceiptTests(unittest.TestCase):
         value["cases"][-1]["observations"][0]["afterScroll"]["Caret"]["CaretOwner"] = 19
         with self.assertRaises(ValueError):
             OBSERVER.verify_geometry(value)
+
+
+class ReferencePhaseExecutionTests(unittest.TestCase):
+    """Execute the actual inline phase runner around its classifier-loop binding."""
+
+    def phase_dispatch(self, legacy_collision=False):
+        workflow = (Path(__file__).resolve().parents[2] / ".github/workflows/librewinforms-ci.yml").read_text()
+        lines = workflow.splitlines()
+        step = lines.index("      - name: Observe original Windows EDIT word selection")
+        start = lines.index("        run: |", step) + 1
+        inline = []
+        for line in lines[start:]:
+            if line and not line.startswith("          "):
+                break
+            inline.append(line)
+        tree = ast.parse(textwrap.dedent("\n".join(inline)))
+        runner = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
+                      and [argument.arg for argument in node.args.args] == ["name", "command", "timeout"])
+        calls = sorted((node for node in ast.walk(tree) if isinstance(node, ast.Expr)
+                        and isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name)
+                        and node.value.func.id == runner.name), key=lambda node: node.lineno)
+        self.assertEqual([node.value.args[0].value for node in calls], ["build", "reference", "selection-geometry"])
+        binding = copy.deepcopy(next(node for node in ast.walk(tree) if isinstance(node, ast.For)
+                                    and isinstance(node.iter, ast.Name) and node.iter.id == "runs"))
+        # Execute the actual module-scope target assignment, without asserting
+        # fabricated Windows classification or running a native subprocess.
+        binding.body, binding.orelse = [ast.Pass()], []
+        if legacy_collision:
+            runner.name = binding.target.id
+            for call in calls:
+                call.value.func.id = runner.name
+        selected = ast.fix_missing_locations(ast.Module(body=[runner, calls[0], calls[1], binding, calls[2]], type_ignores=[]))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            waits = []
+
+            def launch(command, **options):
+                self.assertEqual(options["cwd"], root)
+                self.assertFalse(options["stdout"].closed)
+                return SimpleNamespace(pid=17, wait=lambda timeout: waits.append(timeout) or 0)
+
+            scope = dict(root=root, evidence=root, project=root / "reference.csproj", output=root / "bin",
+                         receipt=root / "receipt.json", geometry_receipt=root / "geometry.json",
+                         environment={}, phases=[], runs=[{"start": 0, "end": 2}],
+                         os=SimpleNamespace(sep="/"), subprocess=SimpleNamespace(Popen=launch, STDOUT=-2))
+            exec(compile(selected, "actual-reference-workflow", "exec"), scope)
+            return scope["phases"], waits
+
+    def test_geometry_phase_survives_actual_script_run_binding(self):
+        phases, waits = self.phase_dispatch()
+        self.assertEqual([phase["name"] for phase in phases], ["build", "reference", "selection-geometry"])
+        self.assertEqual([phase["timeoutSeconds"] for phase in phases], [180, 60, 60])
+        self.assertEqual(waits, [180, 60, 60])
+        self.assertTrue(all(phase["exitCode"] == 0 for phase in phases))
+
+    def test_previous_runner_name_reproduces_the_real_collision(self):
+        with self.assertRaisesRegex(TypeError, "'dict' object is not callable"):
+            self.phase_dispatch(legacy_collision=True)
 
 
 if __name__ == "__main__":
