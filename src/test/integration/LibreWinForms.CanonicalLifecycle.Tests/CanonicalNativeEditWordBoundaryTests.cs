@@ -1,7 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-#if LIBREWINFORMS_NATIVE_EDIT_WORD_BOUNDARIES
+#if LIBREWINFORMS_TEST_NATIVE_EDIT_RUNTIME
 using System.Runtime.CompilerServices;
 using System.Windows.Forms;
 using LibreWinForms.Platform;
@@ -49,9 +49,9 @@ public partial class CanonicalLifecycleTests
     public void PortableNativeEditWordBoundary_UnqualifiedSourceRejectsBeforeSelectionOrNotifications()
         => RunNativeWordEditor((platform, owner, editor, probe) =>
         {
-            // Actual still-unqualified native property domain, never a forged
-            // word inventory or a claim that all 82 unknown observations work.
-            editor.Text = "a\u3200b ";
+            // The qualified classifier retains Common-script U+327F as an
+            // unsupported item policy; it cannot inherit Hangul symbol policy.
+            editor.Text = "a\u327Fb ";
             editor.Record();
             using PasswordWordPointer input = new(platform, owner, editor);
             var point = ObservedWordPoint(probe, 0);
@@ -63,9 +63,30 @@ public partial class CanonicalLifecycleTests
             var error = Assert.Throws<ProGpuEditWordBoundaryException>(() => input.Down(point, 2));
             Assert.Equal(NativeRendererStatus.Unsupported, error.Result.Status);
             Assert.Equal(NativeEditWordBoundaryError.UnqualifiedBmpSymbolPolicy, error.Result.ErrorCode);
+            Assert.Equal(1, Assert.IsType<NativeEditWordLayoutProbe>(probe.Layouts.Last()).BoundaryQueries);
             Assert.Equal(start, editor.SelectionStart);
             Assert.Equal(length, editor.SelectionLength);
             Assert.Equal(0, notifications);
+        });
+
+    [Fact]
+    public void PortableNativeEditWordBoundary_ObservedHangulSymbolInventoryDrivesSourceSelection()
+        => RunNativeWordEditor((platform, owner, editor, probe) =>
+        {
+            // Original Windows symbol sweep; exact literal inventory also
+            // retained by ProGPU's hangul-symbol-latin package control.
+            editor.Text = "a\u3200b ";
+            editor.Record();
+            var generation = Assert.IsType<NativeEditWordLayoutProbe>(probe.Layouts.Last());
+            LibreEditWordBoundaries boundaries = generation.GetWordBoundaries();
+            Assert.Equal(new[] { 0, 4 }, boundaries.Positions.ToArray());
+            Assert.Equal(0, boundaries.LeadingContentStart);
+            using PasswordWordPointer input = new(platform, owner, editor);
+            var point = ObservedWordPoint(probe, 0);
+            input.Click(point, 1);
+            input.Down(point, 2);
+            AssertWordRange(editor, 0, 4);
+            Assert.Same(generation, probe.Layouts.Last());
         });
 
     [Fact]

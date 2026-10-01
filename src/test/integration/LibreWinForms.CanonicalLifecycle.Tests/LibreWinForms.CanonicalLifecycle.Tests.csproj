@@ -13,6 +13,12 @@
     <MicrosoftNETCoreAppRefPackageVersion></MicrosoftNETCoreAppRefPackageVersion>
   </PropertyGroup>
 
+  <!-- These actual native CPU controls require an explicitly staged qualified
+       runtime. Product adapters and managed source controls compile normally. -->
+  <PropertyGroup Condition="'$(LibreWinFormsTestNativeEditRuntime)' == 'true'">
+    <DefineConstants>$(DefineConstants);LIBREWINFORMS_TEST_NATIVE_EDIT_RUNTIME</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <Compile Include="../../../../packaging/LibreWinForms.Sdk.SourceFirstSmoke/CanonicalApiContracts.cs" Link="CanonicalApiContracts.cs" />
     <Compile Include="../../../LibreWinForms.ProGPU/ProGpuTextRendererService.cs" Link="ProGpuTextRendererService.cs" />

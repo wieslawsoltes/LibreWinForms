@@ -1,7 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-#if LIBREWINFORMS_NATIVE_EDIT_WORD_BOUNDARIES
 using LibreWinForms.Platform;
 using LibreWinForms.ProGPU;
 using ProGPU.Backend.Native;
@@ -78,4 +77,3 @@ public sealed class ProGpuEditWordBoundaryCaptureTests
     private static NativeEditWordBoundaryResult Success(int count, int leading = 0)
         => new() { Status = NativeRendererStatus.Success, BoundaryCount = (uint)count, LeadingContentStart = (uint)leading };
 }
-#endif

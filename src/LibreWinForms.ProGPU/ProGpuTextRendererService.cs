@@ -34,17 +34,12 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
     }
 
     private sealed class RetainedLayout(global::ProGPU.SystemDrawing.DrawingTextLayout layout)
-#if LIBREWINFORMS_NATIVE_EDIT_WORD_BOUNDARIES
         : ILibreTextLayout, ILibreTextRowNavigation, ILibreEditWordBoundaryLayout, ILibreEditTextInteractionLayout
-#else
-        : ILibreTextLayout, ILibreTextRowNavigation, ILibreTextSourceGeometry
-#endif
     {
         private global::ProGPU.SystemDrawing.DrawingTextLayout? _layout = layout;
         private int _selectionStart = -1;
         private int _selectionLength = -1;
         private RectangleF[] _selection = [];
-#if LIBREWINFORMS_NATIVE_EDIT_WORD_BOUNDARIES
         private LibreEditWordBoundaries? _wordBoundaries;
         private int _editSelectionStart = -1;
         private int _editSelectionLength = -1;
@@ -92,7 +87,7 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
             _wordBoundaries = boundaries;
             return boundaries;
         }
-#endif
+
         private global::ProGPU.SystemDrawing.DrawingTextLayout Layout
             => _layout ?? throw new ObjectDisposedException(nameof(RetainedLayout));
 
@@ -145,10 +140,8 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         {
             _layout = null;
             _selection = [];
-#if LIBREWINFORMS_NATIVE_EDIT_WORD_BOUNDARIES
             _wordBoundaries = null;
             _editSelection = [];
-#endif
         }
 
         private static LibreTextCaret Convert(global::ProGPU.Text.TextCaretStop caret)

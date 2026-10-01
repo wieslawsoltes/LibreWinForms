@@ -314,6 +314,53 @@ with zero errors and existing source warnings. An opt-in-disabled adapter build
 against the older `ce48bd4a` managed API also has zero warnings/errors. These
 checks use no native classifier, staged runtime, GPU, desktop input or VM.
 
+## Qualified retained API and native source integration
+
+The submodule now pins ProGPU `60347a5f1026b8f95582535e6b7cfc8431a04499`,
+whose whole Build `36915664259` passed all 59 jobs and 74 checks. The obsolete
+`LibreWinFormsEnableNativeEditWordBoundaries` product compilation switch and
+conditional adapter branches are removed. The real retained adapter and managed
+geometry controls compile in ordinary builds. This supersedes the source-build
+checkpoints above; `ProGpuTextRendererService` still does not advertise
+`ILibreEditWordBoundaryService`.
+
+Actual native CPU tests have the separate test-project selection
+`LibreWinFormsTestNativeEditRuntime=true`. That selection requires a qualified
+native runtime supplied by the caller; it does not change any product capability
+or permit missing-library skips/fallback. The ordinary source lane remains
+device-free until its runtime staging is connected.
+
+Local ARM64 validation builds the actual pinned source with repository SDK
+`11.0.100-preview.5.26302.115`, `NetCurrent=net10.0`,
+`LibreWinFormsUseProGpuSystemDrawing=true`, `LibreWinFormsReferenceMode=Project`
+and that native-test selection. It passes all 18 adapter cases, the unchanged
+30 source cases in two disjoint 15-case batches and all three selection-geometry
+cases. Each batch retains its 30-second test deadline and no skips.
+
+The four actual-native source cases pass against the staged osx-arm64 library
+from Build `36915664259` (package version `3435.ci`), SHA-256
+`53be0560d745941f5b3d8c454c0da5e547cc6907c5669560aa1e9ce8339d44a0`.
+Its loader dependency is the matching ARM64 Silk.NET.WebGPU.Native.WGPU 2.23.0
+asset. No GPU/device or new native build is involved. The cases retain original
+ASCII drag/reversal and layout retirement, password-source exclusion and typed
+classifier rejection before selection/public notifications. The old U+3200
+rejection is now the independently observed positive `[0,4]` inventory for
+`a\u3200b `; the exact ProGPU package control preserves the same literal result.
+U+327F remains the valid-Unicode `UnqualifiedBmpSymbolPolicy` source rejection,
+including proof that the retained provider performed the native boundary query.
+
+The ordinary marker remains blocked by real cross-grapheme geometry. The actual
+macOS Arial file SHA-256
+`525979822591a3447cfc49d943d6f7683508e25543407871c0ed8fed05fd2bd9`
+shapes lam-alef into glyph 1019 at source cluster zero. Native words succeed with
+`[0,2]`, but the EDIT caret at source index 1 and hits inside `[0,2)` reject
+unretained interior ownership. For `alpha \u0644\u0627 beta `, words succeed
+with `[0,6,9,14]`; unrelated source carets work while caret 7 and hits in `[6,8)`
+retain the same explicit rejection. The tested Inter/Times/Georgia/Hoefler/
+Baskerville `fi` strings did not actually form ligatures and are not evidence
+for that contract. Original Windows lam-alef caret/hit/selected-ink observations
+are still required before implementing or selecting ordinary EDIT interaction.
+
 ## Password source selection
 
 An admitted password double press uses canonical `SelectAll` once, before the

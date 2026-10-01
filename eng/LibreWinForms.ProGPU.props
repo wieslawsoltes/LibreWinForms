@@ -16,11 +16,4 @@
     <LibreWinFormsProGpuSourceRoot
       Condition="'$(LibreWinFormsProGpuSourceRoot)' == '' And Exists('$(MSBuildThisFileDirectory)..\..\ProGPU\src\System.Drawing.Common\System.Drawing.Common.csproj')">$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..\..\ProGPU'))</LibreWinFormsProGpuSourceRoot>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(LibreWinFormsEnableNativeEditWordBoundaries)' == 'true'">
-    <!-- Source-built capability checkpoint only. The qualified submodule does
-         not yet expose the retained native EDIT snapshot. This opt-in must be
-         exercised against that exact source API; it does not select the source
-         word-selection service or qualify the classifier/interaction domain. -->
-    <DefineConstants>$(DefineConstants);LIBREWINFORMS_NATIVE_EDIT_WORD_BOUNDARIES</DefineConstants>
-  </PropertyGroup>
 </Project>
