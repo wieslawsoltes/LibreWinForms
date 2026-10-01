@@ -49,6 +49,12 @@ insets. Source pre-handle sizing and adornment-aware scaling use the estimate;
 live client mapping uses actual insets. No border is inferred from Padding or for
 other source control classes. Native top-level decoration remains backend-owned.
 
+The frame arithmetic and painting now live in `PortableEditFrame`. Plain TextBox
+keeps its original explicit overrides and retained-layout invalidation;
+[MaskedTextBox](portable-masked-text-paint.md) explicitly selects the helper for
+its same source EDIT class/styles. This does not infer frames for RichTextBox or
+add a native masked-editor qualification claim.
+
 Both flat and retained trees paint Fixed3D in window coordinates and clip ordinary
 content/children to the translated actual client frame. FixedSingle paints its
 client border before foreground and child content. Screen conversion, pointer

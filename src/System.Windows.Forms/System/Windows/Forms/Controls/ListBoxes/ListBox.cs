@@ -2345,6 +2345,7 @@ public partial class ListBox : ListControl
 #if LIBREWINFORMS_PORTABLE
         // Collection add/replace/remove/clear and font updates all reach this
         // existing notification point, including batched updates.
+        InvalidatePortableListScrollFrame();
         _topIndex = GetPortableTopIndex();
         Invalidate();
 #endif

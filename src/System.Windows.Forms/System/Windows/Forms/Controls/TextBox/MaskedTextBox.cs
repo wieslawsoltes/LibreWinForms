@@ -42,8 +42,10 @@ public partial class MaskedTextBox : TextBoxBase
     private static readonly object s_isOverwriteModeChangedEvent = new();
     private static readonly object s_maskChangedEvent = new();
 
+#if !LIBREWINFORMS_PORTABLE
     // The native edit control's default password char (per thread). See corresponding property for more info.
     private static char s_systemPwdChar;
+#endif
 
     // Values to track changes in IME composition string (if any). Having const variables is a bit more efficient
     // than having an enum (which creates a class).
@@ -632,88 +634,103 @@ public partial class MaskedTextBox : TextBoxBase
         {
             return _flagState[s_isNullMask] ? string.Empty : _maskedTextProvider.Mask;
         }
-        set
+        set => SetMaskedMask(value);
+    }
+
+    private void SetMaskedMask(string? value)
+    {
+#if LIBREWINFORMS_PORTABLE
+        BeginPortableMaskedMutation();
+        Exception? failure = null;
+        try { SetMaskedMaskCore(value); }
+        catch (Exception error) { failure = error; throw; }
+        finally { EndPortableMaskedMutation(failure); }
+#else
+        SetMaskedMaskCore(value);
+#endif
+    }
+
+    private void SetMaskedMaskCore(string? value)
+    {
+        //
+        // We don't do anything if:
+        // 1. IsNullOrEmpty( value )->[Reset control] && _flagState[IS_NULL_MASK]==>Already Reset.
+        // 2. !IsNullOrEmpty( value )->[Set control] && !_flagState[IS_NULL_MASK][control is set] &&
+        //    [value is the same]==>No need to update.
+        //
+        if (_flagState[s_isNullMask] == string.IsNullOrEmpty(value) && (_flagState[s_isNullMask] || value == _maskedTextProvider.Mask))
         {
-            //
-            // We don't do anything if:
-            // 1. IsNullOrEmpty( value )->[Reset control] && _flagState[IS_NULL_MASK]==>Already Reset.
-            // 2. !IsNullOrEmpty( value )->[Set control] && !_flagState[IS_NULL_MASK][control is set] &&
-            //    [value is the same]==>No need to update.
-            //
-            if (_flagState[s_isNullMask] == string.IsNullOrEmpty(value) && (_flagState[s_isNullMask] || value == _maskedTextProvider.Mask))
-            {
-                return;
-            }
-
-            string? text = null;
-            string? newMask = value;
-
-            // We need to update the _flagState[IS_NULL_MASK]field before raising any events (when setting the maskedTextProvider) so
-            // querying for properties from an event handler returns the right value (i.e: Text).
-
-            if (string.IsNullOrEmpty(value)) // Resetting the control, the native edit control will be in charge.
-            {
-                // Need to get the formatted & unformatted text before resetting the mask, they'll be used to determine whether we need to
-                // raise the TextChanged event.
-                string formattedText = TextOutput;
-                string unformattedText = _maskedTextProvider.ToString(false, false);
-
-                _flagState[s_isNullMask] = true;
-
-                if (_maskedTextProvider.IsPassword)
-                {
-                    SetEditControlPasswordChar(_maskedTextProvider.PasswordChar);
-                }
-
-                // Set the window text to the unformatted text before raising events. Also, TextChanged needs to be raised after MaskChanged so
-                // pass false to SetWindowText 'raiseTextChanged' param.
-                SetWindowText(unformattedText, false, false);
-
-                EventArgs e = EventArgs.Empty;
-
-                OnMaskChanged(e);
-
-                if (unformattedText != formattedText)
-                {
-                    OnTextChanged(e);
-                }
-
-                newMask = NullMask;
-            }
-            else    // Setting control to a new value.
-            {
-                foreach (char c in value)
-                {
-                    if (!MaskedTextProvider.IsValidMaskChar(c))
-                    {
-                        // Same message as in SR.MaskedTextProviderMaskInvalidChar in System.txt
-                        throw new ArgumentException(SR.MaskedTextBoxMaskInvalidChar);
-                    }
-                }
-
-                if (_flagState[s_isNullMask])
-                {
-                    // If this.IsNullMask, we are setting the mask to a new value; in this case we need to get the text because
-                    // the underlying MTP does not have it (used as a property backend only) and pass it to SetMaskedTextProvider
-                    // method below to update the provider.
-
-                    text = Text;
-                }
-            }
-
-            // Recreate masked text provider since this property is read-only.
-            MaskedTextProvider newProvider = new(
-                newMask!,
-                _maskedTextProvider.Culture,
-                _maskedTextProvider.AllowPromptAsInput,
-                _maskedTextProvider.PromptChar,
-                _maskedTextProvider.PasswordChar,
-                _maskedTextProvider.AsciiOnly);
-
-            // text is null when setting to a different mask value or when resetting the mask to null.
-            // text is not null only when setting the mask from null to some value.
-            SetMaskedTextProvider(newProvider, text);
+            return;
         }
+
+        string? text = null;
+        string? newMask = value;
+
+        // We need to update the _flagState[IS_NULL_MASK]field before raising any events (when setting the maskedTextProvider) so
+        // querying for properties from an event handler returns the right value (i.e: Text).
+
+        if (string.IsNullOrEmpty(value)) // Resetting the control, the native edit control will be in charge.
+        {
+            // Need to get the formatted & unformatted text before resetting the mask, they'll be used to determine whether we need to
+            // raise the TextChanged event.
+            string formattedText = TextOutput;
+            string unformattedText = _maskedTextProvider.ToString(false, false);
+
+            _flagState[s_isNullMask] = true;
+
+            if (_maskedTextProvider.IsPassword)
+            {
+                SetEditControlPasswordChar(_maskedTextProvider.PasswordChar);
+            }
+
+            // Set the window text to the unformatted text before raising events. Also, TextChanged needs to be raised after MaskChanged so
+            // pass false to SetWindowText 'raiseTextChanged' param.
+            SetWindowText(unformattedText, false, false);
+
+            EventArgs e = EventArgs.Empty;
+
+            OnMaskChanged(e);
+
+            if (unformattedText != formattedText)
+            {
+                OnTextChanged(e);
+            }
+
+            newMask = NullMask;
+        }
+        else    // Setting control to a new value.
+        {
+            foreach (char c in value)
+            {
+                if (!MaskedTextProvider.IsValidMaskChar(c))
+                {
+                    // Same message as in SR.MaskedTextProviderMaskInvalidChar in System.txt
+                    throw new ArgumentException(SR.MaskedTextBoxMaskInvalidChar);
+                }
+            }
+
+            if (_flagState[s_isNullMask])
+            {
+                // If this.IsNullMask, we are setting the mask to a new value; in this case we need to get the text because
+                // the underlying MTP does not have it (used as a property backend only) and pass it to SetMaskedTextProvider
+                // method below to update the provider.
+
+                text = Text;
+            }
+        }
+
+        // Recreate masked text provider since this property is read-only.
+        MaskedTextProvider newProvider = new(
+            newMask!,
+            _maskedTextProvider.Culture,
+            _maskedTextProvider.AllowPromptAsInput,
+            _maskedTextProvider.PromptChar,
+            _maskedTextProvider.PasswordChar,
+            _maskedTextProvider.AsciiOnly);
+
+        // text is null when setting to a different mask value or when resetting the mask to null.
+        // text is not null only when setting the mask from null to some value.
+        SetMaskedTextProvider(newProvider, text);
     }
 
     /// <summary>
@@ -1093,10 +1110,17 @@ public partial class MaskedTextBox : TextBoxBase
     /// </summary>
     private void SetEditControlPasswordChar(char pwdChar)
     {
+#if LIBREWINFORMS_PORTABLE
+        // The owned display layout performs the original password projection;
+        // a portable source handle must never be passed to USER32.
+        InvalidatePortableMaskedLayout();
+#endif
         if (IsHandleCreated)
         {
+#if !LIBREWINFORMS_PORTABLE
             // This message does not return a value.
             PInvokeCore.SendMessage(this, PInvokeCore.EM_SETPASSWORDCHAR, (WPARAM)pwdChar);
+#endif
             Invalidate();
         }
     }
@@ -1108,6 +1132,11 @@ public partial class MaskedTextBox : TextBoxBase
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            // Match portable TextBox's system-password display policy. Its
+            // PasswordChar getter reports the custom character, not this one.
+            return '\u25CF';
+#else
             if (s_systemPwdChar == '\0')
             {
                 // We need to temporarily create an edit control to get the default password character.
@@ -1122,6 +1151,7 @@ public partial class MaskedTextBox : TextBoxBase
             }
 
             return s_systemPwdChar;
+#endif
         }
     }
 
@@ -1149,42 +1179,57 @@ public partial class MaskedTextBox : TextBoxBase
 
             return TextOutput;
         }
-        set
+        set => SetMaskedText(value);
+    }
+
+    private void SetMaskedText(string? value)
+    {
+#if LIBREWINFORMS_PORTABLE
+        BeginPortableMaskedMutation();
+        Exception? failure = null;
+        try { SetMaskedTextCore(value); }
+        catch (Exception error) { failure = error; throw; }
+        finally { EndPortableMaskedMutation(failure); }
+#else
+        SetMaskedTextCore(value);
+#endif
+    }
+
+    private void SetMaskedTextCore(string? value)
+    {
+        if (_flagState[s_isNullMask])
         {
-            if (_flagState[s_isNullMask])
-            {
-                base.Text = value;
-                return;
-            }
+            base.Text = value;
+            return;
+        }
 
-            if (string.IsNullOrEmpty(value))
+        if (string.IsNullOrEmpty(value))
+        {
+            // reset the input text.
+            Delete(Keys.Delete, 0, _maskedTextProvider.Length);
+        }
+        else
+        {
+            if (RejectInputOnFirstFailure)
             {
-                // reset the input text.
-                Delete(Keys.Delete, 0, _maskedTextProvider.Length);
-            }
-            else
-            {
-                if (RejectInputOnFirstFailure)
+                string oldText = TextOutput;
+                if (_maskedTextProvider.Set(value, out _caretTestPos, out MaskedTextResultHint hint))
                 {
-                    string oldText = TextOutput;
-                    if (_maskedTextProvider.Set(value, out _caretTestPos, out MaskedTextResultHint hint))
+                    if (TextOutput != oldText)
                     {
-                        if (TextOutput != oldText)
-                        {
-                            SetText();
-                        }
+                        SetText();
+                    }
 
-                        SelectionStart = ++_caretTestPos;
-                    }
-                    else
-                    {
-                        OnMaskInputRejected(new MaskInputRejectedEventArgs(_caretTestPos, hint));
-                    }
+                    SelectionStart = ++_caretTestPos;
                 }
                 else
                 {
-                    Replace(value, /*startPosition*/ 0, /*selectionLen*/ _maskedTextProvider.Length);
+                    OnMaskInputRejected(new MaskInputRejectedEventArgs(_caretTestPos, hint));
                 }
+            }
+            else
+            {
+                Replace(value, /*startPosition*/ 0, /*selectionLen*/ _maskedTextProvider.Length);
             }
         }
     }
@@ -1496,6 +1541,19 @@ public partial class MaskedTextBox : TextBoxBase
     /// </summary>
     private void Delete(Keys keyCode, int startPosition, int selectionLen)
     {
+#if LIBREWINFORMS_PORTABLE
+        BeginPortableMaskedMutation();
+        Exception? failure = null;
+        try { DeleteMaskedTextCore(keyCode, startPosition, selectionLen); }
+        catch (Exception error) { failure = error; throw; }
+        finally { EndPortableMaskedMutation(failure); }
+#else
+        DeleteMaskedTextCore(keyCode, startPosition, selectionLen);
+#endif
+    }
+
+    private void DeleteMaskedTextCore(Keys keyCode, int startPosition, int selectionLen)
+    {
         Debug.Assert(!_flagState[s_isNullMask], "This method must be called when a Mask is provided.");
         Debug.Assert(keyCode is Keys.Delete or Keys.Back, $"Delete called with keyCode == {keyCode}");
         Debug.Assert(startPosition >= 0 && ((startPosition + selectionLen) <= _maskedTextProvider.Length), "Invalid position range.");
@@ -1601,7 +1659,7 @@ public partial class MaskedTextBox : TextBoxBase
         // Reposition caret. Call base.SelectInternal for perf reasons.
         // this.SelectionLength = 0;
         // this.SelectionStart  = _caretTestPos; // new caret position.
-        base.SelectInternal(_caretTestPos, 0, _maskedTextProvider.Length);
+        SelectMaskedTextInternal(_caretTestPos, 0, _maskedTextProvider.Length);
 
         return;
     }
@@ -1797,7 +1855,14 @@ public partial class MaskedTextBox : TextBoxBase
 
     protected override void OnGotFocus(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        _portableMaskedFocusVersion++;
+        ResetPortableMaskedCaret();
+#endif
         base.OnGotFocus(e);
+#if LIBREWINFORMS_PORTABLE
+        Invalidate();
+#endif
 
         if (IsAccessibilityObjectCreated)
         {
@@ -1811,6 +1876,9 @@ public partial class MaskedTextBox : TextBoxBase
     /// </summary>
     protected override void OnHandleCreated(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        _portableMaskedHandleRetiring = false;
+#endif
         base.OnHandleCreated(e);
         SetSelectionOnHandle();
 
@@ -1948,6 +2016,19 @@ public partial class MaskedTextBox : TextBoxBase
     ///  Raises the <see cref="Control.KeyPress"/> event.
     /// </summary>
     protected override void OnKeyPress(KeyPressEventArgs e)
+    {
+#if LIBREWINFORMS_PORTABLE
+        BeginPortableMaskedMutation();
+        Exception? failure = null;
+        try { ProcessMaskedKeyPressCore(e); }
+        catch (Exception error) { failure = error; throw; }
+        finally { EndPortableMaskedMutation(failure); }
+#else
+        ProcessMaskedKeyPressCore(e);
+#endif
+    }
+
+    private void ProcessMaskedKeyPressCore(KeyPressEventArgs e)
     {
         base.OnKeyPress(e);
 
@@ -2135,6 +2216,9 @@ public partial class MaskedTextBox : TextBoxBase
     /// </summary>
     protected override void OnTextChanged(EventArgs e)
     {
+#if LIBREWINFORMS_PORTABLE
+        InvalidatePortableMaskedLayout();
+#endif
         // A text changed event handler will most likely query for the Text value, we need to return the
         // formatted one.
         bool queryBaseText = _flagState[s_queryBaseText];
@@ -2147,6 +2231,9 @@ public partial class MaskedTextBox : TextBoxBase
         {
             _flagState[s_queryBaseText] = queryBaseText;
         }
+#if LIBREWINFORMS_PORTABLE
+        Invalidate();
+#endif
     }
 
     /// <summary>
@@ -2154,6 +2241,19 @@ public partial class MaskedTextBox : TextBoxBase
     ///  with the contents of the supplied string.
     /// </summary>
     private void Replace(string text, int startPosition, int selectionLen)
+    {
+#if LIBREWINFORMS_PORTABLE
+        BeginPortableMaskedMutation();
+        Exception? failure = null;
+        try { ReplaceMaskedTextCore(text, startPosition, selectionLen); }
+        catch (Exception error) { failure = error; throw; }
+        finally { EndPortableMaskedMutation(failure); }
+#else
+        ReplaceMaskedTextCore(text, startPosition, selectionLen);
+#endif
+    }
+
+    private void ReplaceMaskedTextCore(string text, int startPosition, int selectionLen)
     {
         Debug.Assert(!_flagState[s_isNullMask], "This method must be called when a Mask is provided.");
         Debug.Assert(text is not null, "text is null.");
@@ -2248,6 +2348,9 @@ public partial class MaskedTextBox : TextBoxBase
         bool updateText = TextOutput != clonedProvider.ToString();
 
         // Always set the mtp, the formatted text could be the same but the assigned positions may be different.
+#if LIBREWINFORMS_PORTABLE
+        InvalidatePortableMaskedLayout();
+#endif
         _maskedTextProvider = clonedProvider;
 
         // Update text if needed.
@@ -2257,7 +2360,7 @@ public partial class MaskedTextBox : TextBoxBase
 
             // Update caret position.
             _caretTestPos = startPosition;
-            base.SelectInternal(_caretTestPos, 0, _maskedTextProvider.Length);
+            SelectMaskedTextInternal(_caretTestPos, 0, _maskedTextProvider.Length);
         }
         else
         {
@@ -2425,6 +2528,12 @@ public partial class MaskedTextBox : TextBoxBase
                 SelectAll();
                 msgProcessed = true; // This prevents generating a WM_CHAR for 'A'.
             }
+#if LIBREWINFORMS_PORTABLE
+            else
+            {
+                msgProcessed = TryMovePortableMaskedCaret(keyData);
+            }
+#endif
         }
 
         return msgProcessed;
@@ -2489,6 +2598,19 @@ public partial class MaskedTextBox : TextBoxBase
     /// </summary>
     private void SetMaskedTextProvider(MaskedTextProvider newProvider, string? textOnInitializingMask)
     {
+#if LIBREWINFORMS_PORTABLE
+        BeginPortableMaskedMutation();
+        Exception? failure = null;
+        try { SetMaskedTextProviderCore(newProvider, textOnInitializingMask); }
+        catch (Exception error) { failure = error; throw; }
+        finally { EndPortableMaskedMutation(failure); }
+#else
+        SetMaskedTextProviderCore(newProvider, textOnInitializingMask);
+#endif
+    }
+
+    private void SetMaskedTextProviderCore(MaskedTextProvider newProvider, string? textOnInitializingMask)
+    {
         Debug.Assert(newProvider is not null, "Initializing from a null MaskProvider ref.");
 
         // Set R/W properties.
@@ -2502,6 +2624,9 @@ public partial class MaskedTextBox : TextBoxBase
         // Change won't have any effect in text.
         if (_flagState[s_isNullMask] && textOnInitializingMask is null)
         {
+#if LIBREWINFORMS_PORTABLE
+            InvalidatePortableMaskedLayout();
+#endif
             _maskedTextProvider = newProvider;
             return;
         }
@@ -2574,6 +2699,9 @@ public partial class MaskedTextBox : TextBoxBase
         }
 
         // Set provider.
+#if LIBREWINFORMS_PORTABLE
+        InvalidatePortableMaskedLayout();
+#endif
         _maskedTextProvider = newProvider;
 
         if (_flagState[s_isNullMask])
@@ -2635,13 +2763,36 @@ public partial class MaskedTextBox : TextBoxBase
     /// </summary>
     private void SetWindowText(string text, bool raiseTextChangedEvent, bool preserveCaret)
     {
+#if LIBREWINFORMS_PORTABLE
+        BeginPortableMaskedMutation();
+        Exception? failure = null;
+        try { SetMaskedWindowTextCore(text, raiseTextChangedEvent, preserveCaret); }
+        catch (Exception error) { failure = error; throw; }
+        finally { EndPortableMaskedMutation(failure); }
+#else
+        SetMaskedWindowTextCore(text, raiseTextChangedEvent, preserveCaret);
+#endif
+    }
+
+    private void SetMaskedWindowTextCore(string text, bool raiseTextChangedEvent, bool preserveCaret)
+    {
+#if LIBREWINFORMS_PORTABLE
+        InvalidatePortableMaskedLayout();
+#endif
         _flagState[s_queryBaseText] = true;
 
+#if LIBREWINFORMS_PORTABLE
+        GetPortableSourceSelection(out int savedAnchor, out int savedLength);
+        uint selectionVersion = _portableMaskedSelectionVersion;
+        MaskedTextProvider selectionProvider = _maskedTextProvider;
+#endif
         try
         {
             if (preserveCaret)
             {
+#if !LIBREWINFORMS_PORTABLE
                 _caretTestPos = SelectionStart;
+#endif
             }
 
             WindowText = text;  // this calls Win32::SetWindowText directly, no OnTextChanged raised.
@@ -2653,13 +2804,34 @@ public partial class MaskedTextBox : TextBoxBase
 
             if (preserveCaret)
             {
+#if LIBREWINFORMS_PORTABLE
+                // Display-only prompt/password changes do not replace the
+                // source selection. Public getters may expose a shorter range.
+                if (selectionVersion == _portableMaskedSelectionVersion
+                    && ReferenceEquals(selectionProvider, _maskedTextProvider) && WindowText == text
+                    && !IsDisposed && !Disposing)
+                {
+                    // Portable WindowText retains the cached selection already;
+                    // only the original focus-restoration bookkeeping changes.
+                    _caretTestPos = savedAnchor;
+                    _lastSelLength = savedLength;
+                }
+#else
                 SelectionStart = _caretTestPos;
+#endif
             }
         }
         finally
         {
             _flagState[s_queryBaseText] = false;
         }
+#if LIBREWINFORMS_PORTABLE
+        if (!raiseTextChangedEvent)
+        {
+            // Password/prompt-only display updates do not raise TextChanged.
+            Invalidate();
+        }
+#endif
     }
 
     /// <summary>
@@ -2994,14 +3166,18 @@ public partial class MaskedTextBox : TextBoxBase
     {
         Debug.Assert(!_flagState[s_isNullMask], "This method must be called when a Mask is provided.");
 
+#if LIBREWINFORMS_PORTABLE
+        GetPortableSourceSelection(out _caretTestPos, out _lastSelLength);
+#else
         GetSelectionStartAndLength(out _caretTestPos, out _lastSelLength);
+#endif
 
         if (HidePromptOnLeave && !MaskFull)
         {
             SetWindowText(); // Update text w/ no prompt.
 
             // We need to update selection info in case the control is queried for it while it doesn't have the focus.
-            base.SelectInternal(_caretTestPos, _lastSelLength, _maskedTextProvider.Length);
+            SelectMaskedTextInternal(_caretTestPos, _lastSelLength, _maskedTextProvider.Length);
         }
     }
 
@@ -3020,6 +3196,15 @@ public partial class MaskedTextBox : TextBoxBase
 
         // Restore previous selection. Do this always (as opposed to within the condition above as in WmKillFocus)
         // because HidePromptOnLeave could have changed while the control did not have the focus.
-        base.SelectInternal(_caretTestPos, _lastSelLength, _maskedTextProvider.Length);
+        SelectMaskedTextInternal(_caretTestPos, _lastSelLength, _maskedTextProvider.Length);
+    }
+
+    private void SelectMaskedTextInternal(int start, int length, int textLength)
+    {
+#if LIBREWINFORMS_PORTABLE
+        SelectInternal(start, length, textLength);
+#else
+        base.SelectInternal(start, length, textLength);
+#endif
     }
 }

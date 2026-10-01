@@ -57,6 +57,38 @@ only an actual keyboardless native popup may omit GLFW character ownership. Keep
 factory selection and legacy wheel policy unchanged. See docs/native-pointer-source-input.md;
 source adapter tests are not native popup/desktop qualification.
 
+Native scroll quantities reach a distinct source event, never invented legacy
+wheel ticks. ScrollableControl uses its actual per-axis SmallChange for lines and
+the captured source point transform for precise points. Admit every requested
+axis before moving either, retain fractional tails only for the exact stream,
+generation, target and numeric frame, and retire only the old carry on callback
+failure. Validate original pointer metadata before source/global state changes.
+AppKit phases retain source-owned gesture identity: normal input hit-tests anew,
+momentum pins weak exact target/consumer handles, and stale tails never retarget.
+Cancel retires fractions before callbacks; End permits its final delta and exact
+normal-to-momentum handoff. Pointer Leave is not momentum cancellation. Reject
+untagged/combined/unknown phases, and keep unknown consumer and factory/modality gates.
+See docs/native-scroll-source-input.md; bounded source passes are not desktop parity.
+
+Native menu scrolling uses the original Items adjacency and available-item TOP
+visibility, not fixed row heights or filtered adjacency. Precise points use actual
+display/content bounds and preserve the source half-open bottom predicate. Retain
+one exact menu layout snapshot per generation; carry frames reference it weakly,
+while synchronous plans borrow original items. Revalidate source/layout after each
+virtual item positioning callback and stop obsolete writes without rolling back
+already applied positions. Restore suspended layout while preserving the original
+failure, including failed diagnostic storage. Keep ordinary button/legacy paths,
+unsupported axes and native factory/UI gates. See docs/native-menu-scroll.md.
+
+Native ListBox and hosted ComboBox-list scrolling retains the existing row-aligned
+Normal/single-selection/single-column source contract. Lines carry row counts;
+Points carry source-pixel distance until a complete actual FontHeight row. Keep
+frame identities ownerless, ItemArray references weak, and same-count SetItem
+invalidation before user callbacks without changing global ItemArray versioning.
+TopIndex mutation publishes expected identity before invalidation; old failures
+cannot retire nested input. Unsupported modes/axes and legacy wheel stay explicit.
+See docs/native-list-scroll.md; source checks do not admit smooth subrow/native UI.
+
 Native pointer drag cancellation binds the actual source-window object, handle
 generation and registration lease before callbacks. Commit terminal state before
 source/character retirement can pump input, then notify only the captured old

@@ -22,6 +22,12 @@ public partial class CanonicalLifecycleTests
         ToolStripMenuItem more = new("More");
         more.DropDownItems.Add("Child");
         menu.Items.Add(more);
+        // A previous source fixture can leave the pointer at this item's exact
+        // future screen point. ToolStrip deliberately suppresses that stationary
+        // move at Show; establish actual movement through the owning source.
+        platform.SendControlInput(owner, new LibreInputEvent(LibreInputEventKind.PointerMove, 0,
+            LibreInputModifiers.None, LibreKey.Unknown, null,
+            new(owner.ClientRectangle.Right - 1, owner.ClientRectangle.Bottom - 1), default, LibrePointerButton.None));
         menu.Show(owner, Point.Empty);
 
         HoverMenuItem(platform, menu, more);
@@ -42,6 +48,13 @@ public partial class CanonicalLifecycleTests
         menu.GetItemAt(point.X, point.Y).Should().BeSameAs(item);
         platform.SendControlInput(menu, new LibreInputEvent(LibreInputEventKind.PointerMove, 1,
             LibreInputModifiers.None, LibreKey.Unknown, null, point, default, LibrePointerButton.None));
+    }
+
+    [Fact]
+    public void CanonicalMenuHoverUsesActualMovementAfterEarlierPersistentPopup()
+    {
+        CanonicalMenuHoverDoesNotPromotePersistentMenuIntoModalInput();
+        CanonicalMenuHoverExpandsTheLiveContextSubmenuWithoutActivatingIt();
     }
 
     [Fact]

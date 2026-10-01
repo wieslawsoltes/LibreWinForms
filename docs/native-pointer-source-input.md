@@ -31,11 +31,15 @@ existing four flags. The canonical source now consumes native counts through its
 [source-owned click pairing](native-pointer-clicks.md); the backend retains raw
 counts and does not synthesize duplicate down/up events.
 
-Native Scroll is explicitly unsupported in this adapter, including line and precise
-point packets. It is neither swallowed nor multiplied into invented wheel notches.
+Native Scroll now retains original point/line quantities in a separate
+source event and reaches the actual AutoScroll consumer described in
+[source native scrolling](native-scroll-source-input.md). It is neither swallowed
+nor multiplied into invented wheel notches. Explicit AppKit phases now retain
+source-owned gesture and momentum target identity; unknown or untagged phases reject
+before source delivery.
 Malformed metadata and unrepresentable/unsupported button identities fail before
-source delivery. Full native-scroll/legacy MouseWheel policy remains a separate
-decision and a prerequisite to owned-popup factory admission.
+source delivery. Legacy MouseWheel is unchanged. Complete scroll consumer policy
+and native qualification remain prerequisites to owned-popup factory admission.
 
 A real keyboardless native popup has no GLFW character callback slots and retains
 its actual Form's keyboard owner. Unknown non-GLFW keyboard providers still fail
@@ -43,9 +47,13 @@ closed. The existing GLFW full-scalar character ownership/ordering is unchanged.
 
 ## Authored coverage and limits
 
-- 44 backend adapter cases cover original metadata, double precision, supported
-  buttons, atomic rejection, explicit Scroll failure, callback/generation retirement,
+- 67 backend adapter cases cover original metadata, double precision, supported
+  buttons, atomic rejection, explicit untagged-phase failure, callback/generation retirement,
   later-generation admission, character errors, cleanup, provider selection and ABI.
+  The six additional cases retain phase-less vectors/units/stream generations and
+  reject malformed scroll metadata before coordinate or character callbacks.
+  Seventeen further cases retain every admitted exact phase and reject unknown,
+  combined or simultaneous phases before source point-scale reads or callbacks.
 - Four additional cases compose the adapter with the actual drag service/router:
   terminal-before-character reentry, Leave versus Cancel, once-only old-target Leave
   and preserved primary/cleanup exceptions. The existing 20 cases remain (24 total).
@@ -59,7 +67,9 @@ closed. The existing GLFW full-scalar character ownership/ordering is unchanged.
 The unchanged full suites remain, with backend minimum 218 and canonical minimum
 869. The native-pointer canonical selector requires all 24 cases, retains the
 two-minute bound and rejects skipped tests.
-Local work is source/static checking only: no build, test execution, GUI, VM or
-native window/input activity was performed. Exact-head hosted compilation/execution,
-original example/Showcase interaction, native scroll, owned factory admission and
-platform desktop qualification remain required; these authored cases are not passes.
+The earlier pointer-only implementation was authored without local execution.
+The subsequent bounded scroll work ran all 67 adapter, 25 drag-cancellation and
+24 canonical pointer cases successfully, plus its 41 new source scroll cases;
+see the linked scroll note for the exact source/dependency scope. Exact-head hosted
+compilation/execution, original example/Showcase interaction, complete native scroll,
+owned factory admission and platform desktop qualification remain required.

@@ -55,8 +55,14 @@ public unsafe partial class Control
     internal void DispatchPortableInput(in LibreInputEvent inputEvent)
     {
         Control root = GetPortableTopLevelControl();
+        if (inputEvent.Kind == LibreInputEventKind.PointerScroll)
+            ValidatePortableNativeScroll(inputEvent);
         if (inputEvent.Kind == LibreInputEventKind.PointerLeave)
         {
+            // Pointer exit is not gesture cancellation: AppKit continues to
+            // deliver momentum to its original view after the pointer leaves.
+            if (root._portableNativeScrollGesture is not { Momentum: true })
+                root.RetirePortableNativeScroll();
             // Retire before callbacks and never mutate their replacement hover.
             // Leaving the native view does not release a held drag/capture.
             root._portablePointerInputVersion++;
@@ -145,6 +151,7 @@ public unsafe partial class Control
             case LibreInputEventKind.PointerDown:
             case LibreInputEventKind.PointerUp:
             case LibreInputEventKind.PointerWheel:
+            case LibreInputEventKind.PointerScroll:
                 root.DispatchPortablePointer(inputEvent);
                 break;
         }
@@ -189,6 +196,7 @@ public unsafe partial class Control
         root._portablePressedButton = MouseButtons.None;
         root._portableNativePress = null;
         root._portableCompletedNativeClick = null;
+        root.RetirePortableNativeScroll();
         if (s_portableButtonOwners is { } owners)
         {
             for (int index = 0; index < owners.Length; index++)
@@ -530,6 +538,34 @@ public unsafe partial class Control
         if (!IsCurrentPortablePointerInput(inputVersion, receivingHandle))
             return;
 
+        PortableNativeScrollGesture? gesture = null;
+        if (inputEvent.Kind == LibreInputEventKind.PointerScroll)
+        {
+            gesture = PreparePortableNativeScroll(inputEvent.NativeScroll!.Value);
+            if (gesture is null)
+                return;
+        }
+
+        try
+        {
+            DispatchPortablePointerCore(inputEvent, inputVersion, receivingHandle, gesture);
+        }
+        catch
+        {
+            if (gesture is not null && _portablePointerInputVersion == inputVersion)
+                RetirePortableNativeScroll(gesture);
+            throw;
+        }
+        finally
+        {
+            if (gesture is { Momentum: true, Ended: true })
+                RetirePortableNativeScroll(gesture);
+        }
+    }
+
+    private void DispatchPortablePointerCore(in LibreInputEvent inputEvent, uint inputVersion,
+        LibreHandle receivingHandle, PortableNativeScrollGesture? gesture)
+    {
         PortableNativeClick? previousClick = null;
         if (inputEvent.Kind == LibreInputEventKind.PointerDown)
         {
@@ -548,6 +584,18 @@ public unsafe partial class Control
 
         Point rootPosition = new(inputEvent.Position.X, inputEvent.Position.Y);
         s_portableMousePosition = PointToScreen(rootPosition);
+
+        if (gesture is { Momentum: true } && inputEvent.NativeScroll!.Value.MomentumPhase != 1)
+        {
+            // AppKit momentum belongs to the target selected at its Began,
+            // not to whichever control happens to be under today's pointer.
+            Control? pinned = gesture.GetTarget(this);
+            if (pinned is null)
+                RetirePortableNativeScroll(gesture);
+            else
+                DispatchPortableNativeScroll(pinned, inputEvent, gesture);
+            return;
+        }
 
         if (!ReferenceEquals(s_portableHoverRoot, this))
         {
@@ -593,7 +641,7 @@ public unsafe partial class Control
             return;
         }
 
-        Control? target = _portableCapturedControl ?? hit;
+        Control? target = gesture is not null ? hit : _portableCapturedControl ?? hit;
         LibreHandle targetHandle = target?._window.PortableHandle ?? default;
         captureVersion = _portablePointerCaptureVersion;
         if (target is not null && !IsCurrentPortablePointerTarget(target, targetHandle))
@@ -605,7 +653,7 @@ public unsafe partial class Control
         RefreshPortableCursor();
         if (!IsCurrentPortablePointerInput(inputVersion, receivingHandle))
             return;
-        if (target is null || (_portableCapturedControl is null && !clientHit))
+        if (target is null || ((gesture is not null || _portableCapturedControl is null) && !clientHit))
         {
             return;
         }
@@ -694,6 +742,9 @@ public unsafe partial class Control
                 break;
             case LibreInputEventKind.PointerWheel:
                 DispatchPortableMouseWheel(target, s_portableMousePosition, inputEvent.Delta.Y);
+                break;
+            case LibreInputEventKind.PointerScroll:
+                DispatchPortableNativeScroll(target, inputEvent, gesture!);
                 break;
         }
     }
