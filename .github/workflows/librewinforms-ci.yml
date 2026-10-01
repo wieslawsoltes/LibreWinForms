@@ -4,7 +4,6 @@ on:
   pull_request:
     branches:
       - librewinforms-progpu-port
-      - main
   push:
     branches:
       - librewinforms-progpu-port

@@ -16,4 +16,9 @@
     <ProjectReference Include="..\LibreWinForms.ProGPU.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\SilkWindowService.cs" Link="SourceContracts\SilkWindowService.cs"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
