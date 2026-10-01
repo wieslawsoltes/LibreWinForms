@@ -16,31 +16,17 @@ public partial class MaskedTextBox
         {
             // TextMaskFormat describes public output, not the displayed mask.
             // Reuse the same provider formatting as the original EDIT window.
-            string display = _flagState[s_isNullMask] ? WindowText : GetFormattedDisplayString();
-            if (_flagState[s_isNullMask] && _maskedTextProvider.IsPassword)
-            {
-                display = new string(_maskedTextProvider.PasswordChar, display.Length);
-            }
-
-            TextFormatFlags flags = TextFormatFlags.TextBoxControl | TextFormatFlags.NoPrefix
-                | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
-            flags |= RtlTranslateHorizontal(TextAlign) switch
-            {
-                HorizontalAlignment.Center => TextFormatFlags.HorizontalCenter,
-                HorizontalAlignment.Right => TextFormatFlags.Right,
-                _ => TextFormatFlags.Left
-            };
-            if (RightToLeft == RightToLeft.Yes)
-            {
-                flags |= TextFormatFlags.RightToLeft;
-            }
+            string display = GetPortableMaskedDisplay();
+            TextFormatFlags flags = GetPortableMaskedFlags();
 
             GraphicsState state = e.Graphics.Save();
             try
             {
                 e.Graphics.SetClip(bounds, CombineMode.Intersect);
                 e.Graphics.SetClip(e.ClipRectangle, CombineMode.Intersect);
-                TextRenderer.DrawText(e.Graphics, display, Font, bounds, Enabled ? ForeColor : SystemColors.GrayText, flags);
+                Color foreground = Enabled ? ForeColor : SystemColors.GrayText;
+                if (!PaintPortableMaskedLayout(e, foreground) && !IsDisposed && !Disposing)
+                    TextRenderer.DrawText(e.Graphics, display, Font, bounds, foreground, flags);
             }
             finally
             {
@@ -53,6 +39,13 @@ public partial class MaskedTextBox
 
     protected override void OnLostFocus(EventArgs e)
     {
+        _portableMaskedFocusVersion++;
+        InvalidatePortableMaskedLayout();
+        _portableMaskedCaretTimer?.Stop();
+        bool releaseCapture = _portableMaskedPointerSelecting && Capture;
+        _portableMaskedPointerSelecting = false;
+        _portableMaskedPress = default;
+        if (releaseCapture) Capture = false;
         base.OnLostFocus(e);
         Invalidate();
     }
@@ -60,6 +53,7 @@ public partial class MaskedTextBox
     protected override void OnEnabledChanged(EventArgs e)
     {
         base.OnEnabledChanged(e);
+        ResetPortableMaskedCaret();
         Invalidate();
     }
 }
