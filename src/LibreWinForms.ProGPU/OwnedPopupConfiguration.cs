@@ -17,8 +17,16 @@ internal static class OwnedPopupConfiguration
             // A failed native mutation is not staged desired state that may be
             // reapplied at Show. Retire the same provider through its source owner.
             try { discard(); }
-            catch (Exception cleanupFailure) { failure.Data[nameof(OwnedPopupConfiguration)] = cleanupFailure; }
+            catch (Exception cleanupFailure) { AttachCleanup(failure, cleanupFailure, nameof(OwnedPopupConfiguration)); }
             throw;
         }
+    }
+
+    internal static void AttachCleanup(Exception failure, Exception cleanupFailure, string owner)
+    {
+        // Exception.Data is virtual and may itself throw or be read-only.
+        // Cleanup diagnostics can never replace the original native failure.
+        try { failure.Data[owner] = cleanupFailure; }
+        catch { }
     }
 }

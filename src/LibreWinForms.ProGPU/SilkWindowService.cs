@@ -405,7 +405,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         catch (Exception failure)
         {
             try { ReleaseNativeWindow(); }
-            catch (Exception cleanupFailure) { failure.Data[nameof(SilkLibreWindow)] = cleanupFailure; }
+            catch (Exception cleanupFailure) { OwnedPopupConfiguration.AttachCleanup(failure, cleanupFailure, nameof(SilkLibreWindow)); }
             throw;
         }
     }

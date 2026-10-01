@@ -152,6 +152,21 @@ public sealed class SourceWindowFactoryTests
     }
 
     [Fact]
+    public void ProviderExceptionRemainsPrimaryWhenCleanupDiagnosticsThrow()
+    {
+        var expected = new ThrowingDataException();
+        Exception actual = Assert.Throws<ThrowingDataException>(() => OwnedPopupConfiguration.Apply(
+            () => throw expected, () => true, () => throw new IOException("retirement pending"), "opacity"));
+        Assert.Same(expected, actual);
+        OwnedPopupConfiguration.AttachCleanup(expected, new IOException("constructor retirement"), "constructor");
+    }
+
+    private sealed class ThrowingDataException : Exception
+    {
+        public override System.Collections.IDictionary Data => throw new InvalidOperationException("diagnostics unavailable");
+    }
+
+    [Fact]
     public void ActualHostConnectsFactoryRequiredOptionsInputAndRetirement()
     {
         // Source-wiring guard paired with behavioral factory/admission cases.
