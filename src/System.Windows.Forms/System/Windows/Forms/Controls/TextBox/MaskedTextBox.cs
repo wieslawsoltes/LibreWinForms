@@ -42,8 +42,10 @@ public partial class MaskedTextBox : TextBoxBase
     private static readonly object s_isOverwriteModeChangedEvent = new();
     private static readonly object s_maskChangedEvent = new();
 
+#if !LIBREWINFORMS_PORTABLE
     // The native edit control's default password char (per thread). See corresponding property for more info.
     private static char s_systemPwdChar;
+#endif
 
     // Values to track changes in IME composition string (if any). Having const variables is a bit more efficient
     // than having an enum (which creates a class).
@@ -1108,6 +1110,11 @@ public partial class MaskedTextBox : TextBoxBase
     {
         get
         {
+#if LIBREWINFORMS_PORTABLE
+            // Match portable TextBox's system-password display policy. Its
+            // PasswordChar getter reports the custom character, not this one.
+            return '\u25CF';
+#else
             if (s_systemPwdChar == '\0')
             {
                 // We need to temporarily create an edit control to get the default password character.
@@ -1122,6 +1129,7 @@ public partial class MaskedTextBox : TextBoxBase
             }
 
             return s_systemPwdChar;
+#endif
         }
     }
 
@@ -1798,6 +1806,9 @@ public partial class MaskedTextBox : TextBoxBase
     protected override void OnGotFocus(EventArgs e)
     {
         base.OnGotFocus(e);
+#if LIBREWINFORMS_PORTABLE
+        Invalidate();
+#endif
 
         if (IsAccessibilityObjectCreated)
         {
@@ -2147,6 +2158,9 @@ public partial class MaskedTextBox : TextBoxBase
         {
             _flagState[s_queryBaseText] = queryBaseText;
         }
+#if LIBREWINFORMS_PORTABLE
+        Invalidate();
+#endif
     }
 
     /// <summary>
@@ -2660,6 +2674,13 @@ public partial class MaskedTextBox : TextBoxBase
         {
             _flagState[s_queryBaseText] = false;
         }
+#if LIBREWINFORMS_PORTABLE
+        if (!raiseTextChangedEvent)
+        {
+            // Password/prompt-only display updates do not raise TextChanged.
+            Invalidate();
+        }
+#endif
     }
 
     /// <summary>
