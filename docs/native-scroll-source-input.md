@@ -9,6 +9,13 @@ Original native pointer metadata and the old constructor/deconstruction remain.
 
 ## Actual source consumer
 
+The shared dispatcher now asks the actual Control for an internal source-owned
+snapshot and guarded write plan. The frame defines exact carry equality and unit
+arithmetic; the plan publishes its expected frame/tails before callbacks and reports
+incomplete writes so only its old carry is retired. Consumer identities remain weak
+Control references. AutoScroll keeps its original numeric policy below; the actual
+popup menu consumer is documented in [native menu scrolling](native-menu-scroll.md).
+
 `ScrollableControl` with AutoScroll has an existing pixel-valued display rectangle
 and per-axis source `SmallChange`. Native Lines multiply by that actual axis's
 SmallChange, not by a fabricated 120-unit wheel constant. Native Points use the
@@ -113,7 +120,7 @@ No native product build, package staging, pin change, observer, VM or UI run occ
 
 ## Remaining admission
 
-Standalone ScrollBar, ToolStripDropDown and editor/list/grid native-scroll policies
+Standalone ScrollBar, non-menu ToolStripDropDown and editor/list/grid native-scroll policies
 remain explicit where their source units do not match AutoScroll's pixel contract.
 Owned factory selection, automatic modality, application rendering and complete
 native popup/desktop qualification stay gated. No opaque handle cast, keyboard
