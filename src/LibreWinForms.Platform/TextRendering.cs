@@ -88,6 +88,16 @@ public interface ILibreEditWordBoundaryLayout : ILibreTextSourceGeometry
     LibreEditWordBoundaries GetWordBoundaries();
 }
 
+/// <summary>Optional EDIT geometry over the same retained original source generation.</summary>
+/// <remarks><para>Interior endpoints retain their original index at the owning original grapheme's trailing edge.</para></remarks>
+public interface ILibreEditTextInteractionLayout
+{
+    LibreTextCaret GetEditCaret(int textPosition, bool trailing = false);
+    LibreTextHit HitTestEdit(PointF point);
+    PointF GetEditSourcePositionPoint(int textPosition);
+    ReadOnlyMemory<RectangleF> GetEditSelectionRectangles(int start, int length);
+}
+
 /// <summary>Source queries over the same owned rows, shaped clusters and alignment as drawing.</summary>
 public interface ILibreTextSourceGeometry
 {

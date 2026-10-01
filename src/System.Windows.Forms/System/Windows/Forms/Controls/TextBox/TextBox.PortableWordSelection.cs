@@ -31,7 +31,7 @@ public partial class TextBox
         if (!IsCurrent() || !context.IsCurrent) return false;
         ValidatePortableWordBoundaries(positions, boundaries.LeadingContentStart, length);
         if (!IsCurrent() || !context.IsCurrent) return false;
-        LibreTextHit hit = layout.HitTest(new PointF(e.X - state.Viewport.X + state.Scroll.X,
+        LibreTextHit hit = HitTestPortableTextLayout(layout, new PointF(e.X - state.Viewport.X + state.Scroll.X,
             e.Y - state.Viewport.Y + state.Scroll.Y));
         if (!IsCurrent() || !context.IsCurrent) return false;
         ValidatePortableWordHit(hit.TextPosition, length);
@@ -75,7 +75,7 @@ public partial class TextBox
 
         PortableTextPointerState state = new(this);
         if (!word.IsCurrent(this) || !context.IsCurrent) return false;
-        LibreTextHit hit = word.Layout.HitTest(new PointF(e.X - state.Viewport.X + state.Scroll.X,
+        LibreTextHit hit = HitTestPortableTextLayout(word.Layout, new PointF(e.X - state.Viewport.X + state.Scroll.X,
             e.Y - state.Viewport.Y + state.Scroll.Y));
         if (!state.IsCurrent(this, state.SelectionVersion) || !word.IsCurrent(this) || !context.IsCurrent) return false;
         ValidatePortableWordHit(hit.TextPosition, word.Length);

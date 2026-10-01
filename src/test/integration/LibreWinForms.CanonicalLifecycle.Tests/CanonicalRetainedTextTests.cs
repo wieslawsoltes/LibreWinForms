@@ -412,6 +412,9 @@ public partial class CanonicalLifecycleTests
     }
 
     private class RetainedLayoutProbe(ILibreTextLayout layout) : ILibreTextLayout, ILibreTextRowNavigation, ILibreTextSourceGeometry
+#if LIBREWINFORMS_NATIVE_EDIT_WORD_BOUNDARIES
+        , ILibreEditTextInteractionLayout
+#endif
     {
         internal Action? AfterHitTest { get; set; }
         internal Action? AfterDispose { get; set; }
@@ -425,6 +428,21 @@ public partial class CanonicalLifecycleTests
         public int GetCaretRowIndex(int textPosition, bool trailing) => ((ILibreTextSourceGeometry)layout).GetCaretRowIndex(textPosition, trailing);
         public PointF GetSourcePositionPoint(int textPosition) => ((ILibreTextSourceGeometry)layout).GetSourcePositionPoint(textPosition);
         public virtual LibreTextCaret GetCaret(int position, bool trailing = false) => layout.GetCaret(position, trailing);
+#if LIBREWINFORMS_NATIVE_EDIT_WORD_BOUNDARIES
+        public virtual LibreTextCaret GetEditCaret(int position, bool trailing = false)
+            => ((ILibreEditTextInteractionLayout)layout).GetEditCaret(position, trailing);
+        public PointF GetEditSourcePositionPoint(int position)
+            => ((ILibreEditTextInteractionLayout)layout).GetEditSourcePositionPoint(position);
+        public LibreTextHit HitTestEdit(PointF point)
+        {
+            LibreTextHit hit = ((ILibreEditTextInteractionLayout)layout).HitTestEdit(point);
+            AfterHitTest?.Invoke();
+            return hit;
+        }
+
+        public ReadOnlyMemory<RectangleF> GetEditSelectionRectangles(int start, int length)
+            => ((ILibreEditTextInteractionLayout)layout).GetEditSelectionRectangles(start, length);
+#endif
         public LibreTextCaret MoveCaret(int position, bool trailing, int direction) => layout.MoveCaret(position, trailing, direction);
         public LibreTextCaret GetRowBoundary(int position, bool trailing, bool end)
             => ((ILibreTextRowNavigation)layout).GetRowBoundary(position, trailing, end);

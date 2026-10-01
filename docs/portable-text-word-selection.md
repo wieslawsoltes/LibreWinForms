@@ -267,6 +267,53 @@ hit/range rather than rounding a caret onto another row edge. None of this used
 the native classifier, GPU, a VM or staged runtime. Actual hit-to-interior placement,
 partial selected ink, caret/scroll mapping and native UI remain required.
 
+## Explicit retained EDIT geometry checkpoint
+
+The source-build opt-in also implements `ILibreEditTextInteractionLayout` over
+the same retained Drawing generation. TextBox selects this view only when the
+service explicitly declares the EDIT word-boundary marker and the layout carries
+the matching boundary capability. Ordinary services, WPF navigation and the
+qualified submodule/default build remain unchanged; ProGPU's ordinary service
+still does not declare that marker.
+
+The original Windows selection-geometry receipt from run `36903729345`, SHA-256
+`301650a7ba564d28783fc98d954fa23b4f71e16a9a6e19f4454bca927d2630c9`, independently
+shows identical selected prints for emoji ranges 4–7/7–9/4–9, joiner ranges
+1–4/4–6/1–6 and combining ranges 7–8/8–9/7–9. Interior caret/source X values
+coincide with the owning end while every original selection index stays intact.
+Three new actual-source tests preserve those exact relationships through
+painting, scrolling and `EM_POSFROMCHAR`; they do not copy absolute native font
+metrics or claim BGRX pixel parity.
+
+ProGPU captures the original managed writer's graphemes before fallback and
+shares that writer's existing segmentation helper. The explicit profile joins
+only contiguous advance intervals with one original owner, row and bidi frame.
+Selection covers the whole owner; an interior caret retains its requested index
+at the actual retained trailing edge. An interior source-point query uses that
+trailing X but keeps the original source row Y, not a native caret raster offset.
+True source boundaries delegate the unchanged ordinary source-position mapping.
+The source message retains its existing single-line Y=0 and client/scroll mapping.
+No prefix shaping, interpolation, index snapping or query-time segmentation occurs.
+
+Missing/malformed ownership, vertical frames, owner gaps, cross-row/bidi or
+noncontiguous topology, missing/ambiguous trailing edges and shaping clusters
+spanning different original graphemes reject explicitly. Cross-grapheme
+ligatures and full classifier-domain/native package/editor qualification remain
+release requirements; rejecting them is not completed ordinary TextBox support.
+The previous geometry limitation above records the older `ce48bd4a` checkpoint,
+not approval of nearest-stop or split fallback rectangles.
+
+Managed actual-source validation against the new retained geometry checkpoint
+passes all 30 unchanged word-boundary source cases, all three new geometry cases
+and all 18 adapter cases, with zero failures/skips. The same 30 source cases ran
+in two disjoint 15-case batches under unchanged 30-second diagnostic deadlines;
+an earlier aggregate run terminated at that deadline after 29 successes and no
+assertion failures. The final canonical build used SDK
+`11.0.100-preview.5.26302.115`, `NetCurrent=net10.0` and the explicit opt-in,
+with zero errors and existing source warnings. An opt-in-disabled adapter build
+against the older `ce48bd4a` managed API also has zero warnings/errors. These
+checks use no native classifier, staged runtime, GPU, desktop input or VM.
+
 ## Password source selection
 
 An admitted password double press uses canonical `SelectAll` once, before the

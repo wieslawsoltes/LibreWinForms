@@ -156,7 +156,7 @@ public partial class TextBox
         Rectangle viewport = PortableTextViewport;
         var origin = new PointF(viewport.X - _portableTextScroll.X, viewport.Y - _portableTextScroll.Y);
         ReadOnlyMemory<RectangleF> selected = !placeholder && (Focused || !HideSelection)
-            ? layout.GetSelectionRectangles(SelectionStart, SelectionLength) : default;
+            ? GetPortableSelectionRectangles(layout, SelectionStart, SelectionLength) : default;
         using Region? selectionClip = selected.IsEmpty ? null : new Region();
         if (selectionClip is not null)
         {
@@ -230,16 +230,30 @@ public partial class TextBox
     private LibreTextCaret GetPortableLayoutCaret(ILibreTextLayout layout)
     {
         int position = PortableSelectionActiveEnd;
-        LibreTextCaret caret = layout.GetCaret(position, _portableCaretTrailing);
+        LibreTextCaret caret = GetPortableEditInteraction(layout) is { } edit
+            ? edit.GetEditCaret(position, _portableCaretTrailing)
+            : layout.GetCaret(position, _portableCaretTrailing);
         // A legacy EDIT boundary is not necessarily a modern grapheme stop.
         // Keep the original selection; a nearest stop is not its caret geometry.
-        // This explicit rejection remains until the retained provider owns that
-        // interior source geometry, without source-local rounding or shaping.
+        // An optional EDIT view supplies this from the same retained owner;
+        // legacy providers still reject a substituted source index explicitly.
         if (LibrePlatform.Current.TextRenderer is ILibreEditWordBoundaryService &&
             layout is ILibreEditWordBoundaryLayout && caret.TextPosition != position)
             throw new NotSupportedException("The retained layout has no exact caret geometry for this original EDIT source endpoint.");
         return caret;
     }
+
+    private static ILibreEditTextInteractionLayout? GetPortableEditInteraction(ILibreTextLayout layout)
+        => LibrePlatform.Current.TextRenderer is ILibreEditWordBoundaryService
+            && layout is ILibreEditWordBoundaryLayout
+            ? layout as ILibreEditTextInteractionLayout : null;
+
+    private static ReadOnlyMemory<RectangleF> GetPortableSelectionRectangles(ILibreTextLayout layout, int start, int length)
+        => GetPortableEditInteraction(layout) is { } edit
+            ? edit.GetEditSelectionRectangles(start, length) : layout.GetSelectionRectangles(start, length);
+
+    private static LibreTextHit HitTestPortableTextLayout(ILibreTextLayout layout, PointF point)
+        => GetPortableEditInteraction(layout) is { } edit ? edit.HitTestEdit(point) : layout.HitTest(point);
 
     private ILibreTextLayout? GetPortableInputLayout(PortablePointerDispatchContext? pointerContext = null)
     {
@@ -404,7 +418,7 @@ public partial class TextBox
         if (layout is null) return LibrePlatform.Current.TextRenderer is not ILibreTextLayoutService;
         if (!ReferenceEquals(layout, _portableTextLayout)) return false;
         uint layoutVersion = _portableLayoutVersion;
-        LibreTextHit hit = layout.HitTest(new PointF(e.X - state.Viewport.X + state.Scroll.X,
+        LibreTextHit hit = HitTestPortableTextLayout(layout, new PointF(e.X - state.Viewport.X + state.Scroll.X,
             e.Y - state.Viewport.Y + state.Scroll.Y));
         if (!context.IsCurrent || !ReferenceEquals(layout, _portableTextLayout)
             || layoutVersion != _portableLayoutVersion || !state.IsCurrent(this, state.SelectionVersion)) return false;

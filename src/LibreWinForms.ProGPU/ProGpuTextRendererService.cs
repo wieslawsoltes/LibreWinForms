@@ -35,7 +35,7 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
 
     private sealed class RetainedLayout(global::ProGPU.SystemDrawing.DrawingTextLayout layout)
 #if LIBREWINFORMS_NATIVE_EDIT_WORD_BOUNDARIES
-        : ILibreTextLayout, ILibreTextRowNavigation, ILibreEditWordBoundaryLayout
+        : ILibreTextLayout, ILibreTextRowNavigation, ILibreEditWordBoundaryLayout, ILibreEditTextInteractionLayout
 #else
         : ILibreTextLayout, ILibreTextRowNavigation, ILibreTextSourceGeometry
 #endif
@@ -46,6 +46,39 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         private RectangleF[] _selection = [];
 #if LIBREWINFORMS_NATIVE_EDIT_WORD_BOUNDARIES
         private LibreEditWordBoundaries? _wordBoundaries;
+        private int _editSelectionStart = -1;
+        private int _editSelectionLength = -1;
+        private RectangleF[] _editSelection = [];
+
+        public LibreTextCaret GetEditCaret(int textPosition, bool trailing = false)
+            => Convert(Layout.GetEditCaretStop(textPosition, trailing));
+
+        public PointF GetEditSourcePositionPoint(int textPosition)
+            => Layout.GetEditSourcePositionPoint(textPosition);
+
+        public LibreTextHit HitTestEdit(PointF point)
+        {
+            var hit = Layout.HitTestEditPoint(point);
+            return new(hit.TextPosition, hit.IsTrailingHit, hit.IsInside,
+                new RectangleF(hit.Bounds.X, hit.Bounds.Y, hit.Bounds.Width, hit.Bounds.Height), hit.BidiLevel);
+        }
+
+        public ReadOnlyMemory<RectangleF> GetEditSelectionRectangles(int start, int length)
+        {
+            var current = Layout;
+            if (_editSelectionStart != start || _editSelectionLength != length)
+            {
+                var bounds = current.GetEditSelectionRectangles(start, length);
+                var rectangles = new RectangleF[bounds.Count];
+                for (int i = 0; i < rectangles.Length; i++)
+                    rectangles[i] = new RectangleF(bounds[i].X, bounds[i].Y, bounds[i].Width, bounds[i].Height);
+                _editSelection = rectangles;
+                _editSelectionStart = start;
+                _editSelectionLength = length;
+            }
+
+            return _editSelection;
+        }
 
         public LibreEditWordBoundaries GetWordBoundaries()
         {
@@ -114,6 +147,7 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
             _selection = [];
 #if LIBREWINFORMS_NATIVE_EDIT_WORD_BOUNDARIES
             _wordBoundaries = null;
+            _editSelection = [];
 #endif
         }
 

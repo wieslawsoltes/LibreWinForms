@@ -450,6 +450,14 @@ public partial class CanonicalLifecycleTests
             return owner.SubstituteCaretPosition is { } substitute
                 ? caret with { TextPosition = substitute } : caret;
         }
+#if LIBREWINFORMS_NATIVE_EDIT_WORD_BOUNDARIES
+        public override LibreTextCaret GetEditCaret(int position, bool trailing = false)
+        {
+            LibreTextCaret caret = base.GetEditCaret(position, trailing);
+            return owner.SubstituteCaretPosition is { } substitute
+                ? caret with { TextPosition = substitute } : caret;
+        }
+#endif
 
         public LibreEditWordBoundaries GetWordBoundaries()
         {
