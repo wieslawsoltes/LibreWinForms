@@ -488,6 +488,9 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Validate canonical native staging and release closure contracts
+        run: python3 eng/tests/test_canonical_native_staging.py
+
       - name: Checkout LibreWPF bridge packages
         uses: actions/checkout@v4
         with:
