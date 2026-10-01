@@ -407,7 +407,8 @@ The sidecar observes eight additional owned EDITs: the four lam-alef inputs at
 20 and 21 pixels, each retaining eleven directed selections, owned carets, full
 source/hit scans and independent-clear print buffers through the same helpers.
 Both receipts share the original 30-second observer budget; the process/job
-deadlines and per-receipt 128-MiB limit are unchanged. A sidecar failure fails
+deadlines and combined 128-MiB limit are unchanged. Compact sidecar JSON uses
+only the byte budget remaining after the unchanged primary receipt. A sidecar failure fails
 the explicitly requested CI capture without erasing the primary receipt.
 
 Each additional EDIT's actual borrowed `WM_GETFONT` is selected into its own
@@ -439,6 +440,12 @@ and [ScriptXtoCP](https://learn.microsoft.com/en-us/windows/win32/api/usp10/nf-u
 interfaces. No engine implementation is copied and no product geometry changes.
 Hosted execution and comparison against the captured original EDIT controls
 remain required before drawing a portable geometry-policy conclusion.
+
+Post-commit bounded checks pass all twenty offline receipt/workflow cases
+(twelve unchanged and eight new corruption controls). Direct Roslyn compilation
+of only the four probe sources against cached Microsoft .NET 11 WindowsDesktop
+reference assemblies completes with no diagnostics. These checks do not execute
+Windows Uniscribe or EDIT, and are not a successful hosted reference receipt.
 
 ## Password source selection
 

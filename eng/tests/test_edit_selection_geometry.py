@@ -349,6 +349,7 @@ class ReferencePhaseExecutionTests(unittest.TestCase):
         phases, waits = self.phase_dispatch()
         self.assertEqual([phase["name"] for phase in phases], ["build", "reference", "selection-geometry"])
         self.assertEqual([phase["timeoutSeconds"] for phase in phases], [180, 60, 60])
+        self.assertEqual(phases[-1]["command"][-2:], ["--selection-geometry", "--shaping-diagnostics"])
         self.assertEqual(waits, [180, 60, 60])
         self.assertTrue(all(phase["exitCode"] == 0 for phase in phases))
 

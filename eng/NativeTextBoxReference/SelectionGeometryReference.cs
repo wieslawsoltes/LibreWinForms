@@ -223,7 +223,7 @@ internal static partial class WordSelectionReference
         // Flush the primary receipt before the optional diagnostic starts. A
         // failed/late diagnostic cannot replace or truncate original evidence.
         return failure is not null ? 1 : captureShaping
-            ? RunShapingDiagnostics(path + ".shaping.json", budget, identity) : 0;
+            ? RunShapingDiagnostics(path + ".shaping.json", budget, identity, MaximumGeometryReceiptBytes - file.Length) : 0;
     }
 
     private sealed record GeometryCaret(bool Available, string? UnavailableReason, bool GuiQuerySucceeded,
@@ -388,7 +388,7 @@ internal static partial class WordSelectionReference
     }
     private static string GeometryHash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
 
-    private sealed class GeometryReceiptStream(Stream target, Stopwatch budget) : Stream
+    private sealed class GeometryReceiptStream(Stream target, Stopwatch budget, long byteLimit = MaximumGeometryReceiptBytes) : Stream
     {
         private long _written;
         public override bool CanRead => false;
@@ -401,7 +401,7 @@ internal static partial class WordSelectionReference
         public override void Write(ReadOnlySpan<byte> buffer)
         {
             CheckBudget(budget);
-            if (buffer.Length > MaximumGeometryReceiptBytes - _written) throw new InvalidOperationException("Geometry receipt exceeds 128 MiB.");
+            if (buffer.Length > byteLimit - _written) throw new InvalidOperationException("Combined geometry receipts exceed 128 MiB.");
             target.Write(buffer);
             _written += buffer.Length;
         }

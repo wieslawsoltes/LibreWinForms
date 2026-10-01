@@ -65,7 +65,8 @@ def verify(path, binary, process_id, require_shaping=False):
               "geometryComplete": receipt["geometryComplete"], "qualified": False}
     if require_shaping:
         sidecar = Path(str(path) + ".shaping.json")
-        if not sidecar.is_file() or not 1 <= sidecar.stat().st_size <= 128 * 1024 * 1024:
+        if (not sidecar.is_file() or sidecar.stat().st_size < 1
+                or path.stat().st_size + sidecar.stat().st_size > 128 * 1024 * 1024):
             raise ValueError("Missing/oversized shaping diagnostic sidecar")
         diagnostics = json.loads(sidecar.read_text(encoding="utf-8"))
         if diagnostics.get("Identity") != identity:

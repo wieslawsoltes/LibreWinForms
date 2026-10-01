@@ -29,7 +29,7 @@ internal static partial class WordSelectionReference
         public long ElapsedMilliseconds { get; set; }
     }
 
-    private static int RunShapingDiagnostics(string path, Stopwatch budget, object? identity)
+    private static int RunShapingDiagnostics(string path, Stopwatch budget, object? identity, long remainingReceiptBytes)
     {
         using FileStream file = new(Path.GetFullPath(path), FileMode.CreateNew, FileAccess.Write);
         var result = new ShapingDiagnostics { Identity = identity };
@@ -77,8 +77,10 @@ internal static partial class WordSelectionReference
             Console.Error.WriteLine(error);
         }
         result.ElapsedMilliseconds = budget.ElapsedMilliseconds;
-        using var bounded = new GeometryReceiptStream(file, budget);
-        JsonSerializer.Serialize(bounded, result, new JsonSerializerOptions { WriteIndented = true, IncludeFields = true });
+        using var bounded = new GeometryReceiptStream(file, budget, remainingReceiptBytes);
+        // Preserve the combined original byte budget; no repeated indentation
+        // around every diagnostic hit is needed to retain the original values.
+        JsonSerializer.Serialize(bounded, result, new JsonSerializerOptions { IncludeFields = true });
         bounded.Flush();
         return result.Completed ? 0 : 1;
     }
