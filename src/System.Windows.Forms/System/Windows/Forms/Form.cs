@@ -6100,6 +6100,8 @@ public partial class Form : ContainerControl
             ? GetPortableExternalOwnerHandle(portableOwnerWindow)
             : default;
         bool restoreExternalOwnerEnabled = false;
+        bool portableCleanupScheduled = false;
+        nint portableOwnerHandle = portableOwner is { IsHandleCreated: true } ? portableOwner.Handle : 0;
 #else
         if ((owner is not null) && !owner.GetExtendedStyle().HasFlag(WINDOW_EX_STYLE.WS_EX_TOPMOST))
         {
@@ -6218,6 +6220,15 @@ public partial class Form : ContainerControl
             finally
             {
 #if LIBREWINFORMS_PORTABLE
+                portableCleanupScheduled = true;
+                nint cleanupHandle = IsHandleCreated ? Handle : 0;
+                CompletePortableModalDialog(CleanupPortableDialog);
+                void CleanupPortableDialog()
+                {
+                    if (IsHandleCreated && Handle != cleanupHandle)
+                        throw new InvalidOperationException("Native dialog completion cannot retire a replacement source handle.");
+                    try
+                    {
                 if (restoreExternalOwnerEnabled)
                 {
                     LibrePlatform.Current.ExternalWindowOwners.TrySetEnabled(
@@ -6225,7 +6236,8 @@ public partial class Form : ContainerControl
                         enabled: true);
                 }
 
-                if (portableOwner is { IsDisposed: false, Visible: true })
+                if (portableOwner is { IsDisposed: false, Visible: true, IsHandleCreated: true }
+                    && portableOwner.Handle == portableOwnerHandle)
                 {
                     portableOwner.Activate();
                 }
@@ -6267,13 +6279,28 @@ public partial class Form : ContainerControl
                 }
 
                 SetState(States.Modal, false);
+#if LIBREWINFORMS_PORTABLE
+                    }
+                    finally
+                    {
+                        Owner = oldOwner;
+                        Properties.RemoveValue(s_propDialogOwner);
+                    }
+                }
+#endif
             }
         }
         finally
         {
+#if LIBREWINFORMS_PORTABLE
+            if (!portableCleanupScheduled)
+            {
+                Owner = oldOwner;
+                Properties.RemoveValue(s_propDialogOwner);
+            }
+#else
             Owner = oldOwner;
             Properties.RemoveValue(s_propDialogOwner);
-#if !LIBREWINFORMS_PORTABLE
             GC.KeepAlive(ownerHwnd.Wrapper);
 #endif
         }

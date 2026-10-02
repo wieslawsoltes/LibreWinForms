@@ -13,8 +13,9 @@ public sealed partial class Application
     private sealed class ThreadWindows
     {
 #if LIBREWINFORMS_PORTABLE
-        private readonly List<Form> _windows;
+        private readonly List<(Form Form, nint Handle)> _windows;
         private Form? _activeForm;
+        private nint _activeFormHandle;
 #else
         private readonly List<HWND> _windows;
         private HWND _activeHwnd;
@@ -26,7 +27,7 @@ public sealed partial class Application
         internal ThreadWindows(bool onlyWinForms)
         {
 #if LIBREWINFORMS_PORTABLE
-            _windows = new List<Form>(Application.OpenForms.Count);
+            _windows = new(Application.OpenForms.Count);
             _onlyWinForms = onlyWinForms;
             foreach (Form form in Application.OpenForms)
             {
@@ -36,7 +37,7 @@ public sealed partial class Application
                     && form.PortableWindowEnabled
                     && !form.InvokeRequired)
                 {
-                    _windows.Add(form);
+                    _windows.Add((form, form.Handle));
                 }
             }
 #else
@@ -68,9 +69,9 @@ public sealed partial class Application
         internal void Dispose()
         {
 #if LIBREWINFORMS_PORTABLE
-            foreach (Form form in _windows)
+            foreach ((Form form, nint handle) in _windows)
             {
-                if (!form.IsDisposed)
+                if (!form.IsDisposed && form.IsHandleCreated && form.Handle == handle)
                 {
                     form.Dispose();
                 }
@@ -93,17 +94,19 @@ public sealed partial class Application
             if (!_onlyWinForms && !enable)
             {
                 _activeForm = Form.ActiveForm;
+                _activeFormHandle = _activeForm is { IsHandleCreated: true } active ? active.Handle : 0;
             }
 
-            foreach (Form form in _windows)
+            foreach ((Form form, nint handle) in _windows)
             {
-                if (!form.IsDisposed && form.IsHandleCreated)
+                if (!form.IsDisposed && form.IsHandleCreated && form.Handle == handle)
                 {
                     form.SetPortableWindowEnabled(enable);
                 }
             }
 
-            if (!_onlyWinForms && enable && _activeForm is { IsDisposed: false, Visible: true } activeForm)
+            if (!_onlyWinForms && enable && _activeForm is { IsDisposed: false, Visible: true, IsHandleCreated: true } activeForm
+                && activeForm.Handle == _activeFormHandle)
             {
                 activeForm.Activate();
             }
