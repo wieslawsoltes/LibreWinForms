@@ -47,3 +47,37 @@ closing provider; getter callbacks must still preserve the current source intent
 Deferred input cleanup cannot deliver stale source tails: the existing actual
 `INativePointerTarget.IsCurrent`, `INativeCharacterTarget.IsAlive` and
 `DeliverInputAfterCharacters` paths retain their `_disposed` rejection.
+
+## Focused postcommit checks
+
+After implementation `7be01ad6fa` and the completion/closing controls through
+`d869f0bd321e8709e74184687a4be60bbced097a`, all 21 new cases passed with zero
+failures in a 30-second-capped, device-free source run. It compiled the unchanged
+production `NativeModalWindowLifetime.cs`, `NativeWindowRetirementQueue.cs` and
+complete new fixture with real cached ProGPU Backend, Silk 2.23 and xUnit assemblies.
+The only test driver enumerated the original Fact/InlineData cases; assertions and
+production bodies were not rewritten. The first run lacked Silk.Maths in its
+isolated directory; copying that existing managed dependency corrected the test
+driver's load failure, without a product/test assertion change or download.
+
+The compiler used SDK 10.0.301/net10.0.9 references, Release optimization and
+warnings-as-errors (only cached framework-version unification warning CS1701 was
+suppressed). Compilation had no source warnings/errors. This is not the normal
+full backend/test project graph: the actual hosted xUnit v3 project remains the
+authoritative integration gate. The reused Backend binary came from the read-only
+603 cache; its native modal-session/lifetime API sources are byte-identical to the
+qualified pinned48 sources. It is not new runtime provenance and loaded no native
+library. The isolated driver is `/private/tmp/forms-modal-source-check.5PWwokEY`:
+
+```sh
+/usr/local/share/dotnet/dotnet /private/tmp/forms-modal-source-check.5PWwokEY/ModalSourceTests.dll
+```
+
+All three changed C# files also passed syntax parsing; shell syntax and whitespace
+checks passed. An exact source comparison confirms the three disposed input-tail
+guards are unchanged. The existing hosted selector retains all 21 queue cases and
+adds these 21 cases, with the same two-minute deadline and skip rejection; every
+other gate is unchanged. Independent counterpart review found and confirmed the
+already-hidden Close correction. No local full-source/native/renderer build,
+native window/device/desktop execution, runtime staging or dependency-pin change
+was performed. Complete exact-head hosted CI and application evidence remain open.
