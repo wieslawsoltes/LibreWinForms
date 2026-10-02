@@ -312,7 +312,10 @@ class X11PopupContracts(unittest.TestCase):
             source = ROOT / "eng/PopupInteractionApp/Program.cs"
             (root / "Portable/bin/Release/net11.0").mkdir(parents=True)
             (root / "Portable/Program.cs").write_bytes(source.read_bytes())
-            receipt = dict(schema="popup-interaction-preparation-v1", sourceSha256=DRIVER.SHARED.digest(source))
+            startup = ROOT / "eng/PopupInteractionApp/PopupInteractionStartup.cs"
+            (root / "Portable/PopupInteractionStartup.cs").write_bytes(startup.read_bytes())
+            receipt = dict(schema="popup-interaction-preparation-v1", sourceSha256=DRIVER.SHARED.digest(source),
+                           startupSourceSha256=DRIVER.SHARED.digest(startup))
             (root / "preparation.json").write_text(json.dumps(receipt))
             app = root / "Portable/bin/Release/net11.0/PopupInteractionApp"
             app.write_bytes(b"\x7fELF inert fixture never executed")

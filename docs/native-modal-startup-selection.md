@@ -27,3 +27,34 @@ the exact qualified ProGPU pin is unchanged. This is a child of #150, not a new
 default or complete application qualification. Final validation must use the
 qualified producer/source/package union and exercise real modal dialogs, nested
 menus/dropdowns/tooltips, precise input, focus restoration and deferred teardown.
+
+## Actual paired popup application action
+
+`eng/PopupInteractionApp` keeps its original two-argument scene/workload. Its
+additional `--modal-dialog` argument enables an ordinary source Button which calls
+`ShowDialog(this)` on a new instance of the same real popup scene. The dialog has
+its own MenuStrip, ContextMenuStrip, ComboBox, ToolTip and editor, plus a normal
+DialogResult.OK close Button. The corresponding Microsoft project accepts that
+same explicit action; it does not accept the Cocoa-provider startup switch.
+
+```text
+Microsoft/PopupInteractionApp <fresh-evidence> <run-id> --modal-dialog
+Portable/PopupInteractionApp <fresh-evidence> <run-id> --modal-dialog --libre-native-modal-sessions
+```
+
+The Portable entrypoint verifies the actual registered SilkWindowService retained
+the request, not a second parser result alone. Each user-triggered modal opening
+owns a new GUID-named child directory under the original fresh evidence directory;
+FileMode.CreateNew event logs and immutable snapshots remain unchanged. Parent and
+child record actual button pointer/click, source Owner/handle, enabled/activation,
+editor focus, dialog result/visibility and return observations. No Focus,
+PerformClick, synthetic input, polling workaround or restoration repair is added.
+The inherited watchdog remains 60 seconds, including dialog interaction.
+
+Preparation copies and hashes both shared source files into both consumers, and
+the existing package/desktop identity guards now include the startup file. Old
+case assertions and original source byte guards remain; authored controls extend
+the compiler inventory from four to five inputs. The existing automated drivers
+still execute their original workload, not this new action. Final explicit modal
+interaction must use the actual observed button rectangles and inspect retained
+owner/focus/release evidence; these logs do not themselves assert native parity.

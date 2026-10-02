@@ -50,6 +50,7 @@ def prepare(destination, feed, sdk_version, canonical_version, backend_version, 
                            capture_output=True, text=True, timeout=10).stdout.strip()
     destination.mkdir(parents=False)
     source_hash = sha256(SOURCE / "Program.cs")
+    startup_hash = sha256(SOURCE / "PopupInteractionStartup.cs")
     observer_name = "PortableNativeGeometryObserver.cs"
     native_observer = dict(enabled=bool(native_geometry), sourcePath=None, sourceSha256=None,
                            environmentVariable="LIBREWINFORMS_POPUP_NATIVE_GEOMETRY")
@@ -57,6 +58,7 @@ def prepare(destination, feed, sdk_version, canonical_version, backend_version, 
         target = destination / mode
         target.mkdir()
         shutil.copyfile(SOURCE / "Program.cs", target / "Program.cs")
+        shutil.copyfile(SOURCE / "PopupInteractionStartup.cs", target / "PopupInteractionStartup.cs")
         project = (SOURCE / f"{mode}.csproj").read_text()
         if mode == "Portable":
             project = project.replace("LibreWinForms.Sdk/0.1.0-source-first-sdk", f"LibreWinForms.Sdk/{sdk_version}")
@@ -72,6 +74,8 @@ def prepare(destination, feed, sdk_version, canonical_version, backend_version, 
         (target / "PopupInteractionApp.csproj").write_text(project)
         if sha256(target / "Program.cs") != source_hash:
             raise ValueError("Shared source copy changed")
+        if sha256(target / "PopupInteractionStartup.cs") != startup_hash:
+            raise ValueError("Shared startup source copy changed")
     config = ET.Element("configuration")
     sources = ET.SubElement(config, "packageSources")
     ET.SubElement(sources, "clear")
@@ -80,7 +84,8 @@ def prepare(destination, feed, sdk_version, canonical_version, backend_version, 
     ET.ElementTree(config).write(destination / "NuGet.config", encoding="unicode")
     (destination / "global.json").write_text(json.dumps(dict(sdk=dict(version=dotnet_sdk, allowPrerelease=True, rollForward="disable")), indent=2))
     receipt = dict(schema="popup-interaction-preparation-v1", sourceCommit=commit, sourceDirty=bool(dirty),
-                   sourceSha256=source_hash, sdkVersion=dotnet_sdk, packages=packages, qualified=False,
+                   sourceSha256=source_hash, startupSourceSha256=startup_hash,
+                   sdkVersion=dotnet_sdk, packages=packages, qualified=False,
                    nativeGeometry=native_observer,
                    limitation="Source staging only; producer admission, compilation, loaded identity and desktop phases remain separate.")
     (destination / "preparation.json").write_text(json.dumps(receipt, indent=2))
