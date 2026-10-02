@@ -141,6 +141,29 @@ public sealed class NativeModalWindowLifetimeTests
     }
 
     [Fact]
+    public void VisibilityReadAcquiringNewSessionDefersHideUntilItsOwnCompletion()
+    {
+        var fixture = new Fixture();
+        fixture.Session.Held = true;
+        fixture.Lifetime.Hide();
+        fixture.Session.Complete();
+        fixture.Window.ReadVisible = () =>
+        {
+            fixture.Window.ReadVisible = null;
+            fixture.Session.Held = true;
+        };
+        fixture.Lifetime.Pump();
+        Assert.Equal(0, fixture.Window.Hides);
+        Assert.NotNull(fixture.Session.Completion);
+        Assert.Equal(1, fixture.Wakes);
+        fixture.Session.Complete();
+        Assert.Equal(0, fixture.Window.Hides);
+        fixture.Lifetime.Pump();
+        Assert.Equal(1, fixture.Window.Hides);
+        Assert.Equal(2, fixture.Wakes);
+    }
+
+    [Fact]
     public void ReplacementSessionAfterCompletionMustAlsoEndBeforeHide()
     {
         var fixture = new Fixture();

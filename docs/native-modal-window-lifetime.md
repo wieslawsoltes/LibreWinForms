@@ -31,7 +31,7 @@ remains terminal and retains the host, rather than retrying a consumed token or
 interpreting absent retention as proof of successful release. Ordinary event errors
 remain primary through the dispatcher's existing cleanup-failure handling.
 
-Twenty-one authored CPU-only cases exercise the actual lifetime implementation and
+Twenty-two authored CPU-only cases exercise the actual lifetime implementation and
 retirement queue with recorded provider/session operations, including the actual
 host's source-wiring guard. They retain the original queue tests and two-minute
 hosted selector deadline. No NSPanel, device or desktop is fabricated by these
@@ -75,9 +75,15 @@ library. The isolated driver is `/private/tmp/forms-modal-source-check.5PWwokEY`
 
 All three changed C# files also passed syntax parsing; shell syntax and whitespace
 checks passed. An exact source comparison confirms the three disposed input-tail
-guards are unchanged. The existing hosted selector retains all 21 queue cases and
-adds these 21 cases, with the same two-minute deadline and skip rejection; every
+guards are unchanged. The hosted selector at that checkpoint retained all 21 queue
+cases and added those 21 cases, with the same two-minute deadline and skip rejection; every
 other gate is unchanged. Independent counterpart review found and confirmed the
 already-hidden Close correction. No local full-source/native/renderer build,
 native window/device/desktop execution, runtime staging or dependency-pin change
 was performed. Complete exact-head hosted CI and application evidence remain open.
+
+Review additionally identified that a visibility getter can acquire a fresh native
+session without changing source intent. The host now rechecks retention after the
+getter, preserving pending Hide until that new session's own release completes.
+The new one-shot getter regression raises the current source case count to 22 and
+the combined hosted queue/lifetime minimum to 43, with the same deadline.

@@ -136,7 +136,19 @@ internal sealed class NativeModalWindowLifetime(
                         // actual hidden state needs no second native transition.
                         bool visible = window.IsVisible;
                         if (generation == _generation && visible)
+                        {
+                            // The getter may acquire a new session without
+                            // changing source intent. Preserve this request
+                            // for native End before hiding its retained host.
+                            bool retained = _session.RetainsWindow(window);
+                            if (generation != _generation) continue;
+                            if (retained)
+                            {
+                                _pending = action;
+                                continue;
+                            }
                             window.IsVisible = false;
+                        }
                     }
                 }
                 catch
