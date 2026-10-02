@@ -5916,8 +5916,15 @@ public partial class CanonicalLifecycleTests
                 UnsupportedLibreNativeGraphicsInteropService.Instance,
                 this,
                 this,
-                textRenderer ?? (Environment.GetEnvironmentVariable("LIBREWINFORMS_TEST_RETAINED_TEXT") == "1"
-                    ? new RetainedTextRendererProbe() : this),
+                textRenderer ?? (Environment.GetEnvironmentVariable("LIBREWINFORMS_TEST_RETAINED_TEXT") switch
+                {
+                    "1" => new RetainedTextRendererProbe(),
+                    "edit-words" => new ObservedEditWordRendererProbe(),
+#if LIBREWINFORMS_TEST_NATIVE_EDIT_RUNTIME
+                    "native-edit-words" => new NativeEditWordRendererProbe(),
+#endif
+                    _ => this,
+                }),
                 this,
                 this,
                 this,

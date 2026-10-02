@@ -43,10 +43,207 @@ jobs:
         shell: bash
         run: bash ./eng/librewinforms-automation-locale.sh
 
+      - name: Verify original EDIT geometry receipt controls
+        run: python3 -B eng/tests/test_edit_selection_geometry.py
+
+      - name: Observe original Windows EDIT word selection
+        if: runner.os == 'Windows'
+        shell: python
+        run: |
+          import hashlib, importlib.util, json, os, pathlib, subprocess
+          root = pathlib.Path.cwd()
+          evidence = root / 'artifacts' / 'native-edit-word-selection'
+          evidence.mkdir(parents=True, exist_ok=False)
+          project = root / 'eng' / 'NativeTextBoxReference' / 'NativeTextBoxReference.csproj'
+          output = evidence / 'bin'
+          receipt = evidence / 'receipt.json'
+          environment = os.environ.copy()
+          environment.update(DOTNET_CLI_HOME=str(evidence / 'cli-home'),
+                             DOTNET_GENERATE_ASPNET_CERTIFICATE='false',
+                             DOTNET_ADD_GLOBAL_TOOLS_TO_PATH='false', DOTNET_CLI_TELEMETRY_OPTOUT='1')
+          phases = []
+          manifest = {'schema': 'native-edit-word-selection-execution-v1',
+                      'sourceHead': os.environ['GITHUB_SHA'], 'completed': False,
+                      'desktopQualified': False, 'phases': phases,
+                      'sources': {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
+                                  for path in (project, project.parent / 'Program.cs', project.parent / 'WordSelectionReference.cs',
+                                               project.parent / 'SelectionGeometryReference.cs',
+                                               project.parent / 'ShapingGeometryReference.cs',
+                                               root / 'eng' / 'librewinforms-edit-selection-geometry.py')}}
+          def run_phase(name, command, timeout):
+              phase = {'name': name, 'command': command, 'timeoutSeconds': timeout}
+              phases.append(phase)
+              with (evidence / (name + '.log')).open('wb') as log:
+                  child = subprocess.Popen(command, cwd=root, env=environment, stdout=log, stderr=subprocess.STDOUT)
+                  phase['pid'] = child.pid
+                  try:
+                      phase['exitCode'] = child.wait(timeout=timeout)
+                  except subprocess.TimeoutExpired:
+                      phase['timedOut'] = True
+                      subprocess.run(['taskkill', '/PID', str(child.pid), '/T', '/F'],
+                                     stdout=log, stderr=subprocess.STDOUT, timeout=10, check=False)
+                      phase['exitCode'] = child.wait(timeout=10)
+                      raise
+              if phase['exitCode'] != 0:
+                  raise RuntimeError(name + ' exited ' + str(phase['exitCode']))
+          try:
+              run_phase('build', ['dotnet', 'build', str(project), '-c', 'Release', '-o', str(output), '-m:1',
+                            '-nodeReuse:false', '-p:UseSharedCompilation=false',
+                            '-p:BaseIntermediateOutputPath=' + str(evidence / 'obj') + os.sep], 180)
+              run_phase('reference', ['dotnet', str(output / 'NativeTextBoxReference.dll'),
+                                str(receipt), 'PerMonitorV2', 'true', '--word-selection'], 60)
+              if not receipt.is_file() or not 1 <= receipt.stat().st_size <= 16 * 1024 * 1024:
+                  raise RuntimeError('Missing, empty or oversized native EDIT receipt')
+              result = json.loads(receipt.read_text(encoding='utf-8'))
+              expected = ['spaces', 'punctuation', 'tabs-single', 'tabs-multiline', 'crlf-single',
+                          'crlf-multiline', 'surrogate-combining', 'bidi-ltr', 'bidi-rtl', 'password',
+                          'read-only', 'wrapped-multiline', 'unicode-spaces', 'symbols',
+                          'isolated-breaks-single', 'isolated-breaks-multiline', 'crcrlf-multiline',
+                          'wrapped-longword', 'supplementary-scripts', 'emoji-context',
+                          'thai-adjacent', 'thai-spaced', 'lao-adjacent', 'khmer-adjacent']
+              word_breaking_discriminants = {'thai-adjacent': (0x0e00, 0x0e7f),
+                                            'thai-spaced': (0x0e00, 0x0e7f),
+                                            'lao-adjacent': (0x0e80, 0x0eff),
+                                            'khmer-adjacent': (0x1780, 0x17ff)}
+              if (result.get('schema') != 'native-edit-word-selection-v1' or result.get('completed') is not True
+                  or result.get('desktopQualified') is not False or result.get('physicalInputQualified') is not False
+                  or result.get('error') is not None or result.get('expectedCases') != len(expected)
+                  or [case.get('Name') for case in result.get('cases', [])] != expected):
+                  raise RuntimeError('Incomplete or unexpected native EDIT receipt')
+              identity = result.get('identity', {})
+              if ('Microsoft.WindowsDesktop.App' not in identity.get('formsPath', '')
+                  or identity.get('processId') != phases[-1]['pid']
+                  or identity.get('probeSha256') != hashlib.sha256((output / 'NativeTextBoxReference.dll').read_bytes()).hexdigest()):
+                  raise RuntimeError('Native EDIT identity is absent or mismatched')
+              modules = identity.get('nativeTextModules', [])
+              module_names = [module['name'].lower() for module in modules]
+              if 'usp10.dll' not in module_names or len(set(module_names)) != len(modules):
+                  raise RuntimeError('Loaded Uniscribe identity is missing or duplicated')
+              for module in modules:
+                  binary = pathlib.Path(module['path'])
+                  if (binary.name.lower() != module['name'].lower() or not binary.is_file()
+                      or not module.get('fileVersion')
+                      or module.get('fileSha256') != hashlib.sha256(binary.read_bytes()).hexdigest()):
+                      raise RuntimeError('Loaded native text module identity is mismatched')
+              steps = ['first-down', 'first-up', 'double-down', 'drag-last', 'drag-first-reversal',
+                       'drag-anchor-reversal', 'drag-last-again', 'final-up']
+              for case in result['cases']:
+                  analysis = case['scriptBreak']
+                  raw = analysis['rawBytes']
+                  utf16 = analysis['actualUtf16']
+                  if (analysis.get('completed') is not True or analysis.get('independentOfEdit') is not True
+                      or analysis.get('analyseHResult') != 0 or analysis.get('freeHResult') != 0
+                      or analysis.get('analysisAllocated') is not True or analysis.get('attributesAvailable') is not True
+                      or analysis.get('attributeByteSize') != 1 or analysis.get('hdc') != 0 or analysis.get('charset') != -1
+                      or analysis.get('flags') != (0x40 | (0x100 if case['RightToLeft'] else 0))
+                      or not utf16 or len(raw) != len(utf16) or len(analysis['attributes']) != len(utf16)
+                      or any(type(value) is not int or not 0 <= value <= 255 for value in raw)):
+                      raise RuntimeError('Incomplete native logical attributes: ' + case['Name'])
+                  for index, attribute in enumerate(analysis['attributes']):
+                      if (attribute['index'] != index or attribute['utf16'] != utf16[index] or attribute['raw'] != raw[index]
+                          or attribute['reserved'] != raw[index] >> 5
+                          or any(attribute[key] is not bool(raw[index] & mask) for key, mask in
+                                 [('softBreak', 1), ('whiteSpace', 2), ('charStop', 4), ('wordStop', 8), ('invalid', 16)])):
+                          raise RuntimeError('Mismatched native logical attribute bytes: ' + case['Name'])
+                  classification = analysis['classification']
+                  runs = classification['runs']
+                  if (classification.get('completed') is not True or classification.get('independentOfEdit') is not True
+                      or classification.get('itemByteSize') != 8 or classification.get('itemizeHResult') != 0
+                      or classification.get('propertiesHResult') != 0 or classification.get('control') != 0
+                      or classification.get('initialState') != int(case['RightToLeft'])
+                      or classification.get('itemCapacity') != len(utf16) + 1
+                      or classification.get('terminalPosition') != len(utf16)
+                      or classification.get('itemCount') != len(runs) or not runs
+                      or classification.get('propertyCount', 0) <= 0
+                      or classification.get('characterTypesSucceeded') is not True
+                      or len(classification['ctype1']) != len(utf16)):
+                      raise RuntimeError('Incomplete native script classification: ' + case['Name'])
+                  next_start = 0
+                  for run in runs:
+                      first, second = run['rawPropertiesFirst'], run['rawPropertiesSecond']
+                      if (run['start'] != next_start or not next_start < run['end'] <= len(utf16)
+                          or not 0 <= run['script'] < classification['propertyCount']
+                          or run['script'] != (run['rawAnalysis'] & 0x3ff)
+                          or any(type(run[key]) is not int or not 0 <= run[key] <= limit for key, limit in
+                                 [('rawAnalysis', 0xffff), ('rawState', 0xffff),
+                                  ('rawPropertiesFirst', 0xffffffff), ('rawPropertiesSecond', 0xffffffff)])
+                          or run['languageId'] != (first & 0xffff)
+                          or any(run[key] is not bool(first & mask) for key, mask in
+                                 [('numeric', 1 << 16), ('complex', 1 << 17),
+                                  ('needsWordBreaking', 1 << 18), ('needsCaretInfo', 1 << 19)])
+                          or run['invalidLogAttributes'] is not bool(second & 1)
+                          or run['clusterSizeVaries'] is not bool(second & 8)):
+                          raise RuntimeError('Mismatched native script item: ' + case['Name'])
+                      next_start = run['end']
+                  if next_start != len(utf16):
+                      raise RuntimeError('Truncated native script partition: ' + case['Name'])
+                  required = case['Name'] in word_breaking_discriminants
+                  if case.get('RequireWordBreaking') is not required:
+                      raise RuntimeError('Mismatched word-breaking discriminant policy: ' + case['Name'])
+                  if required:
+                      low, high = word_breaking_discriminants[case['Name']]
+                      if (utf16 != case['requestedUtf16'] or analysis['actualText'] != case['requestedText']
+                          or not any(low <= value <= high for value in utf16)
+                          or any(value != 0x20 and not low <= value <= high for value in utf16)
+                          or not any(run['needsWordBreaking'] and
+                                     any(low <= value <= high for value in utf16[run['start']:run['end']])
+                                     for run in runs)):
+                          raise RuntimeError('Missing actual script-family word-breaking evidence: ' + case['Name'])
+                  for index, attribute in enumerate(classification['ctype1']):
+                      value = attribute['raw']
+                      if (attribute['index'] != index or attribute['utf16'] != utf16[index]
+                          or type(value) is not int or not 0 <= value <= 0xffff
+                          or any(attribute[key] is not bool(value & mask) for key, mask in
+                                 [('space', 8), ('punctuation', 16), ('control', 32), ('blank', 64), ('alphabetic', 256)])):
+                          raise RuntimeError('Mismatched native CTYPE1 attributes: ' + case['Name'])
+                  if len(case['gestures']) != len(case['Indices']) * 2:
+                      raise RuntimeError('Truncated coordinate inventory: ' + case['Name'])
+                  if [(g['requestedIndex'], g['quarter']) for g in case['gestures']] != [(i, q) for i in case['Indices'] for q in (1, 3)]:
+                      raise RuntimeError('Mismatched coordinate requests: ' + case['Name'])
+                  for gesture in case['gestures']:
+                      procedure = gesture['wordBreakProcedure']
+                      if (gesture['actualText'] != analysis['actualText'] or gesture['actualUtf16'] != utf16
+                          or procedure.get('message') != 0xD1 or type(procedure.get('address')) is not int
+                          or procedure.get('available') is not (procedure['address'] != 0) or procedure.get('invoked') is not False):
+                          raise RuntimeError('Mismatched EDIT break evidence: ' + case['Name'])
+                      if type(gesture['coordinateUnavailable']) is not bool:
+                          raise RuntimeError('Malformed coordinate status: ' + case['Name'])
+                      if gesture['coordinateUnavailable'] and (gesture['anchor'] is not None or gesture['steps']):
+                          raise RuntimeError('Unadmitted coordinate emitted native steps: ' + case['Name'])
+                  observed = [gesture for gesture in case['gestures'] if gesture['coordinateUnavailable'] is False]
+                  if not observed or any([step['name'] for step in gesture['steps']] != steps for gesture in observed):
+                      raise RuntimeError('Truncated native gesture: ' + case['Name'])
+              manifest['receiptSha256'] = hashlib.sha256(receipt.read_bytes()).hexdigest()
+              geometry_receipt = evidence / 'selection-geometry.json'
+              run_phase('selection-geometry', ['dotnet', str(output / 'NativeTextBoxReference.dll'),
+                                         str(geometry_receipt), 'PerMonitorV2', 'true', '--selection-geometry', '--shaping-diagnostics'], 60)
+              spec = importlib.util.spec_from_file_location('edit_geometry', root / 'eng' / 'librewinforms-edit-selection-geometry.py')
+              geometry = importlib.util.module_from_spec(spec)
+              spec.loader.exec_module(geometry)
+              manifest['selectionGeometry'] = geometry.verify(geometry_receipt, output / 'NativeTextBoxReference.dll', phases[-1]['pid'], require_shaping=True)
+              manifest['completed'] = True
+          finally:
+              (evidence / 'execution.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
+
+      - name: Retain original Windows EDIT selection reference
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-edit-word-selection-${{ matrix.os }}
+          path: |
+            artifacts/native-edit-word-selection/*.json
+            artifacts/native-edit-word-selection/*.log
+          if-no-files-found: error
+
   source-first-shadow:
     name: Canonical source and ProGPU submodule lane
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+    env:
+      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: d8a3a153bfd3d180023d119001e94da50c2eeca1
 
     steps:
       - name: Checkout
@@ -81,6 +278,12 @@ jobs:
       - name: Validate bounded analyzer mode scheduling
         run: python3 eng/test-librewinforms-analyzer-scheduling.py
 
+      - name: Validate Drawing trace integration contracts
+        run: python3 eng/tests/test_drawing_trace_gate.py
+
+      - name: Validate source-first native staging contracts
+        run: python3 -B eng/tests/test_canonical_native_staging.py SourceFirstNativeStagingTests
+
       - name: Install Linux display and software WebGPU adapter
         shell: bash
         run: |
@@ -102,11 +305,48 @@ jobs:
 
       - name: Validate canonical source and local ProGPU graph
         shell: bash
+        env:
+          LIBREWINFORMS_DRAWING_TRACE: "1"
         run: ./eng/librewinforms-source-first.sh
+
+      - name: Checkout immutable LibreWPF native staging helper
+        uses: actions/checkout@v4
+        with:
+          repository: wieslawsoltes/LibreWPF
+          ref: ${{ env.LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT }}
+          path: artifacts/checkouts/wpf-native-staging
+          sparse-checkout: eng/progpu-stage-ci-native-runtimes.sh
+          sparse-checkout-cone-mode: false
+
+      - name: Stage exact successful ProGPU native runtimes for source-first packaging
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git -C artifacts/checkouts/wpf-native-staging rev-parse HEAD)" = "${LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT}"
+          pinned_progpu_commit="$(git rev-parse HEAD:external/ProGPU)"
+          if [[ ! "${pinned_progpu_commit}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Forms must record a full ProGPU gitlink commit before native staging." >&2
+            exit 2
+          fi
+          test "$(git -C external/ProGPU rev-parse HEAD)" = "${pinned_progpu_commit}"
+          ./artifacts/checkouts/wpf-native-staging/eng/progpu-stage-ci-native-runtimes.sh \
+            "${pinned_progpu_commit}" \
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-native/package"
 
       - name: Pack and consume canonical source-first package
         shell: bash
         run: xvfb-run -a ./eng/librewinforms-pack-source-first.sh
+
+      - name: Retain Drawing test and allocation diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-system-drawing-quality
+          path: artifacts/system-drawing-quality/**
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Retain application isolation package evidence
         if: always()
@@ -267,6 +507,9 @@ jobs:
     name: Package lane
     runs-on: ubuntu-24.04
     timeout-minutes: 180
+    permissions:
+      contents: read
+      actions: read
     env:
       LIBREWINFORMS_DEV_PACKAGE_VERSION: 0.1.0-preview.65
       LIBREWINFORMS_BRIDGE_PACKAGE_VERSION: 0.1.0-preview.65
@@ -279,6 +522,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Validate canonical native staging and release closure contracts
+        run: python3 eng/tests/test_canonical_native_staging.py
 
       - name: Checkout LibreWPF bridge packages
         uses: actions/checkout@v4
@@ -318,6 +564,17 @@ jobs:
           git -C artifacts/checkouts/wpf-canonical/external/ProGPU fetch --depth=1 origin "${qualified_progpu_commit}"
           git -C artifacts/checkouts/wpf-canonical/external/ProGPU checkout --detach "${qualified_progpu_commit}"
           test "$(git -C artifacts/checkouts/wpf-canonical/external/ProGPU rev-parse HEAD)" = "$(git -C external/ProGPU rev-parse HEAD)"
+
+      - name: Stage exact successful ProGPU native runtimes for canonical packaging
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          qualified_progpu_commit="$(git -C external/ProGPU rev-parse HEAD)"
+          ./artifacts/checkouts/wpf-canonical/eng/progpu-stage-ci-native-runtimes.sh \
+            "${qualified_progpu_commit}" \
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-native/package"
 
       - name: Build canonical WindowsFormsIntegration from LibreWPF source
         shell: bash

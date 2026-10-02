@@ -24,6 +24,8 @@ public partial class TextBox
     private uint _portableLayoutVersion;
     private uint _portableTextFocusVersion;
     private PortablePointerDispatchContext _portableTextPointerPress;
+    private PortableTextPointerState? _portablePasswordPointerSelection;
+    private uint _portablePasswordPointerLayoutVersion;
     private bool _portableCaretVisible = true;
     private Timer? _portableCaretTimer;
     private RectangleF _portableCaretBounds;
@@ -95,8 +97,7 @@ public partial class TextBox
 
     private void DisposePortableTextInteraction()
     {
-        _portablePointerSelecting = false;
-        _portableTextPointerPress = default;
+        RetirePortablePointerSelection();
         ReleasePortableTextLayout();
         _portableCaretTimer?.Dispose();
         _portableCaretTimer = null;
@@ -138,7 +139,13 @@ public partial class TextBox
         bool hadLayout = _portableTextLayout is not null;
         ILibreTextLayout? layout = GetPortableTextLayout(e.Graphics, text, flags);
         if (layout is null) return false;
-        LibreTextCaret caret = layout.GetCaret(placeholder ? 0 : PortableSelectionActiveEnd, _portableCaretTrailing);
+        // No caret is drawn for a placeholder or an unfocused editor. Do not
+        // make those frames depend on a modern caret stop for an exact EDIT
+        // selection endpoint inside a shaped cluster.
+        // A focused blinking caret retains its bounds even in the hidden
+        // phase, so the next tick can invalidate that same real rectangle.
+        bool needsCaret = !placeholder && Focused;
+        LibreTextCaret caret = needsCaret ? GetPortableLayoutCaret(layout) : default;
         float caretWidth = Math.Max(1, SystemInformation.CaretWidth);
         if (_portableEnsureCaretVisible && Focused && !placeholder)
         {
@@ -149,7 +156,7 @@ public partial class TextBox
         Rectangle viewport = PortableTextViewport;
         var origin = new PointF(viewport.X - _portableTextScroll.X, viewport.Y - _portableTextScroll.Y);
         ReadOnlyMemory<RectangleF> selected = !placeholder && (Focused || !HideSelection)
-            ? layout.GetSelectionRectangles(SelectionStart, SelectionLength) : default;
+            ? GetPortableSelectionRectangles(layout, SelectionStart, SelectionLength) : default;
         using Region? selectionClip = selected.IsEmpty ? null : new Region();
         if (selectionClip is not null)
         {
@@ -175,8 +182,9 @@ public partial class TextBox
             finally { e.Graphics.Restore(state); }
         }
 
-        _portableCaretBounds = new RectangleF(caret.Position.X + origin.X, caret.Position.Y + origin.Y,
-            caretWidth, caret.Height);
+        _portableCaretBounds = needsCaret
+            ? new RectangleF(caret.Position.X + origin.X, caret.Position.Y + origin.Y, caretWidth, caret.Height)
+            : RectangleF.Empty;
         if (Focused && Enabled && !placeholder && _portableCaretVisible)
         {
             using var ink = new SolidBrush(ForeColor);
@@ -210,7 +218,7 @@ public partial class TextBox
 
         ILibreTextLayout layout = GetPortableInputLayout()
             ?? throw new PlatformNotSupportedException("Caret scrolling requires a retained text-layout provider.");
-        LibreTextCaret caret = layout.GetCaret(PortableSelectionActiveEnd, _portableCaretTrailing);
+        LibreTextCaret caret = GetPortableLayoutCaret(layout);
         if (EnsurePortableCaretVisible(caret, Math.Max(1, SystemInformation.CaretWidth)))
         {
             // Publish the offset before notification: a handler can repaint,
@@ -218,6 +226,34 @@ public partial class TextBox
             Invalidate();
         }
     }
+
+    private LibreTextCaret GetPortableLayoutCaret(ILibreTextLayout layout)
+    {
+        int position = PortableSelectionActiveEnd;
+        LibreTextCaret caret = GetPortableEditInteraction(layout) is { } edit
+            ? edit.GetEditCaret(position, _portableCaretTrailing)
+            : layout.GetCaret(position, _portableCaretTrailing);
+        // A legacy EDIT boundary is not necessarily a modern grapheme stop.
+        // Keep the original selection; a nearest stop is not its caret geometry.
+        // An optional EDIT view supplies this from the same retained owner;
+        // legacy providers still reject a substituted source index explicitly.
+        if (LibrePlatform.Current.TextRenderer is ILibreEditWordBoundaryService &&
+            layout is ILibreEditWordBoundaryLayout && caret.TextPosition != position)
+            throw new NotSupportedException("The retained layout has no exact caret geometry for this original EDIT source endpoint.");
+        return caret;
+    }
+
+    private static ILibreEditTextInteractionLayout? GetPortableEditInteraction(ILibreTextLayout layout)
+        => LibrePlatform.Current.TextRenderer is ILibreEditWordBoundaryService
+            && layout is ILibreEditWordBoundaryLayout
+            ? layout as ILibreEditTextInteractionLayout : null;
+
+    private static ReadOnlyMemory<RectangleF> GetPortableSelectionRectangles(ILibreTextLayout layout, int start, int length)
+        => GetPortableEditInteraction(layout) is { } edit
+            ? edit.GetEditSelectionRectangles(start, length) : layout.GetSelectionRectangles(start, length);
+
+    private static LibreTextHit HitTestPortableTextLayout(ILibreTextLayout layout, PointF point)
+        => GetPortableEditInteraction(layout) is { } edit ? edit.HitTestEdit(point) : layout.HitTest(point);
 
     private ILibreTextLayout? GetPortableInputLayout(PortablePointerDispatchContext? pointerContext = null)
     {
@@ -294,9 +330,32 @@ public partial class TextBox
         if (!context.IsCurrent) return false;
         if (!Focused && !Focus()) return context.IsCurrent;
         if (!context.IsCurrent) return false;
-        if (!ApplyPortablePointerCaret(e, context, extend: (ModifierKeys & Keys.Shift) != 0,
-            out bool selected)) return false;
-        if (!selected) return true;
+        _portablePasswordPointerSelection = null;
+        _portableWordPointerSelection = null;
+        if (e.Clicks == 2 && PasswordProtect)
+        {
+            // EDIT selects the whole password, not a word in either the source
+            // or its display mask. No hit test or source shaping is needed.
+            PortableTextPointerState state = new(this);
+            uint layoutVersion = _portableLayoutVersion;
+            SelectAll();
+            if (layoutVersion != _portableLayoutVersion
+                || !state.IsCurrent(this, unchecked(state.SelectionVersion + 1), checkScroll: false)
+                || !context.IsCurrent) return false;
+            _portablePasswordPointerSelection = state;
+            _portablePasswordPointerLayoutVersion = layoutVersion;
+        }
+        else if (e.Clicks == 2 && LibrePlatform.Current.TextRenderer is ILibreEditWordBoundaryService)
+        {
+            if (!ApplyPortableWordPointerDown(e, context)) return false;
+        }
+        else
+        {
+            if (!ApplyPortablePointerCaret(e, context, extend: (ModifierKeys & Keys.Shift) != 0,
+                out bool selected)) return false;
+            if (!selected) return true;
+        }
+
         // Control already captured this exact press. Do not reacquire capture
         // after a selection callback has released/replaced it.
         _portableTextPointerPress = context;
@@ -308,12 +367,27 @@ public partial class TextBox
     {
         if (_portablePointerSelecting && !_portableTextPointerPress.IsCurrentPress)
         {
-            _portablePointerSelecting = false;
-            _portableTextPointerPress = default;
+            RetirePortablePointerSelection();
             return true;
         }
 
         if (!_portablePointerSelecting || !Capture || (e.Button & MouseButtons.Left) == 0) return true;
+        if (_portablePasswordPointerSelection is { } selection)
+        {
+            // Moves retain the committed range without selecting again. A
+            // handler's replacement selection (even the same range), text or
+            // layout retires this mode instead of being overwritten on drag.
+            bool currentSelection = _portablePasswordPointerLayoutVersion == _portableLayoutVersion
+                && selection.IsCurrent(this, unchecked(selection.SelectionVersion + 1), checkScroll: false);
+            if (!context.IsCurrent) return false;
+            if (!currentSelection)
+                RetirePortablePointerSelection();
+            return true;
+        }
+
+        if (_portableWordPointerSelection is { } word)
+            return ApplyPortableWordPointerMove(e, context, word);
+
         return ApplyPortablePointerCaret(e, context, extend: true, out _);
     }
 
@@ -322,9 +396,16 @@ public partial class TextBox
     {
         // Release the old drag lease before public up/click callbacks can start
         // another press. Control's normal release need not raise CaptureChanged.
+        RetirePortablePointerSelection();
+        base.InvokePortableMouseUp(e, nativeDoubleClick, nativeClickEligible, isCurrentRelease);
+    }
+
+    private void RetirePortablePointerSelection()
+    {
         _portablePointerSelecting = false;
         _portableTextPointerPress = default;
-        base.InvokePortableMouseUp(e, nativeDoubleClick, nativeClickEligible, isCurrentRelease);
+        _portablePasswordPointerSelection = null;
+        _portableWordPointerSelection = null;
     }
 
     private bool ApplyPortablePointerCaret(MouseEventArgs e, in PortablePointerDispatchContext context,
@@ -337,7 +418,7 @@ public partial class TextBox
         if (layout is null) return LibrePlatform.Current.TextRenderer is not ILibreTextLayoutService;
         if (!ReferenceEquals(layout, _portableTextLayout)) return false;
         uint layoutVersion = _portableLayoutVersion;
-        LibreTextHit hit = layout.HitTest(new PointF(e.X - state.Viewport.X + state.Scroll.X,
+        LibreTextHit hit = HitTestPortableTextLayout(layout, new PointF(e.X - state.Viewport.X + state.Scroll.X,
             e.Y - state.Viewport.Y + state.Scroll.Y));
         if (!context.IsCurrent || !ReferenceEquals(layout, _portableTextLayout)
             || layoutVersion != _portableLayoutVersion || !state.IsCurrent(this, state.SelectionVersion)) return false;
@@ -362,6 +443,7 @@ public partial class TextBox
         private readonly bool _useSystemPasswordChar;
         private readonly int _deviceDpi;
         private readonly uint _focusVersion;
+        internal int TextLength => _text.Length;
         internal uint SelectionVersion { get; }
         internal Rectangle Viewport { get; }
         internal PointF Scroll { get; }
@@ -398,8 +480,7 @@ public partial class TextBox
     {
         if (!Capture)
         {
-            _portablePointerSelecting = false;
-            _portableTextPointerPress = default;
+            RetirePortablePointerSelection();
         }
 
         base.OnMouseCaptureChanged(e);

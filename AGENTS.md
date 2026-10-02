@@ -21,6 +21,13 @@ remain owned for source disposal retry. Preserve primary frame errors and avoid
 another native poll. See docs/window-render-retirement.md; source boundaries are
 not factory, scroll, modality or native desktop qualification.
 
+Password TextBox double presses select the complete source without a shaping
+request. Retain that selection only for the same live press, text, focus and
+selection generation; public handler overrides must retire the old drag instead
+of being selected again. Keep ordinary single-click dragging and native Windows
+unchanged. This password policy does not specify unmasked EDIT word boundaries
+or qualify physical double-click delivery; see docs/portable-text-word-selection.md.
+
 Plain TextBox pointer selection is default processing before virtual/public mouse
 notifications, matching EDIT's DefWndProc order. Keep UserMouse authoritative,
 protected notifications side-effect free, and handler selection/capture overrides
@@ -28,7 +35,7 @@ intact. Bind defaults to exact source/target handles and input/press/capture
 generations; retain text/layout/selection identity through provider and public
 callbacks. Old input cannot mutate or notify a replacement. Use actual source
 dispatch in retained-editor fixtures, not direct OnMouse calls as input. This
-does not implement word selection or admit native factories; see
+does not implement general word selection or admit native factories; see
 docs/portable-text-pointer-order.md.
 
 Native click pairs belong to exact source/target handles and the owned button

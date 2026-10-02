@@ -70,7 +70,8 @@ public partial class TextBox
 
             case PInvokeCore.EM_POSFROMCHAR:
                 if ((uint)index >= (uint)length) return -1;
-                PointF position = source.GetSourcePositionPoint(index);
+                PointF position = GetPortableEditInteraction(layout) is { } edit
+                    ? edit.GetEditSourcePositionPoint(index) : source.GetSourcePositionPoint(index);
                 Rectangle viewport = PortableTextViewport;
                 Point client = Point.Truncate(new PointF(position.X + viewport.X - _portableTextScroll.X,
                     Multiline ? position.Y + viewport.Y - _portableTextScroll.Y : 0));
@@ -78,7 +79,7 @@ public partial class TextBox
 
             case PInvokeCore.EM_CHARFROMPOS:
                 Rectangle inputViewport = PortableTextViewport;
-                LibreTextHit hit = layout.HitTest(new PointF(point.X - inputViewport.X + _portableTextScroll.X,
+                LibreTextHit hit = HitTestPortableTextLayout(layout, new PointF(point.X - inputViewport.X + _portableTextScroll.X,
                     point.Y - inputViewport.Y + _portableTextScroll.Y));
                 int row = Multiline ? source.GetCaretRowIndex(hit.TextPosition, hit.IsTrailing) : 0;
                 // Keep the native EDIT message's packed 16-bit character/line

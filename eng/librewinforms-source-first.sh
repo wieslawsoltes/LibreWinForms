@@ -130,9 +130,15 @@ generator_tests="${repo_root}/src/System.Windows.Forms.Analyzers.CSharp/tests/Un
 echo "Testing unchanged canonical Application.Run(Form) against a typed headless backend."
 run_test_project \
   "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
-  885 \
+  918 \
   -p:LibreWinFormsUseProGpuSystemDrawing=true \
   -p:LibreWinFormsReferenceMode=Project
+"${repo_root}/eng/common/dotnet.sh" run \
+  --project "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
+  --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" \
+  -p:LibreWinFormsUseProGpuSystemDrawing=true -p:LibreWinFormsReferenceMode=Project -- \
+  --filter-method '*NativeScrollBar_*' \
+  --minimum-expected-tests 33 --fail-skips on --timeout 2m
 "${repo_root}/eng/common/dotnet.sh" run \
   --project "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
   --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" \
@@ -228,9 +234,21 @@ echo "Verifying ProGPU System.Drawing API debt and focused quality gates."
 (
   cd "${progpu_root}"
   ./eng/progpu-verify-system-drawing-api.sh
-  dotnet test src/System.Drawing.Common.Tests/System.Drawing.Common.Tests.csproj \
-    --configuration "${configuration}" \
-    --nologo
+  if [[ "${LIBREWINFORMS_DRAWING_TRACE:-0}" == "1" && "${configuration}" == "Release" ]]; then
+    # The pinned wrapper runs the full unfiltered Release suite exactly once.
+    # Additional method metadata is diagnostic admission, not an allocation sample.
+    python3 eng/progpu-test-system-drawing.py \
+      --output "${repo_root}/artifacts/system-drawing-quality" \
+      --require-method System.Drawing.Common.Tests.MetafileParserTests \
+      WarmedEnumerationDoesNotAllocatePerRecordPayloads
+  else
+    if [[ "${LIBREWINFORMS_DRAWING_TRACE:-0}" == "1" ]]; then
+      echo "Drawing trace disabled: the pinned collector supports Release; preserving ${configuration} tests."
+    fi
+    dotnet test src/System.Drawing.Common.Tests/System.Drawing.Common.Tests.csproj \
+      --configuration "${configuration}" \
+      --nologo
+  fi
 )
 
 echo "Verifying the retired Portable comparison vectors remain canonically owned."

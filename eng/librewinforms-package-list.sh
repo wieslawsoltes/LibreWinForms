@@ -10,6 +10,8 @@ librewinforms_preview_package_ids=(
 
 librewinforms_preview_progpu_package_ids=(
   ProGPU.Backend
+  ProGPU.Backend.Dawn
+  ProGPU.Backend.Native
   ProGPU.Text.Shaping
   ProGPU.Transpiler
   ProGPU.WinRT

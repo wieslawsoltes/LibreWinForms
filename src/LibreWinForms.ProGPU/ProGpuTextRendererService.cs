@@ -33,12 +33,62 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
             graphics, text, font, layoutSize, selected));
     }
 
-    private sealed class RetainedLayout(global::ProGPU.SystemDrawing.DrawingTextLayout layout) : ILibreTextLayout, ILibreTextRowNavigation, ILibreTextSourceGeometry
+    private sealed class RetainedLayout(global::ProGPU.SystemDrawing.DrawingTextLayout layout)
+        : ILibreTextLayout, ILibreTextRowNavigation, ILibreTextSourceGeometry,
+          ILibreEditWordBoundaryLayout, ILibreEditTextInteractionLayout
     {
         private global::ProGPU.SystemDrawing.DrawingTextLayout? _layout = layout;
         private int _selectionStart = -1;
         private int _selectionLength = -1;
         private RectangleF[] _selection = [];
+        private LibreEditWordBoundaries? _wordBoundaries;
+        private int _editSelectionStart = -1;
+        private int _editSelectionLength = -1;
+        private RectangleF[] _editSelection = [];
+
+        public LibreTextCaret GetEditCaret(int textPosition, bool trailing = false)
+            => Convert(Layout.GetEditCaretStop(textPosition, trailing));
+
+        public PointF GetEditSourcePositionPoint(int textPosition)
+            => Layout.GetEditSourcePositionPoint(textPosition);
+
+        public LibreTextHit HitTestEdit(PointF point)
+        {
+            var hit = Layout.HitTestEditPoint(point);
+            return new(hit.TextPosition, hit.IsTrailingHit, hit.IsInside,
+                new RectangleF(hit.Bounds.X, hit.Bounds.Y, hit.Bounds.Width, hit.Bounds.Height), hit.BidiLevel);
+        }
+
+        public ReadOnlyMemory<RectangleF> GetEditSelectionRectangles(int start, int length)
+        {
+            var current = Layout;
+            if (_editSelectionStart != start || _editSelectionLength != length)
+            {
+                var bounds = current.GetEditSelectionRectangles(start, length);
+                var rectangles = new RectangleF[bounds.Count];
+                for (int i = 0; i < rectangles.Length; i++)
+                    rectangles[i] = new RectangleF(bounds[i].X, bounds[i].Y, bounds[i].Width, bounds[i].Height);
+                _editSelection = rectangles;
+                _editSelectionStart = start;
+                _editSelectionLength = length;
+            }
+
+            return _editSelection;
+        }
+
+        public LibreEditWordBoundaries GetWordBoundaries()
+        {
+            var current = Layout;
+            if (_wordBoundaries is { } boundaries) return boundaries;
+            var result = current.GetEditWordBoundaries(out var snapshot);
+            boundaries = ProGpuEditWordBoundaryCapture.Copy(result, snapshot, current.TextLength);
+            ObjectDisposedException.ThrowIf(!ReferenceEquals(current, _layout), this);
+            // Cache only a completely validated, source-owned inventory. The
+            // Drawing generation caches explicit failures and binding errors.
+            _wordBoundaries = boundaries;
+            return boundaries;
+        }
+
         private global::ProGPU.SystemDrawing.DrawingTextLayout Layout
             => _layout ?? throw new ObjectDisposedException(nameof(RetainedLayout));
 
@@ -91,6 +141,8 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         {
             _layout = null;
             _selection = [];
+            _wordBoundaries = null;
+            _editSelection = [];
         }
 
         private static LibreTextCaret Convert(global::ProGPU.Text.TextCaretStop caret)
