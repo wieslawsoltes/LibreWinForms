@@ -14,7 +14,7 @@ internal sealed class NativeModalWindowLifetime(
     INativeModalWindowSession? session = null)
 {
     private readonly int _threadId = Environment.CurrentManagedThreadId;
-    private readonly INativeModalWindowSession _session = session ?? NativeModalWindowSession.Instance;
+    private readonly INativeModalWindowSession _session = session ?? NativeModalWindowSession.s_instance;
     private PendingAction _pending;
     private bool _retiring;
     private bool _awaitingRelease;
@@ -28,7 +28,7 @@ internal sealed class NativeModalWindowLifetime(
     {
         VerifyAccess();
         _releaseFailure?.Throw();
-        if (_retiring) throw new ObjectDisposedException(nameof(NativeModalWindowLifetime));
+        ObjectDisposedException.ThrowIf(_retiring, this);
         if (_pending == PendingAction.Close || _closing)
             throw new InvalidOperationException("The native close request is awaiting modal release.");
         ++_generation;
@@ -112,6 +112,7 @@ internal sealed class NativeModalWindowLifetime(
                         _releaseFailure = ExceptionDispatchInfo.Capture(failure);
                     throw;
                 }
+
                 if (_awaitingRelease) return;
                 // Another completion callback can begin a fresh native session
                 // before the original release call returns. Query again before
@@ -147,6 +148,7 @@ internal sealed class NativeModalWindowLifetime(
                                 _pending = action;
                                 continue;
                             }
+
                             window.IsVisible = false;
                         }
                     }
@@ -193,7 +195,7 @@ internal interface INativeModalWindowSession
 
 internal sealed class NativeModalWindowSession : INativeModalWindowSession
 {
-    internal static readonly NativeModalWindowSession Instance = new();
+    internal static readonly NativeModalWindowSession s_instance = new();
     public bool TryPumpEvents() => NativeWindowModalSession.TryPumpEvents();
     public bool RetainsWindow(IWindow window)
         => TryGetSessionWindow(window, out NativeWindowHandle handle) && NativeWindowModalSession.RetainsWindow(handle);
