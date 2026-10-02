@@ -89,3 +89,12 @@ The new one-shot getter regression raises the current source case count to 22 an
 the combined hosted queue/lifetime minimum to 43, with the same deadline.
 After `54ee0285ca`, the same strict source compile and bounded driver passed all
 22 cases with zero failures. C# parsing, shell syntax and whitespace checks passed.
+# Hosted analyzer correction
+
+Exact-head Build `37027320278` reached the AppKit source compilation and rejected
+four repository analyzer diagnostics in the helper: two SA1513 blank lines,
+the IDE1006 static-field prefix and CA1513's required `ThrowIf` API. The scoped
+correction changes no polling, release, visibility or retirement decisions.
+After committing it, the same bounded actual-source fixture passed all 22 cases
+and the helper parsed without syntax errors. This focused harness does not load
+the repository analyzers; their hosted full-project check remains required.
