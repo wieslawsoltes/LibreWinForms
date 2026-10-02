@@ -87,3 +87,5 @@ session without changing source intent. The host now rechecks retention after th
 getter, preserving pending Hide until that new session's own release completes.
 The new one-shot getter regression raises the current source case count to 22 and
 the combined hosted queue/lifetime minimum to 43, with the same deadline.
+After `54ee0285ca`, the same strict source compile and bounded driver passed all
+22 cases with zero failures. C# parsing, shell syntax and whitespace checks passed.
