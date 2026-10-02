@@ -62,6 +62,114 @@ public sealed class NativeModalWindowLifetimeTests
     }
 
     [Fact]
+    public void ShowCannotDiscardUndeliveredReleaseWhenNativeQueryDisappears()
+    {
+        var fixture = new Fixture();
+        fixture._session._held = true;
+        fixture._lifetime.Hide();
+        fixture._session._held = false;
+        Assert.Throws<InvalidOperationException>(fixture._lifetime.BeforeShow);
+        fixture._lifetime.Pump();
+        Assert.Equal(0, fixture.Window._hides);
+        Assert.Equal(1, fixture._session._releases);
+        Assert.NotNull(fixture._session._completion);
+        fixture._session.Complete();
+        Assert.Equal(1, fixture._wakes);
+        Assert.Equal(0, fixture.Window._hides);
+        fixture._lifetime.Pump();
+        Assert.Equal(1, fixture.Window._hides);
+        fixture._lifetime.BeforeShow();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ShowRetentionReadCannotOverwriteCloseOrRetirement(bool retire)
+    {
+        var fixture = new Fixture();
+        fixture._session._held = true;
+        fixture._lifetime.Hide();
+        fixture._session._retains = () =>
+        {
+            fixture._session._retains = null;
+            if (retire) fixture._lifetime.Retire();
+            else fixture._lifetime.Close();
+            return true;
+        };
+        if (retire) Assert.Throws<ObjectDisposedException>(fixture._lifetime.BeforeShow);
+        else Assert.Throws<InvalidOperationException>(fixture._lifetime.BeforeShow);
+        Assert.Equal(0, fixture.Window._hides);
+        Assert.Equal(0, fixture.Window._closes);
+        Assert.Equal(1, fixture._session._releases);
+        fixture._session.Complete();
+        if (retire) Assert.True(fixture._lifetime.CanRetire());
+        else fixture._lifetime.Pump();
+        Assert.Equal(retire ? 1 : 0, fixture.Window._hides);
+        Assert.Equal(retire ? 0 : 1, fixture.Window._closes);
+        Assert.Equal(1, fixture._wakes);
+    }
+
+    [Fact]
+    public void ShowRetentionReadCannotOverwriteNewerHide()
+    {
+        var fixture = new Fixture();
+        fixture._session._held = true;
+        fixture._lifetime.Hide();
+        fixture._session._retains = () =>
+        {
+            fixture._session._retains = null;
+            fixture._lifetime.Hide();
+            return true;
+        };
+        Assert.Throws<InvalidOperationException>(fixture._lifetime.BeforeShow);
+        fixture._session.Complete();
+        fixture._lifetime.Pump();
+        Assert.Equal(1, fixture.Window._hides);
+        Assert.Equal(2, fixture._session._releases); // Completed Hide checks release again.
+    }
+
+    [Fact]
+    public void ShowRetentionReadAcceptsDeliveredCompletionWithoutNewerIntent()
+    {
+        var fixture = new Fixture();
+        fixture._session._held = true;
+        fixture._lifetime.Hide();
+        fixture._session._retains = () =>
+        {
+            fixture._session._retains = null;
+            fixture._session.Complete();
+            return false;
+        };
+        fixture._lifetime.BeforeShow();
+        fixture._lifetime.Pump();
+        Assert.Equal(1, fixture._wakes);
+        Assert.Equal(0, fixture.Window._hides);
+        Assert.Equal(1, fixture._session._releases);
+    }
+
+    [Fact]
+    public void ShowRetentionReadPreservesCompletionWakeFailureAndPendingHide()
+    {
+        var fixture = new Fixture();
+        fixture._session._held = true;
+        fixture._lifetime.Hide();
+        var failure = new InvalidOperationException("completion wake");
+        fixture._onWake = () => throw failure;
+        fixture._session._retains = () =>
+        {
+            fixture._session._retains = null;
+            fixture._session.Complete();
+            return false;
+        };
+        Assert.Same(failure, Assert.Throws<InvalidOperationException>(fixture._lifetime.BeforeShow));
+        Assert.Equal(0, fixture.Window._hides);
+        fixture._onWake = null;
+        fixture._lifetime.Pump();
+        Assert.Equal(1, fixture.Window._hides);
+        fixture._lifetime.BeforeShow();
+    }
+
+    [Fact]
     public void CloseSupersedesHideAndRejectsShowUntilActualClosingReturns()
     {
         var fixture = new Fixture();
@@ -183,7 +291,14 @@ public sealed class NativeModalWindowLifetimeTests
     public void SynchronousCompletionRetainsLatestReentrantShowIntent()
     {
         var fixture = new Fixture();
-        fixture._session._release = completed => { fixture._lifetime.BeforeShow(); completed(); return true; };
+        fixture._session._held = true;
+        fixture._session._release = completed =>
+        {
+            fixture._lifetime.BeforeShow();
+            fixture._session._held = false;
+            completed();
+            return true;
+        };
         fixture._lifetime.Hide();
         Assert.Equal(0, fixture.Window._hides);
         Assert.Equal(1, fixture._wakes);
@@ -339,10 +454,10 @@ public sealed class NativeModalWindowLifetimeTests
         internal bool _held, _active;
         internal int _polls, _releases;
         internal Action? _completion;
-        internal Func<bool>? _poll;
+        internal Func<bool>? _poll, _retains;
         internal Func<Action, bool>? _release;
         public bool TryPumpEvents() { _polls++; return _poll?.Invoke() ?? _active; }
-        public bool RetainsWindow(IWindow window) { Assert.Same(expected, window); return _held; }
+        public bool RetainsWindow(IWindow window) { Assert.Same(expected, window); return _retains?.Invoke() ?? _held; }
         public bool TryReleaseWindow(IWindow window, Action completed)
         {
             Assert.Same(expected, window);

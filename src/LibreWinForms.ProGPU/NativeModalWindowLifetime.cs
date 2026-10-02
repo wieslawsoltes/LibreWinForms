@@ -27,12 +27,31 @@ internal sealed class NativeModalWindowLifetime(
     internal void BeforeShow()
     {
         VerifyAccess();
+        VerifyShowIntent();
+        if (_awaitingRelease)
+        {
+            long generation = _generation;
+            bool retained = _session.RetainsWindow(window);
+            // Native identity getters can complete release or reenter source
+            // intent. Neither an absent query nor this older Show may discard
+            // an undelivered completion or a newer Hide/Close/retirement.
+            VerifyShowIntent();
+            if (_awaitingRelease && !retained)
+                throw new InvalidOperationException("Native modal release completion is still outstanding.");
+            if (generation != _generation)
+                throw new InvalidOperationException("Native visibility changed during Show admission.");
+        }
+
+        ++_generation;
+        _pending = PendingAction.None; // A newer Show supersedes only an old Hide.
+    }
+
+    private void VerifyShowIntent()
+    {
         _releaseFailure?.Throw();
         ObjectDisposedException.ThrowIf(_retiring, this);
         if (_pending == PendingAction.Close || _closing)
             throw new InvalidOperationException("The native close request is awaiting modal release.");
-        ++_generation;
-        _pending = PendingAction.None; // A newer Show supersedes only an old Hide.
     }
 
     internal void Hide() => Request(PendingAction.Hide);

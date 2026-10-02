@@ -31,7 +31,7 @@ remains terminal and retains the host, rather than retrying a consumed token or
 interpreting absent retention as proof of successful release. Ordinary event errors
 remain primary through the dispatcher's existing cleanup-failure handling.
 
-Twenty-two authored CPU-only cases exercise the actual lifetime implementation and
+Twenty-eight authored CPU-only cases exercise the actual lifetime implementation and
 retirement queue with recorded provider/session operations, including the actual
 host's source-wiring guard. They retain the original queue tests and two-minute
 hosted selector deadline. No NSPanel, device or desktop is fabricated by these
@@ -108,3 +108,17 @@ also loaded the cached StyleCop/SDK analyzers with the unchanged repository
 but the standalone harness lacked the project's generated-using/documentation
 configuration. That diagnostic check is not a passing full analyzer build;
 hosted full-project qualification remains required.
+
+## Show admission after an outstanding release
+
+An ordinary retained pending Hide remains supersedable by Show. If native
+retention disappears before its registered completion is delivered, Show instead
+fails without discarding that Hide or the exact release owner. The retention
+getter can itself complete release or change source intent: Show rechecks the
+original failure, Close/retirement and source generation before publication.
+A delivered completion may admit Show; a newer Hide/Close/retirement or failed
+wake cannot be overwritten by the older Show. The six additional CPU-only rows
+exercise those boundaries, including creating-thread wake and subsequent retry.
+The original synchronous-completion control now explicitly retains its native
+identity until completion, matching the shared session contract. No native modal
+entry, source factory/default, qualified dependency pin or poll route changes.

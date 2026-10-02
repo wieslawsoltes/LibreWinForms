@@ -81,7 +81,7 @@ run_test_project \
   --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" -- \
   --filter-class '*NativeWindowRetirementQueueTests*' \
   --filter-class '*NativeModalWindowLifetimeTests*' \
-  --minimum-expected-tests 43 --fail-skips on --timeout 2m
+  --minimum-expected-tests 49 --fail-skips on --timeout 2m
 "${repo_root}/eng/common/dotnet.sh" run \
   --project "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
   --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" -- \
