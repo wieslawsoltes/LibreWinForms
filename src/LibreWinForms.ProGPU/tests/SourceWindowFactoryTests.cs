@@ -112,6 +112,7 @@ public sealed class SourceWindowFactoryTests
     [InlineData("content geometry")]
     [InlineData("input permission")]
     [InlineData("nonactivating ordering")]
+    [InlineData("session-owned native pointer input")]
     public void RejectedNativeOptionRetiresInsteadOfPublishingOrFallingBack(string option)
     {
         int retired = 0;
@@ -186,9 +187,31 @@ public sealed class SourceWindowFactoryTests
         Assert.Contains("_input = NativeWindowInput.CreateInput(_window)", source);
         Assert.Contains("_input is INativePointerInputContext nativePointer", source);
         Assert.Contains("_nativePointerInput = new NativePointerInput(nativePointer, this)", source);
+        Assert.Contains("NativePopupWindow.SupportsModalInput(_window, input)", source);
+        Assert.Contains("subscription is not null && subscription.Owns(input)", source);
+        Assert.Contains("ReferenceEquals(input, _input)", source);
+        Assert.Contains("ReferenceEquals(subscription, _nativePointerInput)", source);
+        int show = source.IndexOf("void INativePopupAdmissionHost.ShowWithoutActivation()", StringComparison.Ordinal);
+        int discard = source.IndexOf("void INativePopupAdmissionHost.Discard()", show, StringComparison.Ordinal);
+        string showBody = source[show..discard];
+        Assert.Contains("RequireOwnedModalInput();\n        EnsureRenderer();\n        RequireOwnedModalInput();", showBody);
+        Assert.True(showBody.IndexOf("RequireOwnedModalInput();", StringComparison.Ordinal)
+            < showBody.IndexOf("NativePopupWindow.ShowWithoutActivation(_window)", StringComparison.Ordinal));
         Assert.Contains("NativePopupWindow.TryPrepareOwner(owner, _window)", source);
         Assert.Contains("NativePopupWindow.TryShowOwned(owner, _window, showWithoutActivation)", source);
         Assert.Contains("RetireNativeWindow(_window, ReleaseRenderingResources,", source);
         Assert.Contains("context.InitializeSharedDevice(_window, ownerContext)", source);
+    }
+
+    [Fact]
+    public void NativeInputProofLosingItsSourceSubscriptionCannotPublishSuccess()
+    {
+        bool subscriptionCurrent = true;
+        int discarded = 0;
+        Assert.Throws<PlatformNotSupportedException>(() => OwnedPopupConfiguration.Apply(
+            () => { subscriptionCurrent = false; return true; },
+            () => subscriptionCurrent,
+            () => discarded++, "session-owned native pointer input"));
+        Assert.Equal(1, discarded);
     }
 }

@@ -856,10 +856,28 @@ internal sealed class SilkLibreWindow : ILibreWindow, ILibreModalWindow, IProGpu
 
     void INativePopupAdmissionHost.ShowWithoutActivation()
     {
+        RequireOwnedModalInput();
         EnsureRenderer();
+        RequireOwnedModalInput();
         // The actual provider owns nonactivation and callback-safe native identity.
         // An owned panel must never enter the GLFW visibility path.
         NativePopupWindow.ShowWithoutActivation(_window);
+    }
+
+    private void RequireOwnedModalInput()
+    {
+        if (!_usesOwnedCocoaPopup)
+            return;
+
+        IInputContext? input = _input;
+        NativePointerInput? subscription = _nativePointerInput;
+        ApplyNativeOption(
+            () => input is INativePointerInputContext
+                && subscription is not null && subscription.Owns(input)
+                && NativePopupWindow.SupportsModalInput(_window, input)
+                && ReferenceEquals(input, _input)
+                && ReferenceEquals(subscription, _nativePointerInput),
+            "session-owned native pointer input");
     }
 
     void INativePopupAdmissionHost.Discard() => ReleaseNativeWindow();
@@ -1670,6 +1688,11 @@ internal sealed class SilkLibreWindow : ILibreWindow, ILibreModalWindow, IProGpu
                 mouse.Scroll += OnMouseScroll;
             }
         }
+
+        // Factory selection alone is not proof: require the actual owned window,
+        // exact attached context and subscribed typed source adapter together.
+        // Hidden pre-owner setup is valid; native owner binding/Show stay separate.
+        RequireOwnedModalInput();
     }
 
     private void EnsureRenderer()
