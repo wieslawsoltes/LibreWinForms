@@ -29,6 +29,7 @@ def desktop(root):
     value.helper, value.root = root / "native-helper", root
     value.deadline = time.monotonic() + 60
     value.calls = value.bytes = 0
+    value.modal_observations = None
     return value
 
 

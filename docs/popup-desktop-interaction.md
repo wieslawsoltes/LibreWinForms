@@ -10,6 +10,8 @@ source client-to-screen geometry and events; it does not make a phase succeed.
 
 The existing installed-package popup smoke remains unchanged. That smoke checks
 window admission/source paint/owner teardown, not this independent desktop case.
+An explicit [modal workload](popup-modal-desktop-interaction.md) uses `--modal`
+without changing this default fourteen-phase scenario or its budgets.
 The upstream WinformsControlsTest menu/combo/tooltip forms and unit/UI integration
 tests lack a shared, externally driven Microsoft-versus-portable scenario.
 

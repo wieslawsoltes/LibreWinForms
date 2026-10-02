@@ -4,6 +4,7 @@
 import argparse
 import ctypes as C
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import struct
@@ -87,6 +88,7 @@ class WindowsDesktop:
             (self.user, "EnumWindows", C.c_int32, [self.callback_type, C.c_ssize_t]),
             (self.user, "GetWindowThreadProcessId", C.c_uint32, [C.c_void_p, C.POINTER(C.c_uint32)]),
             (self.user, "IsWindowVisible", C.c_int32, [C.c_void_p]),
+            (self.user, "IsWindowEnabled", C.c_int32, [C.c_void_p]),
             (self.user, "GetWindowTextW", C.c_int32, [C.c_void_p, C.c_wchar_p, C.c_int32]),
             (self.user, "GetWindowRect", C.c_int32, [C.c_void_p, C.POINTER(Rect)]),
             (self.user, "GetClientRect", C.c_int32, [C.c_void_p, C.POINTER(Rect)]),
@@ -145,12 +147,21 @@ class WindowsDesktop:
                 if (self.user.GetWindowRect(window, C.byref(bounds)) and
                         self.user.GetClientRect(window, C.byref(client)) and
                         self.user.ClientToScreen(window, C.byref(origin))):
-                    result.append(dict(hwnd=int(window), title=title.value, bounds=box(bounds),
+                    result.append(dict(hwnd=int(window), title=title.value, bounds=box(bounds), enabled=bool(self.user.IsWindowEnabled(window)),
                                        client=dict(x=origin.x, y=origin.y, width=client.right, height=client.bottom)))
             return 1
 
         require(self.user.EnumWindows(visit, 0), "Could not enumerate native windows")
         return result
+
+    def select_observations(self, observations):
+        # Win32 supplies actual client rectangles independently of source files.
+        # The modal session owns and validates the selected source identities.
+        pass
+
+    def window_input_enabled(self, window, state):
+        require(type(window.get("enabled")) is bool, "Missing actual native IsWindowEnabled observation")
+        return window["enabled"]
 
     def key(self, pid, key):
         self.foreground(pid)
@@ -247,12 +258,15 @@ class Session:
         self.phase = "startup"
         self.image_bytes = 0
 
+    def read_state(self):
+        return read_snapshot(self.directory)
+
     def wait(self, predicate):
         previous = None
         while time.monotonic() < self.deadline:
             require(self.process.poll() is None, f"Application exited at {self.phase}: {self.process.returncode}")
             try:
-                state = read_snapshot(self.directory)
+                state = self.read_state()
             except (FileNotFoundError, json.JSONDecodeError):
                 time.sleep(0.05)
                 continue
@@ -298,7 +312,7 @@ class Session:
         require(time.monotonic() < self.deadline, "Screenshot exceeded original application deadline")
         require(self.process.poll() is None, "Application exited during screenshot")
         require(self.desktop.windows(self.process.pid) == windows, "Native window state changed during screenshot")
-        require(stable_state(read_snapshot(self.directory)) == stable_state(snapshot), "Observed source state changed during screenshot")
+        require(stable_state(self.read_state()) == stable_state(snapshot), "Observed source state changed during screenshot")
         with (self.directory / f"{phase}.json").open("x") as stream:
             json.dump(dict(snapshot=snapshot, nativeWindows=windows, screenshot=image, qualified=False), stream, indent=2)
 
@@ -377,23 +391,39 @@ def scenario(session):
                             for window in session.desktop.windows(session.process.pid)))
 
 
-def run_case(desktop, executable, root, label, run):
+def application_options(modal, native_modal, platform, label):
+    require(not native_modal or (modal and platform == "darwin" and label == "portable"),
+            "Native modal startup requires the explicit portable macOS modal scenario")
+    return (["--modal-dialog"] if modal else []) + (["--libre-native-modal-sessions"] if native_modal else [])
+
+
+def run_case(desktop, executable, root, label, run, *, modal=False, native_modal=False):
+    options = application_options(modal, native_modal, sys.platform, label)
+    if modal:
+        spec = importlib.util.spec_from_file_location("popup_modal_driver", Path(__file__).with_name("librewinforms-popup-modal.py"))
+        modal_driver = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(modal_driver)
     directory = root / label
     directory.mkdir()
     app = directory / "app"
     app.mkdir()
     receipt = dict(label=label, executable=str(executable), executableSha256=digest(executable),
-                   assemblySha256=digest(executable.with_suffix(".dll")), qualified=False, status="incomplete")
+                   assemblySha256=digest(executable.with_suffix(".dll")), qualified=False, status="incomplete",
+                   scenario="modal-popup" if modal else "ordinary-popup", applicationOptions=options)
     with (directory / "stdout.log").open("xb") as stdout, (directory / "stderr.log").open("xb") as stderr:
-        process = subprocess.Popen([str(executable), str(app), run], cwd=executable.parent, stdout=stdout, stderr=stderr)
-        session = Session(desktop, process, directory, run)
+        process = subprocess.Popen([str(executable), str(app), run, *options], cwd=executable.parent, stdout=stdout, stderr=stderr)
+        session = None
         receipt["pid"] = process.pid
         try:
-            scenario(session)
+            session = modal_driver.ModalSession(desktop, process, directory, run) if modal else Session(desktop, process, directory, run)
+            if modal:
+                modal_driver.scenario(session)
+            else:
+                scenario(session)
             receipt["status"] = "phases-captured-not-pixel-qualified"
         except Exception as error:
-            receipt.update(error=f"{type(error).__name__}: {error}", failedPhase=session.phase)
-            if session.failure_state is not None:
+            receipt.update(error=f"{type(error).__name__}: {error}", failedPhase=session.phase if session else "startup")
+            if session is not None and session.failure_state is not None:
                 receipt["failureState"] = session.failure_state
         finally:
             # No input/close commands sent to any other window. Stop only the
@@ -432,6 +462,7 @@ def main():
     parser.add_argument("--portable-app", type=Path, required=True)
     parser.add_argument("--evidence-parent", type=Path, required=True)
     parser.add_argument("--prepared-root", type=Path, required=True)
+    parser.add_argument("--modal", action="store_true", help="Separate real ShowDialog/popup scenario; original phases remain unchanged")
     args = parser.parse_args()
     reference, portable = args.reference_app.resolve(strict=True), args.portable_app.resolve(strict=True)
     require(reference != portable, "Reference and portable executables must be separate builds")
@@ -443,8 +474,8 @@ def main():
     with (root / "preparation.json").open("x") as stream:
         json.dump(preparation, stream, indent=2)
     print(f"Paired raw evidence: {root}", flush=True)
-    first = run_case(desktop, reference, root, "microsoft", run)
-    second = run_case(desktop, portable, root, "portable", run)
+    first = run_case(desktop, reference, root, "microsoft", run, modal=args.modal)
+    second = run_case(desktop, portable, root, "portable", run, modal=args.modal)
     print("Raw phases captured; manual image/event comparison remains required." if first and second else "Incomplete paired evidence; inspect receipts.")
     return 0 if first and second else 1
 
