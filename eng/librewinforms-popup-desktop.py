@@ -77,9 +77,12 @@ def exposed_owner_target(pid, owner, target, front_to_back):
     Every supplied entry precedes or is the exact owner. A disabled window's
     WindowFromPoint result cannot stand in for this actual obstruction proof.
     """
-    require(type(pid) is int and pid > 0 and isinstance(owner, dict) and owner.get("pid") == pid,
+    require(type(pid) is int and pid > 0 and isinstance(owner, dict) and type(owner.get("pid")) is int and owner["pid"] == pid
+            and type(owner.get("id")) is int and owner["id"] > 0 and isinstance(owner.get("title"), str),
             "Wrong observed owner PID")
     observed_rectangle(target); observed_rectangle(owner.get("client")); observed_rectangle(owner.get("bounds"))
+    require(all(owner["bounds"][a] <= owner["client"][a] and owner["client"][a] + owner["client"][b] <= owner["bounds"][a] + owner["bounds"][b]
+                for a, b in (("x", "width"), ("y", "height"))), "Native owner client extends outside its actual frame")
     require(all(owner["client"][a] <= target[a] and target[a] + target[b] <= owner["client"][a] + owner["client"][b]
                 for a, b in (("x", "width"), ("y", "height"))), "Target is not wholly inside actual owner client")
     require(isinstance(front_to_back, list) and 0 < len(front_to_back) <= 4096, "Native obstruction inventory budget/shape differs")

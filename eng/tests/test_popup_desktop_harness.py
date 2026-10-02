@@ -580,7 +580,8 @@ class ModalDesktopContracts(unittest.TestCase):
         observed["counts"].update({"form-paint": 12, "editor-focus-lost": 1, "modal-button-click": 1})
         observed["modal"]["inputEnabled"] = False
         self.assertEqual(MODAL.owner_input_state(initial), MODAL.owner_input_state(observed))
-        for key in ("editor-pointer", "editor-text", "context-command", "menu-command", "combo-committed"):
+        for key in ("editor-pointer", "editor-text", "context-command", "menu-command", "combo-committed",
+                    "owner-guard-down", "owner-guard-up", "owner-guard-click"):
             bad = copy.deepcopy(observed); bad["counts"][key] = 1
             self.assertNotEqual(MODAL.owner_input_state(initial), MODAL.owner_input_state(bad))
 
@@ -636,7 +637,12 @@ class ModalDesktopContracts(unittest.TestCase):
         ordinary = (ROOT / "eng/librewinforms-popup-desktop.py").read_text().split("def scenario(session):", 1)[1].split("def application_options", 1)[0]
         self.assertEqual(ordinary.count("session.capture("), 14)
         modal = (ROOT / "eng/librewinforms-popup-modal.py").read_text().split("def scenario(session):", 1)[1]
-        self.assertEqual(modal.count("session.capture("), 15)
+        self.assertEqual(modal.count("session.capture("), 17)
+        for name in ("m01-owner", "m02-dialog", "m03-context", "m04-context-child", "m05-context-escape",
+                     "m06-context-command", "m07-menu-child", "m08-menu-escape", "m09-menu-command", "m10-combo",
+                     "m11-combo-escape", "m12-combo-committed", "m13-tooltip", "m14-owner-return", "m15-owner-enabled",
+                     "m02-owner-blocked", "m16-owner-guard"):
+            self.assertEqual(modal.count(f'session.capture("{name}"'), 1)
         self.assertIn('session.point(session.state["modal"]["button"], "left")', modal)
         self.assertIn('event(session.owner_directory, "modal-return")', modal)
 

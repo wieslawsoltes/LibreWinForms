@@ -83,3 +83,11 @@ enumeration and its existing compositor/Wayland limitations.
 Offline controls are authored in the existing desktop/macOS harness test files
 for final hosted execution. Original Windows/native pixels, real input delivery,
 native modal release and whole application/package qualification remain pending.
+
+The additional `eng/tests/test_modal_owner_input.py` authors nine offline controls:
+native exposure, both owned/foreign obstruction, half-open edge contact with
+full-target visibility, stale/unknown/aliased/nonfinite identity rejection,
+disabled Win32 hit-test independence, late obstruction, held physical input,
+unverified Cocoa identity and real X11 stacking order. Existing modal controls
+retain all original fifteen named phases and separately require both additions.
+No offline test, syntax check, application build or platform execution was run.

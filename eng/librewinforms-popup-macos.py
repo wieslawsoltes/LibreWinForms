@@ -350,11 +350,16 @@ class MacDesktop:
         require(isinstance(proof.get("samples"), list) and len(proof["samples"]) == 2, "Missing native owner input samples")
         owner = dict(id=native["windowNumber"], pid=pid, title=native["title"], bounds=native["frameBounds"], client=owner_window["nativeClient"])
         for sample, phase in zip(proof["samples"], ("before", "before-click")):
-            require(sample.get("phase") == phase, "Native owner input phase differs")
+            require(sample.get("phase") == phase and GEOMETRY.finite(sample.get("observedUptimeSeconds"))
+                    and type(sample.get("systemWindowCount")) is int and 0 < sample["systemWindowCount"] <= 4096
+                    and isinstance(sample.get("windows"), list) and 0 < len(sample["windows"]) <= 64,
+                    "Native owner input phase/inventory differs")
             rows = [dict(id=w["windowNumber"], pid=w["pid"], bounds=w["frameBounds"],
                          **({"title": owner["title"], "client": owner["client"]} if w["windowNumber"] == owner["id"] else {}))
                     for w in sample["windows"]]
-            require([w["zIndex"] for w in sample["windows"]] == sorted(w["zIndex"] for w in sample["windows"]),
+            order = [w["zIndex"] for w in sample["windows"]]
+            require(all(type(index) is int and 0 <= index < sample["systemWindowCount"] for index in order)
+                    and order == sorted(set(order)),
                     "Native owner obstruction Z-order differs")
             SHARED.exposed_owner_target(pid, owner, target, rows)
         return proof
