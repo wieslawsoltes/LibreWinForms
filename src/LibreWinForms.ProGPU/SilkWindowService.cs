@@ -259,6 +259,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
     private readonly ILibreWindowEvents _events;
     private readonly IWindow _window;
     private readonly bool _usesOwnedCocoaPopup;
+    private readonly NativeModalWindowLifetime _modalLifetime;
     private string _title;
     private readonly SilkWindowController _controller;
     private readonly NativePopupAdmission? _popupAdmission;
@@ -355,6 +356,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         };
 
         _window = SourceWindowFactory.Create(_usesOwnedCocoaPopup, silkOptions, dispatcher.Wake);
+        _modalLifetime = new(_window, _usesOwnedCocoaPopup, dispatcher.Wake);
         _controller = new SilkWindowController(_window);
         _controller.SetIsPopup(options.Options.HasFlag(LibreWindowOptions.Popup));
         if (options.Options.HasFlag(LibreWindowOptions.Popup))
@@ -759,6 +761,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
     public void Show()
     {
         VerifyAccess();
+        _modalLifetime.BeforeShow();
         if (_popupAdmission is not null)
             _popupAdmission.Show();
         else
@@ -768,7 +771,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
     public void Hide()
     {
         VerifyAccess();
-        _window.IsVisible = false;
+        _modalLifetime.Hide();
     }
 
     public void Activate()
@@ -782,7 +785,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
     public void Close()
     {
         VerifyAccess();
-        _window.Close();
+        _modalLifetime.Close();
     }
 
     public void Dispose() => ReleaseNativeWindow();
@@ -852,11 +855,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         Release(() => _service.Unregister(this));
         Release(() => _dispatcher.Unregister(this));
         // Hide without destroying a surface that failed GPU cleanup may still own.
-        Release(() => _window.IsVisible = false);
-        Release(() => _nativePointerInput?.Dispose());
-        Release(() => _characterInput?.Dispose());
-        Release(() => _input?.Dispose());
-        Release(_controller.Dispose);
+        Release(_modalLifetime.Retire);
         // Logical source teardown is complete, but the native view can still be
         // leased or inside a callback. The dispatcher retains it until the
         // provider confirms retirement, including after an initial failure.
@@ -870,6 +869,16 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
 
     private void ReleaseRenderingResources()
     {
+        // Modal/native callback ownership must end before removing its input
+        // callbacks or releasing rendering and the view. Keep failed cleanup
+        // owners for the same creating-thread queue retry.
+        _nativePointerInput?.Dispose();
+        _nativePointerInput = null;
+        _characterInput?.Dispose();
+        _characterInput = null;
+        _input?.Dispose();
+        _input = null;
+        _controller.Dispose();
         // PaintRequested may retire the window while its Graphics/frame still
         // records into these visuals. Clear only after that scope completes.
         foreach (DrawingVisual visual in _paintLayers.Values)
@@ -899,7 +908,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
     }
 
     private bool CanReleaseRenderingResources()
-        => !_renderBoundary.IsActive && !_initializingRenderer;
+        => !_renderBoundary.IsActive && !_initializingRenderer && _modalLifetime.CanRetire();
 
     private void DrainRetiredNativeWindow()
     {
@@ -1305,7 +1314,9 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
             return;
         }
 
-        _window.DoEvents();
+        _modalLifetime.Pump();
+        if (_disposed)
+            return;
         _characters?.Flush();
         if (_disposed)
             return;
