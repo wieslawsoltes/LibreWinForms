@@ -112,6 +112,35 @@ public sealed class NativeModalWindowLifetimeTests
     }
 
     [Fact]
+    public void AcceptedProviderCloseRetiresAlreadyHiddenWindowWithoutSecondVisibilityWrite()
+    {
+        var fixture = new Fixture();
+        NativeWindowRetirementQueue queue = new(_ => true);
+        fixture.Window.Closing = () =>
+        {
+            fixture.Window.Visible = false; // Actual owned Close's pre-Closing state.
+            fixture.Window.Hide = () => throw new InvalidOperationException("closing provider rejects setter");
+            fixture.Lifetime.Retire();
+            queue.Retire(fixture.Provider, canReleaseRenderingResources: fixture.Lifetime.CanRetire);
+            Assert.True(queue.HasPending);
+        };
+        fixture.Lifetime.Close();
+        queue.Drain();
+        Assert.False(queue.HasPending);
+        Assert.Equal(1, fixture.Window.Closes);
+        Assert.Equal(0, fixture.Window.Hides);
+    }
+
+    [Fact]
+    public void ReentrantVisibilityReadCannotApplyOldHideOverNewShow()
+    {
+        var fixture = new Fixture();
+        fixture.Window.ReadVisible = fixture.Lifetime.BeforeShow;
+        fixture.Lifetime.Hide();
+        Assert.Equal(0, fixture.Window.Hides);
+    }
+
+    [Fact]
     public void ReplacementSessionAfterCompletionMustAlsoEndBeforeHide()
     {
         var fixture = new Fixture();
@@ -262,6 +291,9 @@ public sealed class NativeModalWindowLifetimeTests
         Assert.DoesNotContain("NativeWindowModalSession.TryBegin", source);
         Assert.True(source.IndexOf("private void ReleaseRenderingResources()", StringComparison.Ordinal)
             < source.IndexOf("_nativePointerInput?.Dispose()", StringComparison.Ordinal));
+        Assert.Contains("bool INativePointerTarget.IsCurrent", source);
+        Assert.Contains("bool INativeCharacterTarget.IsAlive", source);
+        Assert.Contains("private void DeliverInputAfterCharacters", source);
     }
 
     private sealed class Fixture
@@ -310,13 +342,15 @@ public sealed class NativeModalWindowLifetimeTests
     public class WindowProxy : DispatchProxy
     {
         internal int Polls, Hides, Closes;
-        internal Action? Poll, Hide, Closing;
+        internal bool Visible = true;
+        internal Action? Poll, Hide, Closing, ReadVisible;
         protected override object? Invoke(MethodInfo? method, object?[]? arguments)
         {
             switch (method!.Name)
             {
                 case "DoEvents": Polls++; Poll?.Invoke(); break;
-                case "set_IsVisible": Assert.False((bool)arguments![0]!); Hides++; Hide?.Invoke(); break;
+                case "get_IsVisible": ReadVisible?.Invoke(); return Visible;
+                case "set_IsVisible": Assert.False((bool)arguments![0]!); Hides++; Hide?.Invoke(); Visible = false; break;
                 case "Close": Closes++; Closing?.Invoke(); break;
                 default: throw new Xunit.Sdk.XunitException("Unexpected native provider access: " + method.Name);
             }

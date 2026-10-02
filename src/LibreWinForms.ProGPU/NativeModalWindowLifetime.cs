@@ -129,7 +129,15 @@ internal sealed class NativeModalWindowLifetime(
                         try { window.Close(); }
                         finally { _closing = false; }
                     }
-                    else window.IsVisible = false;
+                    else
+                    {
+                        // Owned Close hides before Closing; an already closing
+                        // provider rejects visibility writes, even false. Its
+                        // actual hidden state needs no second native transition.
+                        bool visible = window.IsVisible;
+                        if (generation == _generation && visible)
+                            window.IsVisible = false;
+                    }
                 }
                 catch
                 {

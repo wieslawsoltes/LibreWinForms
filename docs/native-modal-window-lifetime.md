@@ -31,7 +31,7 @@ remains terminal and retains the host, rather than retrying a consumed token or
 interpreting absent retention as proof of successful release. Ordinary event errors
 remain primary through the dispatcher's existing cleanup-failure handling.
 
-Nineteen authored CPU-only cases exercise the actual lifetime implementation and
+Twenty-one authored CPU-only cases exercise the actual lifetime implementation and
 retirement queue with recorded provider/session operations, including the actual
 host's source-wiring guard. They retain the original queue tests and two-minute
 hosted selector deadline. No NSPanel, device or desktop is fabricated by these
@@ -40,3 +40,10 @@ and focus ordering before automatic admission; pointer-gating an owned popup is
 not native blocking of its ordinary Cocoa owner. WPF's paired Close integration
 is separate. Full exact CI and original cross-platform popup applications remain
 required before claiming native interaction, rendering or modality parity.
+
+An accepted owned-provider Close has already hidden its panel before Closing.
+Retirement observes that actual visibility and avoids a second write to its now
+closing provider; getter callbacks must still preserve the current source intent.
+Deferred input cleanup cannot deliver stale source tails: the existing actual
+`INativePointerTarget.IsCurrent`, `INativeCharacterTarget.IsAlive` and
+`DeliverInputAfterCharacters` paths retain their `_disposed` rejection.
