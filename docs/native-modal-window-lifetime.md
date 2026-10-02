@@ -122,3 +122,15 @@ exercise those boundaries, including creating-thread wake and subsequent retry.
 The original synchronous-completion control now explicitly retains its native
 identity until completion, matching the shared session contract. No native modal
 entry, source factory/default, qualified dependency pin or poll route changes.
+
+After implementation `11da609add`, the bounded actual-source compiler/driver at
+`/private/tmp/forms-modal-show-check.lRvqWjHB` passed all 28 cases with zero
+failures, using the same read-only cached dependencies and 30-second process
+limits described above. The unchanged hosted queue selector now requires 49
+combined cases, retaining skip rejection and its two-minute deadline. Shell
+syntax and whitespace checks passed. A separate compiler invocation loaded the
+cached StyleCop/SDK analyzers with the repository `.editorconfig`; it reported
+no helper, queue or fixture diagnostics, but the standalone driver/documentation
+configuration is not a passing complete analyzer build. Actual hosted project
+qualification remains required; no native/provider/GPU execution or graph build
+was performed.
