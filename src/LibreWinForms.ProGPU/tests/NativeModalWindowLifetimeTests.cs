@@ -182,6 +182,21 @@ public sealed class NativeModalWindowLifetimeTests
     }
 
     [Fact]
+    public void FailedCompletionWakeKeepsRetirementAvailableForCreatingThreadRetry()
+    {
+        var fixture = new Fixture();
+        fixture.Session.Held = true;
+        fixture.Lifetime.Retire();
+        var failure = new InvalidOperationException("wake");
+        fixture.OnWake = () => throw failure;
+        Assert.Same(failure, Assert.Throws<InvalidOperationException>(fixture.Session.Complete));
+        Assert.Equal(0, fixture.Window.Hides);
+        fixture.OnWake = null;
+        Assert.True(fixture.Lifetime.CanRetire());
+        Assert.Equal(1, fixture.Window.Hides);
+    }
+
+    [Fact]
     public void NativePollCallbackCannotRetireItsOwnWindowOrRenderer()
     {
         var fixture = new Fixture();
@@ -255,11 +270,12 @@ public sealed class NativeModalWindowLifetimeTests
         internal readonly Session Session;
         internal readonly NativeModalWindowLifetime Lifetime;
         internal int Wakes;
+        internal Action? OnWake;
         internal WindowProxy Window => (WindowProxy)(object)Provider;
         internal Fixture(bool queueOnly = false)
         {
             Session = new(Provider);
-            Lifetime = new(Provider, queueOnly, () => Wakes++, Session);
+            Lifetime = new(Provider, queueOnly, () => { Wakes++; OnWake?.Invoke(); }, Session);
         }
     }
 
