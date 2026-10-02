@@ -98,3 +98,13 @@ correction changes no polling, release, visibility or retirement decisions.
 After committing it, the same bounded actual-source fixture passed all 22 cases
 and the helper parsed without syntax errors. This focused harness does not load
 the repository analyzers; their hosted full-project check remains required.
+
+Build `37028103665` then compiled the production helper and passed all 52 platform
+tests before rejecting fixture field names, two SA1513 blank lines and the
+DispatchProxy override parameter names. The test-only correction preserves every
+case and assertion; all 22 focused cases still pass. A bounded compiler invocation
+also loaded the cached StyleCop/SDK analyzers with the unchanged repository
+`.editorconfig`: no diagnostics targeted the corrected helper/fixture rules,
+but the standalone harness lacked the project's generated-using/documentation
+configuration. That diagnostic check is not a passing full analyzer build;
+hosted full-project qualification remains required.
