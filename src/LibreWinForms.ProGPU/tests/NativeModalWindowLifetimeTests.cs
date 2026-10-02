@@ -16,10 +16,10 @@ public sealed class NativeModalWindowLifetimeTests
     public void ActualProviderPollSeparatesOwnedQueueFromGlobalSession(bool queueOnly, bool active, int modalPolls, int windowPolls)
     {
         var fixture = new Fixture(queueOnly);
-        fixture.Session.Active = active;
-        fixture.Lifetime.Pump();
-        Assert.Equal(modalPolls, fixture.Session.Polls);
-        Assert.Equal(windowPolls, fixture.Window.Polls);
+        fixture._session._active = active;
+        fixture._lifetime.Pump();
+        Assert.Equal(modalPolls, fixture._session._polls);
+        Assert.Equal(windowPolls, fixture.Window._polls);
     }
 
     [Fact]
@@ -27,88 +27,88 @@ public sealed class NativeModalWindowLifetimeTests
     {
         var fixture = new Fixture();
         var failure = new InvalidOperationException("modal poll");
-        fixture.Session.Poll = () => throw failure;
-        Assert.Same(failure, Assert.Throws<InvalidOperationException>(fixture.Lifetime.Pump));
-        Assert.Equal(0, fixture.Window.Polls);
+        fixture._session._poll = () => throw failure;
+        Assert.Same(failure, Assert.Throws<InvalidOperationException>(fixture._lifetime.Pump));
+        Assert.Equal(0, fixture.Window._polls);
     }
 
     [Fact]
     public void HideCoalescesAndCompletionOnlyWakesCreatingThread()
     {
         var fixture = new Fixture();
-        fixture.Session.Held = true;
-        fixture.Lifetime.Hide();
-        fixture.Lifetime.Hide();
-        Assert.Equal(1, fixture.Session.Releases);
-        Assert.Equal(0, fixture.Window.Hides);
-        fixture.Session.Complete();
-        Assert.Equal(1, fixture.Wakes);
-        Assert.Equal(0, fixture.Window.Hides);
-        fixture.Lifetime.Pump();
-        Assert.Equal(1, fixture.Window.Hides);
+        fixture._session._held = true;
+        fixture._lifetime.Hide();
+        fixture._lifetime.Hide();
+        Assert.Equal(1, fixture._session._releases);
+        Assert.Equal(0, fixture.Window._hides);
+        fixture._session.Complete();
+        Assert.Equal(1, fixture._wakes);
+        Assert.Equal(0, fixture.Window._hides);
+        fixture._lifetime.Pump();
+        Assert.Equal(1, fixture.Window._hides);
     }
 
     [Fact]
     public void LaterShowInvalidatesPendingHideWithoutRepeatingRelease()
     {
         var fixture = new Fixture();
-        fixture.Session.Held = true;
-        fixture.Lifetime.Hide();
-        fixture.Lifetime.BeforeShow();
-        fixture.Session.Complete();
-        fixture.Lifetime.Pump();
-        Assert.Equal(0, fixture.Window.Hides);
-        Assert.Equal(1, fixture.Session.Releases);
+        fixture._session._held = true;
+        fixture._lifetime.Hide();
+        fixture._lifetime.BeforeShow();
+        fixture._session.Complete();
+        fixture._lifetime.Pump();
+        Assert.Equal(0, fixture.Window._hides);
+        Assert.Equal(1, fixture._session._releases);
     }
 
     [Fact]
     public void CloseSupersedesHideAndRejectsShowUntilActualClosingReturns()
     {
         var fixture = new Fixture();
-        fixture.Session.Held = true;
-        fixture.Lifetime.Hide();
-        fixture.Lifetime.Close();
-        Assert.Throws<InvalidOperationException>(fixture.Lifetime.BeforeShow);
-        fixture.Session.Complete();
-        Assert.Equal(0, fixture.Window.Closes);
-        fixture.Window.Closing = () => Assert.Throws<InvalidOperationException>(fixture.Lifetime.BeforeShow);
-        fixture.Lifetime.Pump();
-        Assert.Equal(1, fixture.Window.Closes);
-        Assert.Equal(0, fixture.Window.Hides);
-        fixture.Lifetime.BeforeShow(); // The real provider may cancel Closing.
+        fixture._session._held = true;
+        fixture._lifetime.Hide();
+        fixture._lifetime.Close();
+        Assert.Throws<InvalidOperationException>(fixture._lifetime.BeforeShow);
+        fixture._session.Complete();
+        Assert.Equal(0, fixture.Window._closes);
+        fixture.Window._closing = () => Assert.Throws<InvalidOperationException>(fixture._lifetime.BeforeShow);
+        fixture._lifetime.Pump();
+        Assert.Equal(1, fixture.Window._closes);
+        Assert.Equal(0, fixture.Window._hides);
+        fixture._lifetime.BeforeShow(); // The real provider may cancel Closing.
     }
 
     [Fact]
     public void ReentrantCloseCannotDuplicateProviderTransition()
     {
         var fixture = new Fixture();
-        fixture.Window.Closing = fixture.Lifetime.Close;
-        fixture.Lifetime.Close();
-        Assert.Equal(1, fixture.Window.Closes);
+        fixture.Window._closing = fixture._lifetime.Close;
+        fixture._lifetime.Close();
+        Assert.Equal(1, fixture.Window._closes);
     }
 
     [Fact]
     public void DisposalSupersedesPendingCloseAndRetainsRendererUntilEnd()
     {
         var fixture = new Fixture();
-        fixture.Session.Held = true;
-        fixture.Lifetime.Close();
-        fixture.Lifetime.Retire();
+        fixture._session._held = true;
+        fixture._lifetime.Close();
+        fixture._lifetime.Retire();
         int rendering = 0, native = 0;
-        NativeWindowRetirementQueue queue = new(window => { Assert.Same(fixture.Provider, window); native++; return true; });
-        queue.Retire(fixture.Provider, () => rendering++, fixture.Lifetime.CanRetire);
+        NativeWindowRetirementQueue queue = new(window => { Assert.Same(fixture._provider, window); native++; return true; });
+        queue.Retire(fixture._provider, () => rendering++, fixture._lifetime.CanRetire);
         Assert.True(queue.HasPending);
         Assert.Equal(0, rendering);
         Assert.Equal(0, native);
-        Assert.Throws<ObjectDisposedException>(fixture.Lifetime.BeforeShow);
-        fixture.Session.Complete();
+        Assert.Throws<ObjectDisposedException>(fixture._lifetime.BeforeShow);
+        fixture._session.Complete();
         Assert.Equal(0, rendering);
         queue.Drain();
         Assert.False(queue.HasPending);
         Assert.Equal(1, rendering);
         Assert.Equal(1, native);
-        Assert.Equal(1, fixture.Window.Hides);
-        Assert.Equal(0, fixture.Window.Closes);
+        Assert.Equal(1, fixture.Window._hides);
+        Assert.Equal(0, fixture.Window._closes);
     }
 
     [Fact]
@@ -116,92 +116,92 @@ public sealed class NativeModalWindowLifetimeTests
     {
         var fixture = new Fixture();
         NativeWindowRetirementQueue queue = new(_ => true);
-        fixture.Window.Closing = () =>
+        fixture.Window._closing = () =>
         {
-            fixture.Window.Visible = false; // Actual owned Close's pre-Closing state.
-            fixture.Window.Hide = () => throw new InvalidOperationException("closing provider rejects setter");
-            fixture.Lifetime.Retire();
-            queue.Retire(fixture.Provider, canReleaseRenderingResources: fixture.Lifetime.CanRetire);
+            fixture.Window._visible = false; // Actual owned Close's pre-Closing state.
+            fixture.Window._hide = () => throw new InvalidOperationException("closing provider rejects setter");
+            fixture._lifetime.Retire();
+            queue.Retire(fixture._provider, canReleaseRenderingResources: fixture._lifetime.CanRetire);
             Assert.True(queue.HasPending);
         };
-        fixture.Lifetime.Close();
+        fixture._lifetime.Close();
         queue.Drain();
         Assert.False(queue.HasPending);
-        Assert.Equal(1, fixture.Window.Closes);
-        Assert.Equal(0, fixture.Window.Hides);
+        Assert.Equal(1, fixture.Window._closes);
+        Assert.Equal(0, fixture.Window._hides);
     }
 
     [Fact]
     public void ReentrantVisibilityReadCannotApplyOldHideOverNewShow()
     {
         var fixture = new Fixture();
-        fixture.Window.ReadVisible = fixture.Lifetime.BeforeShow;
-        fixture.Lifetime.Hide();
-        Assert.Equal(0, fixture.Window.Hides);
+        fixture.Window._readVisible = fixture._lifetime.BeforeShow;
+        fixture._lifetime.Hide();
+        Assert.Equal(0, fixture.Window._hides);
     }
 
     [Fact]
     public void VisibilityReadAcquiringNewSessionDefersHideUntilItsOwnCompletion()
     {
         var fixture = new Fixture();
-        fixture.Session.Held = true;
-        fixture.Lifetime.Hide();
-        fixture.Session.Complete();
-        fixture.Window.ReadVisible = () =>
+        fixture._session._held = true;
+        fixture._lifetime.Hide();
+        fixture._session.Complete();
+        fixture.Window._readVisible = () =>
         {
-            fixture.Window.ReadVisible = null;
-            fixture.Session.Held = true;
+            fixture.Window._readVisible = null;
+            fixture._session._held = true;
         };
-        fixture.Lifetime.Pump();
-        Assert.Equal(0, fixture.Window.Hides);
-        Assert.NotNull(fixture.Session.Completion);
-        Assert.Equal(1, fixture.Wakes);
-        fixture.Session.Complete();
-        Assert.Equal(0, fixture.Window.Hides);
-        fixture.Lifetime.Pump();
-        Assert.Equal(1, fixture.Window.Hides);
-        Assert.Equal(2, fixture.Wakes);
+        fixture._lifetime.Pump();
+        Assert.Equal(0, fixture.Window._hides);
+        Assert.NotNull(fixture._session._completion);
+        Assert.Equal(1, fixture._wakes);
+        fixture._session.Complete();
+        Assert.Equal(0, fixture.Window._hides);
+        fixture._lifetime.Pump();
+        Assert.Equal(1, fixture.Window._hides);
+        Assert.Equal(2, fixture._wakes);
     }
 
     [Fact]
     public void ReplacementSessionAfterCompletionMustAlsoEndBeforeHide()
     {
         var fixture = new Fixture();
-        fixture.Session.Held = true;
-        fixture.Lifetime.Hide();
-        fixture.Session.Complete();
-        fixture.Session.Held = true;
-        fixture.Lifetime.Pump();
-        Assert.Equal(0, fixture.Window.Hides);
-        Assert.Equal(2, fixture.Session.Releases);
-        fixture.Session.Complete();
-        fixture.Lifetime.Pump();
-        Assert.Equal(1, fixture.Window.Hides);
+        fixture._session._held = true;
+        fixture._lifetime.Hide();
+        fixture._session.Complete();
+        fixture._session._held = true;
+        fixture._lifetime.Pump();
+        Assert.Equal(0, fixture.Window._hides);
+        Assert.Equal(2, fixture._session._releases);
+        fixture._session.Complete();
+        fixture._lifetime.Pump();
+        Assert.Equal(1, fixture.Window._hides);
     }
 
     [Fact]
     public void SynchronousCompletionRetainsLatestReentrantShowIntent()
     {
         var fixture = new Fixture();
-        fixture.Session.Release = completed => { fixture.Lifetime.BeforeShow(); completed(); return true; };
-        fixture.Lifetime.Hide();
-        Assert.Equal(0, fixture.Window.Hides);
-        Assert.Equal(1, fixture.Wakes);
+        fixture._session._release = completed => { fixture._lifetime.BeforeShow(); completed(); return true; };
+        fixture._lifetime.Hide();
+        Assert.Equal(0, fixture.Window._hides);
+        Assert.Equal(1, fixture._wakes);
     }
 
     [Fact]
     public void SynchronousCompletionCanHideOnlyAfterTheReleaseCallReturns()
     {
         var fixture = new Fixture();
-        fixture.Session.Release = completed =>
+        fixture._session._release = completed =>
         {
-            fixture.Session.Release = null;
+            fixture._session._release = null;
             completed();
-            Assert.Equal(0, fixture.Window.Hides);
+            Assert.Equal(0, fixture.Window._hides);
             return true;
         };
-        fixture.Lifetime.Hide();
-        Assert.Equal(1, fixture.Window.Hides);
+        fixture._lifetime.Hide();
+        Assert.Equal(1, fixture.Window._hides);
     }
 
     [Fact]
@@ -209,16 +209,16 @@ public sealed class NativeModalWindowLifetimeTests
     {
         var fixture = new Fixture();
         var failure = new InvalidOperationException("uncertain native End");
-        fixture.Session.Release = _ => throw failure;
-        Assert.Same(failure, Assert.Throws<InvalidOperationException>(fixture.Lifetime.Retire));
+        fixture._session._release = _ => throw failure;
+        Assert.Same(failure, Assert.Throws<InvalidOperationException>(fixture._lifetime.Retire));
         NativeWindowRetirementQueue queue = new(_ => throw new Xunit.Sdk.XunitException("must retain native window"));
         Assert.Same(failure, Assert.Throws<InvalidOperationException>(() =>
-            queue.Retire(fixture.Provider, () => throw new Xunit.Sdk.XunitException("must retain renderer"), fixture.Lifetime.CanRetire)));
+            queue.Retire(fixture._provider, () => throw new Xunit.Sdk.XunitException("must retain renderer"), fixture._lifetime.CanRetire)));
         Assert.Same(failure, Assert.Throws<InvalidOperationException>(queue.Drain));
         Assert.True(queue.HasPending);
-        Assert.Equal(1, fixture.Session.Releases);
-        Assert.Equal(0, fixture.Window.Hides);
-        Assert.Same(failure, Assert.Throws<InvalidOperationException>(fixture.Lifetime.BeforeShow));
+        Assert.Equal(1, fixture._session._releases);
+        Assert.Equal(0, fixture.Window._hides);
+        Assert.Same(failure, Assert.Throws<InvalidOperationException>(fixture._lifetime.BeforeShow));
     }
 
     [Fact]
@@ -226,26 +226,26 @@ public sealed class NativeModalWindowLifetimeTests
     {
         var fixture = new Fixture();
         var failure = new InvalidOperationException("hide");
-        fixture.Window.Hide = () => throw failure;
-        Assert.Same(failure, Assert.Throws<InvalidOperationException>(fixture.Lifetime.Retire));
-        fixture.Window.Hide = null;
-        Assert.True(fixture.Lifetime.CanRetire());
-        Assert.Equal(2, fixture.Window.Hides);
+        fixture.Window._hide = () => throw failure;
+        Assert.Same(failure, Assert.Throws<InvalidOperationException>(fixture._lifetime.Retire));
+        fixture.Window._hide = null;
+        Assert.True(fixture._lifetime.CanRetire());
+        Assert.Equal(2, fixture.Window._hides);
     }
 
     [Fact]
     public void FailedCompletionWakeKeepsRetirementAvailableForCreatingThreadRetry()
     {
         var fixture = new Fixture();
-        fixture.Session.Held = true;
-        fixture.Lifetime.Retire();
+        fixture._session._held = true;
+        fixture._lifetime.Retire();
         var failure = new InvalidOperationException("wake");
-        fixture.OnWake = () => throw failure;
-        Assert.Same(failure, Assert.Throws<InvalidOperationException>(fixture.Session.Complete));
-        Assert.Equal(0, fixture.Window.Hides);
-        fixture.OnWake = null;
-        Assert.True(fixture.Lifetime.CanRetire());
-        Assert.Equal(1, fixture.Window.Hides);
+        fixture._onWake = () => throw failure;
+        Assert.Same(failure, Assert.Throws<InvalidOperationException>(fixture._session.Complete));
+        Assert.Equal(0, fixture.Window._hides);
+        fixture._onWake = null;
+        Assert.True(fixture._lifetime.CanRetire());
+        Assert.Equal(1, fixture.Window._hides);
     }
 
     [Fact]
@@ -254,13 +254,13 @@ public sealed class NativeModalWindowLifetimeTests
         var fixture = new Fixture();
         int cleanup = 0;
         NativeWindowRetirementQueue queue = new(_ => { cleanup++; return true; });
-        fixture.Window.Poll = () =>
+        fixture.Window._poll = () =>
         {
-            fixture.Lifetime.Retire();
-            queue.Retire(fixture.Provider, () => cleanup++, fixture.Lifetime.CanRetire);
+            fixture._lifetime.Retire();
+            queue.Retire(fixture._provider, () => cleanup++, fixture._lifetime.CanRetire);
             Assert.Equal(0, cleanup);
         };
-        fixture.Lifetime.Pump();
+        fixture._lifetime.Pump();
         queue.Drain();
         Assert.Equal(2, cleanup);
         Assert.False(queue.HasPending);
@@ -270,19 +270,19 @@ public sealed class NativeModalWindowLifetimeTests
     public void ModalHeldWindowDoesNotPreventPeerRetirement()
     {
         var fixture = new Fixture();
-        fixture.Session.Held = true;
-        fixture.Lifetime.Retire();
+        fixture._session._held = true;
+        fixture._lifetime.Retire();
         var peer = new Fixture();
         List<IWindow> retired = [];
         NativeWindowRetirementQueue queue = new(window => { retired.Add(window); return true; });
-        queue.Retire(fixture.Provider, canReleaseRenderingResources: fixture.Lifetime.CanRetire);
-        queue.Retire(peer.Provider);
+        queue.Retire(fixture._provider, canReleaseRenderingResources: fixture._lifetime.CanRetire);
+        queue.Retire(peer._provider);
         Assert.Single(retired);
-        Assert.Same(peer.Provider, retired[0]);
-        fixture.Session.Complete();
+        Assert.Same(peer._provider, retired[0]);
+        fixture._session.Complete();
         queue.Drain();
         Assert.Equal(2, retired.Count);
-        Assert.Same(fixture.Provider, retired[1]);
+        Assert.Same(fixture._provider, retired[1]);
     }
 
     [Fact]
@@ -290,12 +290,12 @@ public sealed class NativeModalWindowLifetimeTests
     {
         var fixture = new Fixture();
         Exception? failure = null;
-        Thread thread = new(() => { try { fixture.Lifetime.Hide(); } catch (Exception error) { failure = error; } });
+        Thread thread = new(() => { try { fixture._lifetime.Hide(); } catch (Exception error) { failure = error; } });
         thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(5)));
         Assert.IsType<InvalidOperationException>(failure);
-        Assert.Equal(0, fixture.Session.Releases);
-        Assert.Equal(0, fixture.Window.Hides);
+        Assert.Equal(0, fixture._session._releases);
+        Assert.Equal(0, fixture.Window._hides);
     }
 
     [Fact]
@@ -321,62 +321,64 @@ public sealed class NativeModalWindowLifetimeTests
 
     private sealed class Fixture
     {
-        internal readonly IWindow Provider = DispatchProxy.Create<IWindow, WindowProxy>();
-        internal readonly Session Session;
-        internal readonly NativeModalWindowLifetime Lifetime;
-        internal int Wakes;
-        internal Action? OnWake;
-        internal WindowProxy Window => (WindowProxy)(object)Provider;
+        internal readonly IWindow _provider = DispatchProxy.Create<IWindow, WindowProxy>();
+        internal readonly Session _session;
+        internal readonly NativeModalWindowLifetime _lifetime;
+        internal int _wakes;
+        internal Action? _onWake;
+        internal WindowProxy Window => (WindowProxy)(object)_provider;
         internal Fixture(bool queueOnly = false)
         {
-            Session = new(Provider);
-            Lifetime = new(Provider, queueOnly, () => { Wakes++; OnWake?.Invoke(); }, Session);
+            _session = new(_provider);
+            _lifetime = new(_provider, queueOnly, () => { _wakes++; _onWake?.Invoke(); }, _session);
         }
     }
 
     private sealed class Session(IWindow expected) : INativeModalWindowSession
     {
-        internal bool Held, Active;
-        internal int Polls, Releases;
-        internal Action? Completion;
-        internal Func<bool>? Poll;
-        internal Func<Action, bool>? Release;
-        public bool TryPumpEvents() { Polls++; return Poll?.Invoke() ?? Active; }
-        public bool RetainsWindow(IWindow window) { Assert.Same(expected, window); return Held; }
+        internal bool _held, _active;
+        internal int _polls, _releases;
+        internal Action? _completion;
+        internal Func<bool>? _poll;
+        internal Func<Action, bool>? _release;
+        public bool TryPumpEvents() { _polls++; return _poll?.Invoke() ?? _active; }
+        public bool RetainsWindow(IWindow window) { Assert.Same(expected, window); return _held; }
         public bool TryReleaseWindow(IWindow window, Action completed)
         {
             Assert.Same(expected, window);
-            Releases++;
-            if (Release is not null) return Release(completed);
-            if (!Held) return false;
-            Assert.Null(Completion);
-            Completion = completed;
+            _releases++;
+            if (_release is not null) return _release(completed);
+            if (!_held) return false;
+            Assert.Null(_completion);
+            _completion = completed;
             return true;
         }
+
         internal void Complete()
         {
-            Held = false;
-            Action completed = Completion!;
-            Completion = null;
+            _held = false;
+            Action completed = _completion!;
+            _completion = null;
             completed();
         }
     }
 
     public class WindowProxy : DispatchProxy
     {
-        internal int Polls, Hides, Closes;
-        internal bool Visible = true;
-        internal Action? Poll, Hide, Closing, ReadVisible;
-        protected override object? Invoke(MethodInfo? method, object?[]? arguments)
+        internal int _polls, _hides, _closes;
+        internal bool _visible = true;
+        internal Action? _poll, _hide, _closing, _readVisible;
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
         {
-            switch (method!.Name)
+            switch (targetMethod!.Name)
             {
-                case "DoEvents": Polls++; Poll?.Invoke(); break;
-                case "get_IsVisible": ReadVisible?.Invoke(); return Visible;
-                case "set_IsVisible": Assert.False((bool)arguments![0]!); Hides++; Hide?.Invoke(); Visible = false; break;
-                case "Close": Closes++; Closing?.Invoke(); break;
-                default: throw new Xunit.Sdk.XunitException("Unexpected native provider access: " + method.Name);
+                case "DoEvents": _polls++; _poll?.Invoke(); break;
+                case "get_IsVisible": _readVisible?.Invoke(); return _visible;
+                case "set_IsVisible": Assert.False((bool)args![0]!); _hides++; _hide?.Invoke(); _visible = false; break;
+                case "Close": _closes++; _closing?.Invoke(); break;
+                default: throw new Xunit.Sdk.XunitException("Unexpected native provider access: " + targetMethod.Name);
             }
+
             return null;
         }
     }
