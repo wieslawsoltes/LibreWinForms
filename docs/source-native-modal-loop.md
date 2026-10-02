@@ -17,6 +17,9 @@ top re-enable their windows. Detachment precedes activation callbacks. The
 dialog's owner/focus restoration, hide, handle destruction and owner-property
 cleanup wait for that same source completion. An older callback cannot pop a
 newer nested frame. Absent/disabled capability keeps the synchronous source path.
+Restoration snapshots each original source handle as well as its Form object;
+recreated source windows cannot inherit an obsolete enable/activation request.
+Deferred dialog cleanup likewise rejects a replacement source handle.
 
 Automatic provider selection remains mandatory final integration work after the
 paired WPF path is complete. Both factories already select owned Cocoa popup
