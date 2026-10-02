@@ -45,9 +45,14 @@ public sealed partial class Application
                     break;
                 case msoloop.ModalAlert:
                 case msoloop.ModalForm:
-                    dispatcher.RunNested(
-                        () => CurrentForm is { } form && !form.CheckCloseDialog(closingOnly: false),
-                        CancellationToken.None);
+                    Form? dialog = CurrentForm;
+                    if (dialog is not null && !dialog.CheckCloseDialog(closingOnly: false))
+                    {
+                        dialog.BeginPortableNativeDialog();
+                        dispatcher.RunNested(
+                            () => !dialog.CheckCloseDialog(closingOnly: false),
+                            CancellationToken.None);
+                    }
                     break;
                 case msoloop.DoEvents:
                 case msoloop.DoEventsModal:

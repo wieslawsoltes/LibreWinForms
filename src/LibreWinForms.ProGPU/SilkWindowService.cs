@@ -19,6 +19,13 @@ namespace LibreWinForms.ProGPU;
 
 public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindowOwnerService, IProGpuDragInputSource
 {
+    /// <summary>
+    /// Explicit source ShowDialog admission. Automatic selection remains off
+    /// until both source hosts and the final native application path qualify.
+    /// Captured when each native window is created; never changes an active loop.
+    /// </summary>
+    public bool EnableNativeModalSessions { get; init; }
+
     private readonly ProGpuDispatcher _dispatcher;
     private readonly ILibreHandleRegistry _handles;
     private readonly ILibreMonitorService _monitors;
@@ -250,7 +257,7 @@ public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindo
         => !owner.IsNull && owner.Kind == LibreHandleKind.Window;
 }
 
-internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, INativePopupAdmissionHost, INativeCharacterTarget, IProGpuDragInputWindow, INativePointerTarget
+internal sealed class SilkLibreWindow : ILibreWindow, ILibreModalWindow, IProGpuLoopParticipant, INativePopupAdmissionHost, INativeCharacterTarget, IProGpuDragInputWindow, INativePointerTarget
 {
     private readonly SilkWindowService _service;
     private readonly ProGpuDispatcher _dispatcher;
@@ -260,6 +267,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
     private readonly IWindow _window;
     private readonly bool _usesOwnedCocoaPopup;
     private readonly NativeModalWindowLifetime _modalLifetime;
+    private readonly bool _enableNativeModalSessions;
     private string _title;
     private readonly SilkWindowController _controller;
     private readonly NativePopupAdmission? _popupAdmission;
@@ -315,6 +323,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
         ILibreWindowEvents events)
     {
         _service = service;
+        _enableNativeModalSessions = service.EnableNativeModalSessions;
         _dispatcher = dispatcher;
         _handles = handles;
         _monitors = monitors;
@@ -786,6 +795,25 @@ internal sealed class SilkLibreWindow : ILibreWindow, IProGpuLoopParticipant, IN
     {
         VerifyAccess();
         _modalLifetime.Close();
+    }
+
+    bool ILibreModalWindow.BeginModalDialog()
+    {
+        VerifyAccess();
+        if (!_enableNativeModalSessions) return false;
+        if (_popupAdmission is not null)
+            throw new InvalidOperationException("A nonactivating popup cannot become a modal dialog.");
+        _modalLifetime.BeginDialog();
+        return true;
+    }
+
+    void ILibreModalWindow.ReleaseModalDialog(Action completed)
+    {
+        // Source cleanup may arrive after logical source disposal. The existing
+        // dispatcher retirement still owns this exact native/input/render host.
+        if (!_dispatcher.CheckAccess())
+            throw new InvalidOperationException("Native modal release belongs to the creating dispatcher.");
+        _modalLifetime.ReleaseDialog(completed);
     }
 
     public void Dispose() => ReleaseNativeWindow();

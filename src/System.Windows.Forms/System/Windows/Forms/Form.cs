@@ -6100,6 +6100,7 @@ public partial class Form : ContainerControl
             ? GetPortableExternalOwnerHandle(portableOwnerWindow)
             : default;
         bool restoreExternalOwnerEnabled = false;
+        bool portableCleanupScheduled = false;
 #else
         if ((owner is not null) && !owner.GetExtendedStyle().HasFlag(WINDOW_EX_STYLE.WS_EX_TOPMOST))
         {
@@ -6218,6 +6219,12 @@ public partial class Form : ContainerControl
             finally
             {
 #if LIBREWINFORMS_PORTABLE
+                portableCleanupScheduled = true;
+                CompletePortableModalDialog(CleanupPortableDialog);
+                void CleanupPortableDialog()
+                {
+                  try
+                  {
                 if (restoreExternalOwnerEnabled)
                 {
                     LibrePlatform.Current.ExternalWindowOwners.TrySetEnabled(
@@ -6267,13 +6274,28 @@ public partial class Form : ContainerControl
                 }
 
                 SetState(States.Modal, false);
+#if LIBREWINFORMS_PORTABLE
+                  }
+                  finally
+                  {
+                      Owner = oldOwner;
+                      Properties.RemoveValue(s_propDialogOwner);
+                  }
+                }
+#endif
             }
         }
         finally
         {
+#if LIBREWINFORMS_PORTABLE
+            if (!portableCleanupScheduled)
+            {
+                Owner = oldOwner;
+                Properties.RemoveValue(s_propDialogOwner);
+            }
+#else
             Owner = oldOwner;
             Properties.RemoveValue(s_propDialogOwner);
-#if !LIBREWINFORMS_PORTABLE
             GC.KeepAlive(ownerHwnd.Wrapper);
 #endif
         }

@@ -23,6 +23,49 @@ internal sealed class NativeModalWindowLifetime(
     private int _dispatchDepth;
     private long _generation;
     private ExceptionDispatchInfo? _releaseFailure;
+    private bool _beginning;
+    private INativeModalDialogLease? _dialogLease;
+    private List<Action>? _dialogCompletions;
+
+    internal void BeginDialog()
+    {
+        VerifyAccess();
+        VerifyShowIntent();
+        if (queueOnly || _beginning || _dialogLease != null || _awaitingRelease || _pending != PendingAction.None)
+            throw new InvalidOperationException("A native dialog requires its live ordinary top-level window.");
+        long generation = _generation;
+        bool initialized = window.IsInitialized;
+        bool visible = window.IsVisible;
+        VerifyShowIntent();
+        if (!initialized || !visible || generation != _generation)
+            throw new InvalidOperationException("The native dialog changed during admission.");
+        _beginning = true;
+        Exception? primary = null;
+        try { _dialogLease = _session.BeginDialog(window); }
+        catch (Exception failure)
+        {
+            primary = failure;
+            // Failed native Begin can include uncertain identity cleanup. Keep
+            // the exact host, even if its shared retention query disappeared.
+            _releaseFailure ??= ExceptionDispatchInfo.Capture(failure);
+            throw;
+        }
+        finally
+        {
+            _beginning = false;
+            try { ApplyPending(); }
+            catch (Exception) when (primary != null) { }
+        }
+    }
+
+    internal void ReleaseDialog(Action completed)
+    {
+        VerifyAccess();
+        ArgumentNullException.ThrowIfNull(completed);
+        _releaseFailure?.Throw();
+        (_dialogCompletions ??= []).Add(completed);
+        ApplyPending();
+    }
 
     internal void BeforeShow()
     {
@@ -95,7 +138,7 @@ internal sealed class NativeModalWindowLifetime(
     {
         VerifyAccess();
         _releaseFailure?.Throw();
-        if (!_retiring || _dispatchDepth != 0 || _applying) return false;
+        if (!_retiring || _dispatchDepth != 0 || _applying || _beginning) return false;
         ApplyPending();
         return !_awaitingRelease && _pending == PendingAction.None &&
             !_session.RetainsWindow(window);
@@ -104,13 +147,13 @@ internal sealed class NativeModalWindowLifetime(
     private void ApplyPending()
     {
         _releaseFailure?.Throw();
-        if (_applying || _awaitingRelease) return;
+        if (_applying || _awaitingRelease || _beginning) return;
         _applying = true;
         try
         {
             // Native identity/visibility callbacks can replace source intent.
             // A bounded reconciliation must not publish an obsolete operation.
-            for (int attempt = 0; _pending != PendingAction.None; ++attempt)
+            for (int attempt = 0; _pending != PendingAction.None || _dialogCompletions != null; ++attempt)
             {
                 if (attempt == 8)
                     throw new InvalidOperationException("Native modal visibility did not reach stable source intent.");
@@ -138,6 +181,23 @@ internal sealed class NativeModalWindowLifetime(
                 // touching visibility, including synchronous completion.
                 if (releasing) continue;
                 if (generation != _generation) continue;
+                if (_pending == PendingAction.None)
+                {
+                    // Release proof precedes source re-enable/focus/handle
+                    // teardown. Detach before callbacks so reentrant requests
+                    // cannot be consumed by this original completion batch.
+                    List<Action> callbacks = _dialogCompletions!;
+                    _dialogCompletions = null;
+                    _dialogLease = null;
+                    ExceptionDispatchInfo? callbackFailure = null;
+                    foreach (Action callback in callbacks)
+                    {
+                        try { callback(); }
+                        catch (Exception failure) { callbackFailure ??= ExceptionDispatchInfo.Capture(failure); }
+                    }
+                    callbackFailure?.Throw();
+                    continue;
+                }
                 PendingAction action = _pending;
                 _pending = PendingAction.None;
                 try
@@ -207,14 +267,27 @@ internal sealed class NativeModalWindowLifetime(
 
 internal interface INativeModalWindowSession
 {
+    INativeModalDialogLease BeginDialog(IWindow window);
     bool TryPumpEvents();
     bool RetainsWindow(IWindow window);
     bool TryReleaseWindow(IWindow window, Action completed);
 }
 
+// The native session object remains owned until exact-window release proof. The
+// source never interprets returned Dispose or IsReleased as identity completion.
+internal interface INativeModalDialogLease { }
+
 internal sealed class NativeModalWindowSession : INativeModalWindowSession
 {
     internal static readonly NativeModalWindowSession s_instance = new();
+    public INativeModalDialogLease BeginDialog(IWindow window)
+    {
+        if (!window.IsInitialized || window.Native?.Cocoa is not { } cocoa || cocoa == 0 ||
+            !NativeWindowModalSession.TryBegin(new(NativeWindowKind.Cocoa, cocoa, 0, "NSWindow"), out var session) ||
+            session == null)
+            throw new PlatformNotSupportedException("The window provider rejected its native modal session.");
+        return new NativeModalDialogLease(session);
+    }
     public bool TryPumpEvents() => NativeWindowModalSession.TryPumpEvents();
     public bool RetainsWindow(IWindow window)
         => TryGetSessionWindow(window, out NativeWindowHandle handle) && NativeWindowModalSession.RetainsWindow(handle);
@@ -230,5 +303,11 @@ internal sealed class NativeModalWindowSession : INativeModalWindowSession
             window.Native?.Cocoa is not { } cocoa || cocoa == 0) return false;
         handle = new(NativeWindowKind.Cocoa, cocoa, 0, "NSWindow");
         return true;
+    }
+
+    private sealed class NativeModalDialogLease(NativeWindowModalSession session) : INativeModalDialogLease
+    {
+        // Strong ownership, deliberately without a second release API.
+        internal NativeWindowModalSession Session { get; } = session;
     }
 }
