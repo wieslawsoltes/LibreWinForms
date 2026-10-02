@@ -330,6 +330,35 @@ class MacDesktop:
         require(key in self.KEYS, "Unsupported shared-scenario key")
         self.call("key", pid=pid, key=self.KEYS[key])
 
+    def blocked_owner_pointer(self, pid, owner_window, target_rectangle):
+        fresh = [w for w in self.windows(pid) if w["windowNumber"] == owner_window["windowNumber"]]
+        require(fresh == [owner_window] and owner_window["clientGeometryVerified"] and owner_window["pid"] == pid,
+                "Actual Cocoa owner identity/client/frame changed")
+        SHARED.observed_rectangle(target_rectangle)
+        require(contains_rectangle(owner_window["client"], target_rectangle), "Owner target is not in actual source client")
+        scale = owner_window["nativeToSourceScale"]
+        require(GEOMETRY.finite(scale) and scale > 0, "Missing exact owner native coordinate policy")
+        target = {key: value / scale for key, value in target_rectangle.items()}
+        point = native_point(target_rectangle, [owner_window])
+        native = dict(pid=pid, windowNumber=owner_window["windowNumber"], title=owner_window["title"], frameBounds=owner_window["bounds"])
+        proof = self.call("blocked-owner-pointer", pid=pid, owner=native, ownerClient=owner_window["nativeClient"],
+                          target=target, point=point, click="left")["proof"]
+        require(proof.get("policy") == "exposed-owner-native-z-order-v1" and proof.get("qualified") is False
+                and proof.get("owner") == native and proof.get("ownerClient") == owner_window["nativeClient"]
+                and proof.get("target") == target and proof.get("point") == point,
+                "Native owner input reply identity/geometry differs")
+        require(isinstance(proof.get("samples"), list) and len(proof["samples"]) == 2, "Missing native owner input samples")
+        owner = dict(id=native["windowNumber"], pid=pid, title=native["title"], bounds=native["frameBounds"], client=owner_window["nativeClient"])
+        for sample, phase in zip(proof["samples"], ("before", "before-click")):
+            require(sample.get("phase") == phase, "Native owner input phase differs")
+            rows = [dict(id=w["windowNumber"], pid=w["pid"], bounds=w["frameBounds"],
+                         **({"title": owner["title"], "client": owner["client"]} if w["windowNumber"] == owner["id"] else {}))
+                    for w in sample["windows"]]
+            require([w["zIndex"] for w in sample["windows"]] == sorted(w["zIndex"] for w in sample["windows"]),
+                    "Native owner obstruction Z-order differs")
+            SHARED.exposed_owner_target(pid, owner, target, rows)
+        return proof
+
     def screenshot(self, pid, windows, destination):
         require(windows and all(window["pid"] == pid for window in windows), "Capture needs exact owned windows")
         expected = [dict(pid=pid, windowNumber=w["windowNumber"], title=w["title"], frameBounds=w["bounds"]) for w in windows]

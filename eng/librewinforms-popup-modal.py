@@ -102,6 +102,8 @@ class ModalSession(SHARED.Session):
         self.child_directory = None
         self.child_active = False
         self.owner_before = None
+        self.owner_native_identity = None
+        self.owner_guard_rectangle = None
         self.last_owner = self.last_child = None
         self.desktop.select_observations([(self.owner_directory, f"PopupInteractionApp [{run}]")])
 
@@ -172,6 +174,26 @@ class ModalSession(SHARED.Session):
         require(len(json.dumps(action).encode()) <= LIMIT, "Modal input observation exceeds receipt budget")
         super().record_input(action)
 
+    def owner_guard_input(self, *, blocked):
+        self.input_ready()
+        require(self.child_active is blocked, "Owner input phase does not match source modal lifetime")
+        owner = self.last_owner["snapshot"]
+        guard = owner["modal"].get("guard")
+        require(isinstance(guard, dict) and guard.get("name") == "owner-input-guard"
+                and guard.get("client") == self.owner_guard_rectangle, "Original source guard identity/geometry changed")
+        windows = self.desktop.windows(self.process.pid)
+        matches = [w for w in windows if w["title"] == owner["title"]
+                   and self.desktop.window_identity(w) == self.owner_native_identity]
+        require(len(matches) == 1 and matches[0]["client"] == owner["form"]["client"],
+                "Exact owner native client identity is unavailable")
+        self.assert_input_enabled(windows, owner, not blocked)
+        require(all(owner["counts"].get(name, 0) == 0 for name in ("owner-guard-down", "owner-guard-up", "owner-guard-click")),
+                "Owner guard already received input before its positive control")
+        sequence = owner["sequence"]
+        proof = self.desktop.blocked_owner_pointer(self.process.pid, matches[0], guard["client"])
+        self.record_input(dict(kind="owner-guard-pointer", blocked=blocked, rectangle=guard["client"], button="left", nativeProof=proof))
+        return sequence
+
     def capture(self, phase, predicate):
         super().capture(phase, predicate)
         evidence = dict(owner=self.last_owner, child=self.last_child if self.child_active else None, qualified=False)
@@ -190,6 +212,9 @@ def scenario(session):
     session.point(session.state["editor"]["client"])
     session.capture("m01-owner", lambda s: s["form"]["active"] and s["modal"]["enabled"] is True
                     and s["modal"]["buttonName"] == "open-modal-dialog" and closed(s))
+    owner_window = next(w for w in session.desktop.windows(session.process.pid) if w["title"] == session.state["title"])
+    session.owner_native_identity = session.desktop.window_identity(owner_window)
+    session.owner_guard_rectangle = session.state["modal"]["guard"]["client"]
     session.owner_before = owner_input_state(session.state)
     session.assert_input_enabled(session.desktop.windows(session.process.pid), session.state, True)
     session.point(session.state["modal"]["button"], "left")
@@ -198,6 +223,10 @@ def scenario(session):
     session.adopt_child()
     session.capture("m02-dialog", lambda s: s["form"]["active"] and s["modal"]["enabled"] is True
                     and s["modal"]["buttonName"] == "close-modal-dialog" and s["modal"]["ownerHandle"] == session.owner_handle)
+    blocked_sequence = session.owner_guard_input(blocked=True)
+    session.capture("m02-owner-blocked", lambda s: s["form"]["active"] and closed(s)
+                    and session.last_owner["snapshot"]["sequence"] > blocked_sequence
+                    and owner_input_state(session.last_owner["snapshot"]) == session.owner_before)
     session.point(session.state["contextTarget"], "right")
     session.capture("m03-context", opened("context"))
     session.point(session.state["items"]["context-more"]["client"])
@@ -258,3 +287,9 @@ def scenario(session):
     session.point(session.state["editor"]["client"], "left")
     session.capture("m15-owner-enabled", lambda s: s["editor"]["focused"] and s["counts"].get("editor-pointer") == before + 1
                     and s["modal"]["enabled"] is True)
+    enabled_sequence = session.owner_guard_input(blocked=False)
+    session.capture("m16-owner-guard", lambda s: s["sequence"] > enabled_sequence and s["form"]["active"]
+                    and s["modal"]["enabled"] is True and all(s["counts"].get(name) == 1
+                    for name in ("owner-guard-down", "owner-guard-up", "owner-guard-click")))
+    for name in ("owner-guard-down", "owner-guard-up", "owner-guard-click"):
+        event(session.owner_directory, name)

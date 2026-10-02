@@ -50,6 +50,7 @@ internal sealed partial class InteractionForm : Form
     private readonly Dictionary<string, ToolStripItem> _items = new();
     private readonly Dictionary<string, ToolStripDropDown> _popups = new();
     private Button? _modalButton;
+    private Button? _ownerInputGuard;
     private InteractionForm? _modalChild;
     private string? _modalEvidence;
     private long _sequence;
@@ -66,6 +67,23 @@ internal sealed partial class InteractionForm : Form
         AutoScaleDimensions = new(96, 96);
         AutoScaleMode = AutoScaleMode.Dpi;
         ClientSize = new(560, 250);
+        if (modalAction && !dialog)
+        {
+            // Real source layout leaves a guard below the smaller centered
+            // dialog. The driver still proves native exposure before input;
+            // this intended layout never substitutes for that observation.
+            ClientSize = new(840, 580);
+            _ownerInputGuard = new Button
+            {
+                Name = "owner-input-guard", Text = "Owner input guard",
+                Location = new(24, 500), Size = new(220, 36)
+            };
+            _ownerInputGuard.MouseDown += (_, _) => Record("owner-guard-down");
+            _ownerInputGuard.MouseUp += (_, _) => Record("owner-guard-up");
+            _ownerInputGuard.Click += (_, _) => Record("owner-guard-click");
+            Controls.Add(_ownerInputGuard);
+        }
+        if (dialog) StartPosition = FormStartPosition.CenterParent;
 
         ToolStripMenuItem contextMore = new("More");
         ToolStripMenuItem contextCommand = new("Context command");
@@ -245,6 +263,7 @@ internal sealed partial class InteractionForm : Form
             modal = _modalButton is null ? null : new
             {
                 button = ClientScreen(_modalButton), buttonName = _modalButton.Name,
+                guard = _ownerInputGuard is null ? null : new { name = _ownerInputGuard.Name, client = ClientScreen(_ownerInputGuard) },
                 evidenceDirectory = _modalEvidence, dialogVisible = _modalChild?.Visible,
                 enabled = Enabled, activeControl = ActiveControl?.Name,
                 inputEnabled = ObserveModalInputEnabled(),
