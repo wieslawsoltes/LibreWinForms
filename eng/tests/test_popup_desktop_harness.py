@@ -555,7 +555,7 @@ class ModalDesktopContracts(unittest.TestCase):
             path = directory / "snapshot-00000001.json"
             for field, value in (("pid", 99), ("pid", True), ("title", "PopupInteractionApp [other]"),
                                  ("sequence", 2), ("schema", True)):
-                state = self.state(); state[field] = value; self.write(directory, state) if field != "sequence" else None
+                state = self.state(); state[field] = value
                 path.write_text(json.dumps(state))
                 with self.subTest(field=field, value=value), self.assertRaises(RuntimeError):
                     MODAL.observation(directory, 24, "PopupInteractionApp [run]")
@@ -639,6 +639,48 @@ class ModalDesktopContracts(unittest.TestCase):
         self.assertEqual(modal.count("session.capture("), 15)
         self.assertIn('session.point(session.state["modal"]["button"], "left")', modal)
         self.assertIn('event(session.owner_directory, "modal-return")', modal)
+
+    def test_adopted_child_retains_owner_identity_and_rejects_new_owner_clicks(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve(); app = root / "app"; app.mkdir()
+            child = app / ("modal-" + "b" * 32); child.mkdir()
+            owner = self.state(); owner["modal"].update(evidenceDirectory=str(child), dialogVisible=True, inputEnabled=False)
+            owner["counts"].update({name: 1 for name in ("modal-button-pointer", "modal-button-click", "modal-open-request", "modal-shown")})
+            self.write(app, owner)
+            self.write(child, self.state("run modal"))
+            details = {"modal-open-request": dict(ownerHandle=101, ownerEnabled=True, activeControl="open-modal-dialog", editorFocused=False),
+                       "modal-shown": dict(evidenceDirectory=str(child), ownerMatches=True, ownerEnabled=True,
+                                           ownerHandle=101, dialogHandle=102)}
+            (app / "events.jsonl").write_text("".join(json.dumps(dict(name=name, detail=json.dumps(value))) + "\n"
+                                                    for name, value in details.items()))
+            desktop = mock.Mock()
+            session = MODAL.ModalSession(desktop, mock.Mock(pid=24), root, "run")
+            session.state = owner; session.owner_before = MODAL.owner_input_state(owner)
+            deadline = session.deadline
+            session.adopt_child()
+            self.assertEqual(session.read_state()["title"], "PopupInteractionApp [run modal]")
+            self.assertEqual(session.deadline, deadline)
+            desktop.select_observations.assert_called_with([(app, "PopupInteractionApp [run]"), (child, "PopupInteractionApp [run modal]")])
+            owner["sequence"] = 2; owner["counts"]["modal-button-pointer"] = 2; self.write(app, owner)
+            with self.assertRaisesRegex(RuntimeError, "another modal button"):
+                session.read_state()
+            with self.assertRaisesRegex(RuntimeError, "new evidence"):
+                session.adopt_child()
+
+    def test_wrong_child_identity_fails_before_physical_input(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve(); app = root / "app"; app.mkdir()
+            child = app / ("modal-" + "c" * 32); child.mkdir()
+            owner = self.state(); owner["modal"].update(evidenceDirectory=str(child), dialogVisible=True, inputEnabled=False)
+            owner["counts"].update({name: 1 for name in ("modal-button-pointer", "modal-button-click", "modal-open-request", "modal-shown")})
+            self.write(app, owner); self.write(child, self.state("foreign modal"))
+            desktop = mock.Mock(); process = mock.Mock(pid=24); process.poll.return_value = None
+            session = MODAL.ModalSession(desktop, process, root, "run")
+            session.owner_before = MODAL.owner_input_state(owner)
+            session.child_directory, session.child_active, session.run = child, True, "run modal"
+            with self.assertRaisesRegex(RuntimeError, "PID/title"):
+                session.point(dict(x=1, y=2, width=3, height=4), "left")
+            desktop.pointer.assert_not_called(); desktop.windows.assert_not_called()
 
 
 if __name__ == "__main__":

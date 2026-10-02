@@ -114,6 +114,9 @@ class ModalSession(SHARED.Session):
                 "Modal source generation changed")
         require(owner["modal"]["dialogVisible"] is True
                 and owner_input_state(owner) == self.owner_before, "Disabled modal owner changed input state")
+        require(all(owner["counts"].get(name) == 1 for name in
+                    ("modal-button-pointer", "modal-button-click", "modal-open-request", "modal-shown")),
+                "Disabled modal owner received another modal button action")
         child, child_receipt = observation(self.child_directory, self.process.pid, f"PopupInteractionApp [{self.owner_run} modal]")
         self.last_child = dict(snapshot=child, **child_receipt)
         return child
@@ -128,6 +131,9 @@ class ModalSession(SHARED.Session):
                 and shown["ownerHandle"] != 0 and shown["ownerHandle"] == requested.get("ownerHandle")
                 and type(shown.get("dialogHandle")) is int and shown["dialogHandle"] != 0
                 and shown["dialogHandle"] != shown["ownerHandle"], "Original modal owner/child identity or disable transition differs")
+        require(all(self.state["counts"].get(name) == 1 for name in
+                    ("modal-button-pointer", "modal-button-click", "modal-open-request", "modal-shown")),
+                "Modal opening did not originate in one observed owner button action")
         self.child_directory, self.child_active = child, True
         self.run = self.owner_run + " modal"
         self.desktop.select_observations([(self.owner_directory, f"PopupInteractionApp [{self.owner_run}]"),
@@ -169,9 +175,10 @@ class ModalSession(SHARED.Session):
     def capture(self, phase, predicate):
         super().capture(phase, predicate)
         evidence = dict(owner=self.last_owner, child=self.last_child if self.child_active else None, qualified=False)
-        require(len(json.dumps(evidence).encode()) <= LIMIT, "Modal phase observation exceeds receipt budget")
-        with (self.directory / f"{phase}.owner.json").open("x") as stream:
-            json.dump(evidence, stream, indent=2)
+        payload = json.dumps(evidence, indent=2).encode("utf-8")
+        require(len(payload) <= LIMIT, "Modal phase observation exceeds receipt budget")
+        with (self.directory / f"{phase}.owner.json").open("xb") as stream:
+            stream.write(payload)
 
 
 def scenario(session):
@@ -241,6 +248,8 @@ def scenario(session):
             and returned.get("activeControl") == session.requested["activeControl"]
             and returned.get("editorFocused") == session.requested["editorFocused"], "Original modal return/focus contract differs")
     require(owner_input_state(session.state) == session.owner_before, "Modal child changed owner input state")
+    for name in ("modal-button-pointer", "modal-button-click"):
+        event(session.owner_directory, name)
     require(not any(w["title"] == f"PopupInteractionApp [{session.owner_run} modal]"
                     for w in session.desktop.windows(session.process.pid)), "Closed modal child remains natively visible")
     for name in ("modal-button-pointer", "modal-button-click", "form-closed"):

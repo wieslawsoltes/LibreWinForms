@@ -328,6 +328,7 @@ class Session:
 
     def record_input(self, action):
         action.update(phase=self.phase, monotonicSeconds=time.monotonic(), pid=self.process.pid)
+        require(len(json.dumps(action).encode("utf-8")) <= 256 * 1024, "Input evidence exceeds receipt budget")
         with (self.directory / "driver-input.jsonl").open("a") as stream:
             stream.write(json.dumps(action) + "\n")
 
