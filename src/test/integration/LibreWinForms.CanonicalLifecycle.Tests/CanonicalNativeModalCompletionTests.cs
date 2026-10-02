@@ -78,4 +78,47 @@ public partial class CanonicalLifecycleTests
         platform.ExternalOwnerActivateCount.Should().Be(1);
         dialog.IsHandleCreated.Should().BeFalse();
     }
+
+    [Fact]
+    public void FormShowDialog_DelayedRestoreDoesNotEnableReplacementOwnerHandle()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        platform.NativeModalSessions = true;
+        using var owner = new ModalRecreatingForm();
+        using Form dialog = new();
+        owner.Show();
+        LibreHandle originalOwner = platform.GetWindowHandle(owner);
+        dialog.Shown += (_, _) => dialog.DialogResult = DialogResult.OK;
+        dialog.ShowDialog(owner).Should().Be(DialogResult.OK);
+        owner.ReplaceHandle();
+        platform.GetWindowHandle(owner).Should().NotBe(originalOwner);
+        owner.Enabled = false;
+        platform.CompleteNativeModal(platform.GetWindowHandle(dialog));
+        platform.IsWindowEnabled(owner).Should().BeFalse();
+        dialog.IsHandleCreated.Should().BeFalse();
+        owner.Close();
+    }
+
+    [Fact]
+    public void FormShowDialog_DelayedCleanupCannotDestroyReplacementDialogHandle()
+    {
+        HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
+        platform.NativeModalSessions = true;
+        using var dialog = new ModalRecreatingForm();
+        dialog.Shown += (_, _) => dialog.DialogResult = DialogResult.OK;
+        dialog.ShowDialog().Should().Be(DialogResult.OK);
+        LibreHandle original = platform.GetWindowHandle(dialog);
+        dialog.ReplaceHandle();
+        LibreHandle replacement = platform.GetWindowHandle(dialog);
+        replacement.Should().NotBe(original);
+        Action complete = () => platform.CompleteNativeModal(original);
+        complete.Should().Throw<InvalidOperationException>().WithMessage("*replacement source handle*");
+        dialog.IsHandleCreated.Should().BeTrue();
+        platform.GetWindowHandle(dialog).Should().Be(replacement);
+    }
+
+    private sealed class ModalRecreatingForm : Form
+    {
+        internal void ReplaceHandle() => RecreateHandle();
+    }
 }
