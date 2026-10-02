@@ -19,6 +19,8 @@
   <ItemGroup>
     <None Include="..\SilkWindowService.cs" Link="SourceContracts\SilkWindowService.cs"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\LibreWinForms.Sdk\targets\LibreWinForms.Sdk.targets" Link="SourceContracts\LibreWinForms.Sdk.targets"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
