@@ -28,6 +28,10 @@ LibreWinForms is packaged as an MSBuild SDK so normal WinForms apps can move to 
 
 `LibreWinForms.Sdk` supplies canonical source-built WinForms plus the typed ProGPU/Silk.NET backend. Package mode is the default; its current Forms/backend payload targets `net10.0`. Project mode explicitly builds the source graph for the consumer's selected TFM instead of inheriting the repository's .NET 11 default. See [SDK framework policy](docs/sdk-runtime-framework.md).
 
+The net10 SDK-admission correction requires a new SDK package containing this
+source change. Previously published packages with the net11-only guard remain
+immutable; the preview.65 version examples below do not patch those packages.
+
 3. Set the LibreWinForms SDK version once in a `global.json` at the solution root (above all projects that use it):
 
 ```json
