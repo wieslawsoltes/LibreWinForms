@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
+using System.Runtime.ExceptionServices;
 
 namespace LibreWinForms.Platform;
 
@@ -92,7 +93,7 @@ public sealed class UnsupportedLibreMessageBoxService : ILibreMessageBoxService
 /// A managed modal message-box implementation built from the typed window, paint, text, monitor,
 /// handle, input, and dispatcher contracts. The platform window remains a real backend window.
 /// </summary>
-public sealed class ManagedLibreMessageBoxService : ILibreMessageBoxService
+public sealed class ManagedLibreMessageBoxService : ILibreModalMessageBoxService
 {
     private readonly ILibreDispatcher _dispatcher;
     private readonly ILibreHandleRegistry _handles;
@@ -100,6 +101,10 @@ public sealed class ManagedLibreMessageBoxService : ILibreMessageBoxService
     private readonly ILibreMonitorService _monitors;
     private readonly ILibrePaintService _painting;
     private readonly ILibreTextRendererService _text;
+    private readonly HashSet<Session> _sessions = [];
+    private readonly HashSet<Session> _pendingRetirements = [];
+    private bool _drainingRetirements;
+    private bool _retryPosted;
 
     public ManagedLibreMessageBoxService(
         ILibreDispatcher dispatcher,
@@ -119,17 +124,7 @@ public sealed class ManagedLibreMessageBoxService : ILibreMessageBoxService
 
     public LibreMessageBoxResult Show(in LibreMessageBoxRequest request)
     {
-        if (!_dispatcher.CheckAccess())
-        {
-            throw new InvalidOperationException("Message boxes must be shown on the owning dispatcher thread.");
-        }
-
-        Validate(request);
-        if (request.ShowHelp)
-        {
-            throw new PlatformNotSupportedException(
-                "Portable message-box help requires a registered local-OS help launcher.");
-        }
+        VerifyRequest(request);
 
         using var session = new Session(
             _dispatcher,
@@ -140,6 +135,114 @@ public sealed class ManagedLibreMessageBoxService : ILibreMessageBoxService
             _text,
             request);
         return session.Show();
+    }
+
+    public LibreMessageBoxResult Show(in LibreMessageBoxRequest request, ILibreMessageBoxModalLifecycle lifecycle)
+    {
+        ArgumentNullException.ThrowIfNull(lifecycle);
+        VerifyRequest(request);
+        DrainRetirements(scheduleRetry: true);
+        var session = new Session(_dispatcher, _handles, _windows, _monitors, _painting, _text, request, lifecycle);
+        _sessions.Add(session); // Own before registration, Show, or native Begin can reenter.
+        try
+        {
+            lifecycle.AfterSourceRelease(() => Retire(session));
+        }
+        catch
+        {
+            // No window or native session exists yet. Preserve the registration error.
+            try { Retire(session); }
+            catch { }
+            throw;
+        }
+
+        // The source caller owns release even when creation, native Begin or pumping fails.
+        try
+        {
+            return session.Show();
+        }
+        catch
+        {
+            session.StopInput();
+            throw;
+        }
+    }
+
+    private void VerifyRequest(in LibreMessageBoxRequest request)
+    {
+        VerifyAccess();
+        Validate(request);
+        if (request.ShowHelp)
+        {
+            throw new PlatformNotSupportedException(
+                "Portable message-box help requires a registered local-OS help launcher.");
+        }
+    }
+
+    private void VerifyAccess()
+    {
+        if (!_dispatcher.CheckAccess())
+        {
+            throw new InvalidOperationException("Message boxes must be shown on the owning dispatcher thread.");
+        }
+    }
+
+    private void Retire(Session session)
+    {
+        VerifyAccess();
+        if (!_sessions.Contains(session)) return;
+        _pendingRetirements.Add(session);
+        DrainRetirements(scheduleRetry: true);
+    }
+
+    private void DrainRetirements(bool scheduleRetry)
+    {
+        VerifyAccess();
+        if (_drainingRetirements || _pendingRetirements.Count == 0) return;
+        _drainingRetirements = true;
+        ExceptionDispatchInfo? first = null;
+        try
+        {
+            // Callbacks may add another generation. Try each original entry once.
+            foreach (Session session in _pendingRetirements.ToArray())
+            {
+                try
+                {
+                    session.Dispose();
+                    _pendingRetirements.Remove(session);
+                    _sessions.Remove(session);
+                }
+                catch (Exception failure)
+                {
+                    first ??= ExceptionDispatchInfo.Capture(failure);
+                }
+            }
+        }
+        finally
+        {
+            _drainingRetirements = false;
+        }
+
+        if (scheduleRetry && _pendingRetirements.Count != 0 && !_retryPosted)
+        {
+            _retryPosted = true;
+            try
+            {
+                _dispatcher.Post(() =>
+                {
+                    _retryPosted = false;
+                    // A persistent failure stays owned; do not create an endless post loop.
+                    DrainRetirements(scheduleRetry: false);
+                });
+            }
+            catch (Exception failure)
+            {
+                _retryPosted = false;
+                first ??= ExceptionDispatchInfo.Capture(failure);
+            }
+        }
+
+        first?.Throw();
     }
 
     private static void Validate(in LibreMessageBoxRequest request)
@@ -189,6 +292,7 @@ public sealed class ManagedLibreMessageBoxService : ILibreMessageBoxService
         private readonly ILibrePaintService _painting;
         private readonly ILibreTextRendererService _text;
         private readonly LibreMessageBoxRequest _request;
+        private readonly ILibreMessageBoxModalLifecycle? _lifecycle;
         private readonly List<ButtonModel> _buttons;
         private ILibreWindow? _window;
         private Rectangle _textBounds;
@@ -197,6 +301,7 @@ public sealed class ManagedLibreMessageBoxService : ILibreMessageBoxService
         private int _pressedIndex = -1;
         private LibreMessageBoxResult _result;
         private bool _closed;
+        private bool _disposing;
 
         internal Session(
             ILibreDispatcher dispatcher,
@@ -205,7 +310,8 @@ public sealed class ManagedLibreMessageBoxService : ILibreMessageBoxService
             ILibreMonitorService monitors,
             ILibrePaintService painting,
             ILibreTextRendererService text,
-            in LibreMessageBoxRequest request)
+            in LibreMessageBoxRequest request,
+            ILibreMessageBoxModalLifecycle? lifecycle = null)
         {
             _dispatcher = dispatcher;
             _handles = handles;
@@ -214,6 +320,7 @@ public sealed class ManagedLibreMessageBoxService : ILibreMessageBoxService
             _painting = painting;
             _text = text;
             _request = request;
+            _lifecycle = lifecycle;
             _buttons = CreateButtons(request.Buttons);
             _selectedIndex = Math.Min((int)request.DefaultButton, _buttons.Count - 1);
         }
@@ -238,20 +345,31 @@ public sealed class ManagedLibreMessageBoxService : ILibreMessageBoxService
                 MaximumSize: new LibreSize(bounds.Width, bounds.Height),
                 CanClose: closeResult != LibreMessageBoxResult.None);
             _window = _windows.Create(options, this);
-            _window.Show();
-            _painting.InvalidateAll(_window.Handle);
-            _window.Activate();
-            _dispatcher.RunNested(
-                () => !_closed && _result == LibreMessageBoxResult.None,
-                CancellationToken.None);
-            return _result != LibreMessageBoxResult.None ? _result : closeResult;
+            if (!IsTerminal) _window.Show();
+            if (!IsTerminal) _painting.InvalidateAll(_window.Handle);
+            if (!IsTerminal) _window.Activate();
+            if (!IsTerminal) _lifecycle?.Begin(_window as ILibreModalWindow);
+            if (!IsTerminal)
+            {
+                _dispatcher.RunNested(() => !IsTerminal, CancellationToken.None);
+            }
+
+            // A dispatcher can end its nested loop for shutdown without a key or
+            // close callback. Publish terminal state before the caller releases.
+            if (_result == LibreMessageBoxResult.None) _result = closeResult;
+            _closed = true;
+            return _result;
         }
+
+        private bool IsTerminal => _closed || _result != LibreMessageBoxResult.None;
+
+        internal void StopInput() => _closed = true;
 
         public bool Closing()
         {
             if (_result != LibreMessageBoxResult.None)
             {
-                return true;
+                return _lifecycle is null;
             }
 
             LibreMessageBoxResult closeResult = GetCloseResult();
@@ -261,7 +379,9 @@ public sealed class ManagedLibreMessageBoxService : ILibreMessageBoxService
             }
 
             _result = closeResult;
-            return true;
+            // Publish the result first, but keep the exact native window alive until
+            // the source frame releases. Legacy standalone services keep close behavior.
+            return _lifecycle is null;
         }
 
         public void Closed() => _closed = true;
@@ -316,6 +436,7 @@ public sealed class ManagedLibreMessageBoxService : ILibreMessageBoxService
 
         public void Input(in LibreInputEvent inputEvent)
         {
+            if (IsTerminal) return;
             switch (inputEvent.Kind)
             {
                 case LibreInputEventKind.KeyDown:
@@ -346,8 +467,20 @@ public sealed class ManagedLibreMessageBoxService : ILibreMessageBoxService
 
         public void Dispose()
         {
-            _window?.Dispose();
-            _window = null;
+            _closed = true;
+            if (_disposing) throw new InvalidOperationException("Message-box retirement cannot reenter.");
+            ILibreWindow? window = _window;
+            if (window is null) return;
+            _disposing = true;
+            try
+            {
+                window.Dispose();
+                _window = null;
+            }
+            finally
+            {
+                _disposing = false;
+            }
         }
 
         private void HandleKeyDown(LibreKey key, LibreInputModifiers modifiers)
@@ -403,7 +536,7 @@ public sealed class ManagedLibreMessageBoxService : ILibreMessageBoxService
             }
 
             _result = result;
-            _window?.Close();
+            if (_lifecycle is null) _window?.Close();
         }
 
         private LibreRectangle CalculateWindowBounds()

@@ -21,6 +21,13 @@ Restoration snapshots each original source handle as well as its Form object;
 recreated source windows cannot inherit an obsolete enable/activation request.
 Deferred dialog cleanup likewise rejects a replacement source handle.
 
+Portable MessageBox uses this same frame/completion mechanism through the
+optional typed message-box lifecycle, with no substitute Form. The actual
+managed service retains its window through deferred release and failed cleanup;
+standalone/custom legacy services keep their existing contract. See
+[MessageBox modal lifetime](message-box-modal-lifetime.md) for terminal results,
+chrome-close ordering and the separate backend native retirement owner.
+
 Automatic provider selection remains mandatory final integration work after the
 paired WPF path is complete. Both factories already select owned Cocoa popup
 surfaces and typed native input; this checkpoint does not claim application-wide

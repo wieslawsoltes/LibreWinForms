@@ -5854,7 +5854,7 @@ public partial class CanonicalLifecycleTests
         LibrePopupSurfaceRequest Request,
         int CommandCount);
 
-    private sealed class HeadlessPlatform :
+    private sealed partial class HeadlessPlatform :
         ILibreDispatcher,
         ILibreThreadDispatcherProvider,
         ILibreTimerService,
