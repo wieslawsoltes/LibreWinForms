@@ -1,5 +1,14 @@
 # Agent Guidance
 
+Scoped MessageBox modality uses the actual typed window and the existing source
+modal frame, never a substitute Form or inferred provider. Publish terminal
+results before callback reentry, and restore owner input/focus only after exact
+native completion and LIFO source release. Retain failed Session cleanup for
+creating-thread retry; returned window Dispose is not native retirement proof.
+Keep standalone/custom legacy services, native admission defaults and qualified
+pins unchanged. See docs/message-box-modal-lifetime.md; authored controls are not
+desktop modality qualification.
+
 Blocked-owner desktop input requires a real source guard and independently
 observed exposed native client target. Recheck exact owner identity/frame and
 front-to-back owned/foreign obstruction inventory before movement and injection;
