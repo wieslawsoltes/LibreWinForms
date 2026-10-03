@@ -114,6 +114,7 @@ python3 "${repo_root}/eng/librewinforms-sdk-analyzer-pack-contract.py" \
   -p:LibreWinFormsCanonicalPackageVersion="${package_version}" \
   -p:LibreWinFormsProGpuBackendPackageVersion="${backend_package_version}" \
   -p:LibreWinFormsProGpuPackageVersion="${progpu_package_version}" \
+  -p:LibreWinFormsRuntimeTargetFramework="${package_target_framework}" \
   -p:ContinuousIntegrationBuild=true
 
 "${dotnet}" pack \
@@ -146,9 +147,10 @@ fi
 
 sdk_version_props="$(unzip -p "${sdk_package_file}" Sdk/LibreWinForms.Sdk.Versions.props)"
 if ! grep -Fq "<LibreWinFormsPackagedRuntimeVersion>${package_version}</LibreWinFormsPackagedRuntimeVersion>" <<<"${sdk_version_props}" \
+  || ! grep -Fq "<LibreWinFormsPackagedRuntimeTargetFramework>${package_target_framework}</LibreWinFormsPackagedRuntimeTargetFramework>" <<<"${sdk_version_props}" \
   || ! grep -Fq "<LibreWinFormsPackagedProGpuBackendVersion>${backend_package_version}</LibreWinFormsPackagedProGpuBackendVersion>" <<<"${sdk_version_props}" \
   || ! grep -Fq "<LibreWinFormsPackagedProGpuVersion>${progpu_package_version}</LibreWinFormsPackagedProGpuVersion>" <<<"${sdk_version_props}"; then
-  echo "Source-first SDK package does not carry its exact runtime/backend/ProGPU version closure." >&2
+  echo "Source-first SDK package does not carry its exact runtime/backend/ProGPU version and target-framework closure." >&2
   exit 1
 fi
 

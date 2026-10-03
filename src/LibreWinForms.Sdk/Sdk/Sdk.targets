@@ -1,6 +1,9 @@
 <Project>
   <PropertyGroup>
     <LibreWinFormsUseSystemWindowsForms Condition="'$(LibreWinFormsUseSystemWindowsForms)' == '' And ('$(UseWindowsForms)' == 'true' Or '$(LibreWinFormsRequestedUseWindowsForms)' == 'true')">true</LibreWinFormsUseSystemWindowsForms>
+    <!-- The one-line C# application SDK owns portable Forms initialization by
+         default. Libraries and explicit caller opt-outs retain their old policy. -->
+    <LibreWinFormsUseSystemWindowsForms Condition="'$(LibreWinFormsUseSystemWindowsForms)' == '' And '$(UseWindowsForms)' == '' And '$(LibreWinFormsRequestedUseWindowsForms)' == '' And '$(MSBuildProjectExtension)' == '.csproj' And ('$(OutputType)' == 'Exe' Or '$(OutputType)' == 'WinExe')">true</LibreWinFormsUseSystemWindowsForms>
     <LibreWinFormsUseSystemWindowsForms Condition="'$(LibreWinFormsUseSystemWindowsForms)' == ''">false</LibreWinFormsUseSystemWindowsForms>
     <LibreWinFormsGenerateApplicationBootstrap Condition="'$(LibreWinFormsGenerateApplicationBootstrap)' == '' And '$(LibreWinFormsUseSystemWindowsForms)' == 'true'">true</LibreWinFormsGenerateApplicationBootstrap>
     <LibreWinFormsGenerateApplicationBootstrap Condition="'$(LibreWinFormsGenerateApplicationBootstrap)' == ''">false</LibreWinFormsGenerateApplicationBootstrap>
