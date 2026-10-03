@@ -137,7 +137,7 @@ public partial class ManagedLibreMessageBoxServiceTests
         var expected = new InvalidOperationException("Recorded source Begin failure.");
         var lifecycle = new RecordingMessageBoxLifecycle(host) { OnBegin = () => throw expected };
 
-        Action show = () => host.CreateService().Show(CreateRequest(LibreMessageBoxButtons.OK), lifecycle);
+        Action show = () => host.CreateService().Show(CreateRequest(LibreMessageBoxButtons.OKCancel), lifecycle);
 
         show.Should().Throw<InvalidOperationException>().Which.Should().BeSameAs(expected);
         lifecycle.RegistrationCount.Should().Be(1);
@@ -146,6 +146,13 @@ public partial class ManagedLibreMessageBoxServiceTests
         host.WindowCloseCount.Should().Be(0);
         host.WindowDisposeAttempts.Should().Be(0);
         host.Handles.Count.Should().Be(1);
+
+        int paintsAtFailure = host.PaintCount;
+        host.SendInput(MessageBoxKey(LibreKey.Right));
+        host.SendInput(MessageBoxKey(LibreKey.Enter));
+        host.PaintCount.Should().Be(paintsAtFailure);
+        host.WindowCloseCount.Should().Be(0);
+        host.WindowDisposeAttempts.Should().Be(0);
 
         lifecycle.CompleteSourceRelease();
 
@@ -233,11 +240,17 @@ public partial class ManagedLibreMessageBoxServiceTests
         host.BeforeRunNested = () => throw expected;
         var lifecycle = new RecordingMessageBoxLifecycle(host);
         ManagedLibreMessageBoxService service = host.CreateService();
-        Action show = () => service.Show(CreateRequest(LibreMessageBoxButtons.OK), lifecycle);
+        Action show = () => service.Show(CreateRequest(LibreMessageBoxButtons.OKCancel), lifecycle);
 
         show.Should().Throw<InvalidOperationException>().Which.Should().BeSameAs(expected);
         host.WindowDisposeAttempts.Should().Be(0);
         host.Handles.Count.Should().Be(1);
+        int paintsAtFailure = host.PaintCount;
+        host.SendInput(MessageBoxKey(LibreKey.Right));
+        host.SendInput(MessageBoxKey(LibreKey.Enter));
+        host.PaintCount.Should().Be(paintsAtFailure);
+        host.WindowCloseCount.Should().Be(0);
+        host.WindowDisposeAttempts.Should().Be(0);
 
         // Source owns preserving its earlier exception while completing release.
         // The Platform service must report cleanup separately and retain it; this
@@ -252,6 +265,28 @@ public partial class ManagedLibreMessageBoxServiceTests
         host.PumpOnce();
 
         host.WindowDisposeAttempts.Should().Be(2);
+        host.WindowDisposeCount.Should().Be(1);
+        host.Handles.Count.Should().Be(0);
+    }
+
+    [Fact]
+    public void ModalShow_EarlyNestedReturnRetainsWindowButRejectsLaterInput()
+    {
+        using var host = new MessageBoxHost { CreateModalWindow = true, ReturnEarlyFromRunNested = true };
+        var lifecycle = new RecordingMessageBoxLifecycle(host);
+
+        host.CreateService().Show(CreateRequest(LibreMessageBoxButtons.OKCancel), lifecycle)
+            .Should().Be(LibreMessageBoxResult.Cancel);
+        int paintsAtReturn = host.PaintCount;
+
+        host.SendInput(MessageBoxKey(LibreKey.Right));
+        host.SendInput(MessageBoxKey(LibreKey.Enter));
+
+        host.PaintCount.Should().Be(paintsAtReturn);
+        host.WindowCloseCount.Should().Be(0);
+        host.WindowDisposeAttempts.Should().Be(0);
+        host.Handles.Count.Should().Be(1);
+        lifecycle.CompleteSourceRelease();
         host.WindowDisposeCount.Should().Be(1);
         host.Handles.Count.Should().Be(0);
     }

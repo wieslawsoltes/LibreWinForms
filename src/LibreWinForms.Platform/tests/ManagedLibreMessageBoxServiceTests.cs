@@ -176,6 +176,8 @@ public partial class ManagedLibreMessageBoxServiceTests
 
         internal Action? BeforeRunNested { get; set; }
 
+        internal bool ReturnEarlyFromRunNested { get; set; }
+
         internal ILibreWindow Window => _window!;
 
         internal LibreWindowCreateOptions LastCreateOptions { get; private set; }
@@ -233,6 +235,11 @@ public partial class ManagedLibreMessageBoxServiceTests
             Operations.Add("run");
             RunNestedCount++;
             BeforeRunNested?.Invoke();
+            if (ReturnEarlyFromRunNested)
+            {
+                return;
+            }
+
             int iterations = 0;
             while (continueCondition())
             {
