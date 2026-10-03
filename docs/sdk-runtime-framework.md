@@ -76,6 +76,14 @@ initializes a GPU. Its future invocation follows the unchanged original
 source/package/analyzer gates in the source-first packing script. Existing
 net11 template, visible popup and canonical WFI inventories are not replaced.
 
+The combined framework harness requires the repository's .NET 11 SDK host so it
+can compile both TFMs. A net10 target compiled by that host is not qualification
+of a .NET 10-only toolchain. Final qualification must also restore/build the
+minimal net10 Package-mode application with the actual stable .NET 10 SDK,
+including the original packaged analyzers, generated configuration/bootstrap,
+and Drawing replacement. That distinct package-consumer gate remains pending;
+no compiler-host compatibility or runtime success is inferred from TFM admission.
+
 No build, restore, test, XML verifier, package probe, native UI run, or CI dispatch
 was performed while authoring this fix. These controls do not establish package
 runtime or desktop qualification. Dependency pins and default branches remain
