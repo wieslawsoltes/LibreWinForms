@@ -157,7 +157,15 @@ public sealed class ManagedLibreMessageBoxService : ILibreModalMessageBoxService
         }
 
         // The source caller owns release even when creation, native Begin or pumping fails.
-        return session.Show();
+        try
+        {
+            return session.Show();
+        }
+        catch
+        {
+            session.StopInput();
+            throw;
+        }
     }
 
     private void VerifyRequest(in LibreMessageBoxRequest request)
@@ -354,6 +362,8 @@ public sealed class ManagedLibreMessageBoxService : ILibreModalMessageBoxService
         }
 
         private bool IsTerminal => _closed || _result != LibreMessageBoxResult.None;
+
+        internal void StopInput() => _closed = true;
 
         public bool Closing()
         {
