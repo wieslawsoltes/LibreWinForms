@@ -54,7 +54,8 @@ The inherited watchdog remains 60 seconds, including dialog interaction.
 Preparation copies and hashes both shared source files into both consumers, and
 the existing package/desktop identity guards now include the startup file. Old
 case assertions and original source byte guards remain; authored controls extend
-the compiler inventory from four to five inputs. The existing automated drivers
-still execute their original workload, not this new action. Final explicit modal
-interaction must use the actual observed button rectangles and inspect retained
-owner/focus/release evidence; these logs do not themselves assert native parity.
+the compiler inventory from four to five inputs. The desktop drivers now expose
+a separate `--modal` workload; their default original fourteen-phase workload
+is unchanged. See [modal desktop evidence](popup-modal-desktop-interaction.md).
+Final explicit modal interaction uses the actual observed button rectangles and
+retains owner/focus/release evidence; these logs do not themselves assert native parity.

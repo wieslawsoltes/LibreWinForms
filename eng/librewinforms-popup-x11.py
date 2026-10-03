@@ -240,6 +240,16 @@ class X11Desktop:
     def window_identity(window):
         return window["xid"]
 
+    def select_observations(self, observations):
+        # X11's native PID/client inventory already includes both real forms.
+        # Source files are selected and validated by the shared modal session.
+        pass
+
+    def window_input_enabled(self, window, state):
+        value = state.get("modal", {}).get("inputEnabled")
+        require(type(value) is bool, "Missing exact typed source modal input observation")
+        return value  # Source policy; X11 has no Win32 IsWindowEnabled equivalent.
+
     @bounded
     def foreground(self, pid):
         active = self.scalar(self.root, "_NET_ACTIVE_WINDOW", self.atom_types.WINDOW)
@@ -372,6 +382,7 @@ def main():
     parser.add_argument("--portable-app", type=Path, required=True)
     parser.add_argument("--prepared-root", type=Path, required=True)
     parser.add_argument("--evidence-parent", type=Path, required=True)
+    parser.add_argument("--modal", action="store_true", help="Separate real ShowDialog scenario; no Cocoa startup override")
     args = parser.parse_args()
     app = args.portable_app.resolve(strict=True)
     require(args.evidence_parent.is_dir(), "Evidence parent must already exist")
@@ -389,8 +400,11 @@ def main():
             json.dump(desktop.provenance, stream, indent=2)
         desktop.deadline = time.monotonic() + 60
         launch_attempted = True
-        complete = SHARED.run_case(desktop, app, root, "portable", uuid.uuid4().hex)
-        print("Fourteen raw phases captured; independent Windows comparison remains required." if complete else "Incomplete evidence; inspect retained receipt.")
+        if args.modal:
+            complete = SHARED.run_case(desktop, app, root, "portable", uuid.uuid4().hex, modal=True)
+        else:
+            complete = SHARED.run_case(desktop, app, root, "portable", uuid.uuid4().hex)
+        print("Raw phases captured; independent Windows comparison remains required." if complete else "Incomplete evidence; inspect retained receipt.")
         return 0 if complete else 1
     except BaseException as error:
         original_error = error

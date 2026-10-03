@@ -156,6 +156,7 @@ internal sealed partial class InteractionForm : Form
                 ownerMatches = ReferenceEquals(child.Owner, this),
                 ownerHandle = Handle.ToInt64(), dialogHandle = child.Handle.ToInt64(),
                 ownerEnabled = Enabled, ownerActive = Form.ActiveForm == this,
+                ownerInputEnabled = ObserveModalInputEnabled(),
                 dialogActive = Form.ActiveForm == child
             }));
         };
@@ -163,6 +164,7 @@ internal sealed partial class InteractionForm : Form
         Record("modal-open-request", JsonSerializer.Serialize(new
         {
             ownerHandle = Handle.ToInt64(), ownerEnabled = Enabled,
+            ownerInputEnabled = ObserveModalInputEnabled(),
             activeControl = ActiveControl?.Name, editorFocused = _editor.Focused
         }));
         try
@@ -171,6 +173,7 @@ internal sealed partial class InteractionForm : Form
             Record("modal-return", JsonSerializer.Serialize(new
             {
                 result = result.ToString(), ownerEnabled = Enabled,
+                ownerInputEnabled = ObserveModalInputEnabled(),
                 ownerActive = Form.ActiveForm == this, activeControl = ActiveControl?.Name,
                 editorFocused = _editor.Focused, dialogVisible = child.Visible
             }));
@@ -196,6 +199,33 @@ internal sealed partial class InteractionForm : Form
     private static object RectangleRecord(Rectangle value)
         => new { x = value.X, y = value.Y, width = value.Width, height = value.Height };
 
+    private bool? ObserveModalInputEnabled()
+    {
+#if LIBREWINFORMS_POPUP_APP
+        // Read the existing typed source window's modal input policy. Public
+        // Control.Enabled is a different managed property and may stay true.
+        // This is not a query/proof of ordinary Cocoa native input blocking.
+        if (!IsHandleCreated || IsDisposed || Disposing || !global::LibreWinForms.Platform.LibrePlatform.IsRegistered)
+            return null;
+        nint handle = Handle;
+        var token = new global::LibreWinForms.Platform.LibreHandle(handle, global::LibreWinForms.Platform.LibreHandleKind.Window);
+        var platform = global::LibreWinForms.Platform.LibrePlatform.Current;
+        if (!platform.Handles.TryGet(token, out global::LibreWinForms.Platform.ILibreWindow? window) || window.Handle != token)
+            return null;
+        bool enabled = window.Enabled;
+        if (IsDisposed || Disposing || !IsHandleCreated || Handle != handle ||
+            !ReferenceEquals(global::LibreWinForms.Platform.LibrePlatform.Current, platform) ||
+            !platform.Handles.TryGet(token, out global::LibreWinForms.Platform.ILibreWindow? current) ||
+            !ReferenceEquals(current, window) || current.Handle != token)
+            return null;
+        return enabled;
+#else
+        // The external Windows driver reads actual IsWindowEnabled for the
+        // PID/title-verified original HWND; do not infer it from Control.Enabled.
+        return null;
+#endif
+    }
+
     private static object? ClientScreen(Control control)
         => control.IsHandleCreated && control.Visible
             ? RectangleRecord(new Rectangle(control.PointToScreen(Point.Empty), control.ClientSize)) : null;
@@ -217,6 +247,7 @@ internal sealed partial class InteractionForm : Form
                 button = ClientScreen(_modalButton), buttonName = _modalButton.Name,
                 evidenceDirectory = _modalEvidence, dialogVisible = _modalChild?.Visible,
                 enabled = Enabled, activeControl = ActiveControl?.Name,
+                inputEnabled = ObserveModalInputEnabled(),
                 ownerHandle = Owner is { IsHandleCreated: true } modalOwner ? modalOwner.Handle.ToInt64() : (long?)null
             },
             counts = _counts,

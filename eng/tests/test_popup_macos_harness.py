@@ -29,6 +29,7 @@ def desktop(root):
     value.helper, value.root = root / "native-helper", root
     value.deadline = time.monotonic() + 60
     value.calls = value.bytes = 0
+    value.modal_observations = None
     return value
 
 
@@ -56,6 +57,68 @@ def occlusion(native, foreign_alpha=None, foreign_first=True):
 
 
 class MacPopupContracts(unittest.TestCase):
+    @staticmethod
+    def modal_geometry():
+        owner, owner_sidecar, inventory = FIXTURE.fixture()
+        child, child_sidecar, child_inventory = FIXTURE.fixture()
+        child["title"] = "PopupInteractionApp [test modal]"
+        child_inventory[0].update(windowNumber=301, title=child["title"])
+        entry = child_sidecar["windows"][0]
+        entry["sourceHandle"]["value"] += 1
+        entry["geometry"]["window"]["handle"] = 101
+        entry["geometry"]["contentView"] = 201
+        entry["geometry"]["cocoaWindowNumber"] = 301
+        return [(owner, owner_sidecar), (child, child_sidecar)], inventory + child_inventory
+
+    def test_modal_geometry_merges_two_independently_verified_owners_without_scale_fitting(self):
+        observations, inventory = self.modal_geometry()
+        before = copy.deepcopy((observations, inventory))
+        result = DRIVER.combine_observations(observations, inventory, 24)
+        self.assertEqual([value["windowNumber"] for value in result], [300, 301])
+        self.assertTrue(all(value["clientGeometryVerified"] for value in result))
+        self.assertEqual(result[0]["client"], observations[0][0]["form"]["client"])
+        self.assertEqual(result[1]["client"], observations[1][0]["form"]["client"])
+        self.assertEqual((observations, inventory), before)
+
+    def test_modal_merge_rejects_cross_observer_source_native_and_view_aliases(self):
+        for key in ("source", "native", "view", "number"):
+            observations, inventory = self.modal_geometry()
+            first, second = observations[0][1]["windows"][0], observations[1][1]["windows"][0]
+            if key == "source": second["sourceHandle"] = first["sourceHandle"]
+            if key == "native": second["geometry"]["window"]["handle"] = first["geometry"]["window"]["handle"]
+            if key == "view": second["geometry"]["contentView"] = first["geometry"]["contentView"]
+            if key == "number": second["geometry"]["cocoaWindowNumber"] = first["geometry"]["cocoaWindowNumber"]
+            with self.subTest(key=key), self.assertRaises((ValueError, RuntimeError)):
+                DRIVER.combine_observations(observations, inventory, 24)
+
+    def test_modal_merge_rejects_changed_child_geometry_and_stale_sidecar(self):
+        for changed in ("client", "sequence", "pid"):
+            observations, inventory = self.modal_geometry()
+            if changed == "client": observations[1][0]["form"]["client"]["x"] += 1
+            else: observations[1][1][changed] += 1
+            with self.subTest(changed=changed), self.assertRaises(ValueError):
+                DRIVER.combine_observations(observations, inventory, 24)
+        observations, inventory = self.modal_geometry()
+        with self.assertRaisesRegex(RuntimeError, "one modal child"):
+            DRIVER.combine_observations(observations + observations[:1], inventory, 24)
+
+    def test_modal_window_reads_exact_selected_guid_sidecar_not_hardcoded_owner(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            value = desktop(Path(temporary).resolve())
+            app = value.root / "portable/app"; app.mkdir(parents=True)
+            child = app / ("modal-" + "d" * 32); child.mkdir()
+            observations, inventory = self.modal_geometry()
+            for directory, (source, sidecar) in zip((app, child), observations):
+                (directory / "snapshot-00000007.json").write_text(json.dumps(source))
+                (directory / "native-geometry-00000007.json").write_text(json.dumps(sidecar))
+            value.select_observations([(app, observations[0][0]["title"]), (child, observations[1][0]["title"])])
+            value.call = mock.Mock(return_value=dict(windows=inventory))
+            self.assertEqual(len([w for w in value.windows(24) if w["clientGeometryVerified"]]), 2)
+            observations[1][1]["sequence"] = 8
+            (child / "native-geometry-00000007.json").write_text(json.dumps(observations[1][1]))
+            with self.assertRaisesRegex(ValueError, "Sequence"):
+                value.windows(24)
+
     def test_native_frame_and_typed_client_stay_distinct(self):
         values = FIXTURE.fixture()
         original = copy.deepcopy(values)

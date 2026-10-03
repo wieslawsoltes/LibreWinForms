@@ -116,6 +116,26 @@ def combine_windows(source, sidecar, inventory, pid):
     return sorted(result, key=lambda window: window["windowNumber"])
 
 
+def combine_observations(observations, inventory, pid):
+    require(0 < len(observations) <= 2, "Only the exact owner and one modal child may supply geometry")
+    result = None
+    identities = {key: set() for key in ("sourceHandle", "nativeWindow", "contentView", "independentCGWindowNumber")}
+    for source, sidecar in observations:
+        comparison = GEOMETRY.validate_cocoa_geometry(source, sidecar, inventory, pid)
+        for window in comparison["windows"]:
+            for key, seen in identities.items():
+                require(window[key] not in seen, "Aliased owner/child native geometry identity")
+                seen.add(window[key])
+        current = combine_windows(source, sidecar, inventory, pid)
+        if result is None:
+            result = current
+        else:
+            require([w["windowNumber"] for w in result] == [w["windowNumber"] for w in current],
+                    "Native inventory changed during owner/child geometry merge")
+            result = [new if new["clientGeometryVerified"] else old for old, new in zip(result, current)]
+    return result
+
+
 def overlaps(lhs, rhs):
     return (max(lhs["x"], rhs["x"]) < min(lhs["x"] + lhs["width"], rhs["x"] + rhs["width"]) and
             max(lhs["y"], rhs["y"]) < min(lhs["y"] + lhs["height"], rhs["y"] + rhs["height"]))
@@ -213,6 +233,7 @@ class MacDesktop:
         self.helper, self.root = helper, root
         self.deadline = time.monotonic() + 10
         self.calls, self.bytes = 0, 0
+        self.modal_observations = None
         native_executable(helper)
         self.provenance = dict(helperSha256=SHARED.digest(helper),
                                helperSourceSha256=SHARED.digest(Path(__file__).with_name("PopupDesktopNative.swift")),
@@ -256,6 +277,16 @@ class MacDesktop:
 
     def windows(self, pid):
         inventory = self.call("inventory", pid=pid)["windows"]
+        if self.modal_observations is not None:
+            pairs = []
+            for directory, title in self.modal_observations:
+                source, _ = self.modal_reader.observation(directory, pid, title)
+                path = directory / f"native-geometry-{source['sequence']:08d}.json"
+                self.modal_reader.regular(path)
+                sidecar, _ = GEOMETRY.read_bounded(path)
+                self.modal_reader.regular(path)
+                pairs.append((source, sidecar))
+            return combine_observations(pairs, inventory, pid)
         app = self.root / "portable/app"
         snapshots = list(app.glob("snapshot-????????.json"))
         require(0 < len(snapshots) <= 650, "Missing/over-budget source snapshots")
@@ -264,6 +295,20 @@ class MacDesktop:
         # The typed observer writes this exact sidecar BEFORE the matching source
         # snapshot. Do not substitute latest/unpaired or source-derived bounds.
         return combine_windows(source, sidecar, inventory, pid)
+
+    def select_observations(self, observations):
+        require(0 < len(observations) <= 2, "Invalid owner/modal observer inventory")
+        if self.modal_observations is None:
+            self.modal_reader = module("popup_modal_observation", "librewinforms-popup-modal.py")
+        for path, title in observations:
+            self.modal_reader.regular(path, directory=True)
+            require(isinstance(title, str) and title.startswith("PopupInteractionApp ["), "Invalid observed source title")
+        self.modal_observations = tuple(observations)
+
+    def window_input_enabled(self, window, state):
+        value = state.get("modal", {}).get("inputEnabled")
+        require(type(value) is bool, "Missing exact typed source modal input observation")
+        return value  # Source policy, not ordinary Cocoa native blocking proof.
 
     def foreground(self, pid):
         self.call("foreground", pid=pid)
@@ -303,6 +348,7 @@ def main():
     parser.add_argument("--prepared-root", type=Path, required=True)
     parser.add_argument("--native-helper", type=Path, required=True)
     parser.add_argument("--evidence-parent", type=Path, required=True)
+    parser.add_argument("--modal", action="store_true", help="Actual source ShowDialog with explicit native modal startup")
     args = parser.parse_args()
     require(args.evidence_parent.is_dir(), "Evidence parent must already exist")
     root = Path(tempfile.mkdtemp(prefix="popup-macos-interaction-", dir=args.evidence_parent.resolve()))
@@ -319,8 +365,11 @@ def main():
         desktop.deadline = time.monotonic() + 60
         launch_attempted = True
         with observer_environment():
-            complete = SHARED.run_case(desktop, app, root, "portable", uuid.uuid4().hex)
-        print("Fourteen raw phases captured; native pixel/reference review remains required." if complete else
+            if args.modal:
+                complete = SHARED.run_case(desktop, app, root, "portable", uuid.uuid4().hex, modal=True, native_modal=True)
+            else:
+                complete = SHARED.run_case(desktop, app, root, "portable", uuid.uuid4().hex)
+        print("Raw phases captured; native pixel/reference review remains required." if complete else
               "Incomplete evidence; inspect retained native calls and shared receipt.")
         return 0 if complete else 1
     except BaseException as error:
