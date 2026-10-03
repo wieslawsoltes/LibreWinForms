@@ -1,5 +1,13 @@
 # Agent Guidance
 
+Blocked-owner desktop input requires a real source guard and independently
+observed exposed native client target. Recheck exact owner identity/frame and
+front-to-back owned/foreign obstruction inventory before movement and injection;
+never use disabled-window hit-test skipping, Enabled metadata or a covered point
+as blocked-click evidence. Preserve physical held-input guards, no forced focus,
+same-target enabled delivery after close, original phases/deadlines/budgets and
+qualified=false. See docs/popup-modal-desktop-interaction.md.
+
 ## Repository and branch ownership
 
 LibreWinForms work branches and pull requests target `librewinforms-progpu-port`,
