@@ -80,6 +80,13 @@ all three runtime assembly identities. A second fresh-cache `LibreWinForms.Sdk`
 consumer builds the unchanged `net11.0` template and verifies the exact ProGPU
 drawing closure.
 
+The SDK framework contract additionally builds minimal `net10.0` and `net11.0`
+applications from the freshly produced SDK. It compares the SDK's declared
+runtime TFM with actual Forms/backend assets, preserves explicit initialization
+opt-outs, and inspects the Project reference graph's selected `NetCurrent`.
+These authored controls are described in [SDK framework policy](sdk-runtime-framework.md);
+their addition does not qualify a new package or change the pinned build SDK.
+
 ProGPU owns drawing API compatibility, correctness, allocation, and focused
 performance gates. LibreWinForms owns canonical package provenance and managed-contract equality and
 WinForms lifecycle coverage; LibreWPF owns mixed WPF/WinForms hosting; and

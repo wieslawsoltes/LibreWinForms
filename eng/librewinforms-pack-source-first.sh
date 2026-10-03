@@ -541,6 +541,17 @@ python3 "${repo_root}/eng/librewinforms-analyzer-contract.py" \
   --producer-manifest-sha256 "${analyzer_manifest_sha256}" \
   --evidence-directory "${analyzer_evidence_root}/results"
 
+# Keep all original source/package/analyzer controls above. This separate
+# contract compares actual payload TFMs and compiles the minimal portable SDK
+# application without launching it or replacing any original smoke consumer.
+python3 "${repo_root}/eng/librewinforms-sdk-framework-contract.py" \
+  --package-source "${package_output}" \
+  --dependency-source https://api.nuget.org/v3/index.json \
+  --sdk-version "${sdk_package_version}" \
+  --configuration "${configuration}" \
+  --dotnet "${dotnet}" \
+  --evidence-directory "${analyzer_evidence_root}/sdk-framework"
+
 echo "Canonical source-first package validated: ${package_file}"
 echo "Source-first ProGPU backend package validated: ${backend_package_file}"
 echo "Source-first SDK package validated: ${sdk_package_file}"
