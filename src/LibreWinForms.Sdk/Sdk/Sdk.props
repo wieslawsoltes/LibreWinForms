@@ -10,7 +10,9 @@
     <LibreWinFormsUseCanonicalRuntime Condition="'$(LibreWinFormsUseCanonicalRuntime)' == ''">true</LibreWinFormsUseCanonicalRuntime>
     <LibreWinFormsUseProGpuSystemDrawing>true</LibreWinFormsUseProGpuSystemDrawing>
     <MicrosoftNETCoreAppRefPackageVersion></MicrosoftNETCoreAppRefPackageVersion>
-    <UseWindowsForms Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true'">false</UseWindowsForms>
+    <!-- Keep the caller's absent/false/true choice until Sdk.targets has seen
+         the project body. Sdk.targets disables the WindowsDesktop import before
+         Microsoft.NET.Sdk targets; masking the value here loses explicit false. -->
     <EnableWindowsTargeting Condition="'$(EnableWindowsTargeting)' == ''">true</EnableWindowsTargeting>
     <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == '' And '$(LibreWinFormsPackagedRuntimeVersion)' != ''">$(LibreWinFormsPackagedRuntimeVersion)</LibreWinFormsVersion>
     <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == ''">0.1.0-preview.65</LibreWinFormsVersion>

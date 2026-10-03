@@ -12,7 +12,7 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageTags>librewinforms;winforms;progpu;silk.net;cross-platform;source-built</PackageTags>
     <SuppressDependenciesWhenPacking>false</SuppressDependenciesWhenPacking>
-    <!-- MSBuild Pack cannot emit nuspec <references>; net11 consumers use the
+    <!-- MSBuild Pack cannot emit nuspec <references>; portable consumers use the
          validated ref/ asset group and packages.config is not supported. -->
     <NoWarn>$(NoWarn);NU5131</NoWarn>
     <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == ''">0.1.0-preview.65</LibreWinFormsProGpuPackageVersion>

@@ -114,6 +114,7 @@ python3 "${repo_root}/eng/librewinforms-sdk-analyzer-pack-contract.py" \
   -p:LibreWinFormsCanonicalPackageVersion="${package_version}" \
   -p:LibreWinFormsProGpuBackendPackageVersion="${backend_package_version}" \
   -p:LibreWinFormsProGpuPackageVersion="${progpu_package_version}" \
+  -p:LibreWinFormsRuntimeTargetFramework="${package_target_framework}" \
   -p:ContinuousIntegrationBuild=true
 
 "${dotnet}" pack \
@@ -146,9 +147,10 @@ fi
 
 sdk_version_props="$(unzip -p "${sdk_package_file}" Sdk/LibreWinForms.Sdk.Versions.props)"
 if ! grep -Fq "<LibreWinFormsPackagedRuntimeVersion>${package_version}</LibreWinFormsPackagedRuntimeVersion>" <<<"${sdk_version_props}" \
+  || ! grep -Fq "<LibreWinFormsPackagedRuntimeTargetFramework>${package_target_framework}</LibreWinFormsPackagedRuntimeTargetFramework>" <<<"${sdk_version_props}" \
   || ! grep -Fq "<LibreWinFormsPackagedProGpuBackendVersion>${backend_package_version}</LibreWinFormsPackagedProGpuBackendVersion>" <<<"${sdk_version_props}" \
   || ! grep -Fq "<LibreWinFormsPackagedProGpuVersion>${progpu_package_version}</LibreWinFormsPackagedProGpuVersion>" <<<"${sdk_version_props}"; then
-  echo "Source-first SDK package does not carry its exact runtime/backend/ProGPU version closure." >&2
+  echo "Source-first SDK package does not carry its exact runtime/backend/ProGPU version and target-framework closure." >&2
   exit 1
 fi
 
@@ -538,6 +540,17 @@ python3 "${repo_root}/eng/librewinforms-analyzer-contract.py" \
   --producer-snapshot "${analyzer_evidence_root}/producer" \
   --producer-manifest-sha256 "${analyzer_manifest_sha256}" \
   --evidence-directory "${analyzer_evidence_root}/results"
+
+# Keep all original source/package/analyzer controls above. This separate
+# contract compares actual payload TFMs and compiles the minimal portable SDK
+# application without launching it or replacing any original smoke consumer.
+python3 "${repo_root}/eng/librewinforms-sdk-framework-contract.py" \
+  --package-source "${package_output}" \
+  --dependency-source https://api.nuget.org/v3/index.json \
+  --sdk-version "${sdk_package_version}" \
+  --configuration "${configuration}" \
+  --dotnet "${dotnet}" \
+  --evidence-directory "${analyzer_evidence_root}/sdk-framework"
 
 echo "Canonical source-first package validated: ${package_file}"
 echo "Source-first ProGPU backend package validated: ${backend_package_file}"

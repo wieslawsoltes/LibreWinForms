@@ -303,6 +303,15 @@ password/read-only protection, failed-write source retention and original
 parent/ShortcutsEnabled command ordering. Never flatten rich-text/protected
 documents into this path or infer undo, IME or native clipboard qualification.
 
+The SDK consumer framework follows actual canonical payload metadata, not the
+build SDK's version or upstream NetCurrent default. Keep portable net10/net11
+admission paired with Project-reference NetCurrent propagation and the packed
+runtime/backend TFM; never relabel binaries or retarget analyzers. Minimal C#
+applications use the existing initialization path, while explicit false and
+ordinary libraries retain their opt-outs. Disable WindowsDesktop targets before
+their import. See docs/sdk-runtime-framework.md; authored controls are not package
+or application qualification.
+
 The portable SDK must retain the original shared and language-specific analyzer payload and resource satellites in Project and Package modes. Keep `LibreWinFormsSdkOwnsApplicationConfiguration` confined to suppressing the upstream full configuration generator when the SDK/caller already owns that policy; absent/false preserves upstream defaults. The explicit default-font supplement additionally requires the exact SDK Initialize-emission predicate, reuses the original invariant font parser/descriptor, and leaves absent-font and caller-owned initialization unchanged. Do not suppress WFO1000 globally, alter bootstrap behavior, or omit analyzers to avoid duplicate Initialize. Preserve the payload-hash, actual compiler negative/positive, missing-file, and fresh-process font gates in `docs/sdk-analyzer-parity.md` and `docs/sdk-application-default-font.md`.
 
 SDK-owned initialization honors ApplicationHighDpiMode through the original enum parser and SystemAware default, before the optional default-font hook. Keep caller-owned opt-out and actual compiler-phase ownership together; invalid values retain WFO0002 rather than becoming generated code or silently selecting another mode. Generated policy and runtime source/native coordinate mapping are distinct contracts: successful compilation does not qualify SystemAware desktop scaling. See docs/sdk-application-high-dpi-mode.md.

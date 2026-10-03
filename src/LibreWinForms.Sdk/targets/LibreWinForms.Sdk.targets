@@ -8,19 +8,23 @@
            Text="LibreWinForms.Sdk is canonical-only; remove LibreWinFormsUseCanonicalRuntime=false and reference transitional compatibility packages explicitly if they are still required for comparison." />
     <Error Condition="'$(LibreWinFormsReferenceMode)' != 'Project' And '$(LibreWinFormsReferenceMode)' != 'Package'"
            Text="LibreWinForms.Sdk supports only canonical Project or Package reference modes." />
-    <Error Condition="'$(TargetFramework)' != 'net11.0'"
-           Text="The source-built LibreWinForms runtime currently targets net11.0; set TargetFramework to net11.0." />
+    <Error Code="LWFTFM001" Condition="'$(TargetFramework)' != 'net10.0' And '$(TargetFramework)' != 'net11.0'"
+           Text="LibreWinForms.Sdk supports portable net10.0 and net11.0 consumers; set TargetFramework to net10.0 or net11.0 (without a Windows platform suffix)." />
+    <Error Code="LWFTFM002" Condition="'$(LibreWinFormsReferenceMode)' == 'Package' And '$(LibreWinFormsPackagedRuntimeTargetFramework)' != 'net10.0' And '$(LibreWinFormsPackagedRuntimeTargetFramework)' != 'net11.0'"
+           Text="The LibreWinForms SDK package is missing a supported canonical runtime target-framework declaration." />
+    <Error Code="LWFTFM003" Condition="'$(LibreWinFormsReferenceMode)' == 'Package' And '$(TargetFramework)' == 'net10.0' And '$(LibreWinFormsPackagedRuntimeTargetFramework)' == 'net11.0'"
+           Text="This LibreWinForms SDK package selects a net11.0 runtime; use a matching net10.0 runtime/SDK package or target net11.0." />
     <Error Condition="'$(LibreWinFormsReferenceMode)' == 'Project' And '$(LibreWinFormsSourceRoot)' == ''"
            Text="LibreWinFormsReferenceMode=Project requires LibreWinFormsSourceRoot to identify a source checkout." />
   </Target>
 
   <ItemGroup Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Project' And '$(LibreWinFormsSourceRoot)' != ''">
     <ProjectReference Include="$(LibreWinFormsSourceRoot)src/System.Windows.Forms/System.Windows.Forms.csproj"
-                      AdditionalProperties="LibreWinFormsReferenceMode=Project;LibreWinFormsUseProGpuSystemDrawing=true;MicrosoftNETCoreAppRefPackageVersion=" />
+                      AdditionalProperties="NetCurrent=$(TargetFramework);LibreWinFormsReferenceMode=Project;LibreWinFormsUseProGpuSystemDrawing=true;MicrosoftNETCoreAppRefPackageVersion=" />
     <ProjectReference Include="$(LibreWinFormsSourceRoot)src/System.Windows.Forms.Design/src/System.Windows.Forms.Design.csproj"
-                      AdditionalProperties="LibreWinFormsReferenceMode=Project;LibreWinFormsUseProGpuSystemDrawing=true;MicrosoftNETCoreAppRefPackageVersion=" />
+                      AdditionalProperties="NetCurrent=$(TargetFramework);LibreWinFormsReferenceMode=Project;LibreWinFormsUseProGpuSystemDrawing=true;MicrosoftNETCoreAppRefPackageVersion=" />
     <ProjectReference Include="$(LibreWinFormsSourceRoot)src/LibreWinForms.ProGPU/LibreWinForms.ProGPU.csproj"
-                      AdditionalProperties="LibreWinFormsReferenceMode=Project;LibreWinFormsUseProGpuSystemDrawing=true;MicrosoftNETCoreAppRefPackageVersion=" />
+                      AdditionalProperties="NetCurrent=$(TargetFramework);LibreWinFormsReferenceMode=Project;LibreWinFormsUseProGpuSystemDrawing=true;MicrosoftNETCoreAppRefPackageVersion=" />
   </ItemGroup>
 
   <!--
