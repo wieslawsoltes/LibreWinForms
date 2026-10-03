@@ -346,7 +346,11 @@ public sealed class ManagedLibreMessageBoxService : ILibreModalMessageBoxService
                 _dispatcher.RunNested(() => !IsTerminal, CancellationToken.None);
             }
 
-            return _result != LibreMessageBoxResult.None ? _result : closeResult;
+            // A dispatcher can end its nested loop for shutdown without a key or
+            // close callback. Publish terminal state before the caller releases.
+            if (_result == LibreMessageBoxResult.None) _result = closeResult;
+            _closed = true;
+            return _result;
         }
 
         private bool IsTerminal => _closed || _result != LibreMessageBoxResult.None;
