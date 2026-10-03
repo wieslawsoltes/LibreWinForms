@@ -44,6 +44,9 @@ def check_preparation(prepared, app):
     require(manifest["sourceSha256"] == SHARED.digest(Path(__file__).parent / "PopupInteractionApp/Program.cs") ==
             SHARED.digest(prepared / "Portable/Program.cs") == SHARED.digest(prepared / "Microsoft/Program.cs"),
             "Microsoft/portable shared scenario bytes differ")
+    require(manifest["startupSourceSha256"] == SHARED.digest(Path(__file__).parent / "PopupInteractionApp/PopupInteractionStartup.cs") ==
+            SHARED.digest(prepared / "Portable/PopupInteractionStartup.cs") == SHARED.digest(prepared / "Microsoft/PopupInteractionStartup.cs"),
+            "Microsoft/portable shared startup bytes differ")
     native = manifest.get("nativeGeometry", {})
     require(native.get("enabled") is True and native.get("environmentVariable") == ENVIRONMENT
             and native.get("sourcePath") == "Portable/PortableNativeGeometryObserver.cs",

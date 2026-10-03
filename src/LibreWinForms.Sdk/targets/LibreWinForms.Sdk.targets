@@ -96,7 +96,11 @@
       <_LibreWinFormsApplicationBootstrapLine Include="        [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]" />
       <_LibreWinFormsApplicationBootstrapLine Include="        private static void RegisterBackend()" />
       <_LibreWinFormsApplicationBootstrapLine Include="        {" />
-      <_LibreWinFormsApplicationBootstrapLine Include="            global::LibreWinForms.ProGPU.ProGpuPlatform.Register()%3B" />
+      <_LibreWinFormsApplicationBootstrapLine Include="            var startup = global::LibreWinForms.ProGPU.ProGpuStartupOptions.ParseArguments(global::System.MemoryExtensions.AsSpan(global::System.Environment.GetCommandLineArgs(), 1))%3B" />
+      <_LibreWinFormsApplicationBootstrapLine Include="            if (startup.EnableNativeModalSessions)" />
+      <_LibreWinFormsApplicationBootstrapLine Include="                global::LibreWinForms.ProGPU.ProGpuPlatform.Register(enableNativeModalSessions: true)%3B" />
+      <_LibreWinFormsApplicationBootstrapLine Include="            else" />
+      <_LibreWinFormsApplicationBootstrapLine Include="                global::LibreWinForms.ProGPU.ProGpuPlatform.Register()%3B" />
       <_LibreWinFormsApplicationBootstrapLine Include="        }" />
       <_LibreWinFormsApplicationBootstrapLine Include="    }" />
       <_LibreWinFormsApplicationBootstrapLine Include="}" />

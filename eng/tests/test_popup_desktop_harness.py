@@ -155,6 +155,9 @@ class PopupDesktopContracts(unittest.TestCase):
             self.assertFalse((staged / "Portable/PortableNativeGeometryObserver.cs").exists())
             for mode in ("Microsoft", "Portable"):
                 self.assertEqual((staged / mode / "Program.cs").read_bytes(), (PREPARE.SOURCE / "Program.cs").read_bytes())
+                self.assertEqual((staged / mode / "PopupInteractionStartup.cs").read_bytes(),
+                                 (PREPARE.SOURCE / "PopupInteractionStartup.cs").read_bytes())
+                self.assertEqual(PREPARE.sha256(staged / mode / "PopupInteractionStartup.cs"), receipt["startupSourceSha256"])
             self.assertIn("LibreWinForms.Sdk/1.2.3", (staged / "Portable/PopupInteractionApp.csproj").read_text())
             self.assertIn('Sdk="Microsoft.NET.Sdk"', (staged / "Microsoft/PopupInteractionApp.csproj").read_text())
             for mode, tfm in (("Microsoft", "net11.0-windows"), ("Portable", "net11.0")):
@@ -252,7 +255,8 @@ class PopupDesktopContracts(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             source = (PREPARE.SOURCE / "Program.cs").read_bytes()
-            manifest = dict(schema="popup-interaction-preparation-v1", sourceSha256=DRIVER.digest(PREPARE.SOURCE / "Program.cs"))
+            manifest = dict(schema="popup-interaction-preparation-v1", sourceSha256=DRIVER.digest(PREPARE.SOURCE / "Program.cs"),
+                            startupSourceSha256=DRIVER.digest(PREPARE.SOURCE / "PopupInteractionStartup.cs"))
             (root / "preparation.json").write_text(json.dumps(manifest))
             current = []
             previous = []
@@ -260,6 +264,7 @@ class PopupDesktopContracts(unittest.TestCase):
                 project = root / mode
                 project.mkdir()
                 (project / "Program.cs").write_bytes(source)
+                (project / "PopupInteractionStartup.cs").write_bytes((PREPARE.SOURCE / "PopupInteractionStartup.cs").read_bytes())
                 for version, outputs in (("11", current), ("10", previous)):
                     output = project / f"bin/Release/net{version}.0{suffix}/PopupInteractionApp.exe"
                     output.parent.mkdir(parents=True)
@@ -471,9 +476,25 @@ class PopupDesktopContracts(unittest.TestCase):
         self.assertNotIn(".Text =", snapshot)
         self.assertIn("control.IsHandleCreated && control.Visible", source)
 
+    def test_explicit_modal_action_uses_real_shared_dialog_and_owned_observation(self):
+        source = (PREPARE.SOURCE / "Program.cs").read_text()
+        self.assertIn("if (modalAction || dialog)", source)
+        self.assertIn("DialogResult result = child.ShowDialog(this);", source)
+        self.assertIn("ReferenceEquals(child.Owner, this)", source)
+        self.assertIn('"modal-" + Guid.NewGuid().ToString("N")', source)
+        self.assertIn("new FileStream(Path.Combine(directory, \"events.jsonl\"), FileMode.CreateNew)", source)
+        self.assertIn("SilkWindowService { EnableNativeModalSessions: true }", source)
+        self.assertIn("60_000, Timeout.Infinite", source)
+        for event in ("modal-button-pointer", "modal-button-click", "modal-shown", "modal-return",
+                      "editor-focus-gained", "editor-focus-lost"):
+            self.assertIn('"' + event + '"', source)
+        for mode in ("Microsoft", "Portable"):
+            project = ET.parse(PREPARE.SOURCE / (mode + ".csproj"))
+            self.assertEqual(len(project.findall("ItemGroup/Compile[@Include='PopupInteractionStartup.cs']")), 1)
+
     def test_design_sized_children_are_attached_before_canonical_autoscale_resumes(self):
         source = (PREPARE.SOURCE / "Program.cs").read_text()
-        constructor = source.split("internal InteractionForm(string directory, string run)", 1)[1].split("private void RegisterPopup", 1)[0]
+        constructor = source.split("internal InteractionForm(string directory, string run,", 1)[1].split("private void OpenModalDialog", 1)[0]
         ordered = ("SuspendLayout();", "AutoScaleDimensions = new(96, 96);",
                    "AutoScaleMode = AutoScaleMode.Dpi;", "ClientSize = new(560, 250);",
                    "Controls.AddRange([_editor, _contextTarget, _combo, _tipTarget, _menu]);",

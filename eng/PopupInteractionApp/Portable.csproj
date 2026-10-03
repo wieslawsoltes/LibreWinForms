@@ -6,13 +6,14 @@
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <DefineConstants>$(DefineConstants);LIBREWINFORMS_POPUP_APP</DefineConstants>
     <AssemblyName>PopupInteractionApp</AssemblyName>
     <LibreWinFormsUseCanonicalRuntime>true</LibreWinFormsUseCanonicalRuntime>
     <LibreWinFormsReferenceMode>Package</LibreWinFormsReferenceMode>
     <LibreWinFormsCanonicalPackageVersion>0.1.0-source-first</LibreWinFormsCanonicalPackageVersion>
     <LibreWinFormsProGpuBackendPackageVersion>0.1.0-source-first-backend</LibreWinFormsProGpuBackendPackageVersion>
   </PropertyGroup>
-  <ItemGroup><Compile Include="Program.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="Program.cs" /><Compile Include="PopupInteractionStartup.cs" /></ItemGroup>
   <ItemGroup Condition="'$(PopupNativeGeometryDiagnostics)' == 'true'">
     <Compile Include="PortableNativeGeometryObserver.cs" />
   </ItemGroup>

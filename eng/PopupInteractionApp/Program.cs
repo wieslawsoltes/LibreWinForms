@@ -13,12 +13,22 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
-        if (args.Length != 2 || !Directory.Exists(args[0]) || Directory.EnumerateFileSystemEntries(args[0]).Any())
+        var startup = PopupInteractionStartup.Parse(args,
+#if LIBREWINFORMS_POPUP_APP
+            portable: true);
+        if (startup.NativeModalSessions &&
+            global::LibreWinForms.Platform.LibrePlatform.Current.Windows is not
+                global::LibreWinForms.ProGPU.SilkWindowService { EnableNativeModalSessions: true })
+            throw new InvalidOperationException("The actual SDK source window service did not retain explicit native modal startup.");
+#else
+            portable: false);
+#endif
+        if (!Directory.Exists(startup.EvidenceDirectory) || Directory.EnumerateFileSystemEntries(startup.EvidenceDirectory).Any())
             throw new ArgumentException("Supply a fresh existing evidence directory and a unique run identifier.");
         using System.Threading.Timer watchdog = new(_ => Environment.Exit(124), null, 60_000, Timeout.Infinite);
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
         ApplicationConfiguration.Initialize();
-        using InteractionForm form = new(args[0], args[1]);
+        using InteractionForm form = new(startup.EvidenceDirectory, startup.RunId, startup.ModalDialog);
         Application.Run(form);
     }
 }
@@ -39,9 +49,12 @@ internal sealed partial class InteractionForm : Form
     private readonly Button _tipTarget = new() { Name = "tooltip-target", Text = "Hover for tooltip", Location = new(304, 108), Size = new(220, 36) };
     private readonly Dictionary<string, ToolStripItem> _items = new();
     private readonly Dictionary<string, ToolStripDropDown> _popups = new();
+    private Button? _modalButton;
+    private InteractionForm? _modalChild;
+    private string? _modalEvidence;
     private long _sequence;
 
-    internal InteractionForm(string directory, string run)
+    internal InteractionForm(string directory, string run, bool modalAction = false, bool dialog = false)
     {
         _directory = directory;
         _events = new StreamWriter(new FileStream(Path.Combine(directory, "events.jsonl"), FileMode.CreateNew)) { AutoFlush = true };
@@ -93,6 +106,27 @@ internal sealed partial class InteractionForm : Form
         _editor.MouseDown += (_, _) => Record("editor-pointer");
         _editor.TextChanged += (_, _) => Record("editor-text");
         Controls.AddRange([_editor, _contextTarget, _combo, _tipTarget, _menu]);
+        if (modalAction || dialog)
+        {
+            _modalButton = new Button
+            {
+                Name = dialog ? "close-modal-dialog" : "open-modal-dialog",
+                Text = dialog ? "Close modal dialog" : "Open modal dialog",
+                Location = new(304, 166), Size = new(220, 36),
+                DialogResult = dialog ? DialogResult.OK : DialogResult.None
+            };
+            _modalButton.MouseDown += (_, _) => Record("modal-button-pointer");
+            _modalButton.Click += (_, _) =>
+            {
+                Record("modal-button-click");
+                if (!dialog) OpenModalDialog(run);
+            };
+            Controls.Add(_modalButton);
+            _editor.GotFocus += (_, _) => Record("editor-focus-gained");
+            _editor.LostFocus += (_, _) => Record("editor-focus-lost");
+            Activated += (_, _) => Record("form-activated");
+            Deactivate += (_, _) => Record("form-deactivated");
+        }
         Shown += (_, _) => Record("shown");
         Paint += (_, _) => Record("form-paint");
         FormClosed += (_, _) => Record("form-closed");
@@ -100,6 +134,48 @@ internal sealed partial class InteractionForm : Form
         ResumeLayout(false);
         PerformLayout();
         _observer.Start();
+    }
+
+    private void OpenModalDialog(string run)
+    {
+        if (_modalChild is not null)
+            throw new InvalidOperationException("The previous modal source generation has not completed.");
+        // A new owned destination for every actual user action; never replace
+        // the parent's immutable snapshots or reuse a closed dialog's files.
+        _modalEvidence = Path.Combine(_directory, "modal-" + Guid.NewGuid().ToString("N"));
+        if (Directory.Exists(_modalEvidence) || File.Exists(_modalEvidence))
+            throw new IOException("The modal evidence destination must be new.");
+        Directory.CreateDirectory(_modalEvidence);
+        using var child = new InteractionForm(_modalEvidence, run + " modal", dialog: true);
+        _modalChild = child;
+        child.Shown += (_, _) =>
+        {
+            Record("modal-shown", JsonSerializer.Serialize(new
+            {
+                evidenceDirectory = _modalEvidence,
+                ownerMatches = ReferenceEquals(child.Owner, this),
+                ownerHandle = Handle.ToInt64(), dialogHandle = child.Handle.ToInt64(),
+                ownerEnabled = Enabled, ownerActive = Form.ActiveForm == this,
+                dialogActive = Form.ActiveForm == child
+            }));
+        };
+        child.FormClosed += (_, e) => Record("modal-closed", e.CloseReason.ToString());
+        Record("modal-open-request", JsonSerializer.Serialize(new
+        {
+            ownerHandle = Handle.ToInt64(), ownerEnabled = Enabled,
+            activeControl = ActiveControl?.Name, editorFocused = _editor.Focused
+        }));
+        try
+        {
+            DialogResult result = child.ShowDialog(this);
+            Record("modal-return", JsonSerializer.Serialize(new
+            {
+                result = result.ToString(), ownerEnabled = Enabled,
+                ownerActive = Form.ActiveForm == this, activeControl = ActiveControl?.Name,
+                editorFocused = _editor.Focused, dialogVisible = child.Visible
+            }));
+        }
+        finally { _modalChild = null; }
     }
 
     private void RegisterPopup(string name, ToolStripDropDown popup)
@@ -136,6 +212,13 @@ internal sealed partial class InteractionForm : Form
             editor = new { client = ClientScreen(_editor), text = _editor.Text, focused = _editor.Focused },
             contextTarget = ClientScreen(_contextTarget), tooltipTarget = ClientScreen(_tipTarget),
             combo = new { client = ClientScreen(_combo), droppedDown = _combo.DroppedDown, selectedIndex = _combo.SelectedIndex },
+            modal = _modalButton is null ? null : new
+            {
+                button = ClientScreen(_modalButton), buttonName = _modalButton.Name,
+                evidenceDirectory = _modalEvidence, dialogVisible = _modalChild?.Visible,
+                enabled = Enabled, activeControl = ActiveControl?.Name,
+                ownerHandle = Owner is { IsHandleCreated: true } modalOwner ? modalOwner.Handle.ToInt64() : (long?)null
+            },
             counts = _counts,
             popups = _popups.ToDictionary(pair => pair.Key, pair => new { visible = pair.Value.Visible, client = ClientScreen(pair.Value) }),
             items = _items.ToDictionary(pair => pair.Key, pair => new

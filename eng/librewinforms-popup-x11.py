@@ -352,6 +352,8 @@ def check_preparation(prepared, portable):
     require(manifest.get("schema") == "popup-interaction-preparation-v1", "Unknown source preparation receipt")
     require(manifest["sourceSha256"] == SHARED.digest(Path(__file__).parent / "PopupInteractionApp/Program.cs") ==
             SHARED.digest(prepared / "Portable/Program.cs"), "Prepared source differs from the shared scenario")
+    require(manifest["startupSourceSha256"] == SHARED.digest(Path(__file__).parent / "PopupInteractionApp/PopupInteractionStartup.cs") ==
+            SHARED.digest(prepared / "Portable/PopupInteractionStartup.cs"), "Prepared startup differs from the shared scenario")
     expected = (prepared / "Portable/bin/Release/net11.0/PopupInteractionApp").resolve(strict=True)
     require(portable == expected, "Executable is not the explicit prepared Linux consumer output")
     with portable.open("rb") as stream:
