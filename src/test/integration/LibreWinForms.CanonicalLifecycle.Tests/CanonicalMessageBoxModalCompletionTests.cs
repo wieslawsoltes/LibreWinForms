@@ -26,6 +26,7 @@ public partial class CanonicalLifecycleTests
         owner.Controls.Add(child);
         owner.Show();
         owner.Activate();
+        platform.SendInput(LibreInputEventKind.FocusGained);
         child.Focus().Should().BeTrue();
         int keys = 0;
         child.KeyDown += (_, _) => keys++;
@@ -34,7 +35,7 @@ public partial class CanonicalLifecycleTests
         platform.Post(() =>
         {
             platform.IsWindowEnabled(owner).Should().BeFalse();
-            platform.SendControlInput(child, SourceMessageBoxKey(LibreKey.A));
+            platform.SendControlInput(owner, SourceMessageBoxKey(LibreKey.A));
             keys.Should().Be(0);
             platform.SendInput(LibreInputEventKind.KeyDown, key: LibreKey.Enter);
         });
@@ -52,7 +53,7 @@ public partial class CanonicalLifecycleTests
         platform.IsWindowEnabled(owner).Should().BeFalse();
         platform.Handles.TryGet(message, out ILibreWindow? retained).Should().BeTrue();
         retained!.Visible.Should().BeTrue();
-        platform.SendControlInput(child, SourceMessageBoxKey(LibreKey.A));
+        platform.SendControlInput(owner, SourceMessageBoxKey(LibreKey.A));
         keys.Should().Be(0);
 
         platform.CompleteNativeModal(message);
@@ -60,7 +61,7 @@ public partial class CanonicalLifecycleTests
         platform.Handles.TryGet(message, out ILibreWindow? _).Should().BeFalse();
         platform.IsWindowEnabled(owner).Should().BeTrue();
         platform.LastActivatedWindow.Should().Be(ownerHandle);
-        platform.SendControlInput(child, SourceMessageBoxKey(LibreKey.A));
+        platform.SendControlInput(owner, SourceMessageBoxKey(LibreKey.A));
         keys.Should().Be(1);
     }
 

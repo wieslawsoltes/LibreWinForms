@@ -5949,6 +5949,9 @@ public partial class CanonicalLifecycleTests
         internal void Reset(bool autoCloseWindows)
         {
             Handles.Count.Should().Be(0);
+            NativeModalReleases.Should().BeEmpty();
+            NativeModalSessions = false;
+            NativeModalBegins = 0;
             foreach (HeadlessThreadDispatcher dispatcher in _threadDispatchers.Values)
             {
                 dispatcher.Release();
