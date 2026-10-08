@@ -31,7 +31,7 @@ internal sealed class NativeModalWindowLifetime(
     {
         VerifyAccess();
         VerifyShowIntent();
-        if (queueOnly || _beginning || _dialogLease != null || _awaitingRelease || _pending != PendingAction.None)
+        if (queueOnly || _beginning || _dialogLease is not null || _awaitingRelease || _pending != PendingAction.None)
             throw new InvalidOperationException("A native dialog requires its live ordinary top-level window.");
         long generation = _generation;
         bool initialized = window.IsInitialized;
@@ -54,7 +54,7 @@ internal sealed class NativeModalWindowLifetime(
         {
             _beginning = false;
             try { ApplyPending(); }
-            catch (Exception) when (primary != null) { }
+            catch (Exception) when (primary is not null) { }
         }
     }
 
@@ -153,7 +153,7 @@ internal sealed class NativeModalWindowLifetime(
         {
             // Native identity/visibility callbacks can replace source intent.
             // A bounded reconciliation must not publish an obsolete operation.
-            for (int attempt = 0; _pending != PendingAction.None || _dialogCompletions != null; ++attempt)
+            for (int attempt = 0; _pending != PendingAction.None || _dialogCompletions is not null; ++attempt)
             {
                 if (attempt == 8)
                     throw new InvalidOperationException("Native modal visibility did not reach stable source intent.");
@@ -195,9 +195,11 @@ internal sealed class NativeModalWindowLifetime(
                         try { callback(); }
                         catch (Exception failure) { callbackFailure ??= ExceptionDispatchInfo.Capture(failure); }
                     }
+
                     callbackFailure?.Throw();
                     continue;
                 }
+
                 PendingAction action = _pending;
                 _pending = PendingAction.None;
                 try
@@ -284,10 +286,11 @@ internal sealed class NativeModalWindowSession : INativeModalWindowSession
     {
         if (!window.IsInitialized || window.Native?.Cocoa is not { } cocoa || cocoa == 0 ||
             !NativeWindowModalSession.TryBegin(new(NativeWindowKind.Cocoa, cocoa, 0, "NSWindow"), out var session) ||
-            session == null)
+            session is null)
             throw new PlatformNotSupportedException("The window provider rejected its native modal session.");
         return new NativeModalDialogLease(session);
     }
+
     public bool TryPumpEvents() => NativeWindowModalSession.TryPumpEvents();
     public bool RetainsWindow(IWindow window)
         => TryGetSessionWindow(window, out NativeWindowHandle handle) && NativeWindowModalSession.RetainsWindow(handle);
