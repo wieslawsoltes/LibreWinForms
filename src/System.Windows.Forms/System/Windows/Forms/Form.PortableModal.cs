@@ -27,6 +27,59 @@ public partial class Form
         if (_portableModalCompletion is { } completion) completion.AfterSourceRelease(completed);
         else completed();
     }
+
+    private void CleanupPortableModalDialog(
+        nint cleanupHandle,
+        Form? oldOwner,
+        Form? portableOwner,
+        nint portableOwnerHandle,
+        LibreHandle externalPortableOwner,
+        bool restoreExternalOwnerEnabled)
+    {
+        if (IsHandleCreated && Handle != cleanupHandle)
+        {
+            throw new InvalidOperationException("Native dialog completion cannot retire a replacement source handle.");
+        }
+
+        try
+        {
+            if (restoreExternalOwnerEnabled)
+            {
+                LibrePlatform.Current.ExternalWindowOwners.TrySetEnabled(
+                    externalPortableOwner,
+                    enabled: true);
+            }
+
+            if (portableOwner is { IsDisposed: false, Visible: true, IsHandleCreated: true }
+                && portableOwner.Handle == portableOwnerHandle)
+            {
+                portableOwner.Activate();
+            }
+            else if (!externalPortableOwner.IsNull)
+            {
+                LibrePlatform.Current.ExternalWindowOwners.TryActivate(externalPortableOwner);
+            }
+
+            SetVisibleCore(false);
+            if (IsHandleCreated)
+            {
+                if (OwnerInternal is not null && OwnerInternal.IsMdiContainer)
+                {
+                    OwnerInternal.Invalidate(true);
+                    OwnerInternal.Update();
+                }
+
+                DestroyHandle();
+            }
+
+            SetState(States.Modal, false);
+        }
+        finally
+        {
+            Owner = oldOwner;
+            Properties.RemoveValue(s_propDialogOwner);
+        }
+    }
 }
 
 // Native completion and source-stack completion are independent proofs. Source
@@ -41,10 +94,10 @@ internal sealed class PortableModalCompletion
     internal void Begin(ILibreModalWindow? window)
     {
         VerifyAccess();
-        if (_window != null || IsSourceReleased)
+        if (_window is not null || IsSourceReleased)
             throw new InvalidOperationException("A source modal generation cannot begin twice.");
         _window = window; // Retain before provider Begin can call source code.
-        if (window != null && !window.BeginModalDialog()) _window = null;
+        if (window is not null && !window.BeginModalDialog()) _window = null;
     }
 
     internal void ReleaseNative(Action completed)
@@ -69,7 +122,7 @@ internal sealed class PortableModalCompletion
         List<Action>? callbacks = _sourceCompletions;
         _sourceCompletions = null;
         System.Runtime.ExceptionServices.ExceptionDispatchInfo? first = null;
-        if (callbacks != null)
+        if (callbacks is not null)
         {
             foreach (Action callback in callbacks)
             {
@@ -77,6 +130,7 @@ internal sealed class PortableModalCompletion
                 catch (Exception failure) { first ??= System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure); }
             }
         }
+
         first?.Throw();
     }
 

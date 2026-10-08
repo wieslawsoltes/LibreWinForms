@@ -165,7 +165,7 @@ public partial class CanonicalLifecycleTests
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
         var primary = new InvalidOperationException("Original service failure");
-        var cleanup = new ApplicationException("Source cleanup failure");
+        var cleanup = new InvalidOperationException("Source cleanup failure");
         var service = new FailingModalMessageBoxService(failDuringShow ? primary : null, cleanup);
         using var forwarding = new MessageBoxForwardingScope(platform, service, native: false);
         using Form owner = new();

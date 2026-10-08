@@ -5877,9 +5877,9 @@ public partial class CanonicalLifecycleTests
         ILibreDragDropService,
         ILibreClipboardService
     {
-        internal bool NativeModalSessions;
-        internal int NativeModalBegins;
-        internal readonly Dictionary<LibreHandle, Action> NativeModalReleases = [];
+        internal bool NativeModalSessions { get; set; }
+        internal int NativeModalBegins { get; set; }
+        internal Dictionary<LibreHandle, Action> NativeModalReleases { get; } = [];
 
         internal void CompleteNativeModal(LibreHandle handle)
         {

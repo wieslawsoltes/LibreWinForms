@@ -53,6 +53,7 @@ public sealed partial class Application
                             () => !dialog.CheckCloseDialog(closingOnly: false),
                             CancellationToken.None);
                     }
+
                     break;
                 case msoloop.DoEvents:
                 case msoloop.DoEventsModal:
