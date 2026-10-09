@@ -6100,6 +6100,8 @@ public partial class Form : ContainerControl
             ? GetPortableExternalOwnerHandle(portableOwnerWindow)
             : default;
         bool restoreExternalOwnerEnabled = false;
+        bool portableCleanupScheduled = false;
+        nint portableOwnerHandle = portableOwner is { IsHandleCreated: true } ? portableOwner.Handle : 0;
 #else
         if ((owner is not null) && !owner.GetExtendedStyle().HasFlag(WINDOW_EX_STYLE.WS_EX_TOPMOST))
         {
@@ -6218,21 +6220,15 @@ public partial class Form : ContainerControl
             finally
             {
 #if LIBREWINFORMS_PORTABLE
-                if (restoreExternalOwnerEnabled)
-                {
-                    LibrePlatform.Current.ExternalWindowOwners.TrySetEnabled(
-                        externalPortableOwner,
-                        enabled: true);
-                }
-
-                if (portableOwner is { IsDisposed: false, Visible: true })
-                {
-                    portableOwner.Activate();
-                }
-                else if (!externalPortableOwner.IsNull)
-                {
-                    LibrePlatform.Current.ExternalWindowOwners.TryActivate(externalPortableOwner);
-                }
+                portableCleanupScheduled = true;
+                nint cleanupHandle = IsHandleCreated ? Handle : 0;
+                CompletePortableModalDialog(() => CleanupPortableModalDialog(
+                    cleanupHandle,
+                    oldOwner,
+                    portableOwner,
+                    portableOwnerHandle,
+                    externalPortableOwner,
+                    restoreExternalOwnerEnabled));
 #else
                 // Call SetActiveWindow before setting Visible = false.
                 if (!PInvoke.IsWindow(activeHwnd))
@@ -6248,7 +6244,6 @@ public partial class Form : ContainerControl
                 {
                     PInvoke.SetActiveWindow(ownerHwnd);
                 }
-#endif
 
                 SetVisibleCore(false);
                 if (IsHandleCreated)
@@ -6267,13 +6262,20 @@ public partial class Form : ContainerControl
                 }
 
                 SetState(States.Modal, false);
+#endif
             }
         }
         finally
         {
+#if LIBREWINFORMS_PORTABLE
+            if (!portableCleanupScheduled)
+            {
+                Owner = oldOwner;
+                Properties.RemoveValue(s_propDialogOwner);
+            }
+#else
             Owner = oldOwner;
             Properties.RemoveValue(s_propDialogOwner);
-#if !LIBREWINFORMS_PORTABLE
             GC.KeepAlive(ownerHwnd.Wrapper);
 #endif
         }

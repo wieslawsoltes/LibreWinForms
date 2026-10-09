@@ -9,5 +9,5 @@
     <AssemblyName>PopupInteractionApp</AssemblyName>
     <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
   </PropertyGroup>
-  <ItemGroup><Compile Include="Program.cs" /></ItemGroup>
+  <ItemGroup><Compile Include="Program.cs" /><Compile Include="PopupInteractionStartup.cs" /></ItemGroup>
 </Project>

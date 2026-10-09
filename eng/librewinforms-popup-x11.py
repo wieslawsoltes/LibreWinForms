@@ -240,6 +240,16 @@ class X11Desktop:
     def window_identity(window):
         return window["xid"]
 
+    def select_observations(self, observations):
+        # X11's native PID/client inventory already includes both real forms.
+        # Source files are selected and validated by the shared modal session.
+        pass
+
+    def window_input_enabled(self, window, state):
+        value = state.get("modal", {}).get("inputEnabled")
+        require(type(value) is bool, "Missing exact typed source modal input observation")
+        return value  # Source policy; X11 has no Win32 IsWindowEnabled equivalent.
+
     @bounded
     def foreground(self, pid):
         active = self.scalar(self.root, "_NET_ACTIVE_WINDOW", self.atom_types.WINDOW)
@@ -326,6 +336,51 @@ class X11Desktop:
         if click:
             self.pair(self.X.ButtonPress, self.X.ButtonRelease, 1 if click == "left" else 3)
 
+    def owner_obstruction_inventory(self, pid, owner):
+        fresh = [w for w in self.windows(pid) if w["xid"] == owner["xid"]]
+        require(fresh == [owner], "Actual X11 owner identity/client/frame changed")
+        expected = dict(id=owner["outerFrameXid"], pid=pid, title=owner["title"], bounds=owner["bounds"], client=owner["client"])
+        children = self.root.query_tree().children
+        require(len(children) <= 4096, "X11 obstruction inventory budget exceeded")
+        result = []
+        # XQueryTree orders root children bottom-to-top. Include WM frames,
+        # owned popups and foreign windows; no same-PID obstruction exemption.
+        for frame in reversed(children):
+            if frame.get_attributes().map_state != self.X.IsViewable:
+                continue
+            geometry = frame.get_geometry(); origin = self.root.translate_coords(frame, 0, 0)
+            require(origin.same_screen and geometry.root == self.root, "Obstruction is on an unknown X11 screen")
+            border = geometry.border_width
+            bounds = dict(x=origin.x - border, y=origin.y - border,
+                          width=geometry.width + 2 * border, height=geometry.height + 2 * border)
+            if frame.id == expected["id"]:
+                require(bounds == owner["bounds"], "Owner frame changed during Z-order observation")
+                result.append(expected)
+                return expected, result
+            result.append(dict(id=frame.id, pid=self.pid(frame) or 0, bounds=bounds))
+        raise RuntimeError("Actual X11 owner frame is absent from Z-order")
+
+    @bounded
+    def blocked_owner_pointer(self, pid, owner_window, target_rectangle):
+        self.foreground(pid); self.held()
+        owner, inventory = self.owner_obstruction_inventory(pid, owner_window)
+        before = SHARED.exposed_owner_target(pid, owner, target_rectangle, inventory)
+        require(len(json.dumps(before).encode()) <= 64 * 1024, "Owner obstruction receipt exceeds budget")
+        x, y = before["point"]
+        require(type(x) is int and type(y) is int and 0 <= x < self.screen.width_in_pixels and 0 <= y < self.screen.height_in_pixels,
+                "Owner point is outside admitted physical X11 coordinates")
+        require(self.point_owner(x, y) == pid, "Owner point hit belongs to another process")
+        self.display.xtest_fake_input(self.X.MotionNotify, root=self.root, x=x, y=y)
+        self.sync(); self.foreground(pid)
+        pointer = self.held()
+        require((pointer.root_x, pointer.root_y) == (x, y) and self.point_owner(x, y, actual_pointer=True) == pid,
+                "Actual exposed owner pointer changed")
+        owner, inventory = self.owner_obstruction_inventory(pid, owner_window)
+        after = SHARED.exposed_owner_target(pid, owner, target_rectangle, inventory)
+        require(len(json.dumps(after).encode()) <= 64 * 1024, "Owner obstruction receipt exceeds budget")
+        self.pair(self.X.ButtonPress, self.X.ButtonRelease, 1)
+        return dict(policy="exposed-owner-native-z-order-v1", before=before, beforeClick=after, qualified=False)
+
     @bounded
     def screenshot(self, pid, windows, destination):
         self.foreground(pid)
@@ -352,6 +407,8 @@ def check_preparation(prepared, portable):
     require(manifest.get("schema") == "popup-interaction-preparation-v1", "Unknown source preparation receipt")
     require(manifest["sourceSha256"] == SHARED.digest(Path(__file__).parent / "PopupInteractionApp/Program.cs") ==
             SHARED.digest(prepared / "Portable/Program.cs"), "Prepared source differs from the shared scenario")
+    require(manifest["startupSourceSha256"] == SHARED.digest(Path(__file__).parent / "PopupInteractionApp/PopupInteractionStartup.cs") ==
+            SHARED.digest(prepared / "Portable/PopupInteractionStartup.cs"), "Prepared startup differs from the shared scenario")
     expected = (prepared / "Portable/bin/Release/net11.0/PopupInteractionApp").resolve(strict=True)
     require(portable == expected, "Executable is not the explicit prepared Linux consumer output")
     with portable.open("rb") as stream:
@@ -370,6 +427,7 @@ def main():
     parser.add_argument("--portable-app", type=Path, required=True)
     parser.add_argument("--prepared-root", type=Path, required=True)
     parser.add_argument("--evidence-parent", type=Path, required=True)
+    parser.add_argument("--modal", action="store_true", help="Separate real ShowDialog scenario; no Cocoa startup override")
     args = parser.parse_args()
     app = args.portable_app.resolve(strict=True)
     require(args.evidence_parent.is_dir(), "Evidence parent must already exist")
@@ -387,8 +445,11 @@ def main():
             json.dump(desktop.provenance, stream, indent=2)
         desktop.deadline = time.monotonic() + 60
         launch_attempted = True
-        complete = SHARED.run_case(desktop, app, root, "portable", uuid.uuid4().hex)
-        print("Fourteen raw phases captured; independent Windows comparison remains required." if complete else "Incomplete evidence; inspect retained receipt.")
+        if args.modal:
+            complete = SHARED.run_case(desktop, app, root, "portable", uuid.uuid4().hex, modal=True)
+        else:
+            complete = SHARED.run_case(desktop, app, root, "portable", uuid.uuid4().hex)
+        print("Raw phases captured; independent Windows comparison remains required." if complete else "Incomplete evidence; inspect retained receipt.")
         return 0 if complete else 1
     except BaseException as error:
         original_error = error

@@ -7,7 +7,7 @@ using Xunit;
 
 namespace LibreWinForms.ProGPU.Tests;
 
-public sealed class NativeModalWindowLifetimeTests
+public sealed partial class NativeModalWindowLifetimeTests
 {
     [Theory]
     [InlineData(false, false, 1, 1)]
@@ -451,6 +451,16 @@ public sealed class NativeModalWindowLifetimeTests
 
     private sealed class Session(IWindow expected) : INativeModalWindowSession
     {
+        internal Func<INativeModalDialogLease>? _begin;
+        internal int _begins;
+        public INativeModalDialogLease BeginDialog(IWindow window)
+        {
+            Assert.Same(expected, window);
+            _begins++;
+            _held = true;
+            return _begin?.Invoke() ?? new Lease();
+        }
+        private sealed class Lease : INativeModalDialogLease { }
         internal bool _held, _active;
         internal int _polls, _releases;
         internal Action? _completion;
@@ -487,6 +497,7 @@ public sealed class NativeModalWindowLifetimeTests
         {
             switch (targetMethod!.Name)
             {
+                case "get_IsInitialized": return true;
                 case "DoEvents": _polls++; _poll?.Invoke(); break;
                 case "get_IsVisible": _readVisible?.Invoke(); return _visible;
                 case "set_IsVisible": Assert.False((bool)args![0]!); _hides++; _hide?.Invoke(); _visible = false; break;

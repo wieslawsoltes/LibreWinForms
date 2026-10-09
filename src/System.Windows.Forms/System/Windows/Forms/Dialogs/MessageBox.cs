@@ -468,10 +468,16 @@ public class MessageBox
             MapOptions(options),
             showHelp,
             GetPortableOwner(owner, options, showHelp));
+        ILibreMessageBoxService service = LibrePlatform.Current.MessageBoxes;
+        if (service is ILibreModalMessageBoxService modalService)
+        {
+            return MapResult(Application.ShowPortableModalMessageBox(modalService, request));
+        }
+
         Application.BeginModalMessageLoop();
         try
         {
-            return MapResult(LibrePlatform.Current.MessageBoxes.Show(request));
+            return MapResult(service.Show(request));
         }
         finally
         {

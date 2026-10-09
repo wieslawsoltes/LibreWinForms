@@ -1,5 +1,22 @@
 # Agent Guidance
 
+Scoped MessageBox modality uses the actual typed window and the existing source
+modal frame, never a substitute Form or inferred provider. Publish terminal
+results before callback reentry, and restore owner input/focus only after exact
+native completion and LIFO source release. Retain failed Session cleanup for
+creating-thread retry; returned window Dispose is not native retirement proof.
+Keep standalone/custom legacy services, native admission defaults and qualified
+pins unchanged. See docs/message-box-modal-lifetime.md; authored controls are not
+desktop modality qualification.
+
+Blocked-owner desktop input requires a real source guard and independently
+observed exposed native client target. Recheck exact owner identity/frame and
+front-to-back owned/foreign obstruction inventory before movement and injection;
+never use disabled-window hit-test skipping, Enabled metadata or a covered point
+as blocked-click evidence. Preserve physical held-input guards, no forced focus,
+same-target enabled delivery after close, original phases/deadlines/budgets and
+qualified=false. See docs/popup-modal-desktop-interaction.md.
+
 ## Repository and branch ownership
 
 LibreWinForms work branches and pull requests target `librewinforms-progpu-port`,
@@ -294,6 +311,15 @@ source UTF-16 selection mutation. Preserve virtual MaskedTextBox handlers,
 password/read-only protection, failed-write source retention and original
 parent/ShortcutsEnabled command ordering. Never flatten rich-text/protected
 documents into this path or infer undo, IME or native clipboard qualification.
+
+The SDK consumer framework follows actual canonical payload metadata, not the
+build SDK's version or upstream NetCurrent default. Keep portable net10/net11
+admission paired with Project-reference NetCurrent propagation and the packed
+runtime/backend TFM; never relabel binaries or retarget analyzers. Minimal C#
+applications use the existing initialization path, while explicit false and
+ordinary libraries retain their opt-outs. Disable WindowsDesktop targets before
+their import. See docs/sdk-runtime-framework.md; authored controls are not package
+or application qualification.
 
 The portable SDK must retain the original shared and language-specific analyzer payload and resource satellites in Project and Package modes. Keep `LibreWinFormsSdkOwnsApplicationConfiguration` confined to suppressing the upstream full configuration generator when the SDK/caller already owns that policy; absent/false preserves upstream defaults. The explicit default-font supplement additionally requires the exact SDK Initialize-emission predicate, reuses the original invariant font parser/descriptor, and leaves absent-font and caller-owned initialization unchanged. Do not suppress WFO1000 globally, alter bootstrap behavior, or omit analyzers to avoid duplicate Initialize. Preserve the payload-hash, actual compiler negative/positive, missing-file, and fresh-process font gates in `docs/sdk-analyzer-parity.md` and `docs/sdk-application-default-font.md`.
 

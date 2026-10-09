@@ -2,9 +2,11 @@
 """Offline harness contracts: no SDK build, native API, application, or input."""
 
 import importlib.util
+import copy
 import json
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 import xml.etree.ElementTree as ET
@@ -23,6 +25,7 @@ def load(name, filename):
 
 PREPARE = load("popup_prepare", "librewinforms-prepare-popup-desktop.py")
 DRIVER = load("popup_driver", "librewinforms-popup-desktop.py")
+MODAL = load("popup_modal", "librewinforms-popup-modal.py")
 
 
 class PopupDesktopContracts(unittest.TestCase):
@@ -155,6 +158,9 @@ class PopupDesktopContracts(unittest.TestCase):
             self.assertFalse((staged / "Portable/PortableNativeGeometryObserver.cs").exists())
             for mode in ("Microsoft", "Portable"):
                 self.assertEqual((staged / mode / "Program.cs").read_bytes(), (PREPARE.SOURCE / "Program.cs").read_bytes())
+                self.assertEqual((staged / mode / "PopupInteractionStartup.cs").read_bytes(),
+                                 (PREPARE.SOURCE / "PopupInteractionStartup.cs").read_bytes())
+                self.assertEqual(PREPARE.sha256(staged / mode / "PopupInteractionStartup.cs"), receipt["startupSourceSha256"])
             self.assertIn("LibreWinForms.Sdk/1.2.3", (staged / "Portable/PopupInteractionApp.csproj").read_text())
             self.assertIn('Sdk="Microsoft.NET.Sdk"', (staged / "Microsoft/PopupInteractionApp.csproj").read_text())
             for mode, tfm in (("Microsoft", "net11.0-windows"), ("Portable", "net11.0")):
@@ -252,7 +258,8 @@ class PopupDesktopContracts(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             source = (PREPARE.SOURCE / "Program.cs").read_bytes()
-            manifest = dict(schema="popup-interaction-preparation-v1", sourceSha256=DRIVER.digest(PREPARE.SOURCE / "Program.cs"))
+            manifest = dict(schema="popup-interaction-preparation-v1", sourceSha256=DRIVER.digest(PREPARE.SOURCE / "Program.cs"),
+                            startupSourceSha256=DRIVER.digest(PREPARE.SOURCE / "PopupInteractionStartup.cs"))
             (root / "preparation.json").write_text(json.dumps(manifest))
             current = []
             previous = []
@@ -260,6 +267,7 @@ class PopupDesktopContracts(unittest.TestCase):
                 project = root / mode
                 project.mkdir()
                 (project / "Program.cs").write_bytes(source)
+                (project / "PopupInteractionStartup.cs").write_bytes((PREPARE.SOURCE / "PopupInteractionStartup.cs").read_bytes())
                 for version, outputs in (("11", current), ("10", previous)):
                     output = project / f"bin/Release/net{version}.0{suffix}/PopupInteractionApp.exe"
                     output.parent.mkdir(parents=True)
@@ -471,9 +479,25 @@ class PopupDesktopContracts(unittest.TestCase):
         self.assertNotIn(".Text =", snapshot)
         self.assertIn("control.IsHandleCreated && control.Visible", source)
 
+    def test_explicit_modal_action_uses_real_shared_dialog_and_owned_observation(self):
+        source = (PREPARE.SOURCE / "Program.cs").read_text()
+        self.assertIn("if (modalAction || dialog)", source)
+        self.assertIn("DialogResult result = child.ShowDialog(this);", source)
+        self.assertIn("ReferenceEquals(child.Owner, this)", source)
+        self.assertIn('"modal-" + Guid.NewGuid().ToString("N")', source)
+        self.assertIn("new FileStream(Path.Combine(directory, \"events.jsonl\"), FileMode.CreateNew)", source)
+        self.assertIn("SilkWindowService { EnableNativeModalSessions: true }", source)
+        self.assertIn("60_000, Timeout.Infinite", source)
+        for event in ("modal-button-pointer", "modal-button-click", "modal-shown", "modal-return",
+                      "editor-focus-gained", "editor-focus-lost"):
+            self.assertIn('"' + event + '"', source)
+        for mode in ("Microsoft", "Portable"):
+            project = ET.parse(PREPARE.SOURCE / (mode + ".csproj"))
+            self.assertEqual(len(project.findall("ItemGroup/Compile[@Include='PopupInteractionStartup.cs']")), 1)
+
     def test_design_sized_children_are_attached_before_canonical_autoscale_resumes(self):
         source = (PREPARE.SOURCE / "Program.cs").read_text()
-        constructor = source.split("internal InteractionForm(string directory, string run)", 1)[1].split("private void RegisterPopup", 1)[0]
+        constructor = source.split("internal InteractionForm(string directory, string run,", 1)[1].split("private void OpenModalDialog", 1)[0]
         ordered = ("SuspendLayout();", "AutoScaleDimensions = new(96, 96);",
                    "AutoScaleMode = AutoScaleMode.Dpi;", "ClientSize = new(560, 250);",
                    "Controls.AddRange([_editor, _contextTarget, _combo, _tipTarget, _menu]);",
@@ -485,6 +509,184 @@ class PopupDesktopContracts(unittest.TestCase):
         for manual_scaling in ("DeviceDpi", ".Scale(", "PerformAutoScale(", "LogicalToDeviceUnits("):
             self.assertNotIn(manual_scaling, constructor)
         self.assertIn('Text = "Right-click for context menu", Location = new(24, 108), Size = new(240, 36)', source)
+
+
+class ModalDesktopContracts(unittest.TestCase):
+    @staticmethod
+    def state(title="run", sequence=1):
+        return dict(schema=1, pid=24, sequence=sequence, title=f"PopupInteractionApp [{title}]",
+                    form=dict(visible=True, active=True, client=dict(x=1, y=2, width=30, height=40)),
+                    editor=dict(text="", focused=False), combo=dict(selectedIndex=0, droppedDown=False),
+                    popups={name: dict(visible=False, client=None) for name in ("context", "context-child", "menu", "menu-child")},
+                    modal=dict(enabled=True, inputEnabled=True, evidenceDirectory=None, dialogVisible=None), counts={"shown": 1})
+
+    @staticmethod
+    def write(directory, state):
+        (directory / f"snapshot-{state['sequence']:08d}.json").write_text(json.dumps(state))
+
+    def test_platform_launch_options_never_enable_cocoa_on_windows_or_linux(self):
+        for platform in ("win32", "linux", "darwin"):
+            self.assertEqual(DRIVER.application_options(False, False, platform, "portable"), [])
+            self.assertEqual(DRIVER.application_options(True, False, platform, "portable"), ["--modal-dialog"])
+        self.assertEqual(DRIVER.application_options(True, True, "darwin", "portable"),
+                         ["--modal-dialog", "--libre-native-modal-sessions"])
+        for platform, label, modal in (("win32", "portable", True), ("linux", "portable", True),
+                                       ("darwin", "microsoft", True), ("darwin", "portable", False)):
+            with self.assertRaisesRegex(RuntimeError, "explicit portable macOS"):
+                DRIVER.application_options(modal, True, platform, label)
+
+    def test_child_admission_requires_exact_guid_direct_child_and_nonlink(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            owner = Path(temporary).resolve()
+            child = owner / ("modal-" + "a" * 32); child.mkdir()
+            self.assertEqual(MODAL.owned_child(owner, str(child)), child)
+            for value in (str(owner), "modal-" + "a" * 32, str(child / "nested"), str(owner / "modal-old"),
+                          str(owner / ".." / child.name), str(owner / ("modal-" + "A" * 32)), None):
+                with self.subTest(value=value), self.assertRaises((RuntimeError, FileNotFoundError)):
+                    MODAL.owned_child(owner, value)
+            real = child.lstat()
+            with mock.patch.object(Path, "lstat", return_value=SimpleNamespace(st_mode=real.st_mode, st_file_attributes=0x400)):
+                with self.assertRaisesRegex(RuntimeError, "reparse"):
+                    MODAL.regular(child, directory=True)
+
+    def test_modal_snapshots_reject_wrong_pid_title_sequence_and_duplicate_members(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve()
+            path = directory / "snapshot-00000001.json"
+            for field, value in (("pid", 99), ("pid", True), ("title", "PopupInteractionApp [other]"),
+                                 ("sequence", 2), ("schema", True)):
+                state = self.state(); state[field] = value
+                path.write_text(json.dumps(state))
+                with self.subTest(field=field, value=value), self.assertRaises(RuntimeError):
+                    MODAL.observation(directory, 24, "PopupInteractionApp [run]")
+            path.write_text('{"pid":24,"pid":99}')
+            with self.assertRaisesRegex(RuntimeError, "Duplicate"):
+                MODAL.observation(directory, 24, "PopupInteractionApp [run]")
+            path.write_text(" " * (MODAL.LIMIT + 1))
+            with self.assertRaisesRegex(RuntimeError, "budget"):
+                MODAL.observation(directory, 24, "PopupInteractionApp [run]")
+
+    def test_snapshot_receipt_owns_exact_immutable_path_and_hash(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve(); state = self.state()
+            self.write(directory, state)
+            observed, receipt = MODAL.observation(directory, 24, state["title"])
+            self.assertEqual(observed, state)
+            self.assertEqual(receipt["sha256"], DRIVER.digest(Path(receipt["path"])))
+            self.assertEqual(Path(receipt["path"]).parent, directory)
+
+    def test_owner_control_inputs_are_separate_from_paint_focus_and_public_enabled(self):
+        initial = self.state(); observed = copy.deepcopy(initial)
+        observed["counts"].update({"form-paint": 12, "editor-focus-lost": 1, "modal-button-click": 1})
+        observed["modal"]["inputEnabled"] = False
+        self.assertEqual(MODAL.owner_input_state(initial), MODAL.owner_input_state(observed))
+        for key in ("editor-pointer", "editor-text", "context-command", "menu-command", "combo-committed",
+                    "owner-guard-down", "owner-guard-up", "owner-guard-click"):
+            bad = copy.deepcopy(observed); bad["counts"][key] = 1
+            self.assertNotEqual(MODAL.owner_input_state(initial), MODAL.owner_input_state(bad))
+
+    def test_native_enabled_and_public_enabled_are_not_conflated(self):
+        desktop = DRIVER.WindowsDesktop.__new__(DRIVER.WindowsDesktop)
+        state = self.state()
+        self.assertFalse(desktop.window_input_enabled(dict(enabled=False), state))
+        self.assertTrue(state["modal"]["enabled"])
+        with self.assertRaisesRegex(RuntimeError, "IsWindowEnabled"):
+            desktop.window_input_enabled({}, state)
+        for filename, adapter in (("librewinforms-popup-macos.py", "MacDesktop"), ("librewinforms-popup-x11.py", "X11Desktop")):
+            kind = getattr(load("enabled_" + adapter, filename), adapter)
+            value = kind.__new__(kind)
+            state["modal"]["inputEnabled"] = False
+            self.assertFalse(value.window_input_enabled({}, state))
+            state["modal"]["inputEnabled"] = None
+            with self.assertRaisesRegex(RuntimeError, "typed source"):
+                value.window_input_enabled({}, state)
+
+    def test_journal_requires_one_complete_actual_event_not_partial_or_duplicate(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary).resolve(); path = directory / "events.jsonl"
+            line = json.dumps(dict(name="modal-return", detail=json.dumps(dict(result="OK")))) + "\n"
+            path.write_text(line + '{"name":"modal-return"')
+            self.assertEqual(MODAL.event(directory, "modal-return"), dict(result="OK"))
+            path.write_text(line + line)
+            with self.assertRaisesRegex(RuntimeError, "one actual"):
+                MODAL.event(directory, "modal-return")
+
+    def test_switching_observers_preserves_original_deadline_and_shared_image_budget(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve(); (root / "app").mkdir()
+            desktop = mock.Mock()
+            session = MODAL.ModalSession(desktop, mock.Mock(pid=24), root, "run")
+            deadline = session.deadline; session.image_bytes = 123
+            session.child_directory = root / "app" / ("modal-" + "a" * 32)
+            session.child_active = True; session.run = "run modal"
+            session.return_to_owner()
+            self.assertEqual((session.deadline, session.image_bytes, session.run), (deadline, 123, "run"))
+            desktop.select_observations.assert_called_with([(root / "app", "PopupInteractionApp [run]")])
+            session.deadline = 0
+            with self.assertRaisesRegex(RuntimeError, "deadline"):
+                session.input_ready()
+
+    def test_modal_observation_remains_read_only_and_checks_typed_identity(self):
+        source = (PREPARE.SOURCE / "Program.cs").read_text()
+        observer = source.split("private bool? ObserveModalInputEnabled()", 1)[1].split("private static object? ClientScreen", 1)[0]
+        for token in ("window.Enabled", "ReferenceEquals(current, window)", "current.Handle != token", "IsHandleCreated",
+                      "ReferenceEquals(global::LibreWinForms.Platform.LibrePlatform.Current, platform)"):
+            self.assertIn(token, observer)
+        for token in (".Enabled =", ".Focus(", ".Create", "SetPortable", "PerformClick"):
+            self.assertNotIn(token, observer)
+        ordinary = (ROOT / "eng/librewinforms-popup-desktop.py").read_text().split("def scenario(session):", 1)[1].split("def application_options", 1)[0]
+        self.assertEqual(ordinary.count("session.capture("), 14)
+        modal = (ROOT / "eng/librewinforms-popup-modal.py").read_text().split("def scenario(session):", 1)[1]
+        self.assertEqual(modal.count("session.capture("), 17)
+        for name in ("m01-owner", "m02-dialog", "m03-context", "m04-context-child", "m05-context-escape",
+                     "m06-context-command", "m07-menu-child", "m08-menu-escape", "m09-menu-command", "m10-combo",
+                     "m11-combo-escape", "m12-combo-committed", "m13-tooltip", "m14-owner-return", "m15-owner-enabled",
+                     "m02-owner-blocked", "m16-owner-guard"):
+            self.assertEqual(modal.count(f'session.capture("{name}"'), 1)
+        self.assertIn('session.point(session.state["modal"]["button"], "left")', modal)
+        self.assertIn('event(session.owner_directory, "modal-return")', modal)
+
+    def test_adopted_child_retains_owner_identity_and_rejects_new_owner_clicks(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve(); app = root / "app"; app.mkdir()
+            child = app / ("modal-" + "b" * 32); child.mkdir()
+            owner = self.state(); owner["modal"].update(evidenceDirectory=str(child), dialogVisible=True, inputEnabled=False)
+            owner["counts"].update({name: 1 for name in ("modal-button-pointer", "modal-button-click", "modal-open-request", "modal-shown")})
+            self.write(app, owner)
+            self.write(child, self.state("run modal"))
+            details = {"modal-open-request": dict(ownerHandle=101, ownerEnabled=True, activeControl="open-modal-dialog", editorFocused=False),
+                       "modal-shown": dict(evidenceDirectory=str(child), ownerMatches=True, ownerEnabled=True,
+                                           ownerHandle=101, dialogHandle=102)}
+            (app / "events.jsonl").write_text("".join(json.dumps(dict(name=name, detail=json.dumps(value))) + "\n"
+                                                    for name, value in details.items()))
+            desktop = mock.Mock()
+            session = MODAL.ModalSession(desktop, mock.Mock(pid=24), root, "run")
+            session.state = owner; session.owner_before = MODAL.owner_input_state(owner)
+            deadline = session.deadline
+            session.adopt_child()
+            self.assertEqual(session.read_state()["title"], "PopupInteractionApp [run modal]")
+            self.assertEqual(session.deadline, deadline)
+            desktop.select_observations.assert_called_with([(app, "PopupInteractionApp [run]"), (child, "PopupInteractionApp [run modal]")])
+            owner["sequence"] = 2; owner["counts"]["modal-button-pointer"] = 2; self.write(app, owner)
+            with self.assertRaisesRegex(RuntimeError, "another modal button"):
+                session.read_state()
+            with self.assertRaisesRegex(RuntimeError, "new evidence"):
+                session.adopt_child()
+
+    def test_wrong_child_identity_fails_before_physical_input(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve(); app = root / "app"; app.mkdir()
+            child = app / ("modal-" + "c" * 32); child.mkdir()
+            owner = self.state(); owner["modal"].update(evidenceDirectory=str(child), dialogVisible=True, inputEnabled=False)
+            owner["counts"].update({name: 1 for name in ("modal-button-pointer", "modal-button-click", "modal-open-request", "modal-shown")})
+            self.write(app, owner); self.write(child, self.state("foreign modal"))
+            desktop = mock.Mock(); process = mock.Mock(pid=24); process.poll.return_value = None
+            session = MODAL.ModalSession(desktop, process, root, "run")
+            session.owner_before = MODAL.owner_input_state(owner)
+            session.child_directory, session.child_active, session.run = child, True, "run modal"
+            with self.assertRaisesRegex(RuntimeError, "PID/title"):
+                session.point(dict(x=1, y=2, width=3, height=4), "left")
+            desktop.pointer.assert_not_called(); desktop.windows.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ using Xunit;
 
 namespace LibreWinForms.Platform.Tests;
 
-public class ManagedLibreMessageBoxServiceTests
+public partial class ManagedLibreMessageBoxServiceTests
 {
     [Fact]
     public void Show_CreatesPaintsAndNavigatesRealTypedModalWindow()
@@ -150,6 +150,36 @@ public class ManagedLibreMessageBoxServiceTests
 
         internal bool HasDispatcherAccess { get; set; } = true;
 
+        internal List<string> Operations { get; } = [];
+
+        internal List<int> DisposeThreadIds { get; } = [];
+
+        internal bool CreateModalWindow { get; set; }
+
+        internal bool ModalPolicyEnabled { get; set; } = true;
+
+        internal int ModalBeginCount { get; private set; }
+
+        internal int RunNestedCount { get; private set; }
+
+        internal int PostedCallbackCount { get; private set; }
+
+        internal int WindowCloseCount { get; private set; }
+
+        internal int WindowDisposeAttempts { get; private set; }
+
+        internal int WindowDisposeCount { get; private set; }
+
+        internal int RemainingDisposeFailures { get; set; }
+
+        internal Exception DisposeFailure { get; } = new InvalidOperationException("Recorded window disposal failure.");
+
+        internal Action? BeforeRunNested { get; set; }
+
+        internal bool ReturnEarlyFromRunNested { get; set; }
+
+        internal ILibreWindow Window => _window!;
+
         internal LibreWindowCreateOptions LastCreateOptions { get; private set; }
 
         internal int WindowCreateCount { get; private set; }
@@ -179,7 +209,13 @@ public class ManagedLibreMessageBoxServiceTests
         internal void EnqueueCloseAttempt()
             => _nestedActions.Enqueue(() => CloseWasRejected = !_window!.TryClose());
 
-        public void Post(Action callback) => _nestedActions.Enqueue(callback);
+        internal void SendInput(LibreInputEvent inputEvent) => _window!.Events.Input(inputEvent);
+
+        public void Post(Action callback)
+        {
+            PostedCallbackCount++;
+            _nestedActions.Enqueue(callback);
+        }
 
         public void Send(Action callback) => callback();
 
@@ -196,6 +232,14 @@ public class ManagedLibreMessageBoxServiceTests
 
         public void RunNested(Func<bool> continueCondition, CancellationToken cancellationToken)
         {
+            Operations.Add("run");
+            RunNestedCount++;
+            BeforeRunNested?.Invoke();
+            if (ReturnEarlyFromRunNested)
+            {
+                return;
+            }
+
             int iterations = 0;
             while (continueCondition())
             {
@@ -221,7 +265,10 @@ public class ManagedLibreMessageBoxServiceTests
         {
             LastCreateOptions = options;
             WindowCreateCount++;
-            _window = new TestWindow(this, Handles, options, events);
+            Operations.Add("create");
+            _window = CreateModalWindow
+                ? new ModalTestWindow(this, Handles, options, events)
+                : new TestWindow(this, Handles, options, events);
             return _window;
         }
 
@@ -317,7 +364,7 @@ public class ManagedLibreMessageBoxServiceTests
             public LibreRectangle DirtyRectangle { get; } = bounds;
         }
 
-        private sealed class TestWindow : ILibreWindow
+        private class TestWindow : ILibreWindow
         {
             private readonly MessageBoxHost _host;
             private readonly ManagedLibreHandleRegistry _handles;
@@ -406,19 +453,28 @@ public class ManagedLibreMessageBoxServiceTests
 
             public void Show()
             {
+                _host.Operations.Add("show");
                 Visible = true;
                 _host.WindowShown = true;
             }
 
             public void Hide() => Visible = false;
 
-            public void Activate() => _host.WindowActivated = true;
+            public void Activate()
+            {
+                _host.Operations.Add("activate");
+                _host.WindowActivated = true;
+            }
 
             public void PresentPendingPaint()
             {
             }
 
-            public void Close() => TryClose();
+            public void Close()
+            {
+                _host.WindowCloseCount++;
+                TryClose();
+            }
 
             internal bool TryClose()
             {
@@ -433,16 +489,50 @@ public class ManagedLibreMessageBoxServiceTests
 
             public void Dispose()
             {
+                _host.WindowDisposeAttempts++;
+                _host.DisposeThreadIds.Add(Environment.CurrentManagedThreadId);
                 if (_disposed)
                 {
                     return;
                 }
 
+                _host.Operations.Add("dispose");
+                if (_host.RemainingDisposeFailures > 0)
+                {
+                    _host.RemainingDisposeFailures--;
+                    throw _host.DisposeFailure;
+                }
+
                 _disposed = true;
+                _host.WindowDisposeCount++;
                 Visible = false;
                 _handles.Release(Handle);
                 Events.Closed();
             }
+        }
+
+        private sealed class ModalTestWindow : TestWindow, ILibreModalWindow
+        {
+            private readonly MessageBoxHost _host;
+
+            internal ModalTestWindow(
+                MessageBoxHost host,
+                ManagedLibreHandleRegistry handles,
+                in LibreWindowCreateOptions options,
+                ILibreWindowEvents events)
+                : base(host, handles, options, events)
+            {
+                _host = host;
+            }
+
+            public bool BeginModalDialog()
+            {
+                _host.Operations.Add("window-modal-begin");
+                _host.ModalBeginCount++;
+                return _host.ModalPolicyEnabled;
+            }
+
+            public void ReleaseModalDialog(Action completed) => completed();
         }
     }
 }

@@ -78,6 +78,9 @@ private struct Request: Decodable {
     let click: String?
     let windows: [Window]?
     let output: String?
+    let owner: Window?
+    let ownerClient: Bounds?
+    let target: Bounds?
 }
 
 private func object<T: Encodable>(_ value: T) throws -> Any {
@@ -234,7 +237,7 @@ private func eventSource() throws -> CGEventSource {
 }
 
 @MainActor
-private func pointer(_ request: Request, _ pid: Int32) throws {
+private func pointer(_ request: Request, _ pid: Int32, admission: (() throws -> Void)? = nil) throws {
     try foreground(pid)
     try held()
     guard let values = request.point, values.count == 2,
@@ -244,7 +247,7 @@ private func pointer(_ request: Request, _ pid: Int32) throws {
     try require(request.click == nil || request.click == "left" || request.click == "right",
                 "Unknown mouse operation")
     let point = CGPoint(x: values[0], y: values[1])
-    try hitOwner(point, pid)
+    if let admission { try admission() } else { try hitOwner(point, pid) }
     let source = try eventSource()
     guard let move = CGEvent(mouseEventSource: source, mouseType: .mouseMoved,
                              mouseCursorPosition: point, mouseButton: .left) else {
@@ -261,7 +264,10 @@ private func pointer(_ request: Request, _ pid: Int32) throws {
     try require(arrived, "Native pointer did not reach the admitted point")
     try foreground(pid)
     try held()
-    try hitOwner(point, pid)
+    if let admission {
+        try admission()
+        try require(CGEvent(source: nil)?.location == point, "Exposed owner pointer moved before injection")
+    } else { try hitOwner(point, pid) }
     if let click = request.click {
         let button: CGMouseButton = click == "left" ? .left : .right
         let downType: CGEventType = click == "left" ? .leftMouseDown : .rightMouseDown
@@ -279,6 +285,38 @@ private func pointer(_ request: Request, _ pid: Int32) throws {
         // driver-owned press, and no unrelated modifier/button is released.
         up.post(tap: .cghidEventTap)
     }
+}
+
+@MainActor
+private func blockedOwnerPointer(_ request: Request, _ pid: Int32) throws -> [String: Any] {
+    guard let owner = request.owner, let client = request.ownerClient, let target = request.target,
+          let point = request.point, point.count == 2 else {
+        throw Rejected(description: "Missing exact exposed owner geometry")
+    }
+    try require(owner.pid == pid && owner.windowNumber != 0 && owner.frameBounds.valid && client.valid && target.valid
+                && owner.frameBounds.rect.contains(client.rect) && client.rect.contains(target.rect)
+                && point.allSatisfy({ $0.isFinite }) && target.rect.contains(CGPoint(x: point[0], y: point[1]))
+                && request.click == "left", "Exposed owner native frame/target is invalid")
+    var samples: [CaptureObservation] = []
+    try pointer(request, pid, admission: {
+        let entries = try screenEntries()
+        let current = try inventory(pid, entries: entries)
+        try require(current.filter { $0.windowNumber == owner.windowNumber } == [owner], "Exposed owner identity/frame changed")
+        let sample = try captureObservation(entries, [owner], phase: samples.isEmpty ? "before" : "before-click")
+        guard let actual = sample.windows.first(where: { $0.windowNumber == owner.windowNumber }) else {
+            throw Rejected(description: "Exposed owner missing from native obstruction inventory")
+        }
+        // Retain actual front-to-back observations. Even transparent/owned
+        // overlapping windows fail this conservative physical-input contract.
+        for other in sample.windows where other.zIndex < actual.zIndex {
+            try require(!overlaps(other.frameBounds, target), "Exposed owner target is obscured by another native window")
+        }
+        samples.append(sample)
+    })
+    try require(samples.count == 2, "Incomplete native owner input observation")
+    return ["policy": "exposed-owner-native-z-order-v1", "owner": try object(owner),
+            "ownerClient": try object(client), "target": try object(target), "point": point,
+            "samples": try object(samples), "qualified": false]
 }
 
 @MainActor
@@ -376,6 +414,7 @@ private struct PopupDesktopNative {
                     try require(NSRunningApplication(processIdentifier: pid)?.activate(options: []) == true,
                                 "Owned application activation request failed")
                 case "pointer": try pointer(request, pid)
+                case "blocked-owner-pointer": result["proof"] = try blockedOwnerPointer(request, pid)
                 case "key": try key(request, pid)
                 case "capture": result["image"] = try await capture(request, pid)
                 default: throw Rejected(description: "Unknown native operation")

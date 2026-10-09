@@ -13,6 +13,10 @@
     <LibreWinFormsCanonicalPackageVersion Condition="'$(LibreWinFormsCanonicalPackageVersion)' == ''">$(PackageVersion)</LibreWinFormsCanonicalPackageVersion>
     <LibreWinFormsProGpuBackendPackageVersion Condition="'$(LibreWinFormsProGpuBackendPackageVersion)' == ''">$(PackageVersion)</LibreWinFormsProGpuBackendPackageVersion>
     <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == ''">0.1.0-preview.65</LibreWinFormsProGpuPackageVersion>
+    <!-- This describes the selected runtime/backend payload, not this SDK
+         packaging project's own TFM or the installed build SDK's version.
+         The source-first packer passes its actual shared payload TFM. -->
+    <LibreWinFormsRuntimeTargetFramework Condition="'$(LibreWinFormsRuntimeTargetFramework)' == ''">net10.0</LibreWinFormsRuntimeTargetFramework>
     <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);CollectLibreWinFormsSdkVersionFile;CollectLibreWinFormsSdkAnalyzers</TargetsForTfmSpecificContentInPackage>
   </PropertyGroup>
 
@@ -65,6 +69,8 @@
   </Target>
 
   <Target Name="CollectLibreWinFormsSdkVersionFile">
+    <Error Condition="'$(LibreWinFormsRuntimeTargetFramework)' != 'net10.0' And '$(LibreWinFormsRuntimeTargetFramework)' != 'net11.0'"
+           Text="The SDK requires the actual canonical runtime/backend payload target framework: net10.0 or net11.0." />
     <PropertyGroup>
       <_LibreWinFormsSdkVersionFile>$(IntermediateOutputPath)LibreWinForms.Sdk.Versions.props</_LibreWinFormsSdkVersionFile>
     </PropertyGroup>
@@ -72,6 +78,7 @@
       <_LibreWinFormsSdkVersionLine Include="&lt;Project&gt;" />
       <_LibreWinFormsSdkVersionLine Include="  &lt;PropertyGroup&gt;" />
       <_LibreWinFormsSdkVersionLine Include="    &lt;LibreWinFormsPackagedRuntimeVersion&gt;$(LibreWinFormsCanonicalPackageVersion)&lt;/LibreWinFormsPackagedRuntimeVersion&gt;" />
+      <_LibreWinFormsSdkVersionLine Include="    &lt;LibreWinFormsPackagedRuntimeTargetFramework&gt;$(LibreWinFormsRuntimeTargetFramework)&lt;/LibreWinFormsPackagedRuntimeTargetFramework&gt;" />
       <_LibreWinFormsSdkVersionLine Include="    &lt;LibreWinFormsPackagedProGpuBackendVersion&gt;$(LibreWinFormsProGpuBackendPackageVersion)&lt;/LibreWinFormsPackagedProGpuBackendVersion&gt;" />
       <_LibreWinFormsSdkVersionLine Include="    &lt;LibreWinFormsPackagedProGpuVersion&gt;$(LibreWinFormsProGpuPackageVersion)&lt;/LibreWinFormsPackagedProGpuVersion&gt;" />
       <_LibreWinFormsSdkVersionLine Include="  &lt;/PropertyGroup&gt;" />

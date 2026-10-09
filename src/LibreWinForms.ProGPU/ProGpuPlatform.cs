@@ -9,6 +9,14 @@ namespace LibreWinForms.ProGPU;
 /// <summary>Creates and registers the source-built ProGPU/Silk.NET WinForms backend.</summary>
 public static class ProGpuPlatform
 {
+    /// <summary>Creates the normal source backend with explicit native-dialog admission.</summary>
+    public static LibrePlatformServices CreateServices(bool enableNativeModalSessions)
+        => CreateServices(
+            UnsupportedLibreDesktopCaptureService.Instance,
+            UnsupportedLibreNativeFontInteropService.Instance,
+            UnsupportedLibreNativeGraphicsInteropService.Instance,
+            enableNativeModalSessions);
+
     public static LibrePlatformServices CreateServices()
         => CreateServices(
             UnsupportedLibreDesktopCaptureService.Instance,
@@ -26,6 +34,13 @@ public static class ProGpuPlatform
         ILibreDesktopCaptureService desktopCapture,
         ILibreNativeFontInteropService nativeFonts,
         ILibreNativeGraphicsInteropService nativeGraphics)
+        => CreateServices(desktopCapture, nativeFonts, nativeGraphics, enableNativeModalSessions: false);
+
+    public static LibrePlatformServices CreateServices(
+        ILibreDesktopCaptureService desktopCapture,
+        ILibreNativeFontInteropService nativeFonts,
+        ILibreNativeGraphicsInteropService nativeGraphics,
+        bool enableNativeModalSessions)
     {
         ArgumentNullException.ThrowIfNull(desktopCapture);
         ArgumentNullException.ThrowIfNull(nativeFonts);
@@ -34,7 +49,10 @@ public static class ProGpuPlatform
         ManagedLibreHandleRegistry handles = new();
         ProGpuTimerService timers = new(dispatcher);
         SilkMonitorService monitors = new();
-        SilkWindowService windows = new(dispatcher, handles, monitors);
+        SilkWindowService windows = new(dispatcher, handles, monitors)
+        {
+            EnableNativeModalSessions = enableNativeModalSessions,
+        };
         ProGpuDragDropService dragDrop = new(dispatcher, windows);
         ProGpuPaintService painting = new(dispatcher, handles, windows);
         ProGpuPopupSurfaceService popups = new(dispatcher, windows, painting);
@@ -113,6 +131,9 @@ public static class ProGpuPlatform
     }
 
     public static void Register() => LibrePlatform.Register(CreateServices());
+
+    public static void Register(bool enableNativeModalSessions)
+        => LibrePlatform.Register(CreateServices(enableNativeModalSessions));
 
     public static void Register(ILibreDesktopCaptureService desktopCapture)
         => LibrePlatform.Register(CreateServices(desktopCapture));

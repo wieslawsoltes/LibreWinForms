@@ -447,8 +447,14 @@ public sealed partial class Application
         {
             if (_threadWindows is not null)
             {
+#if LIBREWINFORMS_PORTABLE
+                ThreadWindows released = _threadWindows;
+                _threadWindows = released._previousThreadWindows;
+                released.Enable(true);
+#else
                 _threadWindows.Enable(true);
                 _threadWindows = _threadWindows._previousThreadWindows;
+#endif
             }
 
             if (context is ModalApplicationContext modalContext)
@@ -799,6 +805,9 @@ public sealed partial class Application
             }
 
             bool fullModal = false;
+#if LIBREWINFORMS_PORTABLE
+            PortableModalFrame? portableModalFrame = null;
+#endif
 #if !LIBREWINFORMS_PORTABLE
             HWND hwndOwner = default;
 #endif
@@ -818,6 +827,7 @@ public sealed partial class Application
                 BeginModalMessageLoop(context);
 
 #if LIBREWINFORMS_PORTABLE
+                portableModalFrame = PushPortableModalFrame(CurrentForm);
                 if (CurrentForm is not null && CurrentForm.PortableWindowEnabled != modalEnabled)
                 {
                     CurrentForm.SetPortableWindowEnabled(modalEnabled);
@@ -877,7 +887,11 @@ public sealed partial class Application
             {
                 if (fullModal)
                 {
+#if LIBREWINFORMS_PORTABLE
+                    ReleasePortableModalFrame(portableModalFrame!, context);
+#else
                     EndModalMessageLoop(context);
+#endif
 
 #if !LIBREWINFORMS_PORTABLE
                     // Again, if the hwndOwner was valid and disabled above, re-enable it.

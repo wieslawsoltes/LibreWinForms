@@ -4,7 +4,9 @@
 import argparse
 import ctypes as C
 import hashlib
+import importlib.util
 import json
+import math
 from pathlib import Path
 import struct
 import subprocess
@@ -61,6 +63,48 @@ def contains(rect, x, y):
     return rect["x"] <= x < rect["x"] + rect["width"] and rect["y"] <= y < rect["y"] + rect["height"]
 
 
+def observed_rectangle(rect):
+    require(isinstance(rect, dict) and all(type(rect.get(k)) in (int, float) and math.isfinite(rect[k])
+            for k in ("x", "y", "width", "height")), "Missing finite observed rectangle")
+    require(rect["width"] > 0 and rect["height"] > 0 and
+            all(math.isfinite(rect[a] + rect[b]) for a, b in (("x", "width"), ("y", "height"))),
+            "Empty or unrepresentable observed rectangle")
+
+
+def exposed_owner_target(pid, owner, target, front_to_back):
+    """Pure admission over independently measured native Z-order/client data.
+
+    Every supplied entry precedes or is the exact owner. A disabled window's
+    WindowFromPoint result cannot stand in for this actual obstruction proof.
+    """
+    require(type(pid) is int and pid > 0 and isinstance(owner, dict) and type(owner.get("pid")) is int and owner["pid"] == pid
+            and type(owner.get("id")) is int and owner["id"] > 0 and isinstance(owner.get("title"), str),
+            "Wrong observed owner PID")
+    observed_rectangle(target); observed_rectangle(owner.get("client")); observed_rectangle(owner.get("bounds"))
+    require(all(owner["bounds"][a] <= owner["client"][a] and owner["client"][a] + owner["client"][b] <= owner["bounds"][a] + owner["bounds"][b]
+                for a, b in (("x", "width"), ("y", "height"))), "Native owner client extends outside its actual frame")
+    require(all(owner["client"][a] <= target[a] and target[a] + target[b] <= owner["client"][a] + owner["client"][b]
+                for a, b in (("x", "width"), ("y", "height"))), "Target is not wholly inside actual owner client")
+    require(isinstance(front_to_back, list) and 0 < len(front_to_back) <= 4096, "Native obstruction inventory budget/shape differs")
+    seen = set()
+    for index, window in enumerate(front_to_back):
+        require(isinstance(window, dict) and type(window.get("id")) is int and window["id"] > 0
+                and window["id"] not in seen and type(window.get("pid")) is int and window["pid"] >= 0,
+                "Unknown or aliased native obstruction identity")
+        seen.add(window["id"]); observed_rectangle(window.get("bounds"))
+        if window["id"] == owner.get("id"):
+            require(all(window.get(k) == owner.get(k) for k in ("pid", "title", "bounds", "client")),
+                    "Observed owner native identity/geometry changed")
+            return dict(policy="exposed-owner-native-z-order-v1", qualified=False, owner=owner,
+                        target=target, point=[target["x"] + target["width"] // 2, target["y"] + target["height"] // 2],
+                        frontToOwner=front_to_back[:index + 1])
+        bounds = window["bounds"]
+        require(not all(max(bounds[a], target[a]) < min(bounds[a] + bounds[b], target[a] + target[b])
+                        for a, b in (("x", "width"), ("y", "height"))),
+                "Owner target is obscured by another native window")
+    raise RuntimeError("Exact owner is absent from native obstruction inventory")
+
+
 def stable_state(state):
     # Sequence/time and incidental paint frequency are not geometry/state.
     result = {key: value for key, value in state.items() if key not in ("sequence", "elapsedMs", "counts")}
@@ -85,8 +129,11 @@ class WindowsDesktop:
         definitions = [
             (self.user, "SetProcessDpiAwarenessContext", C.c_int32, [C.c_void_p]),
             (self.user, "EnumWindows", C.c_int32, [self.callback_type, C.c_ssize_t]),
+            (self.user, "GetTopWindow", C.c_void_p, [C.c_void_p]),
+            (self.user, "GetWindow", C.c_void_p, [C.c_void_p, C.c_uint32]),
             (self.user, "GetWindowThreadProcessId", C.c_uint32, [C.c_void_p, C.POINTER(C.c_uint32)]),
             (self.user, "IsWindowVisible", C.c_int32, [C.c_void_p]),
+            (self.user, "IsWindowEnabled", C.c_int32, [C.c_void_p]),
             (self.user, "GetWindowTextW", C.c_int32, [C.c_void_p, C.c_wchar_p, C.c_int32]),
             (self.user, "GetWindowRect", C.c_int32, [C.c_void_p, C.POINTER(Rect)]),
             (self.user, "GetClientRect", C.c_int32, [C.c_void_p, C.POINTER(Rect)]),
@@ -97,6 +144,7 @@ class WindowsDesktop:
             (self.user, "GetAsyncKeyState", C.c_int16, [C.c_int32]),
             (self.user, "MapVirtualKeyW", C.c_uint32, [C.c_uint32, C.c_uint32]),
             (self.user, "SetCursorPos", C.c_int32, [C.c_int32, C.c_int32]),
+            (self.user, "GetCursorPos", C.c_int32, [C.POINTER(Point)]),
             (self.user, "SendInput", C.c_uint32, [C.c_uint32, C.POINTER(Input), C.c_int32]),
             (self.user, "GetDC", C.c_void_p, [C.c_void_p]),
             (self.user, "ReleaseDC", C.c_int32, [C.c_void_p, C.c_void_p]),
@@ -145,12 +193,21 @@ class WindowsDesktop:
                 if (self.user.GetWindowRect(window, C.byref(bounds)) and
                         self.user.GetClientRect(window, C.byref(client)) and
                         self.user.ClientToScreen(window, C.byref(origin))):
-                    result.append(dict(hwnd=int(window), title=title.value, bounds=box(bounds),
+                    result.append(dict(hwnd=int(window), title=title.value, bounds=box(bounds), enabled=bool(self.user.IsWindowEnabled(window)),
                                        client=dict(x=origin.x, y=origin.y, width=client.right, height=client.bottom)))
             return 1
 
         require(self.user.EnumWindows(visit, 0), "Could not enumerate native windows")
         return result
+
+    def select_observations(self, observations):
+        # Win32 supplies actual client rectangles independently of source files.
+        # The modal session owns and validates the selected source identities.
+        pass
+
+    def window_input_enabled(self, window, state):
+        require(type(window.get("enabled")) is bool, "Missing actual native IsWindowEnabled observation")
+        return window["enabled"]
 
     def key(self, pid, key):
         self.foreground(pid)
@@ -196,6 +253,52 @@ class WindowsDesktop:
             inputs = (Input * 2)(Input(0, InputUnion(mouse=MouseInput(0, 0, 0, down, 0, 0))),
                                  Input(0, InputUnion(mouse=MouseInput(0, 0, 0, up, 0, 0))))
             self.send_pair(inputs)
+
+    def owner_obstruction_inventory(self, owner):
+        result, seen = [], set()
+        window = self.user.GetTopWindow(None)
+        while window:
+            require(int(window) not in seen and len(seen) < 4096, "Native Z-order cycle/budget exceeded")
+            seen.add(int(window))
+            if self.user.IsWindowVisible(window):
+                bounds, client, origin = Rect(), Rect(), Point()
+                title = C.create_unicode_buffer(1024)
+                self.user.GetWindowTextW(window, title, len(title))
+                require(self.user.GetWindowRect(window, C.byref(bounds)), "Unknown obstruction bounds")
+                row = dict(id=int(window), pid=self.pid(window), bounds=box(bounds))
+                if int(window) == owner["id"]:
+                    require(self.user.GetClientRect(window, C.byref(client)) and self.user.ClientToScreen(window, C.byref(origin)),
+                            "Owner client geometry unavailable")
+                    row.update(title=title.value, client=dict(x=origin.x, y=origin.y, width=client.right, height=client.bottom))
+                    result.append(row)
+                    return result
+                result.append(row)
+            window = self.user.GetWindow(window, 2)  # GW_HWNDNEXT: actual front-to-back order.
+        raise RuntimeError("Owner is no longer in native Z-order")
+
+    def blocked_owner_pointer(self, pid, owner_window, target_rectangle):
+        owner = dict(id=owner_window["hwnd"], pid=pid, title=owner_window["title"],
+                     bounds=owner_window["bounds"], client=owner_window["client"])
+        self.foreground(pid)
+        require(not any(self.user.GetAsyncKeyState(k) & 0x8000 for k in (1, 2, 4, 5, 6, 0x10, 0x11, 0x12, 0x5B, 0x5C)),
+                "Physical button/modifier held before owner input")
+        before = exposed_owner_target(pid, owner, target_rectangle, self.owner_obstruction_inventory(owner))
+        require(len(json.dumps(before).encode()) <= 64 * 1024, "Owner obstruction receipt exceeds budget")
+        x, y = before["point"]
+        require(type(x) is int and type(y) is int and abs(x) <= 1_000_000 and abs(y) <= 1_000_000,
+                "Owner physical point is not an admitted native integer")
+        require(self.user.SetCursorPos(x, y), "Could not move native pointer to exposed owner")
+        self.foreground(pid)
+        require(not any(self.user.GetAsyncKeyState(k) & 0x8000 for k in (1, 2, 4, 5, 6, 0x10, 0x11, 0x12, 0x5B, 0x5C)),
+                "Physical button/modifier held before owner click")
+        after = exposed_owner_target(pid, owner, target_rectangle, self.owner_obstruction_inventory(owner))
+        require(len(json.dumps(after).encode()) <= 64 * 1024, "Owner obstruction receipt exceeds budget")
+        actual = Point()
+        require(self.user.GetCursorPos(C.byref(actual)) and (actual.x, actual.y) == (x, y), "Owner pointer moved before injection")
+        inputs = (Input * 2)(Input(0, InputUnion(mouse=MouseInput(0, 0, 0, 0x2, 0, 0))),
+                             Input(0, InputUnion(mouse=MouseInput(0, 0, 0, 0x4, 0, 0))))
+        self.send_pair(inputs)
+        return dict(policy="exposed-owner-native-z-order-v1", before=before, beforeClick=after, qualified=False)
 
     def screenshot(self, pid, windows, destination):
         self.foreground(pid)
@@ -247,12 +350,15 @@ class Session:
         self.phase = "startup"
         self.image_bytes = 0
 
+    def read_state(self):
+        return read_snapshot(self.directory)
+
     def wait(self, predicate):
         previous = None
         while time.monotonic() < self.deadline:
             require(self.process.poll() is None, f"Application exited at {self.phase}: {self.process.returncode}")
             try:
-                state = read_snapshot(self.directory)
+                state = self.read_state()
             except (FileNotFoundError, json.JSONDecodeError):
                 time.sleep(0.05)
                 continue
@@ -298,7 +404,7 @@ class Session:
         require(time.monotonic() < self.deadline, "Screenshot exceeded original application deadline")
         require(self.process.poll() is None, "Application exited during screenshot")
         require(self.desktop.windows(self.process.pid) == windows, "Native window state changed during screenshot")
-        require(stable_state(read_snapshot(self.directory)) == stable_state(snapshot), "Observed source state changed during screenshot")
+        require(stable_state(self.read_state()) == stable_state(snapshot), "Observed source state changed during screenshot")
         with (self.directory / f"{phase}.json").open("x") as stream:
             json.dump(dict(snapshot=snapshot, nativeWindows=windows, screenshot=image, qualified=False), stream, indent=2)
 
@@ -314,6 +420,7 @@ class Session:
 
     def record_input(self, action):
         action.update(phase=self.phase, monotonicSeconds=time.monotonic(), pid=self.process.pid)
+        require(len(json.dumps(action).encode("utf-8")) <= 256 * 1024, "Input evidence exceeds receipt budget")
         with (self.directory / "driver-input.jsonl").open("a") as stream:
             stream.write(json.dumps(action) + "\n")
 
@@ -377,23 +484,39 @@ def scenario(session):
                             for window in session.desktop.windows(session.process.pid)))
 
 
-def run_case(desktop, executable, root, label, run):
+def application_options(modal, native_modal, platform, label):
+    require(not native_modal or (modal and platform == "darwin" and label == "portable"),
+            "Native modal startup requires the explicit portable macOS modal scenario")
+    return (["--modal-dialog"] if modal else []) + (["--libre-native-modal-sessions"] if native_modal else [])
+
+
+def run_case(desktop, executable, root, label, run, *, modal=False, native_modal=False):
+    options = application_options(modal, native_modal, sys.platform, label)
+    if modal:
+        spec = importlib.util.spec_from_file_location("popup_modal_driver", Path(__file__).with_name("librewinforms-popup-modal.py"))
+        modal_driver = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(modal_driver)
     directory = root / label
     directory.mkdir()
     app = directory / "app"
     app.mkdir()
     receipt = dict(label=label, executable=str(executable), executableSha256=digest(executable),
-                   assemblySha256=digest(executable.with_suffix(".dll")), qualified=False, status="incomplete")
+                   assemblySha256=digest(executable.with_suffix(".dll")), qualified=False, status="incomplete",
+                   scenario="modal-popup" if modal else "ordinary-popup", applicationOptions=options)
     with (directory / "stdout.log").open("xb") as stdout, (directory / "stderr.log").open("xb") as stderr:
-        process = subprocess.Popen([str(executable), str(app), run], cwd=executable.parent, stdout=stdout, stderr=stderr)
-        session = Session(desktop, process, directory, run)
+        process = subprocess.Popen([str(executable), str(app), run, *options], cwd=executable.parent, stdout=stdout, stderr=stderr)
+        session = None
         receipt["pid"] = process.pid
         try:
-            scenario(session)
+            session = modal_driver.ModalSession(desktop, process, directory, run) if modal else Session(desktop, process, directory, run)
+            if modal:
+                modal_driver.scenario(session)
+            else:
+                scenario(session)
             receipt["status"] = "phases-captured-not-pixel-qualified"
         except Exception as error:
-            receipt.update(error=f"{type(error).__name__}: {error}", failedPhase=session.phase)
-            if session.failure_state is not None:
+            receipt.update(error=f"{type(error).__name__}: {error}", failedPhase=session.phase if session else "startup")
+            if session is not None and session.failure_state is not None:
                 receipt["failureState"] = session.failure_state
         finally:
             # No input/close commands sent to any other window. Stop only the
@@ -416,8 +539,11 @@ def check_preparation(prepared, reference, portable):
     require(manifest.get("schema") == "popup-interaction-preparation-v1", "Unknown source preparation receipt")
     require(manifest["sourceSha256"] == digest(Path(__file__).resolve().parent / "PopupInteractionApp/Program.cs"),
             "Prepared source differs from this checked-in scenario")
+    require(manifest["startupSourceSha256"] == digest(Path(__file__).resolve().parent / "PopupInteractionApp/PopupInteractionStartup.cs"),
+            "Prepared startup differs from this checked-in scenario")
     for mode, executable, tfm in (("Microsoft", reference, "net11.0-windows"), ("Portable", portable, "net11.0")):
         require(digest(prepared / mode / "Program.cs") == manifest["sourceSha256"], "Paired source bytes changed")
+        require(digest(prepared / mode / "PopupInteractionStartup.cs") == manifest["startupSourceSha256"], "Paired startup bytes changed")
         require(executable == (prepared / mode / "bin/Release" / tfm / "PopupInteractionApp.exe").resolve(strict=True),
                 "Executable is not the explicit prepared consumer output")
     return manifest
@@ -429,6 +555,7 @@ def main():
     parser.add_argument("--portable-app", type=Path, required=True)
     parser.add_argument("--evidence-parent", type=Path, required=True)
     parser.add_argument("--prepared-root", type=Path, required=True)
+    parser.add_argument("--modal", action="store_true", help="Separate real ShowDialog/popup scenario; original phases remain unchanged")
     args = parser.parse_args()
     reference, portable = args.reference_app.resolve(strict=True), args.portable_app.resolve(strict=True)
     require(reference != portable, "Reference and portable executables must be separate builds")
@@ -440,8 +567,8 @@ def main():
     with (root / "preparation.json").open("x") as stream:
         json.dump(preparation, stream, indent=2)
     print(f"Paired raw evidence: {root}", flush=True)
-    first = run_case(desktop, reference, root, "microsoft", run)
-    second = run_case(desktop, portable, root, "portable", run)
+    first = run_case(desktop, reference, root, "microsoft", run, modal=args.modal)
+    second = run_case(desktop, portable, root, "portable", run, modal=args.modal)
     print("Raw phases captured; manual image/event comparison remains required." if first and second else "Incomplete paired evidence; inspect receipts.")
     return 0 if first and second else 1
 

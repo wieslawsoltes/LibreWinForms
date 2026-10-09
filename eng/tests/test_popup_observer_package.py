@@ -28,14 +28,17 @@ class ObserverPackageContracts(unittest.TestCase):
         generated = self.portable / "obj/Release/net11.0"
         self.sources = [self.portable / "Program.cs", self.portable / "PortableNativeGeometryObserver.cs",
                         generated / "LibreWinForms.ApplicationConfiguration.g.cs",
-                        generated / "LibreWinForms.ApplicationBootstrap.g.cs"]
+                        generated / "LibreWinForms.ApplicationBootstrap.g.cs",
+                        self.portable / "PopupInteractionStartup.cs"]
         for path, content in zip(self.sources, ["original shared source", "optional source",
                 "internal static partial class ApplicationConfiguration { internal static void Initialize() {} }",
-                "LibreWinForms.ProGPU.ProGpuPlatform.Register()"]):
+                "LibreWinForms.ProGPU.ProGpuPlatform.Register()", "shared argument source"]):
             self.write(path, content)
         self.write(self.stage / "Microsoft/Program.cs", self.sources[0].read_text())
+        self.write(self.stage / "Microsoft/PopupInteractionStartup.cs", self.sources[4].read_text())
         GATE.isolate_consumer(self.stage)
         self.preparation = dict(sourceSha256=GATE.PREPARE.sha256(self.sources[0]), packages=[],
+                                startupSourceSha256=GATE.PREPARE.sha256(self.sources[4]),
                                 nativeGeometry=dict(enabled=True, sourceSha256=GATE.PREPARE.sha256(self.sources[1])))
         for name in ["LibreWinForms.Sdk", "LibreWinForms.System.Windows.Forms", "LibreWinForms.ProGPU"]:
             archive = self.root / f"{name}.1.2.3.nupkg"
@@ -64,9 +67,9 @@ class ObserverPackageContracts(unittest.TestCase):
         return GATE.verify(self.stage, self.cache, self.preparation, self.result if result is None else result,
                            "Release", "1.2.3", self.payloads)
 
-    def test_complete_synthetic_receipt_reports_all_four_compiler_inputs(self):
+    def test_complete_synthetic_receipt_reports_all_five_compiler_inputs(self):
         proof = self.verify()
-        self.assertEqual(len(proof["compiledInputs"]), 4)
+        self.assertEqual(len(proof["compiledInputs"]), 5)
         self.assertEqual(proof["payloadSha256"], self.payloads)
 
     def test_all_three_boundaries_stop_hostile_ancestor_search_without_source_changes(self):
@@ -97,7 +100,7 @@ class ObserverPackageContracts(unittest.TestCase):
         self.assertEqual(sentinel.read_text(), "caller-owned")
 
     def test_omitted_or_duplicated_required_compile_input_fails(self):
-        for index in range(4):
+        for index in range(5):
             for duplicate in (False, True):
                 with self.subTest(index=index, duplicate=duplicate):
                     result = copy.deepcopy(self.result)
@@ -126,7 +129,8 @@ class ObserverPackageContracts(unittest.TestCase):
                 self.verify(result)
 
     def test_changed_shared_source_or_observer_fails(self):
-        for path in [self.sources[0], self.stage / "Microsoft/Program.cs", self.sources[1]]:
+        for path in [self.sources[0], self.stage / "Microsoft/Program.cs", self.sources[1],
+                     self.sources[4], self.stage / "Microsoft/PopupInteractionStartup.cs"]:
             with self.subTest(path=path):
                 original = path.read_text()
                 path.write_text("changed")

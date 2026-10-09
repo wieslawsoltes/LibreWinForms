@@ -5854,7 +5854,7 @@ public partial class CanonicalLifecycleTests
         LibrePopupSurfaceRequest Request,
         int CommandCount);
 
-    private sealed class HeadlessPlatform :
+    private sealed partial class HeadlessPlatform :
         ILibreDispatcher,
         ILibreThreadDispatcherProvider,
         ILibreTimerService,
@@ -5877,6 +5877,16 @@ public partial class CanonicalLifecycleTests
         ILibreDragDropService,
         ILibreClipboardService
     {
+        internal bool NativeModalSessions { get; set; }
+        internal int NativeModalBegins { get; set; }
+        internal Dictionary<LibreHandle, Action> NativeModalReleases { get; } = [];
+
+        internal void CompleteNativeModal(LibreHandle handle)
+        {
+            NativeModalReleases.Remove(handle, out Action? completed).Should().BeTrue();
+            completed!();
+        }
+
         private static readonly LibreInputLanguageDescriptor[] s_inputLanguages =
         [
             new(0x0409, "en-US", "00000409", "US"),
@@ -5939,6 +5949,9 @@ public partial class CanonicalLifecycleTests
         internal void Reset(bool autoCloseWindows)
         {
             Handles.Count.Should().Be(0);
+            NativeModalReleases.Should().BeEmpty();
+            NativeModalSessions = false;
+            NativeModalBegins = 0;
             foreach (HeadlessThreadDispatcher dispatcher in _threadDispatchers.Values)
             {
                 dispatcher.Release();
@@ -7374,8 +7387,23 @@ public partial class CanonicalLifecycleTests
             return new Size(37, 19);
         }
 
-        private sealed class HeadlessWindow : ILibreWindow
+        private sealed class HeadlessWindow : ILibreWindow, ILibreModalWindow
         {
+            public bool BeginModalDialog()
+            {
+                if (!_platform.NativeModalSessions) return false;
+                Visible.Should().BeTrue();
+                _disposed.Should().BeFalse();
+                _isPopup.Should().BeFalse();
+                _platform.NativeModalBegins++;
+                return true;
+            }
+
+            public void ReleaseModalDialog(Action completed)
+            {
+                _platform.NativeModalReleases.TryAdd(Handle, completed).Should().BeTrue();
+            }
+
             private readonly HeadlessPlatform _platform;
             private readonly ILibreWindowEvents _events;
             private readonly LibreWindowCoordinateMode _coordinateMode;

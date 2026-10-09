@@ -19,14 +19,18 @@ LibreWinForms is packaged as an MSBuild SDK so normal WinForms apps can move to 
 
 1. Start from an existing SDK-style WinForms project and keep a clean commit of the working WinForms version.
 
-2. Make sure the project targets the supported preview TFM:
+2. Target portable `net10.0` (or `net11.0` with a .NET 11 SDK):
 
 ```xml
-<TargetFramework>net11.0</TargetFramework>
+<TargetFramework>net10.0</TargetFramework>
 <UseWindowsForms>true</UseWindowsForms>
 ```
 
-`LibreWinForms.Sdk` supplies canonical source-built WinForms plus the typed ProGPU/Silk.NET backend. Package mode is the default; source checkouts can select project mode explicitly.
+`LibreWinForms.Sdk` supplies canonical source-built WinForms plus the typed ProGPU/Silk.NET backend. Package mode is the default; its current Forms/backend payload targets `net10.0`. Project mode explicitly builds the source graph for the consumer's selected TFM instead of inheriting the repository's .NET 11 default. See [SDK framework policy](docs/sdk-runtime-framework.md).
+
+The net10 SDK-admission correction requires a new SDK package containing this
+source change. Previously published packages with the net11-only guard remain
+immutable; the preview.65 version examples below do not patch those packages.
 
 3. Set the LibreWinForms SDK version once in a `global.json` at the solution root (above all projects that use it):
 
@@ -60,7 +64,7 @@ After:
 <Project Sdk="LibreWinForms.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net11.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
 </Project>
@@ -68,13 +72,21 @@ After:
 
 Older projects that still use `Microsoft.NET.Sdk.WindowsDesktop` should make the same SDK change and keep the existing WinForms properties.
 
+A minimal C# `Exe`/`WinExe` project needs only the SDK, `OutputType`, and
+`TargetFramework`. An omitted `UseWindowsForms` enables portable Forms and the
+SDK's backend bootstrap and `ApplicationConfiguration.Initialize()` generation.
+Explicit `UseWindowsForms=false`, `LibreWinFormsUseSystemWindowsForms=false`,
+and the separate generation opt-outs remain respected; libraries do not acquire
+application initialization implicitly. No WindowsDesktop framework reference is
+introduced for these portable TFMs.
+
 5. Keep existing app dependencies in place. For example, a mixed WPF/WinForms app uses the same centrally versioned SDK in the WinForms project:
 
 ```xml
 <Project Sdk="LibreWinForms.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net11.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
 

@@ -44,6 +44,9 @@ def check_preparation(prepared, app):
     require(manifest["sourceSha256"] == SHARED.digest(Path(__file__).parent / "PopupInteractionApp/Program.cs") ==
             SHARED.digest(prepared / "Portable/Program.cs") == SHARED.digest(prepared / "Microsoft/Program.cs"),
             "Microsoft/portable shared scenario bytes differ")
+    require(manifest["startupSourceSha256"] == SHARED.digest(Path(__file__).parent / "PopupInteractionApp/PopupInteractionStartup.cs") ==
+            SHARED.digest(prepared / "Portable/PopupInteractionStartup.cs") == SHARED.digest(prepared / "Microsoft/PopupInteractionStartup.cs"),
+            "Microsoft/portable shared startup bytes differ")
     native = manifest.get("nativeGeometry", {})
     require(native.get("enabled") is True and native.get("environmentVariable") == ENVIRONMENT
             and native.get("sourcePath") == "Portable/PortableNativeGeometryObserver.cs",
@@ -111,6 +114,26 @@ def combine_windows(source, sidecar, inventory, pid):
                            clientGeometryVerified=match is not None,
                            frameCoordinateSpace="native-desktop-top-left-points"))
     return sorted(result, key=lambda window: window["windowNumber"])
+
+
+def combine_observations(observations, inventory, pid):
+    require(0 < len(observations) <= 2, "Only the exact owner and one modal child may supply geometry")
+    result = None
+    identities = {key: set() for key in ("sourceHandle", "nativeWindow", "contentView", "independentCGWindowNumber")}
+    for source, sidecar in observations:
+        comparison = GEOMETRY.validate_cocoa_geometry(source, sidecar, inventory, pid)
+        for window in comparison["windows"]:
+            for key, seen in identities.items():
+                require(window[key] not in seen, "Aliased owner/child native geometry identity")
+                seen.add(window[key])
+        current = combine_windows(source, sidecar, inventory, pid)
+        if result is None:
+            result = current
+        else:
+            require([w["windowNumber"] for w in result] == [w["windowNumber"] for w in current],
+                    "Native inventory changed during owner/child geometry merge")
+            result = [new if new["clientGeometryVerified"] else old for old, new in zip(result, current)]
+    return result
 
 
 def overlaps(lhs, rhs):
@@ -210,6 +233,7 @@ class MacDesktop:
         self.helper, self.root = helper, root
         self.deadline = time.monotonic() + 10
         self.calls, self.bytes = 0, 0
+        self.modal_observations = None
         native_executable(helper)
         self.provenance = dict(helperSha256=SHARED.digest(helper),
                                helperSourceSha256=SHARED.digest(Path(__file__).with_name("PopupDesktopNative.swift")),
@@ -253,6 +277,16 @@ class MacDesktop:
 
     def windows(self, pid):
         inventory = self.call("inventory", pid=pid)["windows"]
+        if self.modal_observations is not None:
+            pairs = []
+            for directory, title in self.modal_observations:
+                source, _ = self.modal_reader.observation(directory, pid, title)
+                path = directory / f"native-geometry-{source['sequence']:08d}.json"
+                self.modal_reader.regular(path)
+                sidecar, _ = GEOMETRY.read_bounded(path)
+                self.modal_reader.regular(path)
+                pairs.append((source, sidecar))
+            return combine_observations(pairs, inventory, pid)
         app = self.root / "portable/app"
         snapshots = list(app.glob("snapshot-????????.json"))
         require(0 < len(snapshots) <= 650, "Missing/over-budget source snapshots")
@@ -261,6 +295,20 @@ class MacDesktop:
         # The typed observer writes this exact sidecar BEFORE the matching source
         # snapshot. Do not substitute latest/unpaired or source-derived bounds.
         return combine_windows(source, sidecar, inventory, pid)
+
+    def select_observations(self, observations):
+        require(0 < len(observations) <= 2, "Invalid owner/modal observer inventory")
+        if self.modal_observations is None:
+            self.modal_reader = module("popup_modal_observation", "librewinforms-popup-modal.py")
+        for path, title in observations:
+            self.modal_reader.regular(path, directory=True)
+            require(isinstance(title, str) and title.startswith("PopupInteractionApp ["), "Invalid observed source title")
+        self.modal_observations = tuple(observations)
+
+    def window_input_enabled(self, window, state):
+        value = state.get("modal", {}).get("inputEnabled")
+        require(type(value) is bool, "Missing exact typed source modal input observation")
+        return value  # Source policy, not ordinary Cocoa native blocking proof.
 
     def foreground(self, pid):
         self.call("foreground", pid=pid)
@@ -282,6 +330,40 @@ class MacDesktop:
         require(key in self.KEYS, "Unsupported shared-scenario key")
         self.call("key", pid=pid, key=self.KEYS[key])
 
+    def blocked_owner_pointer(self, pid, owner_window, target_rectangle):
+        fresh = [w for w in self.windows(pid) if w["windowNumber"] == owner_window["windowNumber"]]
+        require(fresh == [owner_window] and owner_window["clientGeometryVerified"] and owner_window["pid"] == pid,
+                "Actual Cocoa owner identity/client/frame changed")
+        SHARED.observed_rectangle(target_rectangle)
+        require(contains_rectangle(owner_window["client"], target_rectangle), "Owner target is not in actual source client")
+        scale = owner_window["nativeToSourceScale"]
+        require(GEOMETRY.finite(scale) and scale > 0, "Missing exact owner native coordinate policy")
+        target = {key: value / scale for key, value in target_rectangle.items()}
+        point = native_point(target_rectangle, [owner_window])
+        native = dict(pid=pid, windowNumber=owner_window["windowNumber"], title=owner_window["title"], frameBounds=owner_window["bounds"])
+        proof = self.call("blocked-owner-pointer", pid=pid, owner=native, ownerClient=owner_window["nativeClient"],
+                          target=target, point=point, click="left")["proof"]
+        require(proof.get("policy") == "exposed-owner-native-z-order-v1" and proof.get("qualified") is False
+                and proof.get("owner") == native and proof.get("ownerClient") == owner_window["nativeClient"]
+                and proof.get("target") == target and proof.get("point") == point,
+                "Native owner input reply identity/geometry differs")
+        require(isinstance(proof.get("samples"), list) and len(proof["samples"]) == 2, "Missing native owner input samples")
+        owner = dict(id=native["windowNumber"], pid=pid, title=native["title"], bounds=native["frameBounds"], client=owner_window["nativeClient"])
+        for sample, phase in zip(proof["samples"], ("before", "before-click")):
+            require(sample.get("phase") == phase and GEOMETRY.finite(sample.get("observedUptimeSeconds"))
+                    and type(sample.get("systemWindowCount")) is int and 0 < sample["systemWindowCount"] <= 4096
+                    and isinstance(sample.get("windows"), list) and 0 < len(sample["windows"]) <= 64,
+                    "Native owner input phase/inventory differs")
+            rows = [dict(id=w["windowNumber"], pid=w["pid"], bounds=w["frameBounds"],
+                         **({"title": owner["title"], "client": owner["client"]} if w["windowNumber"] == owner["id"] else {}))
+                    for w in sample["windows"]]
+            order = [w["zIndex"] for w in sample["windows"]]
+            require(all(type(index) is int and 0 <= index < sample["systemWindowCount"] for index in order)
+                    and order == sorted(set(order)),
+                    "Native owner obstruction Z-order differs")
+            SHARED.exposed_owner_target(pid, owner, target, rows)
+        return proof
+
     def screenshot(self, pid, windows, destination):
         require(windows and all(window["pid"] == pid for window in windows), "Capture needs exact owned windows")
         expected = [dict(pid=pid, windowNumber=w["windowNumber"], title=w["title"], frameBounds=w["bounds"]) for w in windows]
@@ -300,6 +382,7 @@ def main():
     parser.add_argument("--prepared-root", type=Path, required=True)
     parser.add_argument("--native-helper", type=Path, required=True)
     parser.add_argument("--evidence-parent", type=Path, required=True)
+    parser.add_argument("--modal", action="store_true", help="Actual source ShowDialog with explicit native modal startup")
     args = parser.parse_args()
     require(args.evidence_parent.is_dir(), "Evidence parent must already exist")
     root = Path(tempfile.mkdtemp(prefix="popup-macos-interaction-", dir=args.evidence_parent.resolve()))
@@ -316,8 +399,11 @@ def main():
         desktop.deadline = time.monotonic() + 60
         launch_attempted = True
         with observer_environment():
-            complete = SHARED.run_case(desktop, app, root, "portable", uuid.uuid4().hex)
-        print("Fourteen raw phases captured; native pixel/reference review remains required." if complete else
+            if args.modal:
+                complete = SHARED.run_case(desktop, app, root, "portable", uuid.uuid4().hex, modal=True, native_modal=True)
+            else:
+                complete = SHARED.run_case(desktop, app, root, "portable", uuid.uuid4().hex)
+        print("Raw phases captured; native pixel/reference review remains required." if complete else
               "Incomplete evidence; inspect retained native calls and shared receipt.")
         return 0 if complete else 1
     except BaseException as error:

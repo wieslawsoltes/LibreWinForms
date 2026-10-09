@@ -12,5 +12,6 @@ public unsafe partial class Control
         Application.ThreadContext.FromCurrent().Dispatcher;
 
     internal ILibreDispatcher PortableDispatcher => _portableDispatcher;
+    internal ILibreModalWindow? PortableModalWindow => _window.PortableWindow as ILibreModalWindow;
 }
 #endif

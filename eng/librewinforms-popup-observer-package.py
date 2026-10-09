@@ -56,12 +56,16 @@ def verify(stage, cache, preparation, result, configuration, drawing_version, ex
     generated = portable / "obj" / configuration / "net11.0"
     required = [portable / "Program.cs", portable / "PortableNativeGeometryObserver.cs",
                 generated / "LibreWinForms.ApplicationConfiguration.g.cs",
-                generated / "LibreWinForms.ApplicationBootstrap.g.cs"]
+                generated / "LibreWinForms.ApplicationBootstrap.g.cs",
+                portable / "PopupInteractionStartup.cs"]
     for path in required:
         if sources.count(path.resolve(strict=True)) != 1:
             raise ValueError(f"Missing or repeated actual Compile input: {path.name}")
     if PREPARE.sha256(portable / "Program.cs") != preparation["sourceSha256"] or PREPARE.sha256(stage / "Microsoft/Program.cs") != preparation["sourceSha256"]:
         raise ValueError("The shared Microsoft/Portable Program.cs bytes changed")
+    if any(PREPARE.sha256(stage / mode / "PopupInteractionStartup.cs") != preparation["startupSourceSha256"]
+           for mode in ("Microsoft", "Portable")):
+        raise ValueError("The shared Microsoft/Portable startup bytes changed")
     observer = preparation["nativeGeometry"]
     if observer["enabled"] is not True or PREPARE.sha256(portable / "PortableNativeGeometryObserver.cs") != observer["sourceSha256"]:
         raise ValueError("The optional observer bytes changed or were not enabled")
