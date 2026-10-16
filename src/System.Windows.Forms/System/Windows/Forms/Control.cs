@@ -5049,13 +5049,42 @@ public unsafe partial class Control :
     protected virtual void DestroyHandle()
     {
 #if LIBREWINFORMS_PORTABLE
+        Exception? inputFailure = null;
         if (IsHandleCreated)
         {
-            OnHandleDestroyed(EventArgs.Empty);
+            LibreHandle retiringHandle = _window.PortableHandle;
+            // Native disposal need not deliver FocusLost (hidden and
+            // nonactivating windows may never have owned keyboard focus).
+            // Hover from the retiring handle is discarded, not delivered as
+            // MouseLeave into a replacement source-window lifetime.
+            CancelPortablePointerInput(out inputFailure, notifyLeave: false);
+            if (_window.PortableHandle != retiringHandle)
+            {
+                if (inputFailure is not null) ExceptionDispatchInfo.Throw(inputFailure);
+                return;
+            }
+
+            try
+            {
+                OnHandleDestroyed(EventArgs.Empty);
+            }
+            catch (Exception cleanup) when (inputFailure is not null)
+            {
+                inputFailure.Data["PortableHandleDestroyedCleanup"] = cleanup;
+            }
         }
 
-        _window.DestroyHandle();
-        _trackMouseEvent = default;
+        try
+        {
+            _window.DestroyHandle();
+            _trackMouseEvent = default;
+        }
+        catch (Exception cleanup) when (inputFailure is not null)
+        {
+            inputFailure.Data["PortableNativeHandleCleanup"] = cleanup;
+        }
+
+        if (inputFailure is not null) ExceptionDispatchInfo.Throw(inputFailure);
 #else
         if (RecreatingHandle && _threadCallbackList is not null)
         {
@@ -11138,7 +11167,13 @@ public unsafe partial class Control :
 
             if (IsHandleCreated)
             {
+                LibreHandle visibilityHandle = _window.PortableHandle;
                 _window.SetPortableVisibility(value, out visibilityCommitted);
+                if (!value && visibilityCommitted && !Visible && _window.PortableHandle == visibilityHandle)
+                {
+                    CancelPortablePointerInput(out Exception? inputFailure);
+                    if (inputFailure is not null) ExceptionDispatchInfo.Throw(inputFailure);
+                }
             }
         }
         catch

@@ -12,6 +12,9 @@ namespace System.Windows.Forms;
 ///  <see cref="Graphics"/> object with which the drawing should be done.
 /// </summary>
 public class DrawItemEventArgs : EventArgs, IDisposable, IDeviceContext, IGraphicsHdcProvider, IHdcContext
+#if LIBREWINFORMS_PROGPU_DRAWING
+    , IManagedGraphicsProvider
+#endif
 {
     private readonly DrawingEventArgs _event;
 
@@ -163,6 +166,7 @@ public class DrawItemEventArgs : EventArgs, IDisposable, IDeviceContext, IGraphi
     void IDeviceContext.ReleaseHdc() => Graphics?.ReleaseHdc();
     void IHdcContext.ReleaseHdc() => ((IDeviceContext)this).ReleaseHdc();
 #if LIBREWINFORMS_PROGPU_DRAWING
+    Graphics? IManagedGraphicsProvider.GetGraphics(bool createIfNeeded) => _event.GetGraphics(createIfNeeded);
     IGraphics? IGraphicsHdcProvider.GetGraphics(bool createIfNeeded) => null;
 #else
     IGraphics? IGraphicsHdcProvider.GetGraphics(bool createIfNeeded) => _event.GetGraphics(createIfNeeded);
