@@ -1385,10 +1385,21 @@ public static unsafe partial class ControlPaint
         ArgumentNullException.ThrowIfNull(context);
 
 #if LIBREWINFORMS_PORTABLE
-        // GDI+ right and bottom DrawRectangle borders are one pixel greater than GDI.
-        bounds = new Rectangle(bounds.X, bounds.Y, bounds.Width - 1, bounds.Height - 1);
         if (context.TryGetGraphics(create: true) is Graphics graphics)
         {
+            if (style == ButtonBorderStyle.Solid && !color.HasTransparency()
+                && bounds.Width > 0 && bounds.Height > 0)
+            {
+                // The native opaque-solid route uses GDI integer edge pixels.
+                // Share DrawEdge's bands instead of antialiasing a centered pen.
+                using var pen = color.GetCachedPenScope();
+                DrawPortableBorder3DLayer(graphics, ref bounds,
+                    Border3DSide.Left | Border3DSide.Top | Border3DSide.Right | Border3DSide.Bottom, pen, pen);
+                return;
+            }
+
+            // GDI+ right and bottom DrawRectangle borders are one pixel greater than GDI.
+            bounds = new Rectangle(bounds.X, bounds.Y, bounds.Width - 1, bounds.Height - 1);
             if (style == ButtonBorderStyle.Solid)
             {
                 using var pen = color.GetCachedPenScope();

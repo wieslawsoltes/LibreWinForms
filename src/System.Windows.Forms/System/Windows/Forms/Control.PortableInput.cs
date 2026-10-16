@@ -213,7 +213,7 @@ public unsafe partial class Control
         return captured;
     }
 
-    private bool CancelPortablePointerInput(out Exception? failure)
+    private bool CancelPortablePointerInput(out Exception? failure, bool notifyLeave = true)
     {
         LibreHandle windowHandle = _window.PortableHandle;
         Control? previous = TakePortableHover(out LibreHandle previousHandle, out LibreHandle previousWindowHandle);
@@ -233,7 +233,7 @@ public unsafe partial class Control
 
         try
         {
-            if (_portablePointerInputVersion == inputVersion && _window.PortableHandle == windowHandle
+            if (notifyLeave && _portablePointerInputVersion == inputVersion && _window.PortableHandle == windowHandle
                 && s_portableHoverRoot is null)
                 NotifyPortableHoverLeave(previous, previousHandle, previousWindowHandle);
         }

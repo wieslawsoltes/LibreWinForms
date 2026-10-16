@@ -1,5 +1,20 @@
 # Agent Guidance
 
+Portable paint and owner-draw events expose their original managed Graphics
+through a typed provider. Preserve the source frame's transform, clip, lazy
+creation policy and borrowed ownership; never request an HDC or manufacture a
+replacement recorder to paint a pressed control. Keep the native Win32 provider
+separate. Opaque solid borders reuse integer edge bands; preserve transparent
+and dashed stroke policy. See docs/portable-paint-graphics.md; source pixel controls do not qualify
+desktop file dialogs.
+
+Source handle retirement and committed hiding cancel only that control's owned
+pointer state before public continuations. Do not rely on native FocusLost for
+hidden or nonactivating windows. Preserve other windows' button owners, callback
+replacement handles and original cleanup failures. See
+docs/portable-pointer-reentrancy.md; source lifecycle checks are not desktop input
+qualification.
+
 Scoped MessageBox modality uses the actual typed window and the existing source
 modal frame, never a substitute Form or inferred provider. Publish terminal
 results before callback reentry, and restore owner input/focus only after exact

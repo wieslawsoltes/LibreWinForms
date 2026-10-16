@@ -1,5 +1,21 @@
 # Portable pointer callback lifetime
 
+Source handle destruction and committed hiding now retire the window's owned
+pointer state even when the provider emits no FocusLost. Before this repair,
+dispose, close, hide and handle recreation each left the source button held;
+that stale state also contaminated twelve later hover-retirement cases in an
+unfiltered local suite. The four direct lifecycle regressions retain their
+original inputs and assertions. Retirement reuses the existing exact-owner
+capture/hover/button cleanup, preserves a replacement handle created by its
+callback, and retains the first cleanup error while attempting native release.
+Handle destruction discards old hover without delivering MouseLeave; the
+original retired-window controls retain that distinction from native FocusLost.
+Four additional controls cover a nested same-window or other-window press,
+handle replacement during cancellation, and preservation of a capture error
+through a second handle-notification failure.
+The Windows native branch is unchanged. Physical desktop input remains a
+separate qualification requirement.
+
 Portable source pointer dispatch retains the receiving window handle and an
 input generation through outside-click dismissal, hover notifications, cursor
 updates and focus changes. A nested pointer event or capture cancellation retires

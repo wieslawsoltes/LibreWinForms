@@ -16,6 +16,9 @@ namespace System.Windows.Forms;
 ///  </para>
 /// </remarks>
 public partial class PaintEventArgs : EventArgs, IDisposable, IDeviceContext, IGraphicsHdcProvider, IHdcContext
+#if LIBREWINFORMS_PROGPU_DRAWING
+    , IManagedGraphicsProvider
+#endif
 {
     private readonly DrawingEventArgs _event;
 
@@ -136,6 +139,7 @@ public partial class PaintEventArgs : EventArgs, IDisposable, IDeviceContext, IG
     void IDeviceContext.ReleaseHdc() => Graphics?.ReleaseHdc();
     void IHdcContext.ReleaseHdc() => ((IDeviceContext)this).ReleaseHdc();
 #if LIBREWINFORMS_PROGPU_DRAWING
+    Graphics? IManagedGraphicsProvider.GetGraphics(bool createIfNeeded) => _event.GetGraphics(createIfNeeded);
     IGraphics? IGraphicsHdcProvider.GetGraphics(bool createIfNeeded) => null;
 #else
     IGraphics? IGraphicsHdcProvider.GetGraphics(bool createIfNeeded) => _event.GetGraphics(createIfNeeded);

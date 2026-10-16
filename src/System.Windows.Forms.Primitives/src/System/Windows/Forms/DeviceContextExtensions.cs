@@ -173,6 +173,9 @@ internal static partial class DeviceContextExtensions
     internal static Graphics? TryGetGraphics(this IDeviceContext deviceContext, bool create = false) => deviceContext switch
     {
         Graphics graphics => graphics,
+#if LIBREWINFORMS_PROGPU_DRAWING
+        IManagedGraphicsProvider provider => provider.GetGraphics(create),
+#endif
         IGraphicsHdcProvider provider => (Graphics?)provider.GetGraphics(create),
         _ => AssertNoGraphics(create)
     };
