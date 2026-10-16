@@ -151,7 +151,7 @@ require_text .github/workflows/librewinforms-ci.yml "./eng/librewinforms-build-c
 # Bridge packages retain their published version; the canonical source lane
 # qualifies the exact LibreWPF checkpoint containing the migrated projects.
 require_text .github/workflows/librewinforms-ci.yml "librewpf-v0.1.0-preview.65"
-require_text .github/workflows/librewinforms-ci.yml "LIBREWINFORMS_CANONICAL_WFI_REF: b8bbd1423d45fc9219b0e56cf1ca8c69f3368d61"
+require_text .github/workflows/librewinforms-ci.yml "LIBREWINFORMS_CANONICAL_WFI_REF: beef4c0b83571448fa5bf897fd66f68f3077fdb1"
 require_text .github/workflows/librewinforms-release.yml 'progpu_version="${version}"'
 require_text .github/workflows/librewinforms-release.yml 'canonical_wfi_ref="librewpf-v${bridge_version}"'
 require_text .github/workflows/librewinforms-ci.yml "LIBREWINFORMS_PROGPU_PACKAGE_VERSION"
