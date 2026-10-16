@@ -56,6 +56,22 @@ contain two Forms identities.
 
 ## Package and provenance gates
 
+The post-preview.69 source refresh pins ProGPU
+`e6cf2bc1a615da94ecdf5a293ebcf3c394bbe2ad`, the exact revision whose complete
+[Build 38711300199](https://github.com/wieslawsoltes/ProGPU/actions/runs/38711300199)
+passed all 59 jobs. This includes the merged snapshot, chart-series and pipeline
+cache lifetime fixes. Its tree matches ProGPU's merge `10724b2e55c2fc9f67abd007be404b2633666daf`;
+native staging still selects the exact tested revision, not a different commit
+inferred from tree equality.
+
+The canonical WFI lane uses LibreWPF `beef4c0b83571448fa5bf897fd66f68f3077fdb1`,
+which passed all 16 jobs in
+[Build 38938632765](https://github.com/wieslawsoltes/LibreWPF/actions/runs/38938632765)
+and the original portable dispatcher package click test. Its tree matches merge
+`8de5e06584e7672ed9ef8c31f2827d41f312f651`. The Forms package lane must qualify
+this combined source graph before publication; upstream passes alone do not
+qualify the new Forms packages or close the independent desktop issues.
+
 The package lane writes:
 
 - `.nupkg` files for each public package and the ProGPU drawing closure;

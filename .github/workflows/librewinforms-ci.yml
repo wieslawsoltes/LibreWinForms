@@ -518,7 +518,7 @@ jobs:
       LIBREWINFORMS_PROGPU_PACKAGE_VERSION: 0.1.0-preview.65
       LIBREWINFORMS_BRIDGE_REF: librewpf-v0.1.0-preview.65
       # Use the fully qualified owning source, including Windows RID SDK isolation.
-      LIBREWINFORMS_CANONICAL_WFI_REF: b8bbd1423d45fc9219b0e56cf1ca8c69f3368d61
+      LIBREWINFORMS_CANONICAL_WFI_REF: beef4c0b83571448fa5bf897fd66f68f3077fdb1
       LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: fd51401e94b3dbe1fec3d960626d8fe41f1adb4a
 
     steps:
