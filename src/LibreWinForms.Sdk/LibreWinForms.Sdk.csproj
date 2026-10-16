@@ -12,7 +12,7 @@
     <NoWarn>$(NoWarn);NU5128</NoWarn>
     <LibreWinFormsCanonicalPackageVersion Condition="'$(LibreWinFormsCanonicalPackageVersion)' == ''">$(PackageVersion)</LibreWinFormsCanonicalPackageVersion>
     <LibreWinFormsProGpuBackendPackageVersion Condition="'$(LibreWinFormsProGpuBackendPackageVersion)' == ''">$(PackageVersion)</LibreWinFormsProGpuBackendPackageVersion>
-    <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == ''">0.1.0-preview.69</LibreWinFormsProGpuPackageVersion>
+    <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == ''">0.1.0-preview.70</LibreWinFormsProGpuPackageVersion>
     <!-- This describes the selected runtime/backend payload, not this SDK
          packaging project's own TFM or the installed build SDK's version.
          The source-first packer passes its actual shared payload TFM. -->

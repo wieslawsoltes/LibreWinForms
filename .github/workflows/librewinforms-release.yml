@@ -6,7 +6,7 @@ on:
       version:
         description: NuGet package version to build.
         required: true
-        default: 0.1.0-preview.69
+        default: 0.1.0-preview.70
       source_tag:
         description: Existing immutable librewinforms-v tag to rebuild with this workflow. Empty uses the workflow ref.
         required: false

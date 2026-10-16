@@ -15,10 +15,10 @@
          Microsoft.NET.Sdk targets; masking the value here loses explicit false. -->
     <EnableWindowsTargeting Condition="'$(EnableWindowsTargeting)' == ''">true</EnableWindowsTargeting>
     <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == '' And '$(LibreWinFormsPackagedRuntimeVersion)' != ''">$(LibreWinFormsPackagedRuntimeVersion)</LibreWinFormsVersion>
-    <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == ''">0.1.0-preview.69</LibreWinFormsVersion>
+    <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == ''">0.1.0-preview.70</LibreWinFormsVersion>
     <LibreWinFormsPackageVersion Condition="'$(LibreWinFormsPackageVersion)' == ''">$(LibreWinFormsVersion)</LibreWinFormsPackageVersion>
     <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == '' And '$(LibreWinFormsPackagedProGpuVersion)' != ''">$(LibreWinFormsPackagedProGpuVersion)</LibreWinFormsProGpuPackageVersion>
-    <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == ''">0.1.0-preview.69</LibreWinFormsProGpuPackageVersion>
+    <LibreWinFormsProGpuPackageVersion Condition="'$(LibreWinFormsProGpuPackageVersion)' == ''">0.1.0-preview.70</LibreWinFormsProGpuPackageVersion>
     <LibreWinFormsCanonicalPackageVersion Condition="'$(LibreWinFormsCanonicalPackageVersion)' == ''">$(LibreWinFormsVersion)</LibreWinFormsCanonicalPackageVersion>
     <LibreWinFormsProGpuBackendPackageVersion Condition="'$(LibreWinFormsProGpuBackendPackageVersion)' == '' And '$(LibreWinFormsPackagedProGpuBackendVersion)' != ''">$(LibreWinFormsPackagedProGpuBackendVersion)</LibreWinFormsProGpuBackendPackageVersion>
     <LibreWinFormsProGpuBackendPackageVersion Condition="'$(LibreWinFormsProGpuBackendPackageVersion)' == ''">$(LibreWinFormsVersion)</LibreWinFormsProGpuBackendPackageVersion>

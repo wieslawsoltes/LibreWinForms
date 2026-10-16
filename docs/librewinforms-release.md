@@ -23,8 +23,8 @@ from the pinned submodule, including `ProGPU.Backend.Dawn` and
 and runtime source before packing LibreWinForms:
 
 ```bash
-LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.69 \
-LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.69 \
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.70 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.70 \
 LIBREWINFORMS_CANONICAL_WFI_SOURCE_ROOT=/path/to/LibreWPF \
 LIBREWINFORMS_CANONICAL_WFI_EXPECTED_COMMIT=<librewpf-commit> \
 ./eng/librewinforms-build-canonical-wfi.sh
@@ -39,8 +39,8 @@ NuGet-based; this source handoff is a release qualification path.
 Pack the release from a separate canonical-WFI output directory:
 
 ```bash
-LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.69 \
-LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.69 \
+LIBREWINFORMS_DEV_PACKAGE_VERSION=0.1.0-preview.70 \
+LIBREWINFORMS_PROGPU_PACKAGE_VERSION=0.1.0-preview.70 \
 LIBREWINFORMS_CANONICAL_WFI_PACKAGE_SOURCE=/path/to/LibreWPF/artifacts/packages/CanonicalWinForms \
 LIBREWINFORMS_CANONICAL_WFI_COMMIT=<librewpf-commit> \
 ./eng/librewinforms-pack.sh
@@ -56,13 +56,13 @@ contain two Forms identities.
 
 ## Package and provenance gates
 
-The post-preview.69 source refresh pins ProGPU
-`e6cf2bc1a615da94ecdf5a293ebcf3c394bbe2ad`, the exact revision whose complete
-[Build 38711300199](https://github.com/wieslawsoltes/ProGPU/actions/runs/38711300199)
-passed all 59 jobs. This includes the merged snapshot, chart-series and pipeline
-cache lifetime fixes. Its tree matches ProGPU's merge `10724b2e55c2fc9f67abd007be404b2633666daf`;
-native staging still selects the exact tested revision, not a different commit
-inferred from tree equality.
+The preview.70 source refresh pins ProGPU
+`3d7a29c38a2d89f2be61a687172df3ca082b2e34`, the exact revision whose complete
+[Build 38947989002](https://github.com/wieslawsoltes/ProGPU/actions/runs/38947989002)
+passed all 59 jobs, with documentation and Android companion checks also passing.
+This includes the merged snapshot, chart-series and pipeline-cache lifetime fixes
+and coordinated preview.70 package identities. ProGPU #388 was fast-forwarded to
+that same qualified commit; native staging selects its exact successful producer.
 
 The canonical WFI lane uses LibreWPF `beef4c0b83571448fa5bf897fd66f68f3077fdb1`,
 which passed all 16 jobs in

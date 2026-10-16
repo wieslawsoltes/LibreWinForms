@@ -29,7 +29,7 @@ require_text README.md "default GitHub branch is \`librewinforms-progpu-port\`"
 require_text README.md "LibreWinForms.Sdk"
 require_text eng/librewinforms-package-list.sh '  LibreWinForms.ApplicationIsolation'
 require_text README.md '"msbuild-sdks": {'
-require_text README.md '"LibreWinForms.Sdk": "0.1.0-preview.69"'
+require_text README.md '"LibreWinForms.Sdk": "0.1.0-preview.70"'
 require_text README.md '<Project Sdk="LibreWinForms.Sdk">'
 require_text README.md 'preserve your existing `sdk` settings'
 reject_text README.md '<Project Sdk="LibreWinForms.Sdk/'
@@ -69,7 +69,7 @@ require_text docs/librewinforms-release.md "LibreWinForms.Sdk"
 require_text docs/librewinforms-release.md "LIBREWINFORMS_PROGPU_PACKAGE_VERSION"
 require_text docs/librewinforms-release.md "LIBREWINFORMS_CANONICAL_WFI_PACKAGE_SOURCE"
 require_text docs/librewinforms-release.md "LIBREWINFORMS_CANONICAL_WFI_COMMIT"
-require_text docs/librewinforms-release.md "0.1.0-preview.69"
+require_text docs/librewinforms-release.md "0.1.0-preview.70"
 require_text docs/librewinforms-release.md "gh release create --generate-notes"
 require_text docs/librewinforms-release.md "librewinforms-v<version>"
 require_text README.md "fails if a stale or unexpected current-version"
@@ -88,7 +88,7 @@ require_text src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj "<Description>SDK pa
 require_text src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj "<PackageTags>librewinforms;winforms;sdk;progpu;silk.net;cross-platform;source-built</PackageTags>"
 require_text src/LibreWinForms.Sdk/LibreWinForms.Sdk.csproj "<PackageReadmeFile>README.md</PackageReadmeFile>"
 require_text src/LibreWinForms.Sdk/Sdk/Sdk.props '<LibreWinFormsUseCanonicalRuntime Condition="'\''$(LibreWinFormsUseCanonicalRuntime)'\'' == '\'''\''">true</LibreWinFormsUseCanonicalRuntime>'
-require_text src/LibreWinForms.Sdk/Sdk/Sdk.props '>0.1.0-preview.69</LibreWinFormsProGpuPackageVersion>'
+require_text src/LibreWinForms.Sdk/Sdk/Sdk.props '>0.1.0-preview.70</LibreWinFormsProGpuPackageVersion>'
 require_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'LibreWinForms.Sdk is canonical-only'
 reject_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'LibreWinForms.Compatibility.System.Windows.Forms'
 reject_text src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets 'WindowsFormsHost.EnableWindowsFormsInterop'
