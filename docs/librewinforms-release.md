@@ -57,11 +57,12 @@ contain two Forms identities.
 ## Package and provenance gates
 
 The preview.70 source refresh pins ProGPU
-`3d7a29c38a2d89f2be61a687172df3ca082b2e34`, the exact revision whose complete
-[Build 38947989002](https://github.com/wieslawsoltes/ProGPU/actions/runs/38947989002)
-passed all 59 jobs, with documentation and Android companion checks also passing.
+`be37726173a0dd87e6b3a71f5de294f08863cb54`, the exact revision whose complete
+[Build 38961124864](https://github.com/wieslawsoltes/ProGPU/actions/runs/38961124864)
+passed all 59 jobs, with all 68 Build, Docs, Android and SVG.NET checks passing.
 This includes the merged snapshot, chart-series and pipeline-cache lifetime fixes
-and coordinated preview.70 package identities. ProGPU #388 was fast-forwarded to
+and coordinated preview.70 package identities, plus original Win32 button-packet
+transport for the dependent WPF adapter. ProGPU #389 was fast-forwarded to
 that same qualified commit; native staging selects its exact successful producer.
 
 The canonical WFI lane uses LibreWPF `beef4c0b83571448fa5bf897fd66f68f3077fdb1`,
