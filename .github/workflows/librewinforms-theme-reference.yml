@@ -55,19 +55,25 @@ jobs:
         shell: pwsh
         run: |
           $source = Join-Path $env:RUNNER_TEMP 'theme-reference-source'
-          $evidence = Join-Path $env:RUNNER_TEMP 'thumb-primitive-evidence'
           $app = Join-Path $source 'bin/Release/net10.0-windows/win-arm64/WindowsThemeReference.exe'
-          $out = Join-Path $env:RUNNER_TEMP 'thumb-primitive-stdout.log'
-          $err = Join-Path $env:RUNNER_TEMP 'thumb-primitive-stderr.log'
-          $arguments = @('--thumb-primitives', ('"' + $evidence + '"'))
-          $child = Start-Process -FilePath $app -ArgumentList $arguments -NoNewWindow -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
-          if (-not $child.WaitForExit(60000)) {
-            $child.Kill($true)
-            $child.WaitForExit()
-            throw 'Primitive reference process exceeded 60 seconds.'
+          $variants = @(
+            @{ Mode = '--thumb-primitives'; Name = 'thumb-primitive' },
+            @{ Mode = '--thumb-half-pixel'; Name = 'thumb-half-pixel' }
+          )
+          foreach ($variant in $variants) {
+            $evidence = Join-Path $env:RUNNER_TEMP "$($variant.Name)-evidence"
+            $out = Join-Path $env:RUNNER_TEMP "$($variant.Name)-stdout.log"
+            $err = Join-Path $env:RUNNER_TEMP "$($variant.Name)-stderr.log"
+            $arguments = @($variant.Mode, ('"' + $evidence + '"'))
+            $child = Start-Process -FilePath $app -ArgumentList $arguments -NoNewWindow -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+            if (-not $child.WaitForExit(60000)) {
+              $child.Kill($true)
+              $child.WaitForExit()
+              throw "Primitive reference $($variant.Name) exceeded 60 seconds."
+            }
+            $child.Refresh()
+            if ($child.ExitCode -ne 0) { throw "Primitive reference $($variant.Name) exited $($child.ExitCode)." }
           }
-          $child.Refresh()
-          if ($child.ExitCode -ne 0) { throw "Primitive reference exited $($child.ExitCode)." }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -83,3 +89,6 @@ jobs:
             ${{ runner.temp }}/thumb-primitive-evidence/**
             ${{ runner.temp }}/thumb-primitive-stdout.log
             ${{ runner.temp }}/thumb-primitive-stderr.log
+            ${{ runner.temp }}/thumb-half-pixel-evidence/**
+            ${{ runner.temp }}/thumb-half-pixel-stdout.log
+            ${{ runner.temp }}/thumb-half-pixel-stderr.log

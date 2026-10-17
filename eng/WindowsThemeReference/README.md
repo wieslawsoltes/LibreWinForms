@@ -44,3 +44,12 @@ This diagnoses the remaining edge differences in the portable round-rectangle
 prototype. A successful diagnostic job means the observation completed; it does
 not mean the primitive matches the theme or qualifies product paint. Native
 reference pixels stay test evidence and cannot become product textures.
+
+`--thumb-half-pixel` records the same complete primitive inventory with the
+original GDI+ PixelOffsetMode.Half sample-position policy explicitly selected.
+It has its own36-image/16MiB/45-second observation and60-second child deadline;
+the default-profile receipt, images and failures remain separate and unchanged.
+Both profiles retain actual geometry, backgrounds, native theme captures and
+all differing pixels. This control investigates sample position and background
+edge coverage; it does not assert that GDI+ authored the Windows theme assets
+or qualify a change to shared product rasterization.

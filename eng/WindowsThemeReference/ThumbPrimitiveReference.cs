@@ -10,8 +10,10 @@ using System.Windows.Forms.VisualStyles;
 internal static class ThumbPrimitiveReference
 {
     // Separate diagnostic: the original 120-request theme inventory is unchanged.
-    internal static int Run(string output)
+    internal static int Run(string output, PixelOffsetMode pixelOffset = PixelOffsetMode.Default)
     {
+        if (pixelOffset is not (PixelOffsetMode.Default or PixelOffsetMode.Half))
+            throw new ArgumentOutOfRangeException(nameof(pixelOffset));
         if (!OperatingSystem.IsWindows()
             || Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true"
             || Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT") != "github-hosted")
@@ -64,6 +66,7 @@ internal static class ThumbPrimitiveReference
                 CheckBudget();
                 using Bitmap candidate = new(width, height, PixelFormat.Format32bppArgb);
                 candidate.SetResolution(96, 96);
+                PixelOffsetMode actualPixelOffset;
                 using (Graphics graphics = Graphics.FromImage(candidate))
                 using (SolidBrush body = new(Color.FromArgb(240, 240, 240)))
                 using (SolidBrush edge = new(Color.White))
@@ -71,6 +74,8 @@ internal static class ThumbPrimitiveReference
                 {
                     graphics.Clear(background);
                     graphics.SmoothingMode = mode;
+                    if (pixelOffset != PixelOffsetMode.Default) graphics.PixelOffsetMode = pixelOffset;
+                    actualPixelOffset = graphics.PixelOffsetMode;
                     graphics.FillRectangle(body, 0, 0, width, height);
                     graphics.FillRectangle(edge, 0, 0, horizontal ? width : 1, horizontal ? 1 : height);
                     graphics.FillRoundedRectangle(foreground, pill, new SizeF(thickness, thickness));
@@ -84,7 +89,8 @@ internal static class ThumbPrimitiveReference
                     if (expected != actual) differences.Add(new { x, y, expected, actual });
                 }
 
-                candidates.Add(new { smoothing = mode.ToString(), image = Save(candidate, $"{cases.Count:D2}-{mode}.png"),
+                candidates.Add(new { smoothing = mode.ToString(), pixelOffset = actualPixelOffset.ToString(),
+                    image = Save(candidate, $"{cases.Count:D2}-{mode}.png"),
                     differentPixels = differences.Count, differences });
             }
 
@@ -96,7 +102,7 @@ internal static class ThumbPrimitiveReference
         var receipt = new { schema = "windows-thumb-primitive-reference-v1", qualified = false,
             injectedInput = false, diagnosticOnly = true, runtime = Environment.Version.ToString(),
             os = Environment.OSVersion.VersionString, formsAssembly = typeof(Form).Assembly.Location,
-            drawingAssembly = typeof(Bitmap).Assembly.Location, dpi = 96,
+            drawingAssembly = typeof(Bitmap).Assembly.Location, dpi = 96, pixelOffset = pixelOffset.ToString(),
             theme = VisualStyleInformation.DisplayName, scheme = VisualStyleInformation.ColorScheme,
             size = VisualStyleInformation.Size, elapsedSeconds = clock.Elapsed.TotalSeconds, bytes, imageCount, cases };
         File.WriteAllText(Path.Combine(root, "reference.json"), JsonSerializer.Serialize(receipt, new JsonSerializerOptions { WriteIndented = true }));

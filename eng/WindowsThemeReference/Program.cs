@@ -15,6 +15,8 @@ internal static class Program
         {
             if (args.Length == 2 && args[0] == "--thumb-primitives")
                 return ThumbPrimitiveReference.Run(args[1]);
+            if (args.Length == 2 && args[0] == "--thumb-half-pixel")
+                return ThumbPrimitiveReference.Run(args[1], System.Drawing.Drawing2D.PixelOffsetMode.Half);
 
             if (!OperatingSystem.IsWindows() || args.Length != 1 ||
                 Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true" ||
