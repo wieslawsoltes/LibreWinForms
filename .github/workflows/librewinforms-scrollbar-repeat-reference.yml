@@ -4,6 +4,12 @@ on:
   push:
     branches: [diagnostic/scrollbar-repeat-reference]
   workflow_dispatch:
+    inputs:
+      observe_startup_only:
+        description: Read-only startup inventory, without activation or pointer input
+        type: boolean
+        required: true
+        default: true
 
 permissions:
   contents: read
@@ -38,13 +44,17 @@ jobs:
           dotnet build WindowsScrollBarRepeatReference.csproj -c Release --nologo -r win-arm64
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Pop-Location
-      - name: Run the explicitly approved bounded reference input
+      - name: Observe startup or run explicitly approved bounded reference input
         shell: pwsh
+        env:
+          OBSERVE_STARTUP_ONLY: ${{ github.event_name == 'push' || inputs.observe_startup_only }}
         run: |
+          $mode = @()
+          if ($env:OBSERVE_STARTUP_ONLY -eq 'true') { $mode += '--observe-startup-only' }
           python eng/WindowsScrollBarReference/driver.py --authorized `
             --app "$env:RUNNER_TEMP/scrollbar-reference-source/bin/Release/net10.0-windows/win-arm64/WindowsScrollBarRepeatReference.exe" `
             --helper eng/librewinforms-popup-desktop.py `
-            --evidence "$env:RUNNER_TEMP/scrollbar-reference-evidence"
+            --evidence "$env:RUNNER_TEMP/scrollbar-reference-evidence" @mode
           if ($LASTEXITCODE -ne 0) { throw 'Original reference failed; retain the first result.' }
       - uses: actions/upload-artifact@v4
         if: always()

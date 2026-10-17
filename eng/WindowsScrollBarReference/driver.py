@@ -18,6 +18,15 @@ def require(value, message):
         raise RuntimeError(message)
 
 
+def observe_desktop(desktop):
+    context = desktop.context()
+    windows = desktop.windows()
+    require(len(windows) <= 128, "Read-only startup inventory exceeds its bound")
+    hwnd = desktop.foreground()
+    return dict(context=context, windows=windows,
+                foreground=None if not hwnd else desktop.snapshot(hwnd))
+
+
 class HeldInput:
     def __init__(self, backend, deadline, *, authorized=False, environment=None, clock=time.monotonic, sleep=time.sleep):
         environment = os.environ if environment is None else environment
@@ -164,10 +173,26 @@ def run(args):
             ready = json.loads((evidence / 'app/ready.json').read_text()); receipt['ready'] = ready
             require(ready['pid'] == child.pid and ready['title'] == f'ScrollBarRepeatReference [{child.pid}]', "Fresh child identity differs")
             native = Native(helper, child, ready, receipt['actions'])
+            observer_path = helper_path.parent / 'OriginalGrid' / 'prepare-desktop.py'
+            spec = importlib.util.spec_from_file_location('repeat_startup_observer', observer_path)
+            observer = importlib.util.module_from_spec(spec); spec.loader.exec_module(observer)
+            desktop_observer = observer.Desktop()
+            receipt['startupObserverSha256'] = helper.digest(observer_path)
+            receipt['startupBeforeActivation'] = observe_desktop(desktop_observer)
+            if args.observe_startup_only:
+                # Read-only diagnosis never reaches activation or HeldInput.
+                receipt['diagnosticOnly'] = True
+                (evidence / 'app/complete').touch(exist_ok=False)
+                child.wait(timeout=max(0, deadline - time.monotonic()))
+                require(child.returncode == 0, 'Observed reference did not close normally')
+                receipt['observationCompleted'] = True
+                return
             # One ordinary activation of the verified own window. No shell,
             # caption, key, alternate foreground or retry is admitted.
-            native.desktop.activate(native.owner); native.desktop.foreground(child.pid)
             receipt['activationRequested'] = True
+            native.desktop.activate(native.owner)
+            receipt['startupAfterActivation'] = observe_desktop(desktop_observer)
+            native.desktop.foreground(child.pid)
             receipt['beforeCapture'] = native.desktop.screenshot(child.pid, [native.owner], evidence / 'before.bmp')
             lease = HeldInput(native, deadline, authorized=True)
             for name in NAMES:
@@ -216,4 +241,5 @@ def run(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--app', type=Path, required=True)
     parser.add_argument('--helper', type=Path, required=True); parser.add_argument('--evidence', type=Path, required=True)
+    parser.add_argument('--observe-startup-only', action='store_true')
     parser.add_argument('--authorized', action='store_true'); run(parser.parse_args())

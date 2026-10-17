@@ -20,6 +20,21 @@ class Backend:
 
 
 class Guards(unittest.TestCase):
+    def test_startup_observation_uses_only_read_operations(self):
+        class ReadOnly:
+            def context(self): return {'desktop': 'Default'}
+            def windows(self): return [{'hwnd': 5}]
+            def foreground(self): return 6
+            def snapshot(self, hwnd): return {'hwnd': hwnd, 'title': 'foreign'}
+        self.assertEqual(dict(context={'desktop': 'Default'}, windows=[{'hwnd': 5}],
+                              foreground={'hwnd': 6, 'title': 'foreign'}), driver.observe_desktop(ReadOnly()))
+
+    def test_startup_observation_bounds_inventory_before_foreground(self):
+        class ReadOnly:
+            def context(self): return {}
+            def windows(self): return [{}] * 129
+        with self.assertRaisesRegex(RuntimeError, 'bound'): driver.observe_desktop(ReadOnly())
+
     def make(self, **changes):
         b, c = Backend(), Clock()
         args = dict(authorized=True, environment=driver.HOST.copy(), clock=c.now, sleep=c.sleep)
