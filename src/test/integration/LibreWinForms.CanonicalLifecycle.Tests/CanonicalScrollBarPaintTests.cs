@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Windows.Forms;
 using FluentAssertions;
@@ -20,8 +21,11 @@ public partial class CanonicalLifecycleTests
     {
         // Immutable Microsoft WindowsDesktop 10.0.12 observations from run
         // 39037040757. No generated expectation from the product algorithm.
-        using JsonDocument original = JsonDocument.Parse(File.ReadAllText(
-            Path.Combine(AppContext.BaseDirectory, "TestAssets", "original-scrollbar-geometry.json")));
+        byte[] originalBytes = File.ReadAllBytes(
+            Path.Combine(AppContext.BaseDirectory, "TestAssets", "original-scrollbar-geometry.json"));
+        Convert.ToHexStringLower(SHA256.HashData(originalBytes)).Should()
+            .Be("bbc2dce89573ddfd88332bc103a4689c0071bbbae6fc48e12f0b2f693e97b448");
+        using JsonDocument original = JsonDocument.Parse(originalBytes);
         original.RootElement.GetProperty("cases").GetArrayLength().Should().Be(96);
         JsonElement sample = original.RootElement.GetProperty("cases")[index];
         bool vertical = sample.GetProperty("vertical").GetBoolean();
