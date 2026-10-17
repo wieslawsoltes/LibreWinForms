@@ -80,6 +80,11 @@ run_test_project \
 "${repo_root}/eng/common/dotnet.sh" run \
   --project "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
   --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" -- \
+  --filter-class '*ProGpuScrollIdleReferenceTests*' \
+  --minimum-expected-tests 18 --fail-skips on --timeout 2m
+"${repo_root}/eng/common/dotnet.sh" run \
+  --project "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
+  --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" -- \
   --filter-class '*Dx12CompilerOptionsTests*' \
   --minimum-expected-tests 5 --fail-skips on --timeout 60s
 "${repo_root}/eng/common/dotnet.sh" run \

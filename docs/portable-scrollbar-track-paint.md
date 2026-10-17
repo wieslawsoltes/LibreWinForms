@@ -28,3 +28,14 @@ now distinguishes the native white edge from an invented thumb outline.
 These original96DPI frames do not qualify other theme/DPI policies, actual
 pointer gestures, held-button repeat or the complete package application.
 The original grid pair and whole producer checks remain required by #174/#160.
+
+The same original inventory shows that idle arrow states1/5/9/13 and disabled
+thumb state4 paint only their oriented track background. The portable renderer
+previously added a generic button border and, for idle arrows, a triangle that
+the original theme does not draw. These states now share the track paint path.
+All12 original RGBA frames over both backgrounds are retained byte-for-byte;
+six further controls verify caller transforms and intersected clips for every
+direction and thumb orientation. The existing four-state arrow control now
+checks complete idle backgrounds while retaining its active-direction checks.
+Active arrow glyphs and normal/hot/pressed thumb paint still require their own
+implementation and reference comparisons; this change does not qualify them.

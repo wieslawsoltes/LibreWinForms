@@ -85,15 +85,19 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
             }
 
             bool scrollBar = string.Equals(className, "SCROLLBAR", StringComparison.OrdinalIgnoreCase);
-            if (scrollBar && part is >= 4 and <= 9 && state is >= 1 and <= 4)
+            bool idleArrow = part == 1 && state is 1 or 5 or 9 or 13;
+            bool disabledThumb = part is 2 or 3 && state == 4;
+            if (scrollBar && (idleArrow || disabledThumb || (part is >= 4 and <= 9 && state is >= 1 and <= 4)))
             {
                 // Aero grippers contribute no paint. Tracks retain the same
-                // opaque body and orientation edge in every original state.
+                // opaque body and orientation edge in every original state;
+                // idle arrows and disabled thumbs retain that background too.
                 if (part >= 8 || bounds.Width <= 0 || bounds.Height <= 0) return;
                 using var track = new SolidBrush(Color.FromArgb(240, 240, 240));
                 using var edge = new SolidBrush(Color.White);
                 graphics.FillRectangle(track, bounds);
-                Rectangle edgeBounds = part is 4 or 5
+                bool horizontal = part is 2 or 4 or 5 || (idleArrow && state >= 9);
+                Rectangle edgeBounds = horizontal
                     ? new Rectangle(bounds.X, bounds.Y, bounds.Width, 1)
                     : new Rectangle(bounds.X, bounds.Y, 1, bounds.Height);
                 graphics.FillRectangle(edge, edgeBounds);
