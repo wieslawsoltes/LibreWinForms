@@ -74,6 +74,8 @@ internal static class FontMetricsDiagnostic
                     var tables = new Dictionary<string, string>();
                     foreach (string table in new[] { "head", "hhea", "OS/2" })
                         tables.Add(table, Convert.ToHexString(ReadFont(dc, Tag(table), 4096)));
+                    if (GetFontData(dc, Tag("VDMX"), 0, null, 0) != uint.MaxValue)
+                        tables.Add("VDMX", Convert.ToHexString(ReadFont(dc, Tag("VDMX"), 65536)));
                     cases.Add(new { family, points, dpi, descriptor, actualFace = actual.ToString(), metrics,
                         alphabetExtent = extent, sourceAverageWidth = (int)Math.Round(extent.Width / (float)alphabet.Length),
                         fontSha256 = Convert.ToHexString(SHA256.HashData(ReadFont(dc, 0, 64 * 1024 * 1024))), tables });
