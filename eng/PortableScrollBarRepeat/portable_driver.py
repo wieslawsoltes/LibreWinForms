@@ -42,7 +42,7 @@ class Native(OriginalNative):
         record.append(dict(kind='native-root-inventory', inventory=self.root_inventory))
         observed = bind_portable_root(self.root_inventory, ready, child.pid)
         record.append(dict(kind='independent-native-root', sourceHandle=ready['sourceHandle'], native=observed))
-        super().__init__(helper, child, dict(ready, hwnd=observed['hwnd']), record)
+        super().__init__(helper, child, dict(ready, hwnd=observed['hwnd']), record, desktop=desktop)
         self.kernel = C.WinDLL('kernel32')
         self.kernel.GetTickCount64.argtypes = []
         self.kernel.GetTickCount64.restype = C.c_uint64

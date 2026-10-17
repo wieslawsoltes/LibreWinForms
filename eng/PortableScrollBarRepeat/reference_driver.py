@@ -106,9 +106,9 @@ class HeldInput:
 
 
 class Native:
-    def __init__(self, helper, child, ready, record):
+    def __init__(self, helper, child, ready, record, *, desktop=None):
         self.h, self.child, self.ready, self.record = helper, child, ready, record
-        self.desktop = helper.WindowsDesktop()
+        self.desktop = helper.WindowsDesktop() if desktop is None else desktop
         self.u = self.desktop.user
         self.u.GetAncestor.argtypes, self.u.GetAncestor.restype = [C.c_void_p, C.c_uint32], C.c_void_p
         self.u.GetClassNameW.argtypes, self.u.GetClassNameW.restype = [C.c_void_p, C.c_wchar_p, C.c_int], C.c_int

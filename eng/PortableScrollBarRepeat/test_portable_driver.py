@@ -1,6 +1,6 @@
 import copy
 import hashlib
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 import test_geometry
 from pathlib import Path
 from types import SimpleNamespace
@@ -33,6 +33,19 @@ class PayloadIdentity(unittest.TestCase):
 
 
 class CompleteNativeInventory(unittest.TestCase):
+    def test_native_binding_reuses_the_single_initialized_physical_desktop(self):
+        original=test_geometry.PassiveShadowGuards().observation()
+        desktop=SimpleNamespace(user=SimpleNamespace(GetAncestor=Mock(),GetClassNameW=Mock(),RealGetWindowClassW=Mock()))
+        helper=SimpleNamespace(WindowsDesktop=Mock(return_value=desktop))
+        library=SimpleNamespace(DwmGetWindowAttribute=Mock(),GetTickCount64=Mock())
+        with patch.object(driver,'native_root_inventory',return_value=original), \
+             patch.object(driver.C,'WinDLL',return_value=library,create=True), \
+             patch.object(driver.Native,'current_controls',return_value={}):
+            native=driver.Native(helper,SimpleNamespace(pid=123),test_geometry.receipt(),[],Path('snapshots'))
+        helper.WindowsDesktop.assert_called_once_with()
+        self.assertIs(native.desktop,desktop)
+        self.assertEqual(native.owner['hwnd'],900)
+
     def test_later_inventory_must_retain_every_original_window_and_metadata(self):
         original=test_geometry.PassiveShadowGuards().observation()
         native=object.__new__(driver.Native)
