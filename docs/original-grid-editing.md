@@ -81,3 +81,30 @@ logs are retained. These are build-only receipts: they do not resolve the earlie
 Linux Alice/Enter failure, qualify native input or waive the original desktop
 protocol. The unchanged 20/60-second desktop bounds and independent pixel review
 remain required before any acceptance claim.
+
+## Explicit hosted input
+
+Manual dispatch may set `run_original_input=true` after the bounded hosted Forms
+input approval. The default is false, and automatic pushes only prepare/build.
+Both exact original consumers must compile before the unchanged desktop driver
+runs. Its original startup/process/transition limits, source/layout/payload
+checks, PID/foreground/held-input guards, action sequence and four captures per
+application remain unchanged. Retain all evidence on failure without retry.
+
+The first approved hosted run39005226688 stopped during Microsoft startup at the
+foreground-ownership guard, before any input or capture and before portable
+launch. The two source snapshots record a ready Microsoft form, but cannot
+identify the other foreground owner. Original failure artifact12090916682 and
+the compiled-pair artifact12090239572 are retained. This is no input acceptance
+or proof of a product fault.
+
+Before launching either application, hosted setup reuses LibreWPF's existing
+bounded desktop preflight: it records actual session, foreground and native
+window identities, and may send one ordinary WM_CLOSE only to the verified
+Windows Microsoft-account startup window. Exact process path, native class,
+session and unchanged identity are required; unknown/replaced/reappearing owners
+or a refused close fail. Search and Start remain observed without input or
+termination. The preflight does not change application deadlines, force focus,
+change settings or permit shell keys. Its nine original controls are retained.
+The first Forms failure did not record the foreign owner; this preflight must
+not be cited as a diagnosed fix without the actual new observations.

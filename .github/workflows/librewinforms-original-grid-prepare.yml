@@ -15,6 +15,7 @@ on:
       - '.github/workflows/librewinforms-original-grid-prepare.yml'
       - 'eng/OriginalGrid/**'
       - 'eng/tests/test_original_grid_hosted_preparation.py'
+      - 'eng/tests/test_original_grid_hosted_desktop_setup.py'
 
 permissions:
   contents: read
@@ -39,6 +40,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Original desktop guards failed.' }
           python eng/tests/test_grid_designer_metadata.py
           if ($LASTEXITCODE -ne 0) { throw 'Original metadata guards failed.' }
+          python eng/tests/test_original_grid_hosted_desktop_setup.py
+          if ($LASTEXITCODE -ne 0) { throw 'Hosted desktop setup guards failed.' }
       - name: Checkout immutable original sample
         uses: actions/checkout@v4
         with:
@@ -70,6 +73,12 @@ jobs:
             --feed "$env:RUNNER_TEMP/original-grid-feed" `
             --output "$env:RUNNER_TEMP/original-grid-pair"
           if ($LASTEXITCODE -ne 0) { throw 'Original grid package preparation failed; evidence retained.' }
+      - name: Prepare disposable hosted desktop before application startup
+        if: github.event_name == 'workflow_dispatch' && inputs.run_original_input
+        shell: pwsh
+        run: |
+          python eng/OriginalGrid/prepare-desktop.py --output "$env:RUNNER_TEMP/original-grid-desktop-preflight.json"
+          if ($LASTEXITCODE -ne 0) { throw 'Hosted desktop setup failed; no application input attempted.' }
       - name: Run approved original grid desktop protocol
         if: github.event_name == 'workflow_dispatch' && inputs.run_original_input
         shell: pwsh
@@ -85,7 +94,9 @@ jobs:
           name: original-grid-desktop-evidence
           retention-days: 7
           if-no-files-found: warn
-          path: ${{ runner.temp }}/original-grid-evidence/**
+          path: |
+            ${{ runner.temp }}/original-grid-evidence/**
+            ${{ runner.temp }}/original-grid-desktop-preflight.json
       - name: Retain original sources, compiled pair and build evidence
         if: always()
         uses: actions/upload-artifact@v4
