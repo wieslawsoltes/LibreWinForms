@@ -29,7 +29,7 @@ jobs:
         shell: pwsh
         run: |
           Push-Location eng/PortableScrollBarRepeat
-          python -B -m unittest test_geometry test_reference_driver test_startup -v
+          python -B -m unittest test_geometry test_reference_driver test_startup test_portable_driver -v
           if ($LASTEXITCODE -ne 0) { throw 'Prepared offline guards failed.' }
           Pop-Location
           python -B eng/tests/test_original_grid_hosted_preparation.py -v

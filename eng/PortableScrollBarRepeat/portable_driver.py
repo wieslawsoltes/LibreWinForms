@@ -51,6 +51,11 @@ class Native(OriginalNative):
         return target, point
 
 
+def verify_payload(helper, identity, receipt):
+    receipt['payloadAfter'] = {p: helper.digest(Path(p)) for p in identity}
+    require(receipt['payloadAfter'] == identity, 'Reference payload changed')
+
+
 def run(args):
     require((args.authorized or args.observe_startup_only) and all(os.environ.get(k) == v for k, v in HOST.items()), "Explicit hosted portable input approval required")
     app, helper_path, evidence = args.app.resolve(strict=True), args.helper.resolve(strict=True), args.evidence.resolve()
@@ -82,6 +87,7 @@ def run(args):
                 (evidence / 'app/complete').touch(exist_ok=False)
                 child.wait(timeout=max(0, deadline - time.monotonic()))
                 require(child.returncode == 0, 'Observed reference did not close normally')
+                verify_payload(helper, identity, receipt)
                 receipt['observationCompleted'] = True
                 return
             input_started = None
@@ -122,8 +128,7 @@ def run(args):
             (evidence / 'app/complete').touch(exist_ok=False)
             child.wait(timeout=max(0, deadline - time.monotonic()))
             require(child.returncode == 0, 'Reference did not close normally')
-            receipt['payloadAfter'] = {p: helper.digest(Path(p)) for p in identity}
-            require(receipt['payloadAfter'] == identity, 'Reference payload changed')
+            verify_payload(helper, identity, receipt)
             receipt['completed'] = True
     except BaseException as error:
         receipt['error'] = type(error).__name__ + ': ' + str(error)
