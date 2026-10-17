@@ -18,26 +18,10 @@ public abstract partial class ScrollBar
         int breadth = vertical ? client.Width : client.Height;
         if (length > 0 && breadth > 0)
         {
-            int arrowMetric = vertical ? SystemInformation.VerticalScrollBarArrowHeightForDpi(DeviceDpi)
-                : SystemInformation.GetHorizontalScrollBarArrowWidthForDpi(DeviceDpi);
-            int thumbMetric = ScaleHelper.ScaleToDpi(vertical ? SystemInformation.VerticalScrollBarThumbHeight
-                : SystemInformation.HorizontalScrollBarThumbWidth, DeviceDpi);
-            int arrow = Math.Min(length / 2, arrowMetric);
-            int track = length - (2 * arrow);
-            int page = LargeChange;
-            if (page < 0 || arrow < 0 || thumbMetric <= 0)
-                throw new PlatformNotSupportedException("The source ScrollBar paint metrics exceed their valid numeric range.");
-
-            long range = (long)_maximum - _minimum + 1;
-            long last = (long)_maximum - Math.Max(0, page - 1);
-            long position = !vertical && RightToLeft == RightToLeft.Yes
-                ? (long)_minimum + _maximum - page + 1 - _value : _value;
-            position = Math.Clamp(position, _minimum, last);
-            int thumb = page == 0 ? thumbMetric
-                : Math.Max(thumbMetric, RoundedScrollProduct(track, page, range));
-            int start = arrow + RoundedScrollProduct(track - thumb, position - _minimum, last - _minimum);
-            Rectangle thumbBounds = Part(start, thumb);
-            Rectangle trackBounds = Part(arrow, track);
+            PortableScrollBarGeometry geometry = ReadPortableScrollBarGeometry();
+            int arrow = geometry.Arrow;
+            Rectangle thumbBounds = geometry.Part(geometry.Start, geometry.Thumb);
+            Rectangle trackBounds = geometry.Part(arrow, geometry.Track);
             bool enabled = Enabled;
             bool themed = ScrollBarRenderer.IsSupported;
             ScrollBarState state = enabled ? ScrollBarState.Normal : ScrollBarState.Disabled;
@@ -104,6 +88,54 @@ public abstract partial class ScrollBar
         }
 
         base.OnPaint(e);
+    }
+
+    // Input and paint consume the same original source metrics, including tiny
+    // tracks. Input never turns the native metadata outside the track into a hit.
+    private PortableScrollBarGeometry ReadPortableScrollBarGeometry()
+    {
+        bool vertical = _scrollOrientation == ScrollOrientation.VerticalScroll;
+        Rectangle client = ClientRectangle;
+        int length = vertical ? client.Height : client.Width;
+        int arrowMetric = vertical ? SystemInformation.VerticalScrollBarArrowHeightForDpi(DeviceDpi)
+            : SystemInformation.GetHorizontalScrollBarArrowWidthForDpi(DeviceDpi);
+        int thumbMetric = ScaleHelper.ScaleToDpi(vertical ? SystemInformation.VerticalScrollBarThumbHeight
+            : SystemInformation.HorizontalScrollBarThumbWidth, DeviceDpi);
+        int arrow = Math.Min(length / 2, arrowMetric);
+        int track = length - (2 * arrow);
+        int page = LargeChange;
+        if (page < 0 || arrow < 0 || thumbMetric <= 0)
+            throw new PlatformNotSupportedException("The source ScrollBar paint metrics exceed their valid numeric range.");
+
+        long range = (long)_maximum - _minimum + 1;
+        long last = (long)_maximum - Math.Max(0, page - 1);
+        long position = !vertical && RightToLeft == RightToLeft.Yes
+            ? (long)_minimum + _maximum - page + 1 - _value : _value;
+        position = Math.Clamp(position, _minimum, last);
+        int thumb = page == 0 ? thumbMetric
+            : Math.Max(thumbMetric, RoundedScrollProduct(track, page, range));
+        int start = arrow + RoundedScrollProduct(track - thumb, position - _minimum, last - _minimum);
+        return new(vertical, client, arrow, track, thumb, start, _minimum, last);
+    }
+
+    private readonly record struct PortableScrollBarGeometry(bool Vertical, Rectangle Client,
+        int Arrow, int Track, int Thumb, int Start, int Minimum, long Last)
+    {
+        internal Rectangle Part(int offset, int extent) => Vertical
+            ? new(Client.X, Client.Y + offset, Client.Width, extent)
+            : new(Client.X + offset, Client.Y, extent, Client.Height);
+        internal int Axis(Point point) => Vertical ? point.Y - Client.Y : point.X - Client.X;
+        internal int Length => Vertical ? Client.Height : Client.Width;
+        internal PortableScrollBarPart Hit(Point point)
+        {
+            if (!Client.Contains(point)) return PortableScrollBarPart.None;
+            int axis = Axis(point);
+            if (axis < Arrow) return PortableScrollBarPart.Decrement;
+            if (axis >= Length - Arrow) return PortableScrollBarPart.Increment;
+            if (axis < Start) return PortableScrollBarPart.PageDecrement;
+            if (axis >= Start + Thumb) return PortableScrollBarPart.PageIncrement;
+            return PortableScrollBarPart.Thumb;
+        }
     }
 
     // Integer MulDiv-style nearest rounding, including signed short-track
