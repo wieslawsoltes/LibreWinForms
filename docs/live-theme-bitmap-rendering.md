@@ -158,6 +158,24 @@ The application receipt records exit0, no injected input and qualified=false.
 The later empty-scalar rejection retains separate local controls and must pass
 the final head's hosted lane. This observation is not whole-CI qualification.
 
+## Whole-table inheritance allocation
+
+Inheritance validation uses bounded scratch storage, one original-path visit
+marker per class, and the unchanged maximum of64 class visits. The complete
+class map caps this storage at4096 integers before allocation. Shared ancestors
+remain valid; cycles in unrelated classes and paths longer than64 still reject
+the entire candidate before image publication. The source record and image
+selection rules are unchanged.
+
+A local measurement parses the complete original374-class/370-base table128
+times after32 warmups, checking the selected descriptors on every call. Three
+processes each report113,904 allocated bytes per parse before the change and
+33,432 afterward. These are parser allocations on macOS ARM64 .NET10.0.9,
+not full-paint allocation or application timing. All71 focused renderer/parser
+controls pass; the two Windows-only native tests remain explicitly skipped
+locally. Native full-frame and whole-package validation must cover this final
+change. Per-paint resource acquisition and decoding remain separate work.
+
 Final whole-producer/native passage, caching and
 theme-change performance, other sizes/DPIs, original packaged grid paint and
 physical input remain required. This implementation does not close #174 or

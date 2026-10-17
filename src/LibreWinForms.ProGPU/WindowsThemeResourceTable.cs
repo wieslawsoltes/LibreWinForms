@@ -56,11 +56,19 @@ internal static class WindowsThemeResourceTable
 
         // The original base map omits leading documentation/variant names.
         // Keep its actual relative class indices, including ScrollbarStyle.
+        // ReadClasses bounds this scratch space to 4096 integers. Each origin
+        // has its own positive visit marker, so shared ancestors remain valid
+        // while a repeat within one original path still rejects a cycle.
+        Span<int> visited = stackalloc int[baseCount];
+        visited.Clear();
         for (int i = 0; i < parents.Length; i++)
         {
-            HashSet<int> path = [];
+            int depth = 0, marker = i + 1;
             for (int current = i; current >= 0; current = parents[current])
-                if (path.Count >= 64 || !path.Add(current)) return false;
+            {
+                if (depth++ >= 64 || visited[current] == marker) return false;
+                visited[current] = marker;
+            }
         }
 
         Dictionary<int, int> ancestry = [];

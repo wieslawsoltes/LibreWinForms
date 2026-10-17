@@ -124,6 +124,40 @@ public sealed class WindowsThemeResourceTableTests
         Assert.Null(result);
     }
 
+    [Theory]
+    [InlineData(64, true)]
+    [InlineData(65, false)]
+    public void WholeInventoryPreservesOriginalInheritanceDepthBoundary(int depth, bool accepted)
+    {
+        byte[] bases = Table("bcmap");
+        // Replace an unrelated class range. The actual ScrollBar ancestry
+        // and selected source records stay intact.
+        const int first = 300;
+        for (int i = 0; i < depth; i++)
+            BinaryPrimitives.WriteInt32LittleEndian(bases.AsSpan(4 + (first + i) * 4, 4),
+                i + 1 == depth ? -1 : first + i + 1);
+        Assert.Equal(accepted, WindowsThemeResourceTable.TryReadArrowImages(
+            Table("cmap"), bases, Table("variant"), out var images));
+        if (accepted) Assert.Equal(1121, images.SelectedId);
+        else Assert.Equal(default, images);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    [InlineData(64)]
+    public void UnrelatedInheritanceCycleStillRejectsTheWholeCandidate(int length)
+    {
+        byte[] bases = Table("bcmap");
+        const int first = 300;
+        for (int i = 0; i < length; i++)
+            BinaryPrimitives.WriteInt32LittleEndian(bases.AsSpan(4 + (first + i) * 4, 4),
+                first + (i + 1) % length);
+        Assert.False(WindowsThemeResourceTable.TryReadArrowImages(
+            Table("cmap"), bases, Table("variant"), out var images));
+        Assert.Equal(default, images);
+    }
+
     private static int FindArrowImage(byte[] source)
     {
         for (int offset = 0; offset < source.Length;)

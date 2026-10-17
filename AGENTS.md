@@ -3,7 +3,8 @@ variant, class inheritance and image references before recording its two PNG
 frames. Validate complete tables and the explicit minimum target; preserve real
 PNG alpha, selected source identity and resource-only module ownership. Never
 load fixture assets in product paint or infer missing size/DPI policies. Keep
-native full-frame, package and caching/performance gates independent; see
+native full-frame, package and caching/performance gates independent. Bounded
+inheritance scratch retains whole-map cycle rejection and exactly64 visits; see
 docs/live-theme-bitmap-rendering.md.
 
 Live Windows horizontal-thumb paint borrows only the actual opaque native theme
