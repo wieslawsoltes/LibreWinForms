@@ -31,17 +31,19 @@ class Guards(unittest.TestCase):
         self.assertEqual(['original.exe', str(Path('evidence') / 'app')],
             driver.reference_arguments('original.exe', Path('evidence')))
 
-    def test_native_class_uses_read_only_original_type_not_registered_alias(self):
+    def test_native_class_uses_exact_typed_source_and_both_native_receipts(self):
+        alias = 'WindowsForms10.ScrollBar.app.0.2360855_r3_ad1'
         class User:
             def GetClassNameW(self, hwnd, buffer, count):
                 self.assert_hwnd = hwnd
-                buffer.value = 'WindowsForms10.SCROLLBAR.app.0.2360855_r3_ad1'
+                buffer.value = alias
                 return len(buffer.value)
             def RealGetWindowClassW(self, hwnd, buffer, count):
                 assert hwnd == self.assert_hwnd == 42
-                buffer.value = 'ScrollBar'
+                buffer.value = alias
                 return len(buffer.value)
-        self.assertEqual('ScrollBar', driver.native_scrollbar_class(User(), 42)['original'])
+        source = dict(hwnd=42, sourceClass='ScrollBar', registeredClass=alias, realClass=alias)
+        self.assertEqual(alias, driver.native_scrollbar_class(User(), 42, source)['original'])
 
     def test_registered_scrollbar_name_cannot_admit_a_different_native_type(self):
         class User:
@@ -50,7 +52,26 @@ class Guards(unittest.TestCase):
             def RealGetWindowClassW(self, hwnd, buffer, count):
                 buffer.value = 'Button'; return len(buffer.value)
         with self.assertRaisesRegex(RuntimeError, 'original native scrollbar'):
-            driver.native_scrollbar_class(User(), 42)
+            driver.native_scrollbar_class(User(), 42,
+                dict(hwnd=42, sourceClass='ScrollBar', registeredClass='SCROLLBAR', realClass='ScrollBar'))
+
+    def test_missing_or_different_original_source_class_cannot_reach_native_queries(self):
+        for source in ({}, dict(hwnd=43, sourceClass='ScrollBar'), dict(hwnd=42, sourceClass='Button'), dict(hwnd=42, sourceClass=None)):
+            with self.assertRaisesRegex(RuntimeError, 'source scrollbar'):
+                driver.native_scrollbar_class(object(), 42, source)
+
+    def test_missing_or_changed_native_class_receipt_rejects(self):
+        class User:
+            def GetClassNameW(self, hwnd, buffer, count):
+                buffer.value = 'Original'; return len(buffer.value)
+            def RealGetWindowClassW(self, hwnd, buffer, count):
+                buffer.value = 'Original'; return len(buffer.value)
+        for field in ('registeredClass', 'realClass'):
+            for value in (None, 'Changed'):
+                source = dict(hwnd=42, sourceClass='ScrollBar', registeredClass='Original', realClass='Original')
+                source[field] = value
+                with self.subTest(field=field, value=value), self.assertRaises(RuntimeError):
+                    driver.native_scrollbar_class(User(), 42, source)
 
     def test_failed_or_truncated_class_queries_reject(self):
         for failed in ('registered', 'original'):
@@ -63,7 +84,8 @@ class Guards(unittest.TestCase):
                         buffer.value = 'SCROLLBAR'
                         return result if failed == 'original' else len(buffer.value)
                 with self.subTest(failed=failed, result=result), self.assertRaises(RuntimeError):
-                    driver.native_scrollbar_class(User(), 42)
+                    driver.native_scrollbar_class(User(), 42,
+                        dict(hwnd=42, sourceClass='ScrollBar', registeredClass='SCROLLBAR', realClass='SCROLLBAR'))
 
     def test_startup_input_time_cannot_be_reset_before_scroll_gestures(self):
         p,b,c=self.make(input_started=0);c.value=14.9

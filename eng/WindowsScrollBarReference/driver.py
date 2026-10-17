@@ -27,14 +27,18 @@ def observe_desktop(desktop):
                 foreground=None if not hwnd else desktop.snapshot(hwnd))
 
 
-def native_scrollbar_class(user, hwnd):
+def native_scrollbar_class(user, hwnd, source):
+    source_class = source.get('sourceClass')
+    require(source.get('hwnd') == hwnd and isinstance(source_class, str) and source_class.casefold() == 'scrollbar',
+            "Original source scrollbar class/handle differs")
     registered, original = C.create_unicode_buffer(256), C.create_unicode_buffer(256)
     registered_count = user.GetClassNameW(hwnd, registered, len(registered))
     original_count = user.RealGetWindowClassW(hwnd, original, len(original))
     observed = dict(registered=registered.value, original=original.value)
     require(0 < registered_count < 255 and registered_count == len(registered.value)
             and 0 < original_count < 255 and original_count == len(original.value)
-            and original.value.casefold() == "scrollbar",
+            and registered.value == source.get('registeredClass')
+            and original.value == source.get('realClass'),
             f"Target is not the original native scrollbar: {observed}")
     return observed
 
@@ -141,7 +145,7 @@ class Native:
         require(self.u.WindowFromPoint(self.h.Point(*point)) == hwnd, "Point is obstructed or targets another window")
         require(self.u.GetAncestor(hwnd, 2) == self.owner["hwnd"], "Target no longer belongs to the owned root")
         if hwnd != self.owner["hwnd"]:
-            observed = native_scrollbar_class(self.u, hwnd)
+            observed = native_scrollbar_class(self.u, hwnd, target)
             if hwnd not in self.control_classes:
                 self.control_classes[hwnd] = observed
                 self.record.append(dict(kind="native-class", hwnd=hwnd, **observed))

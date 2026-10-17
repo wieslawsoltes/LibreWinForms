@@ -29,9 +29,10 @@ original track, and classic paint uses the existing pressed button/track colors.
 No pixel palette or geometry is inferred from a reference screenshot. Capture
 loss and leave invalidate stale visual state before public continuations.
 
-This change covers initial arrow/track actions, thumb tracking and source hover/
-pressed state. Held-button repeat, original Microsoft gesture/theme comparison
-and complete package desktop validation remain required work in #174. These
+The initial change covers arrow/track actions, thumb tracking and source hover/
+pressed state. Held-button repeat is implemented in the later section below;
+original Microsoft gesture/theme comparison and complete package desktop
+validation remain required work in #174. These
 source controls do not establish native gesture or theme parity. No release pin
 or qualification exception is implied.
 
@@ -65,7 +66,7 @@ budget, used one Search Escape pair and the owned-form activation, and made no
 pointer move or press. It stopped at11.297seconds because the harness compared
 the registered class name literally with `SCROLLBAR`. Original WinForms
 `NativeWindow.WindowClass` superclasses system controls with generated names.
-The corrected read-only guard queries `RealGetWindowClassW` for the original
+The first correction queried `RealGetWindowClassW` for the presumed original
 standard control type, still requires exactly SCROLLBAR, records both class
 names and rejects changes, failed queries or truncation. Exact PID, handle,
 root, foreground, exposed point, geometry and held-input checks remain intact.
@@ -73,6 +74,25 @@ See [Microsoft's class-query explanation](https://devblogs.microsoft.com/oldnewt
 This correction adds no input or timing allowance. All24 held-input/class
 controls pass. The original failed artifact12112463458 is retained with SHA256
 `e24201b00970caa8705dcae5e57bd3cc820cfa890794212675fa50783542a9de`.
+
+Actual run39065755917 disproved the assumption that RealGetWindowClassW unwraps
+these original WinForms controls: both Windows APIs returned the same generated
+`WindowsForms10.ScrollBar.app.0.2360855_r3_ad1` class. It stopped before any pointer
+action; the original artifact12113635743 and first error remain retained. The
+reference now supplies its actual protected base CreateParams.ClassName through
+a typed interface on the two original HScrollBar/VScrollBar probes, together
+with both exact Windows class-name observations for each actual handle. The
+controller requires source class ScrollBar and exact agreement with those
+native receipts on every check, retaining PID, root, foreground, exposed point,
+geometry, enabled state and input guards. It does not admit a generated-name
+prefix or guess the original type from an alias. Original seven controls,
+gestures, source processing and15/60-second bounds remain unchanged.
+
+An opt-in startup-phase journal is restricted to read-only diagnostic runs.
+The first diagnostic90012a8ebb application receipt reaches ready at0.7694seconds
+and exits normally at0.8490seconds, with no input. It does not attribute the
+earlier15-second startup failure or qualify any held gesture. The phase switch
+is absent from ordinary reference invocation and cannot be combined with input.
 
 ## Held repeat implementation
 

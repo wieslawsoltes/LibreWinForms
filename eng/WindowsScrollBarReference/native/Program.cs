@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Drawing;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
 using System.Windows.Forms;
 
@@ -60,6 +61,9 @@ internal static class Program
                 dpi = form.DeviceDpi, keyboardDelay = SystemInformation.KeyboardDelay, keyboardSpeed = SystemInformation.KeyboardSpeed,
                 stopwatchFrequency = Stopwatch.Frequency, client = Rect(form.RectangleToScreen(form.ClientRectangle)),
                 controls = bars.Select(b => new { name = b.Name, hwnd = (long)b.Handle,
+                    sourceClass = ((IOriginalScrollBar)b).SourceClass,
+                    registeredClass = ReadWindowClass(b.Handle, original: false),
+                    realClass = ReadWindowClass(b.Handle, original: true),
                     client = Rect(b.RectangleToScreen(b.ClientRectangle)), b.Minimum, b.Maximum, b.SmallChange, b.LargeChange, b.Value }).ToArray() };
             File.WriteAllText(Path.Combine(directory, "ready.tmp"), JsonSerializer.Serialize(ready));
             File.Move(Path.Combine(directory, "ready.tmp"), Path.Combine(directory, "ready.json"));
@@ -81,6 +85,19 @@ internal static class Program
     }
 
     private static object Rect(Rectangle r) => new { x = r.X, y = r.Y, width = r.Width, height = r.Height };
+    private static string ReadWindowClass(nint hwnd, bool original)
+    {
+        var buffer = new StringBuilder(256);
+        int count = original ? (int)RealGetWindowClassW(hwnd, buffer, 256) : GetClassNameW(hwnd, buffer, 256);
+        if (count <= 0 || count >= 255 || count != buffer.Length)
+            throw new InvalidOperationException("Native class receipt unavailable or truncated.");
+        return buffer.ToString();
+    }
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern int GetClassNameW(nint hwnd, StringBuilder name, int capacity);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    private static extern uint RealGetWindowClassW(nint hwnd, StringBuilder name, uint capacity);
+    private interface IOriginalScrollBar { string? SourceClass { get; } }
     private static void Phase(string phase, string? control = null)
     {
         if (StartupPhases) Record(new { kind = "startup-phase", phase, control });
@@ -90,16 +107,18 @@ internal static class Program
         if (++Sequence > 1024) throw new InvalidOperationException("Original event budget exceeded.");
         Journal!.WriteLine(JsonSerializer.Serialize(new { sequence = Sequence, timestamp = Stopwatch.GetTimestamp(), seconds = Clock.Elapsed.TotalSeconds, value }));
     }
-    private sealed class HorizontalProbe : HScrollBar
+    private sealed class HorizontalProbe : HScrollBar, IOriginalScrollBar
     {
+        public string? SourceClass => base.CreateParams.ClassName;
         protected override void WndProc(ref Message m)
         {
             if (m.Msg is 0x113 or 0x201 or 0x202) Record(new { kind = "native", name = Name, message = m.Msg, wparam = (long)m.WParam, value = Value });
             base.WndProc(ref m);
         }
     }
-    private sealed class VerticalProbe : VScrollBar
+    private sealed class VerticalProbe : VScrollBar, IOriginalScrollBar
     {
+        public string? SourceClass => base.CreateParams.ClassName;
         protected override void WndProc(ref Message m)
         {
             if (m.Msg is 0x113 or 0x201 or 0x202) Record(new { kind = "native", name = Name, message = m.Msg, wparam = (long)m.WParam, value = Value });
