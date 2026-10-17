@@ -11,6 +11,51 @@ namespace LibreWinForms.ProGPU.Tests;
 
 public sealed class ProGpuVisualStyleServiceTests
 {
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void ScrollArrowDirectionsRetainStateAndDistinctGlyphs(int state)
+    {
+        var service = new ProGpuVisualStyleService();
+        var glyphs = new HashSet<string>();
+        for (int direction = 0; direction < 4; direction++)
+        {
+            using var target = new Bitmap(17, 17);
+            using (Graphics graphics = Graphics.FromImage(target))
+                service.DrawBackground(graphics, "SCROLLBAR", 1, state + (direction * 4), new(0, 0, 17, 17), null);
+            Color glyph = state == 4 ? SystemColors.GrayText : SystemColors.ControlText;
+            target.GetPixel(8, 8).ToArgb().Should().Be(glyph.ToArgb());
+            // Compare the actual recorded coverage, not a second triangle implementation.
+            string coverage = string.Concat(Enumerable.Range(0, 17 * 17)
+                .Select(index => target.GetPixel(index % 17, index / 17).ToArgb() == glyph.ToArgb() ? '1' : '0'));
+            glyphs.Add(coverage);
+        }
+
+        glyphs.Count.Should().Be(4);
+    }
+
+    [Theory]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(7)]
+    public void ScrollTrackDoesNotAcquireThumbBorder(int part)
+    {
+        var service = new ProGpuVisualStyleService();
+        using var target = new Bitmap(20, 20);
+        using (Graphics graphics = Graphics.FromImage(target))
+        {
+            graphics.Clear(Color.Transparent);
+            service.DrawBackground(graphics, "SCROLLBAR", part, 1, new(2, 3, 10, 12), new Rectangle(7, 0, 13, 20));
+        }
+
+        target.GetPixel(4, 5).A.Should().Be(0);
+        target.GetPixel(7, 3).ToArgb().Should().Be(target.GetPixel(8, 7).ToArgb());
+        target.GetPixel(8, 7).A.Should().Be(255);
+    }
+
     [Fact]
     public void DrawBackgroundUsesManagedGraphicsAndHonorsClip()
     {

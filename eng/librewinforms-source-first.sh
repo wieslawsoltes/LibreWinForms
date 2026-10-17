@@ -179,6 +179,12 @@ run_test_project \
   --project "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
   --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" \
   -p:LibreWinFormsUseProGpuSystemDrawing=true -p:LibreWinFormsReferenceMode=Project -- \
+  --filter-method '*PortableScrollBarPaint*' \
+  --minimum-expected-tests 99 --fail-skips on --timeout 2m
+"${repo_root}/eng/common/dotnet.sh" run \
+  --project "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
+  --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" \
+  -p:LibreWinFormsUseProGpuSystemDrawing=true -p:LibreWinFormsReferenceMode=Project -- \
   --filter-method '*PortableDragSourceWindow*' '*PortableDragWithoutNativeWindow*' \
   --minimum-expected-tests 3 --fail-skips on --timeout 2m
 "${repo_root}/eng/common/dotnet.sh" run \

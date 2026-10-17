@@ -62,7 +62,10 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
                 graphics.SetClip(clip, CombineMode.Intersect);
             }
 
-            Color fillColor = state switch
+            bool scrollBar = string.Equals(className, "SCROLLBAR", StringComparison.OrdinalIgnoreCase);
+            bool scrollArrow = scrollBar && part == 1 && state is >= 1 and <= 16;
+            int paintState = scrollArrow ? ((state - 1) % 4) + 1 : state;
+            Color fillColor = paintState switch
             {
                 2 => Color.FromArgb(255, 229, 241, 251),
                 3 => Color.FromArgb(255, 204, 228, 247),
@@ -73,10 +76,26 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
             using var fill = new SolidBrush(fillColor);
             graphics.FillRectangle(fill, bounds);
 
-            if (bounds.Width > 0 && bounds.Height > 0)
+            if (bounds.Width > 0 && bounds.Height > 0 && !(scrollBar && part is >= 4 and <= 7))
             {
                 using var border = new Pen(Color.FromArgb(255, 112, 112, 112));
                 graphics.DrawRectangle(border, bounds.X, bounds.Y, bounds.Width - 1, bounds.Height - 1);
+            }
+
+            if (scrollArrow && bounds.Width >= 5 && bounds.Height >= 5)
+            {
+                int x = bounds.X + (bounds.Width / 2);
+                int y = bounds.Y + (bounds.Height / 2);
+                int radius = Math.Min(3, (Math.Min(bounds.Width, bounds.Height) - 1) / 2);
+                ReadOnlySpan<Point> triangle = ((state - 1) / 4) switch
+                {
+                    0 => [new(x, y - radius), new(x + radius, y + radius), new(x - radius, y + radius)],
+                    1 => [new(x, y + radius), new(x - radius, y - radius), new(x + radius, y - radius)],
+                    2 => [new(x - radius, y), new(x + radius, y - radius), new(x + radius, y + radius)],
+                    _ => [new(x + radius, y), new(x - radius, y + radius), new(x - radius, y - radius)],
+                };
+                using var glyph = new SolidBrush(paintState == 4 ? SystemColors.GrayText : SystemColors.ControlText);
+                graphics.FillPolygon(glyph, triangle);
             }
         }
         finally
