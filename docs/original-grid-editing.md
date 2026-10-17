@@ -1,3 +1,23 @@
+# Original Windows DXC layout failure — 2026-10-17
+
+The exact Forms `4490cd8e4be696673efb1c6ae72dfc63b68dd18d` producer passes
+all nine Build jobs (`39023126100`) and Docs (`39023126102`). The original grid
+run `39025614225` retains all 52 source hashes, original input, and 20/60-second
+limits. Microsoft completes all four phases in 7.313 seconds. Portable startup
+now completes with the actual packaged Dxc compiler, then fails exact layout
+before any editing input: vertical font autoscaling is 16 instead of 15. Client
+height is 549 instead of 515; the grid is 368 instead of 345 pixels high. Font
+family/size, Font.Height, horizontal autoscale and explicit row/column metrics
+agree. This does not qualify portable editing or erase the Automatic failure.
+
+The portable autoscale path currently uses the Drawing line metric; upstream
+uses GDI TEXTMETRIC from the FontCache-selected HFONT. The read-only hosted
+`librewinforms-font-metrics-diagnostic.yml` records actual native metrics, selected
+face, font-data hash and original head/hhea/OS2 table bytes for 45 fixed font,
+size and DPI cases. It creates no application window or input, retains a
+30-second process limit and changes no product, sample or acceptance predicate.
+It diagnoses the metric contract; it is not a font-parity qualification.
+
 # Original DataGridView desktop editing
 
 `eng/OriginalGrid/OriginalGridObserver.cs` reads the original
