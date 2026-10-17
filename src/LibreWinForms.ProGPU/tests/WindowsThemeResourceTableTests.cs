@@ -74,6 +74,18 @@ public sealed class WindowsThemeResourceTableTests
     }
 
     [Fact]
+    public void EmptyUnrelatedScalarCannotBypassWholeInventoryValidation()
+    {
+        byte[] record = new byte[32];
+        BinaryPrimitives.WriteInt32LittleEndian(record.AsSpan(0, 4), 2401);
+        BinaryPrimitives.WriteInt32LittleEndian(record.AsSpan(4, 4), 202);
+        BinaryPrimitives.WriteInt32LittleEndian(record.AsSpan(8, 4), 4);
+        byte[] source = [.. Table("variant"), .. record];
+        Assert.False(WindowsThemeResourceTable.TryReadArrowImages(Table("cmap"), Table("bcmap"), source, out var images));
+        Assert.Equal(default, images);
+    }
+
+    [Fact]
     public void DerivedArrowImageOverridesItsActualBaseRegardlessOfRecordOrder()
     {
         byte[] source = Table("variant");

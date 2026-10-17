@@ -144,7 +144,21 @@ fixture path or hardcoded image resource IDs.
 The hosted no-input test requires native selection and all32 original arrow
 frames through the default service, alongside the eight horizontal-thumb frames.
 Local tests validate whole-table rejection, inherited metadata and derived
-precedence; macOS explicitly skips native selection. Hosted passage, caching and
+precedence; macOS explicitly skips native selection. Empty inline scalar records
+also reject even in unrelated classes, preserving whole-inventory validation.
+
+The focused hosted observation
+[39075893559](https://github.com/wieslawsoltes/LibreWinForms/actions/runs/39075893559)
+passes all six tests with zero skips in13.732seconds, including every pixel in
+all40 original frames. Six retained source files match diagnostic
+`c4593971794ce4e4f3c1d55cf8290ba39f75267b`, whose product parent is
+`96629a2b3b57243db0e9a13769cb721d93b942a8`. Artifact12117385604 has SHA256
+`6e92aeac447717de26cdf5d72c32d1115ed84ac27e8f6a9fd61308533d9e1220`.
+The application receipt records exit0, no injected input and qualified=false.
+The later empty-scalar rejection retains separate local controls and must pass
+the final head's hosted lane. This observation is not whole-CI qualification.
+
+Final whole-producer/native passage, caching and
 theme-change performance, other sizes/DPIs, original packaged grid paint and
 physical input remain required. This implementation does not close #174 or
 qualify the pending release.

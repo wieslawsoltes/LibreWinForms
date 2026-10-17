@@ -88,7 +88,7 @@ internal static class WindowsThemeResourceTable
             int length = headerValue || reference != 0 ? 0 : size;
             if (length > properties.Length - cursor - 32) return false;
             ReadOnlySpan<byte> value = properties.Slice(cursor + 32, length);
-            if (length != 0)
+            if (!headerValue && reference == 0)
             {
                 int fixedSize = kind switch
                 {
