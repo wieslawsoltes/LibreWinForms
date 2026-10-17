@@ -1,0 +1,57 @@
+name: Independent Windows scrollbar repeat reference
+
+on:
+  push:
+    branches: [diagnostic/scrollbar-repeat-reference]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reference:
+    name: Bounded original Microsoft scrollbar repeat observation
+    runs-on: windows-11-arm
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.201
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify the held-input guards without injecting input
+        shell: pwsh
+        run: |
+          python eng/WindowsScrollBarReference/test_driver.py -v
+          if ($LASTEXITCODE -ne 0) { throw 'Held-input guards failed.' }
+      - name: Compile original Microsoft reference in an isolated directory
+        shell: pwsh
+        run: |
+          $source = Join-Path $env:RUNNER_TEMP 'scrollbar-reference-source'
+          Copy-Item eng/WindowsScrollBarReference/native $source -Recurse
+          Set-Content (Join-Path $source 'global.json') '{"sdk":{"version":"10.0.201","rollForward":"disable"}}'
+          Push-Location $source
+          dotnet build WindowsScrollBarRepeatReference.csproj -c Release --nologo -r win-arm64
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Pop-Location
+      - name: Run the explicitly approved bounded reference input
+        shell: pwsh
+        run: |
+          python eng/WindowsScrollBarReference/driver.py --authorized `
+            --app "$env:RUNNER_TEMP/scrollbar-reference-source/bin/Release/net10.0-windows/win-arm64/WindowsScrollBarRepeatReference.exe" `
+            --helper eng/librewinforms-popup-desktop.py `
+            --evidence "$env:RUNNER_TEMP/scrollbar-reference-evidence"
+          if ($LASTEXITCODE -ne 0) { throw 'Original reference failed; retain the first result.' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scrollbar-repeat-reference-${{ github.sha }}-${{ github.run_id }}
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/scrollbar-reference-evidence/**
+            eng/WindowsScrollBarReference/**
