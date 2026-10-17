@@ -26,6 +26,9 @@ public sealed class SilkWindowService : ILibreWindowService, ILibreExternalWindo
     /// </summary>
     public bool EnableNativeModalSessions { get; init; }
 
+    /// <summary>Explicit compiler choice for newly owned devices. Null retains environment/default policy.</summary>
+    public WgpuDx12CompilerOptions? Dx12CompilerOptions { get; init; }
+
     private readonly ProGpuDispatcher _dispatcher;
     private readonly ILibreHandleRegistry _handles;
     private readonly ILibreMonitorService _monitors;
@@ -1695,6 +1698,9 @@ internal sealed class SilkLibreWindow : ILibreWindow, ILibreModalWindow, IProGpu
         RequireOwnedModalInput();
     }
 
+    internal static WgpuContext CreateRenderContext(WgpuDx12CompilerOptions? requested, WgpuContext? owner)
+        => new() { Dx12CompilerOptions = requested ?? owner?.Dx12CompilerOptions ?? WgpuDx12CompilerOptions.FromEnvironment() };
+
     private void EnsureRenderer()
     {
         VerifyAccess();
@@ -1709,8 +1715,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, ILibreModalWindow, IProGpu
         Exception? initializationFailure = null;
         try
         {
-            WgpuContext context = new();
-            _unpublishedContext = context;
+            WgpuContext? ownerContext = null;
             // Native ownership and render-device ownership are distinct. Only
             // borrow an actual live same-service, same-dispatcher Silk owner;
             // external native registrations do not expose a rendering device.
@@ -1721,8 +1726,14 @@ internal sealed class SilkLibreWindow : ILibreWindow, ILibreModalWindow, IProGpu
                     || !ReferenceEquals(owner._dispatcher, _dispatcher))
                     throw new InvalidOperationException("A popup render owner must belong to this service and dispatcher.");
                 owner.VerifyAccess();
-                WgpuContext ownerContext = owner._wgpuContext
+                ownerContext = owner._wgpuContext
                     ?? throw new InvalidOperationException("The popup owner's renderer is not initialized.");
+            }
+
+            WgpuContext context = CreateRenderContext(_service.Dx12CompilerOptions, ownerContext);
+            _unpublishedContext = context;
+            if (ownerContext is not null)
+            {
                 context.InitializeSharedDevice(_window, ownerContext);
             }
             else

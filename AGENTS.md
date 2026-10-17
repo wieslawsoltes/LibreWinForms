@@ -1,5 +1,12 @@
 # Agent Guidance
 
+Explicit Forms DX12 compiler selection carries the immutable descriptor through
+the real platform and owned device creation. Preserve Automatic/environment
+defaults, exact owner inheritance and explicit conflict rejection. Package DXC
+only from the same whole-qualified producer with all runtime manifests/notices;
+never patch caches, system DLLs or application input to hide startup failures.
+See docs/forms-dx12-compiler.md; source/SDK controls are not desktop qualification.
+
 Portable paint and owner-draw events expose their original managed Graphics
 through a typed provider. Preserve the source frame's transform, clip, lazy
 creation policy and borrowed ownership; never request an HDC or manufacture a

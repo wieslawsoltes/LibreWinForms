@@ -243,7 +243,7 @@ jobs:
       contents: read
       actions: read
     env:
-      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: fd51401e94b3dbe1fec3d960626d8fe41f1adb4a
+      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: 8de5e06584e7672ed9ef8c31f2827d41f312f651
 
     steps:
       - name: Checkout
@@ -335,7 +335,8 @@ jobs:
           test "$(git -C external/ProGPU rev-parse HEAD)" = "${pinned_progpu_commit}"
           ./artifacts/checkouts/wpf-native-staging/eng/progpu-stage-ci-native-runtimes.sh \
             "${pinned_progpu_commit}" \
-            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-native/package"
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-native/package" \
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-dx12/package"
 
       - name: Pack and consume canonical source-first package
         shell: bash
@@ -519,7 +520,7 @@ jobs:
       LIBREWINFORMS_BRIDGE_REF: librewpf-v0.1.0-preview.65
       # Use the fully qualified owning source, including Windows RID SDK isolation.
       LIBREWINFORMS_CANONICAL_WFI_REF: beef4c0b83571448fa5bf897fd66f68f3077fdb1
-      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: fd51401e94b3dbe1fec3d960626d8fe41f1adb4a
+      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: 8de5e06584e7672ed9ef8c31f2827d41f312f651
 
     steps:
       - name: Checkout
@@ -590,7 +591,8 @@ jobs:
           qualified_progpu_commit="$(git -C external/ProGPU rev-parse HEAD)"
           ./artifacts/checkouts/wpf-native-staging/eng/progpu-stage-ci-native-runtimes.sh \
             "${qualified_progpu_commit}" \
-            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-native/package"
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-native/package" \
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-dx12/package"
 
       - name: Build canonical WindowsFormsIntegration from LibreWPF source
         shell: bash

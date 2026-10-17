@@ -14,7 +14,8 @@ inventory does not itself publish a release or qualify visible application UI.
 
 The same bundle contains the complete ProGPU drawing closure built
 from the pinned submodule, including `ProGPU.Backend.Dawn` and
-`ProGPU.Backend.Native`. It never publishes
+`ProGPU.Backend.Native`, plus the explicitly selected `ProGPU.Backend.Dx12`
+compiler runtime from the same exact producer. It never publishes
 `LibreWinForms.Compatibility.System.Windows.Forms`.
 
 ## Canonical WFI source handoff

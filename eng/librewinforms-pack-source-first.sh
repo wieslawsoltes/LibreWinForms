@@ -35,6 +35,12 @@ PROGPU_PACKAGE_VERSION="${progpu_package_version}" \
 PROGPU_PACKAGE_OUTPUT="${progpu_package_output}" \
 PROGPU_PACKAGE_GROUP=drawing-runtime \
   "${repo_root}/external/ProGPU/eng/progpu-pack.sh"
+# Optional compiler payload is staged from the same complete qualified producer.
+# Pack its real runtime/notices separately from the ordinary drawing closure.
+"${dotnet}" pack "${repo_root}/external/ProGPU/src/ProGPU.Backend.Dx12/ProGPU.Backend.Dx12.csproj" \
+  --configuration "${configuration}" --output "${progpu_package_output}" \
+  -p:PackageVersion="${progpu_package_version}" -p:Version="${progpu_package_version}" \
+  -p:ContinuousIntegrationBuild=true
 cp "${progpu_package_output}"/*.nupkg "${progpu_package_output}"/*.snupkg "${package_output}/"
 progpu_drawing_source_hash="$(sha256sum "${repo_root}/src/ProGPU.Drawing/System.Drawing.Common/bin/${configuration}/net10.0/System.Drawing.Common.dll" | cut -d' ' -f1)"
 

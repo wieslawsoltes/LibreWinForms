@@ -82,6 +82,10 @@ and the separate generation opt-outs remain respected; libraries do not acquire
 application initialization implicitly. No WindowsDesktop framework reference is
 introduced for these portable TFMs.
 
+Windows package executables may explicitly select the matching packaged DXC
+runtime with `LibreWinFormsDx12ShaderCompiler=Dxc` and `win-x64` or `win-arm64`.
+This requires the rebuilt SDK/backend; see [compiler selection and qualification](docs/forms-dx12-compiler.md).
+
 5. Keep existing app dependencies in place. For example, a mixed WPF/WinForms app uses the same centrally versioned SDK in the WinForms project:
 
 ```xml
