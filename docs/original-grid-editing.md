@@ -108,3 +108,19 @@ termination. The preflight does not change application deadlines, force focus,
 change settings or permit shell keys. Its nine original controls are retained.
 The first Forms failure did not record the foreign owner; this preflight must
 not be cited as a diagnosed fix without the actual new observations.
+
+The owner approved the additional hosted startup input on 17 October 2026.
+Explicit `--hosted-startup` now permits at most two verified Start/Search Escape
+presses across the pair, only at first Microsoft startup, and one verified native
+caption click per application. The reused WPF helpers retain exact system-image,
+session/PID/class/foreground checks, HTCAPTION/point ownership, held-input and
+partial-release guards. Local/self-hosted/foreign repository calls are rejected.
+All startup work uses the original 20-second startup deadline inside the original
+60-second process budget; shell dismissal additionally has its three-second bound.
+The original eleven keys, two cell clicks and four captures per application remain
+unchanged. Startup actions and helper hashes are recorded independently, with
+advancing source observations proving unchanged editor/content/layout state.
+Original guards are not bypassed, deadlines do not restart, and failed actions are
+not retried. The ordinary default path still uses its original activation request.
+The two earlier foreground failures remain retained; the extension is not evidence
+of a product repair or acceptance until the actual paired workload passes.

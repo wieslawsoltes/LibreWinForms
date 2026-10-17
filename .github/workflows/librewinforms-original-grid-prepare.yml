@@ -15,7 +15,8 @@ on:
       - '.github/workflows/librewinforms-original-grid-prepare.yml'
       - 'eng/OriginalGrid/**'
       - 'eng/tests/test_original_grid_hosted_preparation.py'
-      - 'eng/tests/test_original_grid_hosted_desktop_setup.py'
+      - 'eng/tests/test_original_grid_hosted_*.py'
+      - 'eng/librewinforms-original-grid-desktop.py'
 
 permissions:
   contents: read
@@ -42,6 +43,12 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Original metadata guards failed.' }
           python eng/tests/test_original_grid_hosted_desktop_setup.py
           if ($LASTEXITCODE -ne 0) { throw 'Hosted desktop setup guards failed.' }
+          python eng/tests/test_original_grid_hosted_shell.py
+          if ($LASTEXITCODE -ne 0) { throw 'Hosted shell guards failed.' }
+          python eng/tests/test_original_grid_hosted_caption.py
+          if ($LASTEXITCODE -ne 0) { throw 'Hosted caption guards failed.' }
+          python eng/tests/test_original_grid_hosted_startup.py
+          if ($LASTEXITCODE -ne 0) { throw 'Hosted startup integration guards failed.' }
       - name: Checkout immutable original sample
         uses: actions/checkout@v4
         with:
@@ -85,7 +92,7 @@ jobs:
         run: |
           python eng/librewinforms-original-grid-desktop.py `
             --prepared-root "$env:RUNNER_TEMP/original-grid-pair" `
-            --evidence "$env:RUNNER_TEMP/original-grid-evidence"
+            --evidence "$env:RUNNER_TEMP/original-grid-evidence" --hosted-startup
           if ($LASTEXITCODE -ne 0) { throw 'Original grid input failed; original evidence retained without retry.' }
       - name: Retain original desktop evidence
         if: always() && github.event_name == 'workflow_dispatch' && inputs.run_original_input

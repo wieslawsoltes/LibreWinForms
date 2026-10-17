@@ -1,7 +1,8 @@
 """Close the verified account startup window on a disposable runner.
 
 Normal WM_CLOSE only; no input synthesis, termination, settings or clipboard changes.
-Search and Start are only observed; this Forms check has no shell-input guard.
+Search and Start are only observed here; the separately approved startup guard
+may dismiss them inside the original application startup deadline.
 No application has started here.
 """
 import argparse

@@ -94,13 +94,15 @@ def layout_contract(state):
 
 
 class Session:
-    def __init__(self, desktop, child, evidence, started, dpi=None):
+    def __init__(self, desktop, child, evidence, started, dpi=None, hosted_startup=False, allow_shell=False):
         self.desktop, self.child, self.evidence = desktop, child, evidence
         self.started, self.deadline = started, started + 60
         self.dpi, self.state, self.phase = dpi, None, "startup"
         self.sequence = 0
         self.image_bytes = 0
         self.last_observed = None
+        self.hosted_startup, self.allow_shell = hosted_startup, allow_shell
+        self.startup_attempted = False
 
     def native(self, state):
         windows = self.desktop.windows(self.child.pid)
@@ -125,7 +127,14 @@ class Session:
             mains = self.native(state)
             self.last_observed = state
             if startup and not requested_activation:
-                self.desktop.activate(mains[0])
+                if self.hosted_startup:
+                    path = ENG / "OriginalGrid/startup.py"
+                    spec = importlib.util.spec_from_file_location("grid_hosted_startup", path)
+                    module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(module)
+                    module.activate(self, state, mains[0], read_snapshot, authorized=True)
+                else:
+                    self.desktop.activate(mains[0])
                 requested_activation = True
             if (state["Sequence"] > self.sequence and state["FormFocused"] and predicate(state)
                     and previous is not None and state["Sequence"] > previous["Sequence"]
@@ -218,7 +227,7 @@ def scenario(session, reference=None):
     return layout
 
 
-def run_mode(root, build, mode, evidence, desktop, reference=None):
+def run_mode(root, build, mode, evidence, desktop, reference=None, hosted_startup=False):
     compiled = build["builds"][mode]
     require(compiled["exitCode"] == 0, "Consumer did not build successfully")
     app = Path(compiled["app"]).resolve(strict=True)
@@ -241,7 +250,7 @@ def run_mode(root, build, mode, evidence, desktop, reference=None):
             child = subprocess.Popen([str(app)], cwd=app.parent, env=environment, stdout=stdout, stderr=stderr)
             receipt["processId"] = child.pid
             dpi = None if reference is None else reference["metrics"]["DeviceDpi"]
-            session = Session(desktop, child, evidence, started, dpi)
+            session = Session(desktop, child, evidence, started, dpi, hosted_startup, mode == "Microsoft")
             layout = scenario(session, reference)
             for name in ("FormsAssembly", "DrawingAssembly"):
                 loaded = Path(session.state[name]).resolve(strict=True)
@@ -275,8 +284,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--prepared-root", required=True, type=Path)
     parser.add_argument("--evidence", required=True, type=Path)
+    parser.add_argument("--hosted-startup", action="store_true", help="Explicitly approved bounded Forms hosted startup input")
     args = parser.parse_args()
     require(sys.platform == "win32", "Use Windows for the paired Microsoft/portable original-grid check")
+    if args.hosted_startup:
+        require(all(os.environ.get(k) == v for k, v in {
+            "GITHUB_ACTIONS": "true", "RUNNER_ENVIRONMENT": "github-hosted", "RUNNER_OS": "Windows",
+            "GITHUB_REPOSITORY": "wieslawsoltes/LibreWinForms"}.items()), "Hosted startup cannot run locally or in another repository")
     root = args.prepared_root.resolve(strict=True)
     build = json.loads((root / "build-receipt.json").read_text())
     preparation = json.loads((root / "preparation.json").read_text())
@@ -292,8 +306,8 @@ def main():
             require(digest(root / mode / relative) == entry["sha256"], "Original sample source changed after preparation")
     args.evidence.mkdir()
     desktop = DESKTOP.WindowsDesktop()
-    reference = run_mode(root, build, "Microsoft", args.evidence / "Microsoft", desktop)
-    run_mode(root, build, "Portable", args.evidence / "Portable", desktop, reference)
+    reference = run_mode(root, build, "Microsoft", args.evidence / "Microsoft", desktop, hosted_startup=args.hosted_startup)
+    run_mode(root, build, "Portable", args.evidence / "Portable", desktop, reference, hosted_startup=args.hosted_startup)
     print("Both original-source input protocols passed; native pixels/other platforms and remaining editors stay separate.")
 
 
