@@ -1,3 +1,10 @@
+Portable scrollbar paint retains source range/page/value, per-axis system metrics
+and horizontal RTL reflection. Preserve native short-track thumb metadata while
+clipping paint to the actual track; painting never mutates Value or scroll events.
+Keep original 96-state Microsoft evidence, caller Graphics state and native Windows
+behavior. See docs/portable-scrollbar-paint.md; pointer dragging, theme pixels and
+package/source desktop qualification remain independent gates.
+
 Portable HEADER part1 content uses the canonical source Aero margins (2,1,0,2)
 consistently through content rectangles, margin queries and inverse extents.
 Keep tiny allocations contained, sibling parts and generic theme policies intact;

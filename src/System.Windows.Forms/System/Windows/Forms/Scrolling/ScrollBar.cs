@@ -31,7 +31,11 @@ public abstract partial class ScrollBar : Control
     /// </summary>
     public ScrollBar() : base()
     {
+#if LIBREWINFORMS_PORTABLE
+        SetStyle(ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+#else
         SetStyle(ControlStyles.UserPaint, false);
+#endif
         SetStyle(ControlStyles.StandardClick, false);
         SetStyle(ControlStyles.UseTextForAccessibility, false);
 
@@ -610,6 +614,11 @@ public abstract partial class ScrollBar : Control
 
     protected unsafe void UpdateScrollInfo()
     {
+#if LIBREWINFORMS_PORTABLE
+        // The source value/range setters already share this publication point.
+        // Disabled controls still need to repaint their updated geometry.
+        Invalidate();
+#endif
         if (!IsHandleCreated || !Enabled)
         {
             return;

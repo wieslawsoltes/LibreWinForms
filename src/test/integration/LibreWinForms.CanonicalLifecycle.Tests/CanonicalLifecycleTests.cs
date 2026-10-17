@@ -6981,6 +6981,7 @@ public partial class CanonicalLifecycleTests
             Rectangle? clipRectangle)
         {
             VisualStyleDrawCount++;
+            ScrollBarPaintCalls?.Add((className, part, state, bounds));
             GraphicsState saved = graphics.Save();
             try
             {
