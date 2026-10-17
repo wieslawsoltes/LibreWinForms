@@ -6,3 +6,6 @@
 
 # VerifyTests
 *.verified.txt text eol=lf working-tree-encoding=UTF-8
+
+# Preserve the exact passive observer bytes used by the original grid pair.
+eng/OriginalGrid/OriginalGridObserver.cs text eol=lf

@@ -5,6 +5,7 @@ on:
   push:
     branches: [fix-hosted-original-grid]
     paths:
+      - '.gitattributes'
       - '.github/workflows/librewinforms-original-grid-prepare.yml'
       - 'eng/OriginalGrid/**'
       - 'eng/tests/test_original_grid_hosted_preparation.py'
