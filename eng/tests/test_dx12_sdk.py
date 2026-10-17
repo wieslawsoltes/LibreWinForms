@@ -25,11 +25,18 @@ class CompilerSdkTests(unittest.TestCase):
             for key,value in settings.items():ET.SubElement(properties,key).text=value
             ET.SubElement(project,'Import',Project=str(ROOT/'src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets'))
             path=root/'contract.proj';ET.ElementTree(project).write(path)
+            result_file=root/'evaluation.json'
             result=subprocess.run([DOTNET,'msbuild',str(path),'-nologo',
                 '-t:_LibreWinFormsValidateDx12Compiler;_LibreWinFormsGenerateApplicationBootstrap',
-                '-getItem:PackageReference'],capture_output=True,text=True)
+                '-getItem:PackageReference','-getResultOutputFile:'+str(result_file)],capture_output=True,text=True)
+            diagnostics=result.stdout+result.stderr
+            if result.returncode == 0:
+                self.assertTrue(result_file.is_file(),diagnostics)
+                output=result_file.read_text(encoding='utf-8-sig')
+            else:
+                output=diagnostics
             code=root/'obj/LibreWinForms.ApplicationBootstrap.g.cs'
-            return result.returncode,result.stdout+result.stderr,code.read_text() if code.exists() else ''
+            return result.returncode,output,code.read_text() if code.exists() else ''
 
     def test_default_preserves_registration_and_has_no_compiler_package(self):
         rc,output,code=self.evaluate();self.assertEqual(rc,0,output)
