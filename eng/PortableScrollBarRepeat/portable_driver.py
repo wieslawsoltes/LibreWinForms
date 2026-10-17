@@ -18,6 +18,25 @@ class Native(OriginalNative):
         desktop = helper.WindowsDesktop()
         windows = desktop.windows(child.pid)
         record.append(dict(kind="native-root-inventory", windows=windows))
+        require(len(windows) <= 128, 'Native inventory exceeds observation bound')
+        user = desktop.user
+        user.GetClassNameW.argtypes, user.GetClassNameW.restype = [C.c_void_p, C.c_wchar_p, C.c_int], C.c_int
+        user.RealGetWindowClassW.argtypes, user.RealGetWindowClassW.restype = [C.c_void_p, C.c_wchar_p, C.c_uint32], C.c_uint32
+        user.GetWindowLongPtrW.argtypes, user.GetWindowLongPtrW.restype = [C.c_void_p, C.c_int], C.c_ssize_t
+        user.GetWindow.argtypes, user.GetWindow.restype = [C.c_void_p, C.c_uint32], C.c_void_p
+        for window in windows:
+            registered = C.create_unicode_buffer(256); original = C.create_unicode_buffer(256)
+            registered_count = int(user.GetClassNameW(window['hwnd'], registered, 256))
+            original_count = int(user.RealGetWindowClassW(window['hwnd'], original, 256))
+            record.append(dict(kind='native-root-metadata', hwnd=window['hwnd'],
+                               registeredClass=registered.value, registeredCount=registered_count,
+                               realClass=original.value, realCount=original_count,
+                               style=int(user.GetWindowLongPtrW(window['hwnd'], -16)) & 0xffffffff,
+                               extendedStyle=int(user.GetWindowLongPtrW(window['hwnd'], -20)) & 0xffffffff,
+                               owner=int(user.GetWindow(window['hwnd'], 4) or 0)))
+        if windows:
+            record.append(dict(kind='native-root-capture', capture=desktop.screenshot(
+                child.pid, windows, snapshot_path.parent / 'native-root-inventory.bmp')))
         observed = bind_native_root(windows, ready, child.pid)
         require(desktop.pid(observed['hwnd']) == child.pid, 'Native root process differs')
         record.append(dict(kind='independent-native-root', sourceHandle=ready['sourceHandle'], native=observed))
