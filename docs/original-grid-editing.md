@@ -132,3 +132,14 @@ activation request. Restore that single `SetForegroundWindow` request after shel
 dismissal, before the guarded optional caption click. Recheck the exact native
 owner and original deadline afterward; a refused request never authorizes a click
 through an obstruction. Artifact12093189687 preserves the original failure.
+
+With the original activation restored, run39013197920 completed all four Microsoft
+capture/edit phases in 5.734 seconds. The portable process produced no initial
+observer snapshot before its original 20-second startup deadline. Its empty
+streams, unchanged payload and all four reference captures remain retained in
+artifact12092754938. This identifies a portable startup failure, not an editing
+result. Optional hosted `diagnose_startup` runs the same controller and takes one
+managed stack report from that exact owned portable child at 12 seconds, bounded
+to five seconds and 2 MiB. The pinned diagnostic tool cannot extend controller
+deadlines, retry input or terminate an application; only its own diagnostic child
+is stopped at the bound. Diagnostic output never qualifies acceptance.

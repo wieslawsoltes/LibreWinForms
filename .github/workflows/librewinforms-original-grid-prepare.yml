@@ -8,6 +8,11 @@ on:
         type: boolean
         required: true
         default: false
+      diagnose_startup:
+        description: Diagnostic only — collect one bounded owned portable process stack
+        type: boolean
+        required: false
+        default: false
   push:
     branches: [fix-hosted-original-grid]
     paths:
@@ -49,6 +54,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Hosted caption guards failed.' }
           python eng/tests/test_original_grid_hosted_startup.py
           if ($LASTEXITCODE -ne 0) { throw 'Hosted startup integration guards failed.' }
+          python eng/tests/test_original_grid_startup_diagnostic.py
+          if ($LASTEXITCODE -ne 0) { throw 'Owned stack observation guards failed.' }
       - name: Checkout immutable original sample
         uses: actions/checkout@v4
         with:
@@ -80,6 +87,12 @@ jobs:
             --feed "$env:RUNNER_TEMP/original-grid-feed" `
             --output "$env:RUNNER_TEMP/original-grid-pair"
           if ($LASTEXITCODE -ne 0) { throw 'Original grid package preparation failed; evidence retained.' }
+      - name: Install pinned managed stack observer
+        if: github.event_name == 'workflow_dispatch' && inputs.run_original_input && inputs.diagnose_startup
+        shell: pwsh
+        run: |
+          dotnet tool install dotnet-stack --version 10.0.750501 --tool-path "$env:RUNNER_TEMP/grid-stack-tool"
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned stack observer installation failed.' }
       - name: Prepare disposable hosted desktop before application startup
         if: github.event_name == 'workflow_dispatch' && inputs.run_original_input
         shell: pwsh
@@ -87,13 +100,22 @@ jobs:
           python eng/OriginalGrid/prepare-desktop.py --output "$env:RUNNER_TEMP/original-grid-desktop-preflight.json"
           if ($LASTEXITCODE -ne 0) { throw 'Hosted desktop setup failed; no application input attempted.' }
       - name: Run approved original grid desktop protocol
-        if: github.event_name == 'workflow_dispatch' && inputs.run_original_input
+        if: github.event_name == 'workflow_dispatch' && inputs.run_original_input && !inputs.diagnose_startup
         shell: pwsh
         run: |
           python eng/librewinforms-original-grid-desktop.py `
             --prepared-root "$env:RUNNER_TEMP/original-grid-pair" `
             --evidence "$env:RUNNER_TEMP/original-grid-evidence" --hosted-startup
           if ($LASTEXITCODE -ne 0) { throw 'Original grid input failed; original evidence retained without retry.' }
+      - name: Diagnose original startup with unchanged controller limits and input
+        if: github.event_name == 'workflow_dispatch' && inputs.run_original_input && inputs.diagnose_startup
+        shell: pwsh
+        run: |
+          python eng/OriginalGrid/diagnose-startup.py `
+            --prepared-root "$env:RUNNER_TEMP/original-grid-pair" `
+            --evidence "$env:RUNNER_TEMP/original-grid-evidence" `
+            --stack-tool "$env:RUNNER_TEMP/grid-stack-tool/dotnet-stack.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Diagnostic retained original controller failure.' }
       - name: Retain original desktop evidence
         if: always() && github.event_name == 'workflow_dispatch' && inputs.run_original_input
         uses: actions/upload-artifact@v4
@@ -103,6 +125,7 @@ jobs:
           if-no-files-found: warn
           path: |
             ${{ runner.temp }}/original-grid-evidence/**
+            ${{ runner.temp }}/original-grid-evidence-diagnostic/**
             ${{ runner.temp }}/original-grid-desktop-preflight.json
       - name: Retain original sources, compiled pair and build evidence
         if: always()
