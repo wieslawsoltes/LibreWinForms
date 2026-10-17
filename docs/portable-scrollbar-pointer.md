@@ -59,3 +59,17 @@ Workflow pushes stay read-only. Explicit dispatch with `hosted_startup=true` and
 `observe_startup_only=false` selects the approved input. Earlier failed/observed
 startup results remain retained; this helper is diagnostic preparation, not a
 portable repeat implementation or release acceptance. Local VMs are not used.
+
+The first approved startup run39064135409 completed startup in the original
+budget, used one Search Escape pair and the owned-form activation, and made no
+pointer move or press. It stopped at11.297seconds because the harness compared
+the registered class name literally with `SCROLLBAR`. Original WinForms
+`NativeWindow.WindowClass` superclasses system controls with generated names.
+The corrected read-only guard queries `RealGetWindowClassW` for the original
+standard control type, still requires exactly SCROLLBAR, records both class
+names and rejects changes, failed queries or truncation. Exact PID, handle,
+root, foreground, exposed point, geometry and held-input checks remain intact.
+See [Microsoft's class-query explanation](https://devblogs.microsoft.com/oldnewthing/20101231-00/?p=11863).
+This correction adds no input or timing allowance. All24 held-input/class
+controls pass. The original failed artifact12112463458 is retained with SHA256
+`e24201b00970caa8705dcae5e57bd3cc820cfa890794212675fa50783542a9de`.

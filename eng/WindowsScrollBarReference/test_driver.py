@@ -20,6 +20,40 @@ class Backend:
 
 
 class Guards(unittest.TestCase):
+    def test_native_class_uses_read_only_original_type_not_registered_alias(self):
+        class User:
+            def GetClassNameW(self, hwnd, buffer, count):
+                self.assert_hwnd = hwnd
+                buffer.value = 'WindowsForms10.SCROLLBAR.app.0.2360855_r3_ad1'
+                return len(buffer.value)
+            def RealGetWindowClassW(self, hwnd, buffer, count):
+                assert hwnd == self.assert_hwnd == 42
+                buffer.value = 'ScrollBar'
+                return len(buffer.value)
+        self.assertEqual('ScrollBar', driver.native_scrollbar_class(User(), 42)['original'])
+
+    def test_registered_scrollbar_name_cannot_admit_a_different_native_type(self):
+        class User:
+            def GetClassNameW(self, hwnd, buffer, count):
+                buffer.value = 'SCROLLBAR'; return len(buffer.value)
+            def RealGetWindowClassW(self, hwnd, buffer, count):
+                buffer.value = 'Button'; return len(buffer.value)
+        with self.assertRaisesRegex(RuntimeError, 'original native scrollbar'):
+            driver.native_scrollbar_class(User(), 42)
+
+    def test_failed_or_truncated_class_queries_reject(self):
+        for failed in ('registered', 'original'):
+            for result in (0, 255, 3):
+                class User:
+                    def GetClassNameW(self, hwnd, buffer, count):
+                        buffer.value = 'SCROLLBAR'
+                        return result if failed == 'registered' else len(buffer.value)
+                    def RealGetWindowClassW(self, hwnd, buffer, count):
+                        buffer.value = 'SCROLLBAR'
+                        return result if failed == 'original' else len(buffer.value)
+                with self.subTest(failed=failed, result=result), self.assertRaises(RuntimeError):
+                    driver.native_scrollbar_class(User(), 42)
+
     def test_startup_input_time_cannot_be_reset_before_scroll_gestures(self):
         p,b,c=self.make(input_started=0);c.value=14.9
         p.down('owned',(1,2))

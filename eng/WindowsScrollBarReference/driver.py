@@ -27,6 +27,18 @@ def observe_desktop(desktop):
                 foreground=None if not hwnd else desktop.snapshot(hwnd))
 
 
+def native_scrollbar_class(user, hwnd):
+    registered, original = C.create_unicode_buffer(256), C.create_unicode_buffer(256)
+    registered_count = user.GetClassNameW(hwnd, registered, len(registered))
+    original_count = user.RealGetWindowClassW(hwnd, original, len(original))
+    observed = dict(registered=registered.value, original=original.value)
+    require(0 < registered_count < 255 and registered_count == len(registered.value)
+            and 0 < original_count < 255 and original_count == len(original.value)
+            and original.value.casefold() == "scrollbar",
+            f"Target is not the original native scrollbar: {observed}")
+    return observed
+
+
 class HeldInput:
     def __init__(self, backend, deadline, *, authorized=False, environment=None, clock=time.monotonic, sleep=time.sleep, input_started=None):
         environment = os.environ if environment is None else environment
@@ -91,12 +103,14 @@ class Native:
         self.u = self.desktop.user
         self.u.GetAncestor.argtypes, self.u.GetAncestor.restype = [C.c_void_p, C.c_uint32], C.c_void_p
         self.u.GetClassNameW.argtypes, self.u.GetClassNameW.restype = [C.c_void_p, C.c_wchar_p, C.c_int], C.c_int
+        self.u.RealGetWindowClassW.argtypes, self.u.RealGetWindowClassW.restype = [C.c_void_p, C.c_wchar_p, C.c_uint32], C.c_uint32
         self.dwm = C.WinDLL("dwmapi")
         self.dwm.DwmGetWindowAttribute.argtypes = [C.c_void_p, C.c_uint32, C.c_void_p, C.c_uint32]
         self.dwm.DwmGetWindowAttribute.restype = C.c_int32
         self.owner = self.owner_now()
         require(self.owner["client"] == ready["client"] and self.owner["enabled"], "Source/native owner geometry differs")
         self.controls = {item["name"]: item for item in ready["controls"]}
+        self.control_classes = {}
         require(tuple(self.controls) == NAMES and len(ready["controls"]) == 7, "Original control inventory changed")
 
     def owner_now(self):
@@ -122,8 +136,11 @@ class Native:
         require(self.u.WindowFromPoint(self.h.Point(*point)) == hwnd, "Point is obstructed or targets another window")
         require(self.u.GetAncestor(hwnd, 2) == self.owner["hwnd"], "Target no longer belongs to the owned root")
         if hwnd != self.owner["hwnd"]:
-            name = C.create_unicode_buffer(256)
-            require(self.u.GetClassNameW(hwnd, name, len(name)) and name.value.casefold() == "scrollbar", "Target is not the original native scrollbar")
+            observed = native_scrollbar_class(self.u, hwnd)
+            if hwnd not in self.control_classes:
+                self.control_classes[hwnd] = observed
+                self.record.append(dict(kind="native-class", hwnd=hwnd, **observed))
+            require(self.control_classes[hwnd] == observed, "Original native scrollbar class changed")
 
     def position(self):
         p = self.h.Point(); require(self.u.GetCursorPos(C.byref(p)), "Pointer position unavailable")
