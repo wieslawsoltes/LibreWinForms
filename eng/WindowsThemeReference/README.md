@@ -53,3 +53,13 @@ Both profiles retain actual geometry, backgrounds, native theme captures and
 all differing pixels. This control investigates sample position and background
 edge coverage; it does not assert that GDI+ authored the Windows theme assets
 or qualify a change to shared product rasterization.
+
+`--line-raster` independently records48 complete32×32 Microsoft GDI+ images:
+eight original line geometries/frames, three smoothing selections and two pixel
+offset selections. Horizontal, reversed, vertical, diagonal, wider, fractionally
+translated, nonuniformly scaled and device-clipped inputs retain their endpoints,
+transforms and clips separately. Receipts include initial and actual modes,
+framework identity, every PNG hash and elapsed time. Its own limits are48 images,
+16MiB,45seconds internally and60seconds for the process. It creates no desktop
+window and sends no input. This separates the grid-border rasterization question
+from native theme images; observation alone does not qualify portable pixels.

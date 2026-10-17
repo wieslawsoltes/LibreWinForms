@@ -13,6 +13,8 @@ internal static class Program
     {
         try
         {
+            if (args.Length == 2 && args[0] == "--line-raster")
+                return LineRasterReference.Run(args[1]);
             if (args.Length == 2 && args[0] == "--thumb-primitives")
                 return ThumbPrimitiveReference.Run(args[1]);
             if (args.Length == 2 && args[0] == "--thumb-half-pixel")
