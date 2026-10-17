@@ -10,6 +10,8 @@ Windows package consumers can explicitly select the existing ProGPU DXC runtime:
 `win-x64` is also supported. This requires the rebuilt SDK/backend and an
 executable package consumer with its ordinary bootstrap enabled. `Automatic`
 retains the existing environment/default behavior; `Fxc` explicitly selects FXC.
+An absent or empty compiler property also defaults to `Automatic` for existing
+direct targets imports that do not import the SDK props.
 Invalid values, unsupported RIDs, libraries, disabled portable references,
 project mode and disabled bootstrap fail before application generation. There
 is no implicit switch or fallback after a compiler failure.

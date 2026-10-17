@@ -83,6 +83,8 @@
   </Target>
 
   <PropertyGroup>
+    <!-- Direct targets imports predate compiler selection and retain the default. -->
+    <LibreWinFormsDx12ShaderCompiler Condition="'$(LibreWinFormsDx12ShaderCompiler)' == ''">Automatic</LibreWinFormsDx12ShaderCompiler>
     <_LibreWinFormsDx12CompilerEnum Condition="'$(LibreWinFormsDx12ShaderCompiler)' == 'Dxc'">Dxc</_LibreWinFormsDx12CompilerEnum>
     <_LibreWinFormsDx12CompilerEnum Condition="'$(LibreWinFormsDx12ShaderCompiler)' == 'Fxc'">Fxc</_LibreWinFormsDx12CompilerEnum>
   </PropertyGroup>

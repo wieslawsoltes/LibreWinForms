@@ -22,7 +22,8 @@ class CompilerSdkTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='forms-dx12-sdk-') as directory:
             root=Path(directory);project=ET.Element('Project');properties=ET.SubElement(project,'PropertyGroup')
             settings['IntermediateOutputPath']=str(root/'obj')+'/'
-            for key,value in settings.items():ET.SubElement(properties,key).text=value
+            for key,value in settings.items():
+                if value is not None:ET.SubElement(properties,key).text=value
             ET.SubElement(project,'Import',Project=str(ROOT/'src/LibreWinForms.Sdk/targets/LibreWinForms.Sdk.targets'))
             path=root/'contract.proj';ET.ElementTree(project).write(path)
             result_file=root/'evaluation.json'
@@ -39,10 +40,12 @@ class CompilerSdkTests(unittest.TestCase):
             return result.returncode,output,code.read_text() if code.exists() else ''
 
     def test_default_preserves_registration_and_has_no_compiler_package(self):
-        rc,output,code=self.evaluate();self.assertEqual(rc,0,output)
-        self.assertIn('ProGpuPlatform.Register();',code)
-        self.assertNotIn('WgpuDx12CompilerOptions',code)
-        self.assertFalse(any(item['Identity']=='ProGPU.Backend.Dx12' for item in json.loads(output)['Items']['PackageReference']))
+        for value in (None,'','Automatic'):
+            with self.subTest(value=value):
+                rc,output,code=self.evaluate(LibreWinFormsDx12ShaderCompiler=value);self.assertEqual(rc,0,output)
+                self.assertIn('ProGpuPlatform.Register();',code)
+                self.assertNotIn('WgpuDx12CompilerOptions',code)
+                self.assertFalse(any(item['Identity']=='ProGPU.Backend.Dx12' for item in json.loads(output)['Items']['PackageReference']))
 
     def test_explicit_compilers_generate_typed_options_and_exact_dxc_dependency(self):
         for compiler in ('Dxc','Fxc','dxc','fxc'):
