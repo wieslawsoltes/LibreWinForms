@@ -3,6 +3,7 @@
 
 #if LIBREWINFORMS_PORTABLE
 using System.Drawing;
+using LibreWinForms.Platform;
 
 namespace System.Windows.Forms;
 
@@ -23,9 +24,23 @@ public abstract partial class ScrollBar
         internal Rectangle Bounds { get; } = bounds;
         internal int Dpi { get; } = dpi;
         internal Control? Parent { get; } = parent;
+        internal IDisposable? Timer { get; set; }
+        internal object? TimerIdentity { get; set; }
+        internal bool Repeating { get; set; }
+        internal bool PointerOnPart { get; set; } = true;
     }
 
-    private PortableScrollBarPress? _portableScrollBarPress;
+    private PortableScrollBarPress? _portableScrollBarPressValue;
+    private PortableScrollBarPress? _portableScrollBarPress
+    {
+        get => _portableScrollBarPressValue;
+        set
+        {
+            PortableScrollBarPress? previous = _portableScrollBarPressValue;
+            _portableScrollBarPressValue = value;
+            if (previous is not null && !ReferenceEquals(previous, value)) StopPortableScrollBarRepeat(previous);
+        }
+    }
 
     private bool IsCurrentPortableScrollBarPress(PortableScrollBarPress press)
         => ReferenceEquals(_portableScrollBarPress, press) && press.Dispatch.IsCurrentPress
@@ -48,16 +63,84 @@ public abstract partial class ScrollBar
         _portableScrollBarPress = press;
         if (!SetPortableScrollBarHover(e.Location, dispatch, geometry, forceInvalidate: true)) return false;
         if (part == PortableScrollBarPart.Thumb) return true;
-        bool increment = part is PortableScrollBarPart.Increment or PortableScrollBarPart.PageIncrement;
-        if (frame.Values.Direction == RightToLeft.Yes) increment = !increment;
-        bool page = part is PortableScrollBarPart.PageDecrement or PortableScrollBarPart.PageIncrement;
-        long step = page ? frame.Values.Large : frame.Values.Small;
-        int next = (int)Math.Clamp(frame.Values.Value + (increment ? step : -step), frame.Values.Minimum, frame.Values.Last);
+        PortablePointerDispatchContext context = dispatch;
+        if (!StepPortableScrollBarPress(press, () => context.IsCurrent)) return false;
+        StartPortableScrollBarRepeat(press, initial: true);
+        return context.IsCurrent;
+    }
+
+    private bool StepPortableScrollBarPress(PortableScrollBarPress press, Func<bool> current)
+    {
+        PortableScrollBarValues values = press.Frame.Values;
+        bool increment = press.Part is PortableScrollBarPart.Increment or PortableScrollBarPart.PageIncrement;
+        if (values.Direction == RightToLeft.Yes) increment = !increment;
+        bool page = press.Part is PortableScrollBarPart.PageDecrement or PortableScrollBarPart.PageIncrement;
+        long step = page ? values.Large : values.Small;
+        int next = (int)Math.Clamp(values.Value + (increment ? step : -step), values.Minimum, values.Last);
         ScrollEventType type = page
             ? (increment ? ScrollEventType.LargeIncrement : ScrollEventType.LargeDecrement)
             : (increment ? ScrollEventType.SmallIncrement : ScrollEventType.SmallDecrement);
-        PortablePointerDispatchContext context = dispatch;
-        return ApplyPortablePointerScroll(press, type, next, () => context.IsCurrent);
+        return ApplyPortablePointerScroll(press, type, next, current);
+    }
+
+    private static void StopPortableScrollBarRepeat(PortableScrollBarPress press)
+    {
+        press.TimerIdentity = null;
+        IDisposable? timer = press.Timer;
+        press.Timer = null;
+        timer?.Dispose();
+    }
+
+    private void StartPortableScrollBarRepeat(PortableScrollBarPress press, bool initial)
+    {
+        object inputIdentity = press.InputIdentity;
+        bool Current() => ReferenceEquals(press.InputIdentity, inputIdentity)
+            && IsCurrentPortableScrollBarPress(press) && ReferenceEquals(press.InputIdentity, inputIdentity);
+        if (!Current()) return;
+        StopPortableScrollBarRepeat(press);
+        if (!Current()) return;
+        object identity = new();
+        press.TimerIdentity = identity;
+        // Bounded portable cadence informed by the original hold observations.
+        // These intervals do not claim exact Win32 timer or user-setting parity.
+        IDisposable? timer = null;
+        try
+        {
+            timer = LibrePlatform.Current.Timers.Start(
+                TimeSpan.FromMilliseconds(initial ? 400 : 60), repeating: false,
+                () => RepeatPortableScrollBarPress(press, identity));
+            if (ReferenceEquals(press.TimerIdentity, identity) && Current() && ReferenceEquals(press.TimerIdentity, identity))
+            {
+                press.Timer = timer;
+                timer = null;
+            }
+        }
+        catch
+        {
+            if (ReferenceEquals(_portableScrollBarPress, press) && ReferenceEquals(press.InputIdentity, inputIdentity))
+                _portableScrollBarPress = null;
+            throw;
+        }
+        finally { timer?.Dispose(); }
+    }
+
+    private void RepeatPortableScrollBarPress(PortableScrollBarPress press, object identity)
+    {
+        if (!ReferenceEquals(press.TimerIdentity, identity)) return;
+        object inputIdentity = press.InputIdentity;
+        bool Current() => ReferenceEquals(press.InputIdentity, inputIdentity);
+        StopPortableScrollBarRepeat(press);
+        if (!Current() || !IsCurrentPortableScrollBarPress(press) || !Current() || GetStyle(ControlStyles.UserMouse)) return;
+        press.Repeating = true;
+        PortableScrollBarGeometry geometry = ReadPortableScrollBarGeometry();
+        if (!Current() || !IsCurrentPortableScrollBarPress(press) || !Current()) return;
+        // Re-hit the current thumb after every value change. Page repeat must
+        // stop when that thumb reaches the original held pointer.
+        bool onPart = _portableScrollBarHover is { } hover && hover.Dispatch.IsCurrentTarget
+            && geometry.Hit(hover.Location) == press.Part;
+        press.PointerOnPart = onPart;
+        if (onPart && !StepPortableScrollBarPress(press, Current)) return;
+        if (Current() && IsCurrentPortableScrollBarPress(press) && Current()) StartPortableScrollBarRepeat(press, initial: false);
     }
 
     internal override bool ProcessPortableMouseMoveDefault(MouseEventArgs e, in PortablePointerDispatchContext dispatch)
@@ -75,7 +158,22 @@ public abstract partial class ScrollBar
         }
 
         if (!dispatch.IsCurrent) return false;
-        if (press.Part != PortableScrollBarPart.Thumb || (e.Button & MouseButtons.Left) == 0) return true;
+        if (press.Part != PortableScrollBarPart.Thumb)
+        {
+            bool wasOnPart = press.PointerOnPart;
+            press.PointerOnPart = currentGeometry.Hit(e.Location) == press.Part;
+            if (press.Repeating && !wasOnPart && press.PointerOnPart && (e.Button & MouseButtons.Left) != 0)
+            {
+                PortablePointerDispatchContext repeatContext = dispatch;
+                StopPortableScrollBarRepeat(press);
+                if (!StepPortableScrollBarPress(press, () => repeatContext.IsCurrent)) return false;
+                StartPortableScrollBarRepeat(press, initial: false);
+            }
+
+            return dispatch.IsCurrent;
+        }
+
+        if ((e.Button & MouseButtons.Left) == 0) return true;
         PortableScrollBarGeometry geometry = press.Geometry;
         int travel = geometry.Track - geometry.Thumb;
         if (travel <= 0) return true;
@@ -95,6 +193,7 @@ public abstract partial class ScrollBar
         PortableScrollBarPress? press = _portableScrollBarPress;
         if (e.Button == MouseButtons.Left && press is not null)
         {
+            StopPortableScrollBarRepeat(press);
             object inputIdentity = press.InputIdentity = new();
             bool Current() => ReferenceEquals(press.InputIdentity, inputIdentity) && (isCurrentRelease?.Invoke() ?? true);
             try
@@ -146,6 +245,19 @@ public abstract partial class ScrollBar
         }
     }
 
+    protected override void OnHandleDestroyed(EventArgs e)
+    {
+        _portableScrollBarPress = null;
+        _portableScrollBarHover = null;
+        base.OnHandleDestroyed(e);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) _portableScrollBarPress = null;
+        base.Dispose(disposing);
+    }
+
     protected override void OnVisibleChanged(EventArgs e)
     {
         if (!Visible)
@@ -162,6 +274,12 @@ public abstract partial class ScrollBar
         _portableScrollBarPress = null;
         _portableScrollBarHover = null;
         base.OnParentChanged(e);
+    }
+
+    internal override void OnPortableCaptureReplaced()
+    {
+        _portableScrollBarPress = null;
+        Invalidate();
     }
 
     protected override void OnMouseCaptureChanged(EventArgs e)

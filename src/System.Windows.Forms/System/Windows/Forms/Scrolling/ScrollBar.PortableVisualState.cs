@@ -44,6 +44,7 @@ public abstract partial class ScrollBar
     protected override void OnMouseLeave(EventArgs e)
     {
         _portableScrollBarHover = null;
+        if (_portableScrollBarPress is { } press) press.PointerOnPart = false;
         Invalidate();
         base.OnMouseLeave(e);
     }

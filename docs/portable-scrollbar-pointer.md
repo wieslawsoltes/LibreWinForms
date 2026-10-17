@@ -73,3 +73,9 @@ See [Microsoft's class-query explanation](https://devblogs.microsoft.com/oldnewt
 This correction adds no input or timing allowance. All24 held-input/class
 controls pass. The original failed artifact12112463458 is retained with SHA256
 `e24201b00970caa8705dcae5e57bd3cc820cfa890794212675fa50783542a9de`.
+
+## Held repeat implementation
+
+Arrow and page holds now use the source-owned typed timer path described in
+[portable-scrollbar-repeat.md](portable-scrollbar-repeat.md). Exact Windows timer
+policy, original package gestures and theme appearance remain independent gates.

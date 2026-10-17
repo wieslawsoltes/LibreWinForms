@@ -179,6 +179,9 @@ public unsafe partial class Control
         }
     }
 
+    // Internal ownership retirement does not manufacture a public capture event.
+    internal virtual void OnPortableCaptureReplaced() { }
+
     internal void CancelPortableCapture(bool updateCursor = true)
     {
         Control root = GetPortableTopLevelControl();

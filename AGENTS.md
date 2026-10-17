@@ -1,3 +1,11 @@
+Portable scrollbar held repeat uses exact press and one-shot timer identities.
+Re-hit the current thumb/track at the owned pointer; pause outside the original
+part and retire queued callbacks on source/capture/handle changes. Preserve
+callback NewValue, nested input ownership and one EndScroll. The portable 400/60 ms
+cadence is explicit policy, not inferred exact Win32 timing parity. Keep original
+seven-hold evidence, theme pixels and package qualification independent; see
+docs/portable-scrollbar-repeat.md.
+
 Unsmoothed Drawing axis lines admit the original inclusive integer pixel band
 only for opaque solid centered one-pixel flat pens, Default pixel offset,96DPI
 and exact unit-linear/integer-translation frames. Preserve original clip/brush
@@ -39,7 +47,7 @@ still require their independent press/capture generations. Preserve original tra
 clipping, theme state transport and callback-safe visual invalidation.
 Protected mouse notifications remain notifications. Keep the original 96-state
 geometry fixture and native Windows procedure unchanged. See
-docs/portable-scrollbar-pointer.md; repeat, exact theme pixels and native/package gesture
+docs/portable-scrollbar-pointer.md; exact repeat timing, theme pixels and native/package gesture
 qualification remain independent unfinished gates.
 
 Portable scrollbar paint retains source range/page/value, per-axis system metrics
