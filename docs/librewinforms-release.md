@@ -57,13 +57,18 @@ contain two Forms identities.
 ## Package and provenance gates
 
 The preview.70 source refresh pins ProGPU
-`be37726173a0dd87e6b3a71f5de294f08863cb54`, the exact revision whose complete
-[Build 38961124864](https://github.com/wieslawsoltes/ProGPU/actions/runs/38961124864)
-passed all 59 jobs, with all 68 Build, Docs, Android and SVG.NET checks passing.
-This includes the merged snapshot, chart-series and pipeline-cache lifetime fixes
-and coordinated preview.70 package identities, plus original Win32 button-packet
-transport for the dependent WPF adapter. ProGPU #389 was fast-forwarded to
-that same qualified commit; native staging selects its exact successful producer.
+`2236345c688a60d40e7a40c0ab02713b58833d4e`, the exact revision whose complete
+[Build 38994881510](https://github.com/wieslawsoltes/ProGPU/actions/runs/38994881510)
+passed all 59 jobs, with all 68 PR checks passing. One ARM64 drawings job required
+a single bounded rerun after its SDK-installer PowerShell process crashed before
+product compilation; the original failed log is retained.
+This producer includes the earlier snapshot, chart-series, pipeline-cache and
+Win32 button-packet fixes plus automatic ordered GPU queries for actual owned
+D3D12/DXC devices. Both Windows architectures retain all 210 complete query
+records and full result buffers against the independent original reference,
+alongside the existing FXC controls. ProGPU #390 remains pending original WPF
+modal/Gallery acceptance; these query results do not qualify desktop behavior.
+Native staging selects this exact successful producer.
 
 The canonical WFI lane uses LibreWPF `beef4c0b83571448fa5bf897fd66f68f3077fdb1`,
 which passed all 16 jobs in
