@@ -1,3 +1,10 @@
+Portable HEADER part1 content uses the canonical source Aero margins (2,1,0,2)
+consistently through content rectangles, margin queries and inverse extents.
+Keep tiny allocations contained, sibling parts and generic theme policies intact;
+never change source font/header dimensions or multiline alignment to conceal
+clipped labels. See docs/portable-header-content-margins.md; original package
+pixels and missing scrollbar paint remain independent release gates.
+
 # Agent Guidance
 
 Explicit Forms DX12 compiler selection carries the immutable descriptor through

@@ -34,6 +34,53 @@ public sealed class ProGpuVisualStyleServiceTests
         target.GetPixel(6, 3).ToArgb().Should().NotBe(Color.FromArgb(255, 250, 250, 250).ToArgb());
     }
 
+    [Theory]
+    [InlineData("HEADER", 1)]
+    [InlineData("header", 2)]
+    [InlineData("Header", 3)]
+    public void HeaderItemContentUsesCanonicalSourceMargins(string className, int state)
+    {
+        var service = new ProGpuVisualStyleService();
+        // DataGridViewHeaderCell.GetThemeMargins uses this original 100x100
+        // rectangle and selects (left2, top1, right0, bottom2) for Aero.
+        service.GetBackgroundContentRectangle(className, 1, state, new Rectangle(0, 0, 100, 100))
+            .Should().Be(new Rectangle(2, 1, 98, 97));
+        Rectangle header = new(40, 10, 120, 23);
+        Rectangle content = service.GetBackgroundContentRectangle(className, 1, state, header);
+        content.Should().Be(new Rectangle(42, 11, 118, 20));
+        service.GetBackgroundExtent(className, 1, state, content).Should().Be(header);
+        service.GetMargins(className, 1, state, LibreVisualStyleMarginProperty.Content)
+            .Should().Be(new LibreVisualStyleMargins(2, 1, 0, 2));
+        service.GetMargins(className, 1, state, LibreVisualStyleMarginProperty.Sizing)
+            .Should().Be(new LibreVisualStyleMargins(3, 3, 3, 3));
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(1, 1)]
+    [InlineData(1, 2)]
+    [InlineData(2, 3)]
+    public void TinyHeaderContentStaysInsideOriginalBounds(int width, int height)
+    {
+        var service = new ProGpuVisualStyleService();
+        Rectangle bounds = new(4, 7, width, height);
+        Rectangle content = service.GetBackgroundContentRectangle("HEADER", 1, 1, bounds);
+        content.Width.Should().BeGreaterThanOrEqualTo(0);
+        content.Height.Should().BeGreaterThanOrEqualTo(0);
+        content.Left.Should().BeInRange(bounds.Left, bounds.Right);
+        content.Top.Should().BeInRange(bounds.Top, bounds.Bottom);
+        content.Right.Should().BeLessThanOrEqualTo(bounds.Right);
+        content.Bottom.Should().BeLessThanOrEqualTo(bounds.Bottom);
+    }
+
+    [Fact]
+    public void HeaderSiblingPartsRetainTheirIndependentGenericContentPolicy()
+    {
+        var service = new ProGpuVisualStyleService();
+        service.GetBackgroundContentRectangle("HEADER", 2, 1, new Rectangle(0, 0, 100, 100))
+            .Should().Be(new Rectangle(3, 3, 94, 94));
+    }
+
     [Fact]
     public void BackgroundRegionIsManagedAndCallerOwned()
     {
