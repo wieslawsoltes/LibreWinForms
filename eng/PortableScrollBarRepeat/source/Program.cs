@@ -57,12 +57,14 @@ internal static class Program
             form.Controls.Add(bar); bars.Add(bar);
             Phase("control-added", name);
         }
+        bool shown = false;
+        form.Shown += (_, _) => { shown = true; Phase("shown"); };
         bool readyPublished = false;
         int samples = 0;
         void Observe()
         {
             if (++samples > 2200) throw new InvalidOperationException("Original observation budget exceeded.");
-            if (!bars.All(b => PaintObservation.Latest.ContainsKey(b))) return;
+            if (!shown || !bars.All(b => PaintObservation.Latest.ContainsKey(b))) return;
             object ready = PortableSetup.Observe(form, bars, forms, Stopwatch.Frequency);
             string pending = Path.Combine(directory, "snapshot.tmp");
             File.WriteAllText(pending, JsonSerializer.Serialize(ready));

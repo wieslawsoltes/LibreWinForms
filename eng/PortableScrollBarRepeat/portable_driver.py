@@ -16,7 +16,9 @@ class Native(OriginalNative):
         self.snapshot_path = snapshot_path
         self.source_ready = ready
         desktop = helper.WindowsDesktop()
-        observed = bind_native_root(desktop.windows(child.pid), ready, child.pid)
+        windows = desktop.windows(child.pid)
+        record.append(dict(kind="native-root-inventory", windows=windows))
+        observed = bind_native_root(windows, ready, child.pid)
         require(desktop.pid(observed['hwnd']) == child.pid, 'Native root process differs')
         record.append(dict(kind='independent-native-root', sourceHandle=ready['sourceHandle'], native=observed))
         # The original base guard receives independently observed native identity.
