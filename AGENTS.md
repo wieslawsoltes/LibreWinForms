@@ -1,3 +1,12 @@
+Portable HEADER part1 states1–3 use independently captured Aero flat fills and
+the normal state's right separator through the existing managed Graphics path.
+Preserve caller clips/transforms, canonical row-header rotation and source-owned
+grid borders; keep the separate Aero content-margin override and original fonts,
+row heights and sample bounds. Native images are test-only fixtures, never product
+fallback textures. Retain all12 original full-frame comparisons, undefined native
+part outcomes and independent package/application qualification. See
+docs/portable-header-paint.md.
+
 Portable scrollbar pointer defaults share the unchanged source paint geometry and
 run through actual Control dispatch before public notifications. Retain exact
 press/capture/source-value generations, RTL/range policies, callback overrides

@@ -62,6 +62,28 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
                 graphics.SetClip(clip, CombineMode.Intersect);
             }
 
+            if (IsHeaderItem(className, part) && state is >= 1 and <= 3)
+            {
+                if (bounds.Width <= 0 || bounds.Height <= 0) return;
+                // Original Aero HEADER part1 observations use an opaque flat
+                // state fill and a right separator only in the normal state.
+                Color headerColor = state switch
+                {
+                    2 => Color.FromArgb(217, 235, 249),
+                    3 => Color.FromArgb(188, 220, 244),
+                    _ => Color.White,
+                };
+                using var headerFill = new SolidBrush(headerColor);
+                graphics.FillRectangle(headerFill, bounds);
+                if (state == 1)
+                {
+                    using var separator = new SolidBrush(Color.FromArgb(229, 229, 229));
+                    graphics.FillRectangle(separator, bounds.Right - 1, bounds.Top, 1, bounds.Height);
+                }
+
+                return;
+            }
+
             bool scrollBar = string.Equals(className, "SCROLLBAR", StringComparison.OrdinalIgnoreCase);
             bool scrollArrow = scrollBar && part == 1 && state is >= 1 and <= 16;
             int paintState = scrollArrow ? ((state - 1) % 4) + 1 : state;
