@@ -29,7 +29,9 @@ internal static unsafe partial class WindowsThemeBitmapSource
         {
             // Native opacity is authoritative. RGB32's unused fourth byte is
             // never treated as proof that an alpha-bearing theme is opaque.
-            if (IsThemePartDefined(theme, part, state) == 0
+            // This API's state parameter is reserved and must be zero; the
+            // actual state remains authoritative for every resource query below.
+            if (IsThemePartDefined(theme, part, 0) == 0
                 || IsThemeBackgroundPartiallyTransparent(theme, part, state) != 0
                 || !EnumEquals(theme, part, state, 4001, 0) // BGTYPE: image
                 || !EnumEquals(theme, part, state, 4004, 1) // SIZINGTYPE: stretch

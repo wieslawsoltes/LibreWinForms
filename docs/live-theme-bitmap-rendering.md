@@ -69,6 +69,10 @@ first drains that thread's outstanding owners.
 The hosted Windows CI lane runs the actual default service against all eight
 original horizontal-thumb frames, without keyboard or mouse input. It separately
 requires the native source to be selected, so a fallback cannot pass accidentally.
+The first run rejected before paint because the part-defined query incorrectly
+passed the visual state to its reserved argument. The corrected call uses zero,
+as required by Windows and the original WinForms implementation; all subsequent
+resource queries retain the actual state and every pixel/admission check remains.
 Three portable controls cover RGB row/channel identity, independent byte ownership,
 invalid sizes, and part/DPI rejection; the sixteen original image-renderer frames
 remain independent. Hosted passage and original application captures are still
