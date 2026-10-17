@@ -44,13 +44,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--prepared-root', type=Path, required=True)
     parser.add_argument('--evidence', type=Path, required=True)
-    parser.add_argument('--stack-tool', type=Path, required=True)
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--stack-tool', type=Path)
+    group.add_argument('--native-tool', type=Path)
     args = parser.parse_args()
     if os.name != 'nt' or any(os.environ.get(k) != v for k, v in {
         'GITHUB_ACTIONS':'true', 'RUNNER_ENVIRONMENT':'github-hosted', 'RUNNER_OS':'Windows',
         'GITHUB_REPOSITORY':'wieslawsoltes/LibreWinForms'}.items()):
         raise RuntimeError('Requires this repository\'s disposable hosted Windows runner')
-    root, tool = args.prepared_root.resolve(strict=True), args.stack_tool.resolve(strict=True)
+    root, tool = args.prepared_root.resolve(strict=True), (args.native_tool or args.stack_tool).resolve(strict=True)
     build = json.loads((root / 'build-receipt.json').read_text())
     app = str(Path(build['builds']['Portable']['app']).resolve(strict=True))
     if not Path(app).is_relative_to(root) or tool.is_symlink():
@@ -60,8 +62,11 @@ def main():
     driver = Path(__file__).resolve().parents[1] / 'librewinforms-original-grid-desktop.py'
     record = dict(diagnosticOnly=True, qualified=False, originalStartupSeconds=20, originalProcessSeconds=60,
                   originalDriverSha256=hashlib.sha256(driver.read_bytes()).hexdigest(),
-                  toolSha256=hashlib.sha256(tool.read_bytes()).hexdigest(), toolVersion='10.0.750501',
+                  toolSha256=hashlib.sha256(tool.read_bytes()).hexdigest(), toolVersion='owned-MiniDumpNormal-v1' if args.native_tool else '10.0.750501',
                   sourceHead=build['sourceHead'], observation={})
+    collector = collect
+    if args.native_tool:
+        from native_stack import collect as collector
     original = subprocess.Popen
     stop, threads = threading.Event(), []
 
@@ -72,7 +77,7 @@ def main():
             raise RuntimeError('No second portable launch is admitted')
         child = original(*arguments, **kwargs)
         if matched:
-            thread = threading.Thread(target=collect,
+            thread = threading.Thread(target=collector,
                 args=(child, tool, output, stop, original, record['observation']), daemon=True)
             threads.append(thread)
             thread.start()

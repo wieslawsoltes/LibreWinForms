@@ -87,12 +87,11 @@ jobs:
             --feed "$env:RUNNER_TEMP/original-grid-feed" `
             --output "$env:RUNNER_TEMP/original-grid-pair"
           if ($LASTEXITCODE -ne 0) { throw 'Original grid package preparation failed; evidence retained.' }
-      - name: Install pinned managed stack observer
+      - name: Build owned native stack observer
         if: github.event_name == 'workflow_dispatch' && inputs.run_original_input && inputs.diagnose_startup
         shell: pwsh
         run: |
-          dotnet tool install dotnet-stack --version 10.0.750501 --tool-path "$env:RUNNER_TEMP/grid-stack-tool"
-          if ($LASTEXITCODE -ne 0) { throw 'Pinned stack observer installation failed.' }
+          ./eng/OriginalGrid/build-native-stack.ps1 -Architecture arm64 -OutputDirectory "$env:RUNNER_TEMP/grid-stack-tool"
       - name: Prepare disposable hosted desktop before application startup
         if: github.event_name == 'workflow_dispatch' && inputs.run_original_input
         shell: pwsh
@@ -114,7 +113,7 @@ jobs:
           python eng/OriginalGrid/diagnose-startup.py `
             --prepared-root "$env:RUNNER_TEMP/original-grid-pair" `
             --evidence "$env:RUNNER_TEMP/original-grid-evidence" `
-            --stack-tool "$env:RUNNER_TEMP/grid-stack-tool/dotnet-stack.exe"
+            --native-tool "$env:RUNNER_TEMP/grid-stack-tool/GridNativeStack.exe"
           if ($LASTEXITCODE -ne 0) { throw 'Diagnostic retained original controller failure.' }
       - name: Retain original desktop evidence
         if: always() && github.event_name == 'workflow_dispatch' && inputs.run_original_input

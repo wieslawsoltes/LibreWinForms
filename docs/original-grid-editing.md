@@ -143,3 +143,23 @@ managed stack report from that exact owned portable child at 12 seconds, bounded
 to five seconds and 2 MiB. The pinned diagnostic tool cannot extend controller
 deadlines, retry input or terminate an application; only its own diagnostic child
 is stopped at the bound. Diagnostic output never qualifies acceptance.
+
+Managed-stack diagnostic run 39013729601 again completed the Microsoft phases,
+then reached the portable startup deadline with no source snapshot. The stack
+observer itself hit its five-second bound with empty output. Preserve original
+artifact 12094121172; it does not identify the blocked native call.
+
+The next diagnostic uses a source-built Windows SDK `MiniDumpNormal` helper.
+The controller duplicates only its exact live child's process handle with
+query/read/synchronize rights, inheriting that single handle into the helper.
+The helper verifies its process ID and liveness, never opens a PID, attaches a
+debugger, suspends a thread, injects input or terminates the application. At the
+same 12-second observation point, both the parent and the SDK cancellation
+callback impose five seconds and 32 MiB; only the helper is terminated at the
+parent bound. The original controller still owns all application deadlines.
+The helper uses CREATE_NEW, retains SDK default thread/module inclusion and
+never requests heap/full-memory capture. Structural validation requires the
+exact process identity and native x64/ARM64 metadata. Source-built native
+controls exercise a real owned child, reject the wrong PID and refuse overwrite
+before any application diagnostic. The original managed-stack path remains
+available explicitly; neither diagnostic qualifies product acceptance.
