@@ -8,7 +8,29 @@ from pathlib import Path
 import subprocess
 import time
 from reference_driver import HOST, NAMES, HeldInput, require, observe_desktop, reference_arguments, Native as OriginalNative
-from geometry import inventory, painted_target, contains, bind_native_root
+from geometry import inventory, painted_target, contains, bind_native_root, bind_portable_root
+
+
+def native_root_inventory(desktop, pid):
+    windows = desktop.windows(pid)
+    require(len(windows) <= 128, 'Native inventory exceeds observation bound')
+    user = desktop.user
+    user.GetClassNameW.argtypes, user.GetClassNameW.restype = [C.c_void_p, C.c_wchar_p, C.c_int], C.c_int
+    user.RealGetWindowClassW.argtypes, user.RealGetWindowClassW.restype = [C.c_void_p, C.c_wchar_p, C.c_uint32], C.c_uint32
+    user.GetWindowLongPtrW.argtypes, user.GetWindowLongPtrW.restype = [C.c_void_p, C.c_int], C.c_ssize_t
+    user.GetWindow.argtypes, user.GetWindow.restype = [C.c_void_p, C.c_uint32], C.c_void_p
+    metadata = []
+    for window in windows:
+        registered = C.create_unicode_buffer(256); original = C.create_unicode_buffer(256)
+        registered_count = int(user.GetClassNameW(window['hwnd'], registered, 256))
+        original_count = int(user.RealGetWindowClassW(window['hwnd'], original, 256))
+        metadata.append(dict(hwnd=window['hwnd'], pid=desktop.pid(window['hwnd']),
+                             registeredClass=registered.value, registeredCount=registered_count,
+                             realClass=original.value, realCount=original_count,
+                             style=int(user.GetWindowLongPtrW(window['hwnd'], -16)) & 0xffffffff,
+                             extendedStyle=int(user.GetWindowLongPtrW(window['hwnd'], -20)) & 0xffffffff,
+                             owner=int(user.GetWindow(window['hwnd'], 4) or 0)))
+    return dict(windows=windows, metadata=metadata)
 
 
 class Native(OriginalNative):
@@ -16,37 +38,20 @@ class Native(OriginalNative):
         self.snapshot_path = snapshot_path
         self.source_ready = ready
         desktop = helper.WindowsDesktop()
-        windows = desktop.windows(child.pid)
-        record.append(dict(kind="native-root-inventory", windows=windows))
-        require(len(windows) <= 128, 'Native inventory exceeds observation bound')
-        user = desktop.user
-        user.GetClassNameW.argtypes, user.GetClassNameW.restype = [C.c_void_p, C.c_wchar_p, C.c_int], C.c_int
-        user.RealGetWindowClassW.argtypes, user.RealGetWindowClassW.restype = [C.c_void_p, C.c_wchar_p, C.c_uint32], C.c_uint32
-        user.GetWindowLongPtrW.argtypes, user.GetWindowLongPtrW.restype = [C.c_void_p, C.c_int], C.c_ssize_t
-        user.GetWindow.argtypes, user.GetWindow.restype = [C.c_void_p, C.c_uint32], C.c_void_p
-        for window in windows:
-            registered = C.create_unicode_buffer(256); original = C.create_unicode_buffer(256)
-            registered_count = int(user.GetClassNameW(window['hwnd'], registered, 256))
-            original_count = int(user.RealGetWindowClassW(window['hwnd'], original, 256))
-            record.append(dict(kind='native-root-metadata', hwnd=window['hwnd'],
-                               registeredClass=registered.value, registeredCount=registered_count,
-                               realClass=original.value, realCount=original_count,
-                               style=int(user.GetWindowLongPtrW(window['hwnd'], -16)) & 0xffffffff,
-                               extendedStyle=int(user.GetWindowLongPtrW(window['hwnd'], -20)) & 0xffffffff,
-                               owner=int(user.GetWindow(window['hwnd'], 4) or 0)))
-        if windows:
-            record.append(dict(kind='native-root-capture', capture=desktop.screenshot(
-                child.pid, windows, snapshot_path.parent / 'native-root-inventory.bmp')))
-        observed = bind_native_root(windows, ready, child.pid)
-        require(desktop.pid(observed['hwnd']) == child.pid, 'Native root process differs')
+        self.root_inventory = native_root_inventory(desktop, child.pid)
+        record.append(dict(kind='native-root-inventory', inventory=self.root_inventory))
+        observed = bind_portable_root(self.root_inventory, ready, child.pid)
         record.append(dict(kind='independent-native-root', sourceHandle=ready['sourceHandle'], native=observed))
-        # The original base guard receives independently observed native identity.
-        # Source snapshots remain distinct and cannot fabricate or replace it.
         super().__init__(helper, child, dict(ready, hwnd=observed['hwnd']), record)
         self.kernel = C.WinDLL('kernel32')
         self.kernel.GetTickCount64.argtypes = []
         self.kernel.GetTickCount64.restype = C.c_uint64
         self.current_controls()
+
+    def owner_now(self):
+        current = native_root_inventory(self.desktop, self.child.pid)
+        require(current == self.root_inventory, 'Complete owned native inventory changed')
+        return bind_portable_root(current, self.source_ready, self.child.pid)
 
     def current_controls(self):
         snapshots = list(self.snapshot_path.glob('snapshot-??????.json'))

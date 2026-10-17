@@ -103,3 +103,28 @@ def bind_native_root(windows, source, child_pid):
             'Native root identity differs')
     require(rectangle(owner.get('client')) == rectangle(source.get('client')), 'Independent native/source root geometry differs')
     return dict(owner)
+
+
+def bind_portable_root(observation, source, child_pid):
+    """Retain the complete inventory, admitting only the observed passive SysShadow."""
+    windows, metadata = observation.get('windows'), observation.get('metadata')
+    require(isinstance(windows, list) and isinstance(metadata, list)
+            and 1 <= len(windows) <= 2 and len(windows) == len(metadata), 'Native root inventory differs')
+    require(len({w.get('hwnd') for w in windows}) == len(windows), 'Duplicate native identity')
+    roots = []
+    for window, info in zip(windows, metadata):
+        require(info.get('hwnd') == window.get('hwnd') and info.get('pid') == child_pid,
+                'Native process or metadata identity differs')
+        require(info.get('registeredClass') == info.get('realClass')
+                and info.get('registeredCount') == info.get('realCount') == len(info.get('realClass', ''))
+                and 0 < info['realCount'] < 255, 'Native class metadata unavailable')
+        if window.get('title') == source.get('title'):
+            require(info['realClass'] == 'GLFW30' and info.get('owner') == 0, 'Original native root class or owner differs')
+            roots.append(window)
+        else:
+            require(info['realClass'] == 'SysShadow' and window.get('title') == ''
+                    and info.get('style') == 0x94000000 and info.get('extendedStyle') == 0x800a0
+                    and info.get('owner') == 0 and window.get('enabled') is True,
+                    'Unexpected additional owned native window')
+            rectangle(window.get('bounds')); rectangle(window.get('client'))
+    return bind_native_root(roots, source, child_pid)

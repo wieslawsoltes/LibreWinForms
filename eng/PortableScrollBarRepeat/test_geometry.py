@@ -1,6 +1,6 @@
 import copy
 import unittest
-from geometry import NAMES, inventory, painted_target, bind_native_root
+from geometry import NAMES, inventory, painted_target, bind_native_root, bind_portable_root
 
 
 def rect(x, y, width, height):
@@ -121,5 +121,48 @@ class IndependentNativeRootGuards(unittest.TestCase):
         for field,value in [('hwnd',900),('schema',1),('pid',124),('dpi',144),('coordinateMode','Logical'),('qualified',True)]:
             source=receipt();source[field]=value
             with self.subTest(field=field),self.assertRaises(RuntimeError):bind_native_root([self.native()],source,123)
+
+
+class PassiveShadowGuards(unittest.TestCase):
+    def observation(self):
+        root=IndependentNativeRootGuards().native()
+        shadow=dict(hwnd=901,title='',enabled=True,bounds=rect(92,69,641,444),client=rect(92,69,641,444))
+        def metadata(window,name,style,extended):
+            return dict(hwnd=window['hwnd'],pid=123,registeredClass=name,realClass=name,
+                        registeredCount=len(name),realCount=len(name),style=style,extendedStyle=extended,owner=0)
+        return dict(windows=[root,shadow],metadata=[metadata(root,'GLFW30',0x16cf0000,0x40110),
+                                                  metadata(shadow,'SysShadow',0x94000000,0x800a0)])
+
+    def test_passive_shadow_is_retained_but_never_selected(self):
+        observed=self.observation(); before=copy.deepcopy(observed)
+        self.assertEqual(bind_portable_root(observed,receipt(),123)['hwnd'],900)
+        self.assertEqual(observed,before)
+        observed['windows'].pop(); observed['metadata'].pop()
+        self.assertEqual(bind_portable_root(observed,receipt(),123)['hwnd'],900)
+
+    def test_unknown_or_changed_shadow_metadata_rejects(self):
+        for field,value in [('pid',124),('hwnd',900),('owner',900),('style',0x94000001),
+                            ('extendedStyle',0x80080),('realClass','Other'),('registeredClass','Other'),
+                            ('realCount',0),('registeredCount',255)]:
+            with self.subTest(field=field),self.assertRaises(RuntimeError):
+                observed=self.observation(); observed['metadata'][1][field]=value
+                bind_portable_root(observed,receipt(),123)
+
+    def test_shadow_cannot_hide_another_interactive_or_duplicate_window(self):
+        for field,value in [('title','Other'),('enabled',False),('hwnd',900),('client',rect(0,0,0,0))]:
+            with self.subTest(field=field),self.assertRaises(RuntimeError):
+                observed=self.observation(); observed['windows'][1][field]=value
+                bind_portable_root(observed,receipt(),123)
+        observed=self.observation();observed['windows'].append(copy.deepcopy(observed['windows'][1]))
+        observed['metadata'].append(copy.deepcopy(observed['metadata'][1]))
+        with self.assertRaises(RuntimeError):bind_portable_root(observed,receipt(),123)
+
+    def test_foreign_or_missing_root_cannot_be_selected(self):
+        for field,value in [('pid',124),('owner',901),('realClass','SysShadow')]:
+            with self.subTest(field=field),self.assertRaises(RuntimeError):
+                observed=self.observation();observed['metadata'][0][field]=value
+                bind_portable_root(observed,receipt(),123)
+        observed=self.observation();observed['windows'].pop(0);observed['metadata'].pop(0)
+        with self.assertRaises(RuntimeError):bind_portable_root(observed,receipt(),123)
 
 if __name__=='__main__':unittest.main()

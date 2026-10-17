@@ -1,4 +1,7 @@
+import copy
 import hashlib
+from unittest.mock import patch
+import test_geometry
 from pathlib import Path
 from types import SimpleNamespace
 import tempfile
@@ -27,5 +30,22 @@ class PayloadIdentity(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'payload changed'):
                 driver.verify_payload(helper, identity, receipt)
             self.assertNotEqual(identity, receipt['payloadAfter'])
+
+
+class CompleteNativeInventory(unittest.TestCase):
+    def test_later_inventory_must_retain_every_original_window_and_metadata(self):
+        original=test_geometry.PassiveShadowGuards().observation()
+        native=object.__new__(driver.Native)
+        native.desktop=object();native.child=SimpleNamespace(pid=123)
+        native.source_ready=test_geometry.receipt();native.root_inventory=original
+        with patch.object(driver,'native_root_inventory',return_value=copy.deepcopy(original)):
+            self.assertEqual(native.owner_now()['hwnd'],900)
+        changed=[]
+        missing=copy.deepcopy(original);missing['windows'].pop();missing['metadata'].pop();changed.append(missing)
+        style=copy.deepcopy(original);style['metadata'][0]['style']^=1;changed.append(style)
+        moved=copy.deepcopy(original);moved['windows'][1]['bounds']['x']+=1;changed.append(moved)
+        for observation in changed:
+            with self.subTest(observation=observation),patch.object(driver,'native_root_inventory',return_value=observation):
+                with self.assertRaisesRegex(RuntimeError,'Complete owned native inventory changed'):native.owner_now()
 
 if __name__ == '__main__': unittest.main()
