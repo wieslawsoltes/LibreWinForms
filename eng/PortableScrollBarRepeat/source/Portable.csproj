@@ -1,0 +1,25 @@
+<Project Sdk="LibreWinForms.Sdk/0.1.0-source-first">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>PortableScrollBarRepeat</AssemblyName>
+    <TargetFramework>net11.0</TargetFramework>
+    <RuntimeIdentifier>win-arm64</RuntimeIdentifier>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LibreWinFormsReferenceMode>Package</LibreWinFormsReferenceMode>
+    <LibreWinFormsCanonicalPackageVersion>0.1.0-source-first</LibreWinFormsCanonicalPackageVersion>
+    <LibreWinFormsProGpuBackendPackageVersion>0.1.0-source-first</LibreWinFormsProGpuBackendPackageVersion>
+    <LibreWinFormsGenerateApplicationBootstrap>false</LibreWinFormsGenerateApplicationBootstrap>
+    <LibreWinFormsGenerateApplicationConfiguration>false</LibreWinFormsGenerateApplicationConfiguration>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="ProGPU.Backend.Dx12" Version="0.1.0-source-first" />
+    <Compile Include="Program.cs" />
+    <Compile Include="ObservedTheme.cs" />
+    <Compile Include="PaintObservation.cs" />
+    <Compile Include="PortableSetup.cs" />
+  </ItemGroup>
+</Project>
