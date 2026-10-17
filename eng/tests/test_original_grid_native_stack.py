@@ -17,12 +17,12 @@ if '--native-tool' in sys.argv:
 
 class NativeStackTests(unittest.TestCase):
     def fixture(self, path, pid=123, flags=0):
-        data = bytearray(136)
-        struct.pack_into('<IIIIIIQ', data, 0, 0x504D444D, 0xA793, 2, 32, 0, 0, flags)
-        struct.pack_into('<III', data, 32, 7, 56, 56)
-        struct.pack_into('<III', data, 44, 15, 24, 112)
-        struct.pack_into('<H', data, 56, 12)
-        struct.pack_into('<III', data, 112, 24, 1, pid)
+        data = bytearray(160)
+        struct.pack_into('<IIIIIIQ', data, 0, 0x504D444D, 0xA793, 4, 32, 0, 0, flags)
+        struct.pack_into('<III', data, 32, 7, 56, 80)
+        struct.pack_into('<III', data, 44, 15, 24, 136)
+        struct.pack_into('<H', data, 80, 12)
+        struct.pack_into('<III', data, 136, 24, 1, pid)
         path.write_bytes(data)
 
     def test_normal_dump_requires_exact_process_and_bounded_streams(self):
@@ -35,6 +35,14 @@ class NativeStackTests(unittest.TestCase):
             with self.assertRaises(ValueError): NATIVE.validate_dump(path,123)
             self.fixture(path); path.write_bytes(path.read_bytes()[:120])
             with self.assertRaises(ValueError): NATIVE.validate_dump(path,123)
+
+    def test_nonempty_unused_or_duplicate_active_stream_is_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'test.dmp'
+            for entry in ((0, 1, 80), (7, 56, 80)):
+                self.fixture(path)
+                data=bytearray(path.read_bytes());struct.pack_into('<III',data,56,*entry);path.write_bytes(data)
+                with self.assertRaises(ValueError): NATIVE.validate_dump(path,123)
 
     def test_native_observer_bound_stops_only_helper(self):
         with tempfile.TemporaryDirectory() as directory:

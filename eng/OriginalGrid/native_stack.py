@@ -42,6 +42,11 @@ def validate_dump(path, pid):
             raise ValueError('Invalid MiniDumpNormal header')
         stream.seek(table)
         entries = [struct.unpack('<III', stream.read(12)) for _ in range(count)]
+        # DbgHelp pads its directory with all-zero UnusedStream slots.
+        # They carry no bytes or identity; active stream types remain unique.
+        entries = [entry for entry in entries if entry != (0, 0, 0)]
+        if any(kind == 0 for kind, _, _ in entries):
+            raise ValueError('Nonempty unused dump stream')
         if len({kind for kind, _, _ in entries}) != len(entries):
             raise ValueError('Duplicate dump stream')
         machine = process = None

@@ -163,3 +163,13 @@ exact process identity and native x64/ARM64 metadata. Source-built native
 controls exercise a real owned child, reject the wrong PID and refuse overwrite
 before any application diagnostic. The original managed-stack path remains
 available explicitly; neither diagnostic qualifies product acceptance.
+
+Native diagnostic 39014330277 stopped in its ownership fixture before launching
+the original pair: the helper compiled and wrote its own child's normal dump,
+but the new parser rejected repeated directory entries. Retained earlier SDK
+normal dumps demonstrate all-zero `(UnusedStream, 0, 0)` padding. The reader now
+ignores only those exact empty slots, retaining uniqueness for active streams
+and rejecting any nonempty unused entry. The [Windows SDK stream enumeration](https://learn.microsoft.com/en-us/windows/win32/api/minidumpapiset/ne-minidumpapiset-minidump_stream_type)
+identifies UnusedStream as zero; the actual retained files establish its padding
+layout. Original failure logs remain evidence, and native controls must pass
+before application diagnosis.
