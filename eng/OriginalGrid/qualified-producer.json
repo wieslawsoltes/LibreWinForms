@@ -1,0 +1,222 @@
+{
+  "head": "97c1a5e0d86371c46e5f13e63f79c16817b2d4e8",
+  "build": 38975594619,
+  "docs": 38975594625,
+  "artifact": 12080491625,
+  "bytes": 311617243,
+  "sha256": "550141d27254466761ba0773beb8824cf439a50bebc533d9a6806d3680a832ec",
+  "qualification": "All nine Build jobs passed; native desktop grid acceptance remains pending.",
+  "progpuHead": "be37726173a0dd87e6b3a71f5de294f08863cb54",
+  "artifactName": "canonical-source-first-package",
+  "expectedBuildJobs": 9,
+  "packages": [
+    {
+      "file": "LibreWinForms.ApplicationIsolation.0.1.0-source-first.nupkg",
+      "bytes": 26651,
+      "sha256": "1ec20d445227766981213a4b86d6c0cd674ca31dc1512b11a11190a9daa2501d",
+      "id": "LibreWinForms.ApplicationIsolation",
+      "version": "0.1.0-source-first",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/LibreWinForms",
+        "branch": "refs/heads/librewinforms-progpu-port",
+        "commit": "97c1a5e0d86371c46e5f13e63f79c16817b2d4e8"
+      }
+    },
+    {
+      "file": "LibreWinForms.ProGPU.0.1.0-source-first.nupkg",
+      "bytes": 188307,
+      "sha256": "c732414e97915b92feca4938fa6a38919387d89c59f252cc3d01f4b0917d2220",
+      "id": "LibreWinForms.ProGPU",
+      "version": "0.1.0-source-first",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/LibreWinForms",
+        "branch": "refs/heads/librewinforms-progpu-port",
+        "commit": "97c1a5e0d86371c46e5f13e63f79c16817b2d4e8"
+      }
+    },
+    {
+      "file": "LibreWinForms.Sdk.0.1.0-source-first.nupkg",
+      "bytes": 187778,
+      "sha256": "9e283937514250c74b15d0236ba68ee91b323795f9a2ac3839da37f23bbb547c",
+      "id": "LibreWinForms.Sdk",
+      "version": "0.1.0-source-first",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/LibreWinForms",
+        "commit": "97c1a5e0d86371c46e5f13e63f79c16817b2d4e8"
+      }
+    },
+    {
+      "file": "LibreWinForms.System.Windows.Forms.0.1.0-source-first.nupkg",
+      "bytes": 11782311,
+      "sha256": "d112702903e082e73599afe219343dba04f21116e8dc93bc14d411f27e968a9f",
+      "id": "LibreWinForms.System.Windows.Forms",
+      "version": "0.1.0-source-first",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/LibreWinForms",
+        "branch": "refs/heads/librewinforms-progpu-port",
+        "commit": "97c1a5e0d86371c46e5f13e63f79c16817b2d4e8"
+      }
+    },
+    {
+      "file": "ProGPU.Backend.0.1.0-source-first.nupkg",
+      "bytes": 382815,
+      "sha256": "2b575c9cda447d546e0959c0106f810a655bb3aa4799d9733d25c0e169a73739",
+      "id": "ProGPU.Backend",
+      "version": "0.1.0-source-first",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "be37726173a0dd87e6b3a71f5de294f08863cb54"
+      }
+    },
+    {
+      "file": "ProGPU.Backend.Dawn.0.1.0-source-first.nupkg",
+      "bytes": 162409,
+      "sha256": "11732f3571f30b60f8b32e99eba1798c91cfbf050b94e5d39f614d6dbcf0c6e9",
+      "id": "ProGPU.Backend.Dawn",
+      "version": "0.1.0-source-first",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "be37726173a0dd87e6b3a71f5de294f08863cb54"
+      }
+    },
+    {
+      "file": "ProGPU.Backend.Native.0.1.0-source-first.nupkg",
+      "bytes": 195859557,
+      "sha256": "245add33db7a2da4e812918b9271ca9d044108c0a15d682659096d5a557cc078",
+      "id": "ProGPU.Backend.Native",
+      "version": "0.1.0-source-first",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "be37726173a0dd87e6b3a71f5de294f08863cb54"
+      }
+    },
+    {
+      "file": "ProGPU.Compute.0.1.0-source-first.nupkg",
+      "bytes": 211350,
+      "sha256": "b27617d782e9cec6e867ad8e49c6d76829be8ccbcc3bfba633ec606bd917ec85",
+      "id": "ProGPU.Compute",
+      "version": "0.1.0-source-first",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "be37726173a0dd87e6b3a71f5de294f08863cb54"
+      }
+    },
+    {
+      "file": "ProGPU.Native.Sdk.0.1.0-source-first.nupkg",
+      "bytes": 103347377,
+      "sha256": "a0178b5b147c65d33281add48b137d03421436d8650d481eb7f62fed1d129e59",
+      "id": "ProGPU.Native.Sdk",
+      "version": "0.1.0-source-first",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "be37726173a0dd87e6b3a71f5de294f08863cb54"
+      }
+    },
+    {
+      "file": "ProGPU.Scene.0.1.0-source-first.nupkg",
+      "bytes": 467688,
+      "sha256": "c4bd1bc253de30cc190a0598b1f3a82b99e221dc3b21e9cd8ad185c5219d3938",
+      "id": "ProGPU.Scene",
+      "version": "0.1.0-source-first",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "be37726173a0dd87e6b3a71f5de294f08863cb54"
+      }
+    },
+    {
+      "file": "ProGPU.SkiaSharp.0.1.0-source-first.nupkg",
+      "bytes": 415650,
+      "sha256": "be062372f2410d1454da9a55f72bc16e6f31e7caa2567a7e84ebfe97012f334e",
+      "id": "ProGPU.SkiaSharp",
+      "version": "0.1.0-source-first",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "be37726173a0dd87e6b3a71f5de294f08863cb54"
+      }
+    },
+    {
+      "file": "ProGPU.System.Drawing.Common.0.1.0-source-first.nupkg",
+      "bytes": 295745,
+      "sha256": "3b2a3bb014d21de75cd957c04477ebf0fb161f5fd57e4677fddd09fe60bbdfa3",
+      "id": "ProGPU.System.Drawing.Common",
+      "version": "0.1.0-source-first",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/LibreWinForms",
+        "branch": "refs/heads/librewinforms-progpu-port",
+        "commit": "97c1a5e0d86371c46e5f13e63f79c16817b2d4e8"
+      }
+    },
+    {
+      "file": "ProGPU.Text.0.1.0-source-first.nupkg",
+      "bytes": 550075,
+      "sha256": "99bc27487ace57db63b1fe5efdf36dbff8c79c793c05fbc15b40b9a9608c6e7e",
+      "id": "ProGPU.Text",
+      "version": "0.1.0-source-first",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "be37726173a0dd87e6b3a71f5de294f08863cb54"
+      }
+    },
+    {
+      "file": "ProGPU.Text.Shaping.0.1.0-source-first.nupkg",
+      "bytes": 112551,
+      "sha256": "ccaf6afbb6bdb041177daa0e5b0bbbecb3ebb32342553c2dadb8cdb8289232d9",
+      "id": "ProGPU.Text.Shaping",
+      "version": "0.1.0-source-first",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "be37726173a0dd87e6b3a71f5de294f08863cb54"
+      }
+    },
+    {
+      "file": "ProGPU.Transpiler.0.1.0-source-first.nupkg",
+      "bytes": 130773,
+      "sha256": "36a5a5626641e743c63faab7fceefd11a5370665df3f636d7b77e70777a630d7",
+      "id": "ProGPU.Transpiler",
+      "version": "0.1.0-source-first",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "be37726173a0dd87e6b3a71f5de294f08863cb54"
+      }
+    },
+    {
+      "file": "ProGPU.Vector.0.1.0-source-first.nupkg",
+      "bytes": 215094,
+      "sha256": "b08a56c578f03673c063c243dbdd26738616bb1f169245707d4703b190b0303e",
+      "id": "ProGPU.Vector",
+      "version": "0.1.0-source-first",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "be37726173a0dd87e6b3a71f5de294f08863cb54"
+      }
+    },
+    {
+      "file": "ProGPU.WinRT.0.1.0-source-first.nupkg",
+      "bytes": 124089,
+      "sha256": "396666f75e2a1bb90c18293a1c0b742f404b211b433dc8581163e8b50ba6cff2",
+      "id": "ProGPU.WinRT",
+      "version": "0.1.0-source-first",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "be37726173a0dd87e6b3a71f5de294f08863cb54"
+      }
+    }
+  ]
+}

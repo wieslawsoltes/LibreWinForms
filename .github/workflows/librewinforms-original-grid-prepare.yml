@@ -1,0 +1,82 @@
+name: Original grid package preparation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix-hosted-original-grid]
+    paths:
+      - '.github/workflows/librewinforms-original-grid-prepare.yml'
+      - 'eng/OriginalGrid/**'
+      - 'eng/tests/test_original_grid_hosted_preparation.py'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  prepare:
+    name: Build original Microsoft and portable grid consumers
+    runs-on: windows-11-arm
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify offline source and producer guards
+        shell: pwsh
+        run: |
+          python eng/tests/test_original_grid_hosted_preparation.py
+          if ($LASTEXITCODE -ne 0) { throw 'Hosted preparation guards failed.' }
+          python eng/tests/test_original_grid_desktop.py
+          if ($LASTEXITCODE -ne 0) { throw 'Original desktop guards failed.' }
+          python eng/tests/test_grid_designer_metadata.py
+          if ($LASTEXITCODE -ne 0) { throw 'Original metadata guards failed.' }
+      - name: Checkout immutable original sample
+        uses: actions/checkout@v4
+        with:
+          repository: dotnet/samples
+          ref: acb39ceb13f910ae0f8f6298059c59102b749c41
+          path: original-samples
+          sparse-checkout: |
+            windowsforms/datagridview/CSWinFormDataGridView
+      - name: Install original grid SDK and stable dependency runtime
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.201
+            11.0.100-preview.5.26302.115
+      - name: Download exact whole-qualified Forms package closure
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 38975594619
+          name: canonical-source-first-package
+          path: ${{ runner.temp }}/original-grid-feed
+      - name: Prepare and compile original pair without desktop execution
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python eng/OriginalGrid/prepare-hosted.py `
+            --sample-checkout original-samples `
+            --feed "$env:RUNNER_TEMP/original-grid-feed" `
+            --output "$env:RUNNER_TEMP/original-grid-pair"
+          if ($LASTEXITCODE -ne 0) { throw 'Original grid package preparation failed; evidence retained.' }
+      - name: Retain original sources, compiled pair and build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: original-grid-package-preparation
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/original-grid-pair/*.json
+            ${{ runner.temp }}/original-grid-pair/*.log
+            ${{ runner.temp }}/original-grid-pair/*.cs
+            ${{ runner.temp }}/original-grid-pair/*.props
+            ${{ runner.temp }}/original-grid-pair/*.targets
+            ${{ runner.temp }}/original-grid-pair/NuGet.config
+            ${{ runner.temp }}/original-grid-pair/samples-LICENSE
+            ${{ runner.temp }}/original-grid-pair/Microsoft/**
+            ${{ runner.temp }}/original-grid-pair/Portable/**

@@ -56,3 +56,28 @@ the listed input phases passed. Header/border/caret pixels still need inspection
 masked columns, Unicode/layout/IME, other editors and Linux/macOS native input
 remain independent requirements. Offline harness tests do not qualify desktop
 behavior, and an observed editor value is not proof of painted text or a commit.
+
+## Hosted build preparation
+
+`Original grid package preparation` builds both original applications on a
+disposable Windows ARM64 runner without launching either application or sending
+input. It selects the complete successful Forms producer
+`97c1a5e0d86371c46e5f13e63f79c16817b2d4e8`, Build `38975594619` and Docs
+`38975594625`. All nine original Build jobs and the exact package artifact must
+remain successful and available. The checked package inventory retains all 17
+archive members, their hashes and their actual source-repository identities.
+
+The source contract records the original 26-file sample inventory and both
+retained prepared manifests. Preparation reads immutable Git objects, verifies
+every original blob, applies only the existing nine designer annotations and
+the original SDK/framework projection, then requires all 52 prepared file hashes
+to match the previous pair. It retains the original license, passive observer,
+SDK `11.0.100-preview.5.26302.115`, bootstrap ordering and package-source mapping.
+Prepared source files are written only after the complete source batch validates.
+
+Both builds keep the original five-minute compilation bound, isolated package
+cache and exact package-assembly checks. Their output inventories and failed
+logs are retained. These are build-only receipts: they do not resolve the earlier
+Linux Alice/Enter failure, qualify native input or waive the original desktop
+protocol. The unchanged 20/60-second desktop bounds and independent pixel review
+remain required before any acceptance claim.
