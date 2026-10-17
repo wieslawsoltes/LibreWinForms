@@ -20,6 +20,16 @@ class Backend:
 
 
 class Guards(unittest.TestCase):
+    def test_startup_input_time_cannot_be_reset_before_scroll_gestures(self):
+        p,b,c=self.make(input_started=0);c.value=14.9
+        p.down('owned',(1,2))
+        with self.assertRaisesRegex(RuntimeError,'deadline'):p.observe('owned',(1,2),1.2)
+        p.cleanup()
+
+    def test_future_or_negative_input_origin_is_rejected(self):
+        for start in (-1,1):
+            with self.assertRaisesRegex(RuntimeError,'start'):self.make(input_started=start)
+
     def test_startup_observation_uses_only_read_operations(self):
         class ReadOnly:
             def context(self): return {'desktop': 'Default'}

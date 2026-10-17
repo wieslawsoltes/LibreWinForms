@@ -5,6 +5,11 @@ on:
     branches: [diagnostic/scrollbar-repeat-reference]
   workflow_dispatch:
     inputs:
+      hosted_startup:
+        description: Explicitly approved bounded account-close, shell Escape and owned caption startup
+        type: boolean
+        required: true
+        default: false
       observe_startup_only:
         description: Read-only startup inventory, without activation or pointer input
         type: boolean
@@ -34,6 +39,14 @@ jobs:
         run: |
           python eng/WindowsScrollBarReference/test_driver.py -v
           if ($LASTEXITCODE -ne 0) { throw 'Held-input guards failed.' }
+          python eng/WindowsScrollBarReference/test_startup.py -v
+          if ($LASTEXITCODE -ne 0) { throw 'Reference startup guards failed.' }
+          python eng/tests/test_original_grid_hosted_shell.py
+          if ($LASTEXITCODE -ne 0) { throw 'Existing shell guards failed.' }
+          python eng/tests/test_original_grid_hosted_caption.py
+          if ($LASTEXITCODE -ne 0) { throw 'Existing caption guards failed.' }
+          python eng/tests/test_original_grid_hosted_desktop_setup.py
+          if ($LASTEXITCODE -ne 0) { throw 'Existing normal-close guards failed.' }
       - name: Compile original Microsoft reference in an isolated directory
         shell: pwsh
         run: |
@@ -44,12 +57,20 @@ jobs:
           dotnet build WindowsScrollBarRepeatReference.csproj -c Release --nologo -r win-arm64
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Pop-Location
+      - name: Close the verified hosted account overlay normally
+        if: ${{ inputs.hosted_startup && !inputs.observe_startup_only }}
+        shell: pwsh
+        run: |
+          python eng/OriginalGrid/prepare-desktop.py --output "$env:RUNNER_TEMP/scrollbar-startup-setup.json"
+          if ($LASTEXITCODE -ne 0) { throw 'Verified normal startup close failed.' }
       - name: Observe startup or run explicitly approved bounded reference input
         shell: pwsh
         env:
+          HOSTED_STARTUP: ${{ inputs.hosted_startup }}
           OBSERVE_STARTUP_ONLY: ${{ github.event_name == 'push' || inputs.observe_startup_only }}
         run: |
           $mode = @()
+          if ($env:HOSTED_STARTUP -eq 'true') { $mode += '--hosted-startup' }
           if ($env:OBSERVE_STARTUP_ONLY -eq 'true') { $mode += '--observe-startup-only' }
           python eng/WindowsScrollBarReference/driver.py --authorized `
             --app "$env:RUNNER_TEMP/scrollbar-reference-source/bin/Release/net10.0-windows/win-arm64/WindowsScrollBarRepeatReference.exe" `
@@ -65,3 +86,4 @@ jobs:
           path: |
             ${{ runner.temp }}/scrollbar-reference-evidence/**
             eng/WindowsScrollBarReference/**
+            ${{ runner.temp }}/scrollbar-startup-setup.json

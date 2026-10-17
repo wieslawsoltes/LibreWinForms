@@ -28,11 +28,13 @@ def observe_desktop(desktop):
 
 
 class HeldInput:
-    def __init__(self, backend, deadline, *, authorized=False, environment=None, clock=time.monotonic, sleep=time.sleep):
+    def __init__(self, backend, deadline, *, authorized=False, environment=None, clock=time.monotonic, sleep=time.sleep, input_started=None):
         environment = os.environ if environment is None else environment
         require(authorized and all(environment.get(k) == v for k, v in HOST.items()), "Explicit hosted reference approval required")
         self.backend, self.clock, self.sleep = backend, clock, sleep
-        self.deadline, self.input_deadline = deadline, None
+        self.deadline = deadline
+        require(input_started is None or 0 <= input_started <= clock(), 'Invalid original input start')
+        self.input_deadline = None if input_started is None else min(deadline, input_started + 15)
         self.held, self.actions, self.presses = False, 0, 0
 
     def check(self, target, point):
@@ -187,14 +189,27 @@ def run(args):
                 require(child.returncode == 0, 'Observed reference did not close normally')
                 receipt['observationCompleted'] = True
                 return
-            # One ordinary activation of the verified own window. No shell,
-            # caption, key, alternate foreground or retry is admitted.
-            receipt['activationRequested'] = True
-            native.desktop.activate(native.owner)
-            receipt['startupAfterActivation'] = observe_desktop(desktop_observer)
-            native.desktop.foreground(child.pid)
+            input_started = None
+            if args.hosted_startup:
+                import startup
+                def load_startup(name):
+                    path = helper_path.parent / 'OriginalGrid' / (name + '.py')
+                    spec = importlib.util.spec_from_file_location('repeat_' + name, path)
+                    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+                    receipt.setdefault('startupSourceHashes', {})[name] = helper.digest(path)
+                    return module
+                shell = load_startup('shell-escape'); caption = load_startup('caption')
+                receipt['hostedStartup'] = {}
+                input_started = startup.activate(native, desktop_observer, shell.dismiss,
+                    caption.Desktop, deadline, receipt['hostedStartup'], authorized=args.authorized)
+                receipt['activationRequested'] = receipt['hostedStartup']['activationRequested']
+            else:
+                receipt['activationRequested'] = True
+                native.desktop.activate(native.owner)
+                receipt['startupAfterActivation'] = observe_desktop(desktop_observer)
+                native.desktop.foreground(child.pid)
             receipt['beforeCapture'] = native.desktop.screenshot(child.pid, [native.owner], evidence / 'before.bmp')
-            lease = HeldInput(native, deadline, authorized=True)
+            lease = HeldInput(native, deadline, authorized=True, input_started=input_started)
             for name in NAMES:
                 target, point = native.target(name)
                 lease.move(target, point); lease.down(target, point)
@@ -233,7 +248,10 @@ def run(args):
             receipt['elapsedSeconds'] = time.monotonic() - started
             receipt['childExit'] = None if child is None else child.returncode
             receipt['pointerActionsCount'] = 0 if lease is None else lease.actions
-            receipt['actionsCount'] = receipt['pointerActionsCount'] + int(receipt.get('activationRequested', False))
+            setup = receipt.get('hostedStartup', {})
+            receipt['activationRequested'] = receipt.get('activationRequested', False) or setup.get('activationRequested', False)
+            receipt['startupNativeAttemptMaximum'] = 3 * setup.get('shellActions', 0) + (4 if 'moveInserted' in setup.get('caption', {}) else 0)
+            receipt['actionsCount'] = receipt['pointerActionsCount'] + int(receipt['activationRequested']) + receipt['startupNativeAttemptMaximum']
             receipt['presses'] = 0 if lease is None else lease.presses
             (evidence / 'driver.json').write_text(json.dumps(receipt, indent=2))
 
@@ -242,4 +260,5 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--app', type=Path, required=True)
     parser.add_argument('--helper', type=Path, required=True); parser.add_argument('--evidence', type=Path, required=True)
     parser.add_argument('--observe-startup-only', action='store_true')
+    parser.add_argument('--hosted-startup', action='store_true')
     parser.add_argument('--authorized', action='store_true'); run(parser.parse_args())

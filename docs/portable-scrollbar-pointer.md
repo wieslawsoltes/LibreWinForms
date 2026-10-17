@@ -41,3 +41,21 @@ setup failure masked by earlier tests in the full suite; its original CI and
 local failures remain retained. A factory keeps platform registration, control
 construction and disposal in the same fixture lifetime. Visual and custom
 pointer/wheel cases must also pass in fresh processes, without prior-test state.
+
+## Independent held-repeat reference
+
+The Windows reference preserves seven original holds, native values/events and
+captures, a15-second shared input interval and60-second process deadline. The
+owner approved its bounded hosted-startup extension on17 October: the existing
+normal-close helper may close one verified account overlay before launch; startup
+may send at most two verified Start/Search Escape pairs, perform the existing
+single owned-form activation and at most one verified owned-caption click.
+No shell activation, foreign caption input or retry is added. The input clock
+starts before shell actions and cannot reset before the holds. Including owned
+cleanup, the ceiling is43 native action attempts. All65 offline controller,
+shell, caption and normal-close guards pass after installation.
+
+Workflow pushes stay read-only. Explicit dispatch with `hosted_startup=true` and
+`observe_startup_only=false` selects the approved input. Earlier failed/observed
+startup results remain retained; this helper is diagnostic preparation, not a
+portable repeat implementation or release acceptance. Local VMs are not used.
