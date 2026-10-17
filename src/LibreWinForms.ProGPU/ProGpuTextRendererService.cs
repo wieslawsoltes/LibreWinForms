@@ -10,8 +10,11 @@ using LibreWinForms.Platform;
 namespace LibreWinForms.ProGPU;
 
 /// <summary>Implements canonical WinForms text rendering through managed ProGPU System.Drawing.</summary>
-public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibreTextSourceGeometryService
+public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibreTextSourceGeometryService, ILibreFontAutoScaleMetrics
 {
+    public bool TryGetFontAutoScaleHeight(Font font, int referenceDpi, out int height) =>
+        global::ProGPU.SystemDrawing.DrawingFontMetrics.TryGetAutoScaleHeight(font, referenceDpi, out height);
+
     public ILibreTextLayout CreateLayout(Graphics graphics, string text, Font font,
         Size layoutSize, LibreTextFormat format)
     {

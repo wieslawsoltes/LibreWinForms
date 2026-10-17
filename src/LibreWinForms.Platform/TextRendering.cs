@@ -48,6 +48,12 @@ public interface ILibreTextRendererService
         LibreTextFormat format);
 }
 
+/// <summary>Optional exact font-owned device metrics for canonical font autoscaling.</summary>
+public interface ILibreFontAutoScaleMetrics
+{
+    bool TryGetFontAutoScaleHeight(Font font, int referenceDpi, out int height);
+}
+
 /// <summary>Optional owned-layout capability for source editor painting and interaction.</summary>
 public interface ILibreTextLayoutService
 {

@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 
 
 ROOT = Path(__file__).resolve().parents[2]
-HELPER_COMMIT = "fd51401e94b3dbe1fec3d960626d8fe41f1adb4a"
+HELPER_COMMIT = "8de5e06584e7672ed9ef8c31f2827d41f312f651"
 
 
 def drawing_package_ids():
@@ -105,7 +105,7 @@ class CanonicalNativeStagingTests(unittest.TestCase):
     def test_stages_exact_forms_progpu_checkout_not_wpf_prerequisite(self):
         status, arguments, root = self.run_step()
         self.assertEqual(status, 0)
-        self.assertEqual(arguments, ["a" * 40, root + "/external/ProGPU/artifacts/progpu-native/package"])
+        self.assertEqual(arguments, ["a" * 40, root + "/external/ProGPU/artifacts/progpu-native/package", root + "/external/ProGPU/artifacts/progpu-dx12/package"])
 
     def test_failed_qualification_stops_packaging(self):
         status, arguments, _ = self.run_step(helper_status=23)
@@ -264,7 +264,7 @@ class SourceFirstNativeStagingTests(unittest.TestCase):
     def test_stages_exact_gitlink_into_actual_forms_progpu_checkout(self):
         status, arguments, root = self.run_step()
         self.assertEqual(status, 0)
-        self.assertEqual(arguments, ["a" * 40, root + "/external/ProGPU/artifacts/progpu-native/package"])
+        self.assertEqual(arguments, ["a" * 40, root + "/external/ProGPU/artifacts/progpu-native/package", root + "/external/ProGPU/artifacts/progpu-dx12/package"])
 
     def test_failed_producer_qualification_stops_packaging(self):
         status, arguments, _ = self.run_step(helper_status=23)

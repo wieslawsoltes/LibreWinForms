@@ -158,7 +158,8 @@ jobs:
           qualified_progpu_commit="$(git -C external/ProGPU rev-parse HEAD)"
           ./artifacts/checkouts/wpf-canonical/eng/progpu-stage-ci-native-runtimes.sh \
             "${qualified_progpu_commit}" \
-            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-native/package"
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-native/package" \
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-dx12/package"
 
       - name: Verify docs
         run: ./eng/librewinforms-verify-docs.sh

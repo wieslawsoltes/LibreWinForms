@@ -13,6 +13,7 @@ librewinforms_preview_progpu_package_ids=(
   ProGPU.Backend.Dawn
   ProGPU.Native.Sdk
   ProGPU.Backend.Native
+  ProGPU.Backend.Dx12
   ProGPU.Text.Shaping
   ProGPU.Transpiler
   ProGPU.WinRT

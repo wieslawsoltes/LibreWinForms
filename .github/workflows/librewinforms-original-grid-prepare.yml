@@ -1,0 +1,166 @@
+name: Original grid package preparation
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_original_input:
+        description: Run the approved bounded original grid input protocol
+        type: boolean
+        required: true
+        default: false
+      diagnose_startup:
+        description: Diagnostic only — collect one bounded owned portable process stack
+        type: boolean
+        required: false
+        default: false
+      dx12_compiler:
+        description: Explicit portable SDK compiler; requires a qualified producer with DXC
+        type: choice
+        options: [Automatic, Dxc]
+        required: false
+        default: Automatic
+      producer_pin:
+        description: Optional exact producer JSON with successful Build/Docs, artifact and complete package hashes
+        type: string
+        required: false
+  push:
+    branches: [fix-hosted-original-grid]
+    paths:
+      - '.gitattributes'
+      - '.github/workflows/librewinforms-original-grid-prepare.yml'
+      - 'eng/OriginalGrid/**'
+      - 'eng/tests/test_original_grid_hosted_preparation.py'
+      - 'eng/tests/test_original_grid_hosted_*.py'
+      - 'eng/librewinforms-original-grid-desktop.py'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  prepare:
+    name: Build original Microsoft and portable grid consumers
+    runs-on: windows-11-arm
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify offline source and producer guards
+        shell: pwsh
+        run: |
+          python eng/tests/test_original_grid_hosted_preparation.py
+          if ($LASTEXITCODE -ne 0) { throw 'Hosted preparation guards failed.' }
+          python eng/tests/test_original_grid_desktop.py
+          if ($LASTEXITCODE -ne 0) { throw 'Original desktop guards failed.' }
+          python eng/tests/test_grid_designer_metadata.py
+          if ($LASTEXITCODE -ne 0) { throw 'Original metadata guards failed.' }
+          python eng/tests/test_original_grid_hosted_desktop_setup.py
+          if ($LASTEXITCODE -ne 0) { throw 'Hosted desktop setup guards failed.' }
+          python eng/tests/test_original_grid_hosted_shell.py
+          if ($LASTEXITCODE -ne 0) { throw 'Hosted shell guards failed.' }
+          python eng/tests/test_original_grid_hosted_caption.py
+          if ($LASTEXITCODE -ne 0) { throw 'Hosted caption guards failed.' }
+          python eng/tests/test_original_grid_hosted_startup.py
+          if ($LASTEXITCODE -ne 0) { throw 'Hosted startup integration guards failed.' }
+          python eng/tests/test_original_grid_startup_diagnostic.py
+          if ($LASTEXITCODE -ne 0) { throw 'Owned stack observation guards failed.' }
+      - name: Checkout immutable original sample
+        uses: actions/checkout@v4
+        with:
+          repository: dotnet/samples
+          ref: acb39ceb13f910ae0f8f6298059c59102b749c41
+          path: original-samples
+          sparse-checkout: |
+            windowsforms/datagridview/CSWinFormDataGridView
+      - name: Install original grid SDK and stable dependency runtime
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            10.0.201
+            11.0.100-preview.5.26302.115
+      - name: Download exact whole-qualified Forms package closure
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.producer_pin && fromJSON(inputs.producer_pin).build || 38975594619 }}
+          name: canonical-source-first-package
+          path: ${{ runner.temp }}/original-grid-feed
+      - name: Prepare and compile original pair without desktop execution
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GRID_DX12_COMPILER: ${{ inputs.dx12_compiler || 'Automatic' }}
+          GRID_PRODUCER_PIN: ${{ inputs.producer_pin }}
+        run: |
+          $pinPath = "$env:RUNNER_TEMP/original-grid-producer.json"
+          if ([string]::IsNullOrWhiteSpace($env:GRID_PRODUCER_PIN)) {
+            Copy-Item eng/OriginalGrid/qualified-producer.json $pinPath
+          } else {
+            $null = ConvertFrom-Json -InputObject $env:GRID_PRODUCER_PIN -AsHashtable
+            [IO.File]::WriteAllText($pinPath, $env:GRID_PRODUCER_PIN, [Text.UTF8Encoding]::new($false))
+          }
+          python eng/OriginalGrid/prepare-hosted.py `
+            --sample-checkout original-samples `
+            --feed "$env:RUNNER_TEMP/original-grid-feed" `
+            --output "$env:RUNNER_TEMP/original-grid-pair" `
+            --dx12-compiler "$env:GRID_DX12_COMPILER" `
+            --producer-pin $pinPath
+          if ($LASTEXITCODE -ne 0) { throw 'Original grid package preparation failed; evidence retained.' }
+      - name: Build owned native stack observer
+        if: github.event_name == 'workflow_dispatch' && inputs.run_original_input && inputs.diagnose_startup
+        shell: pwsh
+        run: |
+          ./eng/OriginalGrid/build-native-stack.ps1 -Architecture arm64 -OutputDirectory "$env:RUNNER_TEMP/grid-stack-tool"
+      - name: Prepare disposable hosted desktop before application startup
+        if: github.event_name == 'workflow_dispatch' && inputs.run_original_input
+        shell: pwsh
+        run: |
+          python eng/OriginalGrid/prepare-desktop.py --output "$env:RUNNER_TEMP/original-grid-desktop-preflight.json"
+          if ($LASTEXITCODE -ne 0) { throw 'Hosted desktop setup failed; no application input attempted.' }
+      - name: Run approved original grid desktop protocol
+        if: github.event_name == 'workflow_dispatch' && inputs.run_original_input && !inputs.diagnose_startup
+        shell: pwsh
+        run: |
+          python eng/librewinforms-original-grid-desktop.py `
+            --prepared-root "$env:RUNNER_TEMP/original-grid-pair" `
+            --evidence "$env:RUNNER_TEMP/original-grid-evidence" --hosted-startup
+          if ($LASTEXITCODE -ne 0) { throw 'Original grid input failed; original evidence retained without retry.' }
+      - name: Diagnose original startup with unchanged controller limits and input
+        if: github.event_name == 'workflow_dispatch' && inputs.run_original_input && inputs.diagnose_startup
+        shell: pwsh
+        run: |
+          python eng/OriginalGrid/diagnose-startup.py `
+            --prepared-root "$env:RUNNER_TEMP/original-grid-pair" `
+            --evidence "$env:RUNNER_TEMP/original-grid-evidence" `
+            --native-tool "$env:RUNNER_TEMP/grid-stack-tool/GridNativeStack.exe"
+          if ($LASTEXITCODE -ne 0) { throw 'Diagnostic retained original controller failure.' }
+      - name: Retain original desktop evidence
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.run_original_input
+        uses: actions/upload-artifact@v4
+        with:
+          name: original-grid-desktop-evidence
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/original-grid-evidence/**
+            ${{ runner.temp }}/original-grid-evidence-diagnostic/**
+            ${{ runner.temp }}/original-grid-desktop-preflight.json
+      - name: Retain original sources, compiled pair and build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: original-grid-package-preparation
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/original-grid-pair/*.json
+            ${{ runner.temp }}/original-grid-pair/*.log
+            ${{ runner.temp }}/original-grid-pair/*.cs
+            ${{ runner.temp }}/original-grid-pair/*.props
+            ${{ runner.temp }}/original-grid-pair/*.targets
+            ${{ runner.temp }}/original-grid-pair/NuGet.config
+            ${{ runner.temp }}/original-grid-pair/samples-LICENSE
+            ${{ runner.temp }}/original-grid-pair/Microsoft/**
+            ${{ runner.temp }}/original-grid-pair/Portable/**

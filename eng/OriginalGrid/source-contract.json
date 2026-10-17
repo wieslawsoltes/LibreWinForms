@@ -1,0 +1,380 @@
+{
+  "repository": "https://github.com/dotnet/samples",
+  "commit": "acb39ceb13f910ae0f8f6298059c59102b749c41",
+  "path": "windowsforms/datagridview/CSWinFormDataGridView/",
+  "files": [
+    {
+      "path": "CSWinFormDataGridView.csproj",
+      "gitBlobSha1": "9dcdc1bc2a376a973200563415bcd3f5a4b612e8",
+      "bytes": 2802,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/CSWinFormDataGridView.csproj"
+    },
+    {
+      "path": "CustomDataGridViewColumn/MainForm.Designer.cs",
+      "gitBlobSha1": "e3db7d839da7fa8b2b7962844be576b9f19c8177",
+      "bytes": 3777,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/CustomDataGridViewColumn/MainForm.Designer.cs"
+    },
+    {
+      "path": "CustomDataGridViewColumn/MainForm.cs",
+      "gitBlobSha1": "98e3d28ef566d5a3bb262384f26d17e4f2ca8225",
+      "bytes": 6997,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/CustomDataGridViewColumn/MainForm.cs"
+    },
+    {
+      "path": "CustomDataGridViewColumn/MainForm.resx",
+      "gitBlobSha1": "03c42f851a3e428da12d4f39f6b492b2fb3aa1cc",
+      "bytes": 5997,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/CustomDataGridViewColumn/MainForm.resx"
+    },
+    {
+      "path": "CustomDataGridViewColumn/MaskedTextBoxCell.cs",
+      "gitBlobSha1": "f84e8590c21d4f7726a61d3b9c717761bbd4363a",
+      "bytes": 7294,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/CustomDataGridViewColumn/MaskedTextBoxCell.cs"
+    },
+    {
+      "path": "CustomDataGridViewColumn/MaskedTextBoxColumn.cs",
+      "gitBlobSha1": "00786d2ad68e7be599cc52be3f6dfeac5c95ee49",
+      "bytes": 11793,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/CustomDataGridViewColumn/MaskedTextBoxColumn.cs"
+    },
+    {
+      "path": "CustomDataGridViewColumn/MaskedTextBoxEditingControl.cs",
+      "gitBlobSha1": "7b63eefb9bb82cb8c235baa2ebe06cc1b8bbca1b",
+      "bytes": 8433,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/CustomDataGridViewColumn/MaskedTextBoxEditingControl.cs"
+    },
+    {
+      "path": "CustomDataGridViewColumn/README.md",
+      "gitBlobSha1": "b9bbce141f5fa7ac4dc3eaf2c0b99a17920144d7",
+      "bytes": 1427,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/CustomDataGridViewColumn/README.md"
+    },
+    {
+      "path": "DataGridViewPaging/MainForm.Designer.cs",
+      "gitBlobSha1": "a1d01915f741e86e623f8fb5b5450a30443c9055",
+      "bytes": 7691,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/DataGridViewPaging/MainForm.Designer.cs"
+    },
+    {
+      "path": "DataGridViewPaging/MainForm.cs",
+      "gitBlobSha1": "c1bf1b96d2c8dab4bf265c618196010aa11734d3",
+      "bytes": 4237,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/DataGridViewPaging/MainForm.cs"
+    },
+    {
+      "path": "DataGridViewPaging/MainForm.resx",
+      "gitBlobSha1": "e231f4549026e981d7d19226564ce94e63253e90",
+      "bytes": 10626,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/DataGridViewPaging/MainForm.resx"
+    },
+    {
+      "path": "DataGridViewPaging/README.md",
+      "gitBlobSha1": "26b81aec8b53a02cdee20549bd7556e29b1392bc",
+      "bytes": 227,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/DataGridViewPaging/README.md"
+    },
+    {
+      "path": "EditingControlHosting/MainForm.Designer.cs",
+      "gitBlobSha1": "66f398dbff62fb93eca75af42372bbb72c93b52d",
+      "bytes": 3116,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/EditingControlHosting/MainForm.Designer.cs"
+    },
+    {
+      "path": "EditingControlHosting/MainForm.cs",
+      "gitBlobSha1": "3d7a2f9e88801be66ad3bcc50d0061100f690d51",
+      "bytes": 6631,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/EditingControlHosting/MainForm.cs"
+    },
+    {
+      "path": "EditingControlHosting/MainForm.resx",
+      "gitBlobSha1": "19dc0dd8b3964e653690c64d095c5d28283828b7",
+      "bytes": 5695,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/EditingControlHosting/MainForm.resx"
+    },
+    {
+      "path": "EditingControlHosting/README.md",
+      "gitBlobSha1": "a4bb099cd0025adce7a93c836f37a8f40d5ff2e0",
+      "bytes": 1636,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/EditingControlHosting/README.md"
+    },
+    {
+      "path": "JustInTimeDataLoading/Cache.cs",
+      "gitBlobSha1": "857831ed47898a1b1fdc2485ec41722fdf7691e2",
+      "bytes": 11407,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/JustInTimeDataLoading/Cache.cs"
+    },
+    {
+      "path": "JustInTimeDataLoading/MainForm.Designer.cs",
+      "gitBlobSha1": "f2bea3ce1a5733b23385f9beb36f4abec6f94144",
+      "bytes": 3140,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/JustInTimeDataLoading/MainForm.Designer.cs"
+    },
+    {
+      "path": "JustInTimeDataLoading/MainForm.cs",
+      "gitBlobSha1": "34e6d15f5dc5e169ed76aedd687809976a0f2f35",
+      "bytes": 3048,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/JustInTimeDataLoading/MainForm.cs"
+    },
+    {
+      "path": "JustInTimeDataLoading/MainForm.resx",
+      "gitBlobSha1": "0956892cbf18d5bad639e30745b604286b083afc",
+      "bytes": 5990,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/JustInTimeDataLoading/MainForm.resx"
+    },
+    {
+      "path": "JustInTimeDataLoading/README.md",
+      "gitBlobSha1": "bc64a110360112e5973b5ea43ada50e9f1dd0bac",
+      "bytes": 1446,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/JustInTimeDataLoading/README.md"
+    },
+    {
+      "path": "MultipleLayeredColumnHeader/MainForm.Designer.cs",
+      "gitBlobSha1": "3d6458e0ce941319f4ec29d97763424cce94f46c",
+      "bytes": 3087,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/MultipleLayeredColumnHeader/MainForm.Designer.cs"
+    },
+    {
+      "path": "MultipleLayeredColumnHeader/MainForm.cs",
+      "gitBlobSha1": "e990d3f75ba76032d4610351be7288aaa40346ef",
+      "bytes": 4545,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/MultipleLayeredColumnHeader/MainForm.cs"
+    },
+    {
+      "path": "MultipleLayeredColumnHeader/MainForm.resx",
+      "gitBlobSha1": "19dc0dd8b3964e653690c64d095c5d28283828b7",
+      "bytes": 5695,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/MultipleLayeredColumnHeader/MainForm.resx"
+    },
+    {
+      "path": "MultipleLayeredColumnHeader/README.md",
+      "gitBlobSha1": "5df8c8f635c0d0e4644061c17415e83195d1f547",
+      "bytes": 1755,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/MultipleLayeredColumnHeader/README.md"
+    },
+    {
+      "path": "Program.cs",
+      "gitBlobSha1": "8e6705b47f584636add1b2957646e7e3495f5290",
+      "bytes": 865,
+      "url": "https://raw.githubusercontent.com/dotnet/samples/acb39ceb13f910ae0f8f6298059c59102b749c41/windowsforms/datagridview/CSWinFormDataGridView/Program.cs"
+    }
+  ],
+  "preparedFiles": {
+    "Microsoft": [
+      {
+        "path": "CSWinFormDataGridView.csproj",
+        "sha256": "0fe07e48c48806f298523d5a2ef4aaa317c1ba64486ecc1769bb10bc55c476f4"
+      },
+      {
+        "path": "CustomDataGridViewColumn/MainForm.Designer.cs",
+        "sha256": "74264892ec7ba2c7ae3bba97e6d7452d9ded1163833cb9bf83612c86d8c344b9"
+      },
+      {
+        "path": "CustomDataGridViewColumn/MainForm.cs",
+        "sha256": "69b8b70dae5cdfaef0b1a1bb0493098b6d09fdd51b5a6aad50839bcbfd48f0c1"
+      },
+      {
+        "path": "CustomDataGridViewColumn/MainForm.resx",
+        "sha256": "a8d274d4eb9c7e8d24e8fe6d196cd335a445c5511a6cd805b42e90e64c0b4209"
+      },
+      {
+        "path": "CustomDataGridViewColumn/MaskedTextBoxCell.cs",
+        "sha256": "c3236ee5847e4b3bf2e06960781987d200abb19e8eba626e98870e67bee83603"
+      },
+      {
+        "path": "CustomDataGridViewColumn/MaskedTextBoxColumn.cs",
+        "sha256": "fa2d889b1e075206de526ec6cd8c258c17aa9906090261b625360dfa42686c94"
+      },
+      {
+        "path": "CustomDataGridViewColumn/MaskedTextBoxEditingControl.cs",
+        "sha256": "8b8087db91753ddd8e6fd149b97762519e78d7998f359c346e14d685e9c1d5cc"
+      },
+      {
+        "path": "CustomDataGridViewColumn/README.md",
+        "sha256": "6a225bc301bdcab1f9f7d0079a5e65ba91d65e7e7e92849fa72d9faa4a689b38"
+      },
+      {
+        "path": "DataGridViewPaging/MainForm.Designer.cs",
+        "sha256": "9a91d1af8bf62386d0922810571d97dff25f6302cf85bcc6d9635c53aba27a5f"
+      },
+      {
+        "path": "DataGridViewPaging/MainForm.cs",
+        "sha256": "8af30bcc0e5470e90d33c3bb4042a625a618734ad7f1f20ff3710c5219e1c618"
+      },
+      {
+        "path": "DataGridViewPaging/MainForm.resx",
+        "sha256": "102025c17793ba3beb54dc7d5fca2abb6b9ca8c0a9687927492c20602211791f"
+      },
+      {
+        "path": "DataGridViewPaging/README.md",
+        "sha256": "6fb5ebf5714c01a039d10a6459f9a42a3b74f5c9c4e294e2e68dc6da9ff77ecd"
+      },
+      {
+        "path": "EditingControlHosting/MainForm.Designer.cs",
+        "sha256": "75cda2e5c28c635d9ebc8310130dca8598aea2baeb7469a0af7db2eee5cd01ae"
+      },
+      {
+        "path": "EditingControlHosting/MainForm.cs",
+        "sha256": "6b24cf38505b5fc17e57f5ab1dbe28d3b7fc98e9fbecf3c12e52729d39c5ee14"
+      },
+      {
+        "path": "EditingControlHosting/MainForm.resx",
+        "sha256": "f601cd30780a3718d8ce6966c3857d6b2ffaf47c1034bf4c0b6795c674296cb4"
+      },
+      {
+        "path": "EditingControlHosting/README.md",
+        "sha256": "e51ec601eebcd92b5f06b566ae7aec2ce6615991ddc2151ec3021ab0085cf3df"
+      },
+      {
+        "path": "JustInTimeDataLoading/Cache.cs",
+        "sha256": "656d9e6c55ee92f4d62a5633f2d0baa8fb55e142e73a1383a84788e1f8e58fe5"
+      },
+      {
+        "path": "JustInTimeDataLoading/MainForm.Designer.cs",
+        "sha256": "9bfba86515db8fac0bedba4654a23c414509ca990d927fb9d73b3f4f46b8947c"
+      },
+      {
+        "path": "JustInTimeDataLoading/MainForm.cs",
+        "sha256": "72a0c28510004211c0ac4055ec2d7e6c6a434e36c7ef50f9e3c1077e1e2c4bcd"
+      },
+      {
+        "path": "JustInTimeDataLoading/MainForm.resx",
+        "sha256": "1662ccb16f60b1223c4a2adc4ea2188a95c8345563664c525295a379519973dd"
+      },
+      {
+        "path": "JustInTimeDataLoading/README.md",
+        "sha256": "c2726c79f48ed873444a62403eb5bd21db3c86eb1852192393503e0fc37fc3eb"
+      },
+      {
+        "path": "MultipleLayeredColumnHeader/MainForm.Designer.cs",
+        "sha256": "7df66bea5efe9589f6db4ac62e8918dac72da1e60ed9b9b340e05298a0ce3001"
+      },
+      {
+        "path": "MultipleLayeredColumnHeader/MainForm.cs",
+        "sha256": "efc6c46bc52d7cc4c0501ea26652448a1ec3034114e6722dd34251558595c833"
+      },
+      {
+        "path": "MultipleLayeredColumnHeader/MainForm.resx",
+        "sha256": "f601cd30780a3718d8ce6966c3857d6b2ffaf47c1034bf4c0b6795c674296cb4"
+      },
+      {
+        "path": "MultipleLayeredColumnHeader/README.md",
+        "sha256": "63d7180677262fca433189d16a52b2bbe988aadf18d820439c2e9e88962b73e9"
+      },
+      {
+        "path": "Program.cs",
+        "sha256": "7040f0de93ea5bcd0bc68153b2eb43656c7d9c1fab2efdc8b1146f2d4374d66f"
+      }
+    ],
+    "Portable": [
+      {
+        "path": "CSWinFormDataGridView.csproj",
+        "sha256": "5ffe30334e48a9c68d7bb6bf1b9d53972b5076b8cf4146e74a0435ec2bc59c00"
+      },
+      {
+        "path": "CustomDataGridViewColumn/MainForm.Designer.cs",
+        "sha256": "74264892ec7ba2c7ae3bba97e6d7452d9ded1163833cb9bf83612c86d8c344b9"
+      },
+      {
+        "path": "CustomDataGridViewColumn/MainForm.cs",
+        "sha256": "69b8b70dae5cdfaef0b1a1bb0493098b6d09fdd51b5a6aad50839bcbfd48f0c1"
+      },
+      {
+        "path": "CustomDataGridViewColumn/MainForm.resx",
+        "sha256": "a8d274d4eb9c7e8d24e8fe6d196cd335a445c5511a6cd805b42e90e64c0b4209"
+      },
+      {
+        "path": "CustomDataGridViewColumn/MaskedTextBoxCell.cs",
+        "sha256": "c3236ee5847e4b3bf2e06960781987d200abb19e8eba626e98870e67bee83603"
+      },
+      {
+        "path": "CustomDataGridViewColumn/MaskedTextBoxColumn.cs",
+        "sha256": "fa2d889b1e075206de526ec6cd8c258c17aa9906090261b625360dfa42686c94"
+      },
+      {
+        "path": "CustomDataGridViewColumn/MaskedTextBoxEditingControl.cs",
+        "sha256": "8b8087db91753ddd8e6fd149b97762519e78d7998f359c346e14d685e9c1d5cc"
+      },
+      {
+        "path": "CustomDataGridViewColumn/README.md",
+        "sha256": "6a225bc301bdcab1f9f7d0079a5e65ba91d65e7e7e92849fa72d9faa4a689b38"
+      },
+      {
+        "path": "DataGridViewPaging/MainForm.Designer.cs",
+        "sha256": "9a91d1af8bf62386d0922810571d97dff25f6302cf85bcc6d9635c53aba27a5f"
+      },
+      {
+        "path": "DataGridViewPaging/MainForm.cs",
+        "sha256": "8af30bcc0e5470e90d33c3bb4042a625a618734ad7f1f20ff3710c5219e1c618"
+      },
+      {
+        "path": "DataGridViewPaging/MainForm.resx",
+        "sha256": "102025c17793ba3beb54dc7d5fca2abb6b9ca8c0a9687927492c20602211791f"
+      },
+      {
+        "path": "DataGridViewPaging/README.md",
+        "sha256": "6fb5ebf5714c01a039d10a6459f9a42a3b74f5c9c4e294e2e68dc6da9ff77ecd"
+      },
+      {
+        "path": "EditingControlHosting/MainForm.Designer.cs",
+        "sha256": "75cda2e5c28c635d9ebc8310130dca8598aea2baeb7469a0af7db2eee5cd01ae"
+      },
+      {
+        "path": "EditingControlHosting/MainForm.cs",
+        "sha256": "6b24cf38505b5fc17e57f5ab1dbe28d3b7fc98e9fbecf3c12e52729d39c5ee14"
+      },
+      {
+        "path": "EditingControlHosting/MainForm.resx",
+        "sha256": "f601cd30780a3718d8ce6966c3857d6b2ffaf47c1034bf4c0b6795c674296cb4"
+      },
+      {
+        "path": "EditingControlHosting/README.md",
+        "sha256": "e51ec601eebcd92b5f06b566ae7aec2ce6615991ddc2151ec3021ab0085cf3df"
+      },
+      {
+        "path": "JustInTimeDataLoading/Cache.cs",
+        "sha256": "656d9e6c55ee92f4d62a5633f2d0baa8fb55e142e73a1383a84788e1f8e58fe5"
+      },
+      {
+        "path": "JustInTimeDataLoading/MainForm.Designer.cs",
+        "sha256": "9bfba86515db8fac0bedba4654a23c414509ca990d927fb9d73b3f4f46b8947c"
+      },
+      {
+        "path": "JustInTimeDataLoading/MainForm.cs",
+        "sha256": "72a0c28510004211c0ac4055ec2d7e6c6a434e36c7ef50f9e3c1077e1e2c4bcd"
+      },
+      {
+        "path": "JustInTimeDataLoading/MainForm.resx",
+        "sha256": "1662ccb16f60b1223c4a2adc4ea2188a95c8345563664c525295a379519973dd"
+      },
+      {
+        "path": "JustInTimeDataLoading/README.md",
+        "sha256": "c2726c79f48ed873444a62403eb5bd21db3c86eb1852192393503e0fc37fc3eb"
+      },
+      {
+        "path": "MultipleLayeredColumnHeader/MainForm.Designer.cs",
+        "sha256": "7df66bea5efe9589f6db4ac62e8918dac72da1e60ed9b9b340e05298a0ce3001"
+      },
+      {
+        "path": "MultipleLayeredColumnHeader/MainForm.cs",
+        "sha256": "efc6c46bc52d7cc4c0501ea26652448a1ec3034114e6722dd34251558595c833"
+      },
+      {
+        "path": "MultipleLayeredColumnHeader/MainForm.resx",
+        "sha256": "f601cd30780a3718d8ce6966c3857d6b2ffaf47c1034bf4c0b6795c674296cb4"
+      },
+      {
+        "path": "MultipleLayeredColumnHeader/README.md",
+        "sha256": "63d7180677262fca433189d16a52b2bbe988aadf18d820439c2e9e88962b73e9"
+      },
+      {
+        "path": "Program.cs",
+        "sha256": "7040f0de93ea5bcd0bc68153b2eb43656c7d9c1fab2efdc8b1146f2d4374d66f"
+      }
+    ]
+  },
+  "sdkVersion": "11.0.100-preview.5.26302.115",
+  "observerSha256": "9fe5e6902221da5bb6164227769558a695f0a9402979718ed9799dce31565c80",
+  "licenseSha256": "243f341367f0ee35271c8924aaf5d075157c62538042e2f3c11ff9a1fcc5539c"
+}

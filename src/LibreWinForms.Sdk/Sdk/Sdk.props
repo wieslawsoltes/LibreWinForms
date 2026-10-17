@@ -14,6 +14,7 @@
          the project body. Sdk.targets disables the WindowsDesktop import before
          Microsoft.NET.Sdk targets; masking the value here loses explicit false. -->
     <EnableWindowsTargeting Condition="'$(EnableWindowsTargeting)' == ''">true</EnableWindowsTargeting>
+    <LibreWinFormsDx12ShaderCompiler Condition="'$(LibreWinFormsDx12ShaderCompiler)' == ''">Automatic</LibreWinFormsDx12ShaderCompiler>
     <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == '' And '$(LibreWinFormsPackagedRuntimeVersion)' != ''">$(LibreWinFormsPackagedRuntimeVersion)</LibreWinFormsVersion>
     <LibreWinFormsVersion Condition="'$(LibreWinFormsVersion)' == ''">0.1.0-preview.70</LibreWinFormsVersion>
     <LibreWinFormsPackageVersion Condition="'$(LibreWinFormsPackageVersion)' == ''">$(LibreWinFormsVersion)</LibreWinFormsPackageVersion>

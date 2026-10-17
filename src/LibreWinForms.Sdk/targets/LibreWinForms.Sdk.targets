@@ -82,6 +82,29 @@
     <Message Importance="High" Text="LibreWinForms.Sdk platform=$(LibreWinFormsPlatform) backend=$(LibreWinFormsRenderingBackend) canonical=$(LibreWinFormsUseCanonicalRuntime) referenceMode=$(LibreWinFormsReferenceMode)" />
   </Target>
 
+  <PropertyGroup>
+    <!-- Direct targets imports predate compiler selection and retain the default. -->
+    <LibreWinFormsDx12ShaderCompiler Condition="'$(LibreWinFormsDx12ShaderCompiler)' == ''">Automatic</LibreWinFormsDx12ShaderCompiler>
+    <_LibreWinFormsDx12CompilerEnum Condition="'$(LibreWinFormsDx12ShaderCompiler)' == 'Dxc'">Dxc</_LibreWinFormsDx12CompilerEnum>
+    <_LibreWinFormsDx12CompilerEnum Condition="'$(LibreWinFormsDx12ShaderCompiler)' == 'Fxc'">Fxc</_LibreWinFormsDx12CompilerEnum>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(LibreWinFormsDx12ShaderCompiler)' == 'Dxc'">
+    <PackageReference Include="ProGPU.Backend.Dx12" Version="$(LibreWinFormsProGpuPackageVersion)"
+                      Condition="'$(ManagePackageVersionsCentrally)' != 'true'" />
+    <PackageReference Include="ProGPU.Backend.Dx12" VersionOverride="$(LibreWinFormsProGpuPackageVersion)"
+                      Condition="'$(ManagePackageVersionsCentrally)' == 'true'" />
+  </ItemGroup>
+
+  <Target Name="_LibreWinFormsValidateDx12Compiler" BeforeTargets="CollectPackageReferences;PrepareForBuild">
+    <Error Condition="'$(LibreWinFormsDx12ShaderCompiler)' != 'Automatic' And '$(LibreWinFormsDx12ShaderCompiler)' != 'Fxc' And '$(LibreWinFormsDx12ShaderCompiler)' != 'Dxc'"
+           Text="LibreWinFormsDx12ShaderCompiler must be Automatic, Fxc or Dxc." />
+    <Error Condition="'$(LibreWinFormsDx12ShaderCompiler)' != 'Automatic' And ('$(RuntimeIdentifier)' != 'win-x64' And '$(RuntimeIdentifier)' != 'win-arm64')"
+           Text="Explicit DX12 compiler selection requires win-x64 or win-arm64." />
+    <Error Condition="'$(LibreWinFormsDx12ShaderCompiler)' != 'Automatic' And ('$(LibreWinFormsReferenceMode)' != 'Package' Or '$(LibreWinFormsGenerateApplicationBootstrap)' != 'true' Or ('$(OutputType)' != 'Exe' And '$(OutputType)' != 'WinExe') Or '$(LibreWinFormsUsePortableFrameworkReferences)' != 'true' Or '$(LibreWinFormsPlatform)' != 'SilkNet' Or '$(LibreWinFormsRenderingBackend)' != 'ProGPU')"
+           Text="Explicit DX12 compiler selection requires an executable package consumer with portable references and application bootstrap enabled." />
+  </Target>
+
   <Target Name="_LibreWinFormsGenerateApplicationBootstrap"
           BeforeTargets="CoreCompile"
           Condition="'$(LibreWinFormsGenerateApplicationBootstrap)' == 'true'">
@@ -116,10 +139,12 @@
       <_LibreWinFormsApplicationBootstrapLine Include="        private static void RegisterBackend()" />
       <_LibreWinFormsApplicationBootstrapLine Include="        {" />
       <_LibreWinFormsApplicationBootstrapLine Include="            var startup = global::LibreWinForms.ProGPU.ProGpuStartupOptions.ParseArguments(global::System.MemoryExtensions.AsSpan(global::System.Environment.GetCommandLineArgs(), 1))%3B" />
-      <_LibreWinFormsApplicationBootstrapLine Include="            if (startup.EnableNativeModalSessions)" />
-      <_LibreWinFormsApplicationBootstrapLine Include="                global::LibreWinForms.ProGPU.ProGpuPlatform.Register(enableNativeModalSessions: true)%3B" />
-      <_LibreWinFormsApplicationBootstrapLine Include="            else" />
-      <_LibreWinFormsApplicationBootstrapLine Include="                global::LibreWinForms.ProGPU.ProGpuPlatform.Register()%3B" />
+      <_LibreWinFormsApplicationBootstrapLine Include="            if (startup.EnableNativeModalSessions)" Condition="'$(LibreWinFormsDx12ShaderCompiler)' == 'Automatic'" />
+      <_LibreWinFormsApplicationBootstrapLine Include="                global::LibreWinForms.ProGPU.ProGpuPlatform.Register(enableNativeModalSessions: true)%3B" Condition="'$(LibreWinFormsDx12ShaderCompiler)' == 'Automatic'" />
+      <_LibreWinFormsApplicationBootstrapLine Include="            else" Condition="'$(LibreWinFormsDx12ShaderCompiler)' == 'Automatic'" />
+      <_LibreWinFormsApplicationBootstrapLine Include="                global::LibreWinForms.ProGPU.ProGpuPlatform.Register()%3B" Condition="'$(LibreWinFormsDx12ShaderCompiler)' == 'Automatic'" />
+      <_LibreWinFormsApplicationBootstrapLine Include="            global::LibreWinForms.ProGPU.ProGpuPlatform.Register(startup.EnableNativeModalSessions, new global::ProGPU.Backend.WgpuDx12CompilerOptions(global::ProGPU.Backend.WgpuDx12ShaderCompiler.$(_LibreWinFormsDx12CompilerEnum)))%3B"
+                                             Condition="'$(LibreWinFormsDx12ShaderCompiler)' == 'Dxc' Or '$(LibreWinFormsDx12ShaderCompiler)' == 'Fxc'" />
       <_LibreWinFormsApplicationBootstrapLine Include="        }" />
       <_LibreWinFormsApplicationBootstrapLine Include="    }" />
       <_LibreWinFormsApplicationBootstrapLine Include="}" />

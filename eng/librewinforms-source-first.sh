@@ -43,6 +43,8 @@ fi
 
 python3 "${progpu_root}/eng/progpu-prepare-framework-sources.py"
 
+python3 "${repo_root}/eng/tests/test_dx12_sdk.py" --dotnet "${repo_root}/eng/common/dotnet.sh"
+
 echo "Building canonical System.Windows.Forms source graph."
 "${repo_root}/eng/common/dotnet.sh" build \
   "${repo_root}/src/System.Windows.Forms/System.Windows.Forms.csproj" \
@@ -65,6 +67,11 @@ run_test_project \
 run_test_project \
   "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
   218
+"${repo_root}/eng/common/dotnet.sh" run \
+  --project "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
+  --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" -- \
+  --filter-class '*Dx12CompilerOptionsTests*' \
+  --minimum-expected-tests 5 --fail-skips on --timeout 60s
 "${repo_root}/eng/common/dotnet.sh" run \
   --project "${repo_root}/src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj" \
   --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" -- \
@@ -135,7 +142,7 @@ generator_tests="${repo_root}/src/System.Windows.Forms.Analyzers.CSharp/tests/Un
 echo "Testing unchanged canonical Application.Run(Form) against a typed headless backend."
 run_test_project \
   "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
-  943 \
+  946 \
   -p:LibreWinFormsUseProGpuSystemDrawing=true \
   -p:LibreWinFormsReferenceMode=Project
 "${repo_root}/eng/common/dotnet.sh" run \

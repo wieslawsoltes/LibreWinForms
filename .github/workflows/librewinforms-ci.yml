@@ -12,6 +12,9 @@ on:
 permissions:
   contents: read
 
+env:
+  LIBREWINFORMS_QUALIFIED_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+
 jobs:
   automation-locale:
     name: Automation thread locale (${{ matrix.os }})
@@ -28,6 +31,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.LIBREWINFORMS_QUALIFIED_COMMIT }}
+
+      - name: Verify exact producer source
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${LIBREWINFORMS_QUALIFIED_COMMIT}"
 
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
@@ -63,7 +72,7 @@ jobs:
                              DOTNET_ADD_GLOBAL_TOOLS_TO_PATH='false', DOTNET_CLI_TELEMETRY_OPTOUT='1')
           phases = []
           manifest = {'schema': 'native-edit-word-selection-execution-v1',
-                      'sourceHead': os.environ['GITHUB_SHA'], 'completed': False,
+                      'sourceHead': os.environ['LIBREWINFORMS_QUALIFIED_COMMIT'], 'completed': False,
                       'desktopQualified': False, 'phases': phases,
                       'sources': {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
                                   for path in (project, project.parent / 'Program.cs', project.parent / 'WordSelectionReference.cs',
@@ -243,13 +252,18 @@ jobs:
       contents: read
       actions: read
     env:
-      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: fd51401e94b3dbe1fec3d960626d8fe41f1adb4a
+      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: 8de5e06584e7672ed9ef8c31f2827d41f312f651
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ env.LIBREWINFORMS_QUALIFIED_COMMIT }}
           submodules: recursive
+
+      - name: Verify exact producer source
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${LIBREWINFORMS_QUALIFIED_COMMIT}"
 
       - name: Validate offline popup desktop harness contracts
         run: python3 eng/tests/test_popup_desktop_harness.py
@@ -335,7 +349,8 @@ jobs:
           test "$(git -C external/ProGPU rev-parse HEAD)" = "${pinned_progpu_commit}"
           ./artifacts/checkouts/wpf-native-staging/eng/progpu-stage-ci-native-runtimes.sh \
             "${pinned_progpu_commit}" \
-            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-native/package"
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-native/package" \
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-dx12/package"
 
       - name: Pack and consume canonical source-first package
         shell: bash
@@ -402,6 +417,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.LIBREWINFORMS_QUALIFIED_COMMIT }}
+
+      - name: Verify exact producer source
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${LIBREWINFORMS_QUALIFIED_COMMIT}"
 
       - name: Install Linux display and software WebGPU adapter
         if: runner.os == 'Linux'
@@ -462,7 +483,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ env.LIBREWINFORMS_QUALIFIED_COMMIT }}
           submodules: recursive
+
+      - name: Verify exact producer source
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${LIBREWINFORMS_QUALIFIED_COMMIT}"
 
       - name: Compile macOS popup native helper without desktop execution
         shell: bash
@@ -519,13 +545,18 @@ jobs:
       LIBREWINFORMS_BRIDGE_REF: librewpf-v0.1.0-preview.65
       # Use the fully qualified owning source, including Windows RID SDK isolation.
       LIBREWINFORMS_CANONICAL_WFI_REF: beef4c0b83571448fa5bf897fd66f68f3077fdb1
-      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: fd51401e94b3dbe1fec3d960626d8fe41f1adb4a
+      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: 8de5e06584e7672ed9ef8c31f2827d41f312f651
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ env.LIBREWINFORMS_QUALIFIED_COMMIT }}
           submodules: recursive
+
+      - name: Verify exact producer source
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${LIBREWINFORMS_QUALIFIED_COMMIT}"
 
       - name: Validate canonical native staging and release closure contracts
         run: python3 eng/tests/test_canonical_native_staging.py
@@ -590,7 +621,8 @@ jobs:
           qualified_progpu_commit="$(git -C external/ProGPU rev-parse HEAD)"
           ./artifacts/checkouts/wpf-native-staging/eng/progpu-stage-ci-native-runtimes.sh \
             "${qualified_progpu_commit}" \
-            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-native/package"
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-native/package" \
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-dx12/package"
 
       - name: Build canonical WindowsFormsIntegration from LibreWPF source
         shell: bash
@@ -640,7 +672,7 @@ jobs:
       - name: Upload packages
         uses: actions/upload-artifact@v4
         with:
-          name: librewinforms-ci-packages-${{ github.sha }}
+          name: librewinforms-ci-packages-${{ env.LIBREWINFORMS_QUALIFIED_COMMIT }}
           path: |
             artifacts/packages/Release/NonShipping/*.nupkg
             artifacts/packages/Release/NonShipping/*.json
