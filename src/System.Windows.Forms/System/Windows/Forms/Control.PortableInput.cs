@@ -903,8 +903,11 @@ public unsafe partial class Control
         internal bool IsCurrent => IsCurrentPress && _source._portablePointerInputVersion == _inputVersion;
 
         internal bool IsCurrentPress => _source._portablePointerPressVersion == _pressVersion
-            && _source._portablePointerCaptureVersion == _captureVersion
-            && _source.IsCurrentPortablePointerInput(_source._portablePointerInputVersion, _sourceHandle)
+            && _source._portablePointerCaptureVersion == _captureVersion && IsCurrentTarget;
+
+        // Hover paint outlives a completed release but never a replaced source
+        // or target handle. Press/default input still requires both generations.
+        internal bool IsCurrentTarget => _source.IsCurrentPortablePointerInput(_source._portablePointerInputVersion, _sourceHandle)
             && _target.IsHandleCreated && _source.IsCurrentPortablePointerTarget(_target, _targetHandle);
     }
 

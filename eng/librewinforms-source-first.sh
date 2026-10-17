@@ -149,6 +149,18 @@ run_test_project \
   --project "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
   --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" \
   -p:LibreWinFormsUseProGpuSystemDrawing=true -p:LibreWinFormsReferenceMode=Project -- \
+  --filter-method '*PortableScrollBarPointer*' \
+  --minimum-expected-tests 28 --fail-skips on --timeout 2m
+"${repo_root}/eng/common/dotnet.sh" run \
+  --project "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
+  --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" \
+  -p:LibreWinFormsUseProGpuSystemDrawing=true -p:LibreWinFormsReferenceMode=Project -- \
+  --filter-method '*PortableScrollBarVisualState*' \
+  --minimum-expected-tests 6 --fail-skips on --timeout 2m
+"${repo_root}/eng/common/dotnet.sh" run \
+  --project "${repo_root}/src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/LibreWinForms.CanonicalLifecycle.Tests.csproj" \
+  --configuration "${configuration}" --no-build -p:NetCurrent="${portable_net_current}" \
+  -p:LibreWinFormsUseProGpuSystemDrawing=true -p:LibreWinFormsReferenceMode=Project -- \
   --filter-method '*PortablePaintGraphics*' \
   --minimum-expected-tests 7 --fail-skips on --timeout 2m
 "${repo_root}/eng/common/dotnet.sh" run \
