@@ -261,11 +261,15 @@ for Control.DefaultFont plus the original nine pixels. Preserve the process
 cache, minimum height, cloning and explicit row/template sizes; a different grid
 font does not implicitly enable row autosizing. See docs/portable-grid-default-row-dpi.md.
 
-Portable font autoscaling measures both dimensions at the canonical screen
-reference DPI. Reuse the selected font's shared target-height calculation,
-not parameterless Font.Height, a derived control's FontHeight override or the
-measurement string's ink bounds. Preserve width rounding, pixel-font units and
-the native Windows branch. See docs/portable-font-autoscale-dpi.md.
+Portable font autoscaling keeps both dimensions at the canonical screen reference
+DPI. An explicit typed provider may supply the selected static TrueType point
+font's exact original VDMX height; preserve source FontCache em-size arithmetic,
+font ownership, width rounding and malformed-table failure. Missing metadata
+keeps the shared target-height policy, including pixel units and derived-control
+override independence. Do not round line spacing into device admission or change
+the native Windows branch. Require the matching qualified producer and original
+paired grid pixels/input. See docs/font-device-autoscaling.md and
+docs/portable-font-autoscale-dpi.md.
 
 Portable collapsed-caret Backspace/Delete removes an adjacent source CRLF pair
 as one break. Keep explicit UTF-16 selections exact, standalone CR/LF and

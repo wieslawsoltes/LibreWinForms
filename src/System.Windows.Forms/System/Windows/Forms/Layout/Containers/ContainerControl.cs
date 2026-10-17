@@ -745,9 +745,19 @@ public class ContainerControl : ScrollableControl, IContainerControl
 
         // Note: intentional integer round off here for Win32 compatibility.
         float averageCharacterWidth = (int)Math.Round(textSize.Width / (float)FontMeasureString.Length);
-        // Width and height must use the same canonical screen-reference DPI.
-        // Font.Height alone is a 96-DPI metric in portable Drawing. Measure the
-        // selected font, not a derived control's cached FontHeight override.
+        // Upstream autoscaling uses the selected font's GDI device height,
+        // independently of Font.Height's Drawing line spacing. Exact font-owned
+        // records share the original screen-reference DPI with width measurement.
+        if (LibreWinForms.Platform.LibrePlatform.IsRegistered &&
+            LibreWinForms.Platform.LibrePlatform.Current.TextRenderer is LibreWinForms.Platform.ILibreFontAutoScaleMetrics metrics &&
+            metrics.TryGetFontAutoScaleHeight(font, ScaleHelper.InitialSystemDpi, out int height))
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+            return new SizeF(averageCharacterWidth, height);
+        }
+
+        // Unavailable device metadata preserves the existing source line policy,
+        // including pixel-font units and derived-control override independence.
         return new SizeF(averageCharacterWidth, GetFontHeightForTarget(font));
     }
 #endif

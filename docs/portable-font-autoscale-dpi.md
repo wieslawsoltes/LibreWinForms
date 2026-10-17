@@ -1,5 +1,10 @@
 # Portable font autoscaling uses one reference DPI
 
+The reference-DPI correction below remains the fallback policy. The separate
+[exact device-height contract](font-device-autoscaling.md) admits original VDMX
+metrics for explicit supported source fonts; it does not replace ordinary
+Drawing line spacing or the missing-metadata policy.
+
 The original DataGridView sample in issue #6 exposed a mixed-unit source layout
 on Ubuntu ARM64 at 192 DPI. The wholly successful PR #94 Build
 `36317923429` and Docs `36317923453` supplied the unchanged source-first packages.
