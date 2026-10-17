@@ -10,10 +10,13 @@ atlas states outside the selected source frame. The complete descriptor is
 validated before any draw command. Targets smaller than the fixed borders
 return unsupported; they do not acquire an invented border-contraction policy.
 
-This is an internal rendering component. The default portable visual-style
-service is not connected to a live native theme source yet. No reference image
-or captured texture is embedded or loaded by product code, and the active
-scrollbar appearance issue remains open.
+The default visual-style service now attempts an actual Windows horizontal-thumb
+resource at an explicit 96-DPI drawing target. It requires a native opaque part,
+image background, explicit Stretch, vertical five-frame layout, 96-DPI image
+selection and one-pixel stretch bands. Unsupported metadata, transparent themes,
+other parts/DPIs and contracted borders retain the existing path. No reference
+image or captured texture is embedded or loaded by product code. The active
+scrollbar appearance issue remains open pending native and application validation.
 
 ## Original source evidence
 
@@ -47,12 +50,32 @@ glyph is still missing:24 active arrow frames retain their original differences.
 No glyph, theme/DPI default, animation, border contraction or transparent-image
 policy is inferred from the thumb result.
 
-## Remaining integration
+## Live source and remaining validation
 
-A live source must own the actual selected native resource and theme generation,
-carry the original source DPI/state/layout/margins and preserve failure-owned
-cleanup. Theme replacement, caching and final image lifetime need independent
-controls. Original active arrow resources, smaller targets and other source
-policies remain required. After integration, whole producer CI and the original
+`WindowsThemeBitmapSource` opens the current theme for each synchronous draw.
+It copies the actual unselected `GBF_COPY` bitmap with GetDIBits and records it
+through managed Graphics. Native `IsThemeBackgroundPartiallyTransparent` supplies
+the opacity decision; the unused RGB32 fourth byte never supplies that decision.
+The managed RGB image owns its copied bytes, and retained image commands survive
+its explicit disposal. There is no native theme/image cache to outlive a theme
+change. This initial policy incurs acquisition/allocation per paint; caching and
+its theme-change lifetime need separate implementation and performance evidence.
+
+The conversion DC, bitmap and theme are retired independently. Failed owners
+remain on the creating thread's retry list, successful owners are cleared, and
+cleanup errors preserve an original paint failure. The next admitted acquisition
+first drains that thread's outstanding owners.
+
+The hosted Windows CI lane runs the actual default service against all eight
+original horizontal-thumb frames, without keyboard or mouse input. It separately
+requires the native source to be selected, so a fallback cannot pass accidentally.
+Three portable controls cover RGB row/channel identity, independent byte ownership,
+invalid sizes, and part/DPI rejection; the sixteen original image-renderer frames
+remain independent. Hosted passage and original application captures are still
+required before qualification. Vertical native sizing remains unavailable rather
+than being replaced by an assumed Stretch value. All 192 filename queries in
+run39070628504 were unavailable; the original arrow glyph is still unacquired.
+Original active arrow resources, smaller targets and other source policies remain
+required. After integration, whole producer CI and the original
 packaged application must pass; local image comparisons alone do not qualify
 the package or close #174. Local VMs were not used.

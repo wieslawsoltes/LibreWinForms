@@ -8,6 +8,7 @@
     <OutputType>Exe</OutputType>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationManifest Condition="'$(OS)' == 'Windows_NT'">theme-test.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <ItemGroup>

@@ -54,6 +54,8 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
         ArgumentException.ThrowIfNullOrWhiteSpace(className);
         ArgumentOutOfRangeException.ThrowIfNegative(part);
 
+        if (WindowsThemeBitmapSource.TryDraw(graphics, className, part, state, bounds, clipRectangle)) return;
+
         GraphicsState saved = graphics.Save();
         try
         {

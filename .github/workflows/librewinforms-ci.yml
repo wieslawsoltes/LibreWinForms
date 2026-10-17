@@ -16,6 +16,35 @@ env:
   LIBREWINFORMS_QUALIFIED_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
 
 jobs:
+  native-theme:
+    name: Live Windows theme resource pixels
+    runs-on: windows-11-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.LIBREWINFORMS_QUALIFIED_COMMIT }}
+          submodules: recursive
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Build actual backend and run original full-frame controls without input
+        shell: pwsh
+        env:
+          LIBREWINFORMS_NATIVE_THEME_TEST: '1'
+        run: |
+          if ((git rev-parse HEAD) -ne $env:LIBREWINFORMS_QUALIFIED_COMMIT) { throw 'Producer revision changed.' }
+          dotnet build src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj -c Release -m:1 `
+            -p:NetCurrent=net10.0 -p:MicrosoftNETCoreAppRefPackageVersion= `
+            -p:LibreWinFormsUseProGpuSystemDrawing=true -p:LibreWinFormsReferenceMode=Project
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & artifacts/bin/LibreWinForms.ProGPU.Tests/Release/net10.0/LibreWinForms.ProGPU.Tests.exe `
+            --filter-class '*WindowsThemeBitmapSourceTests' --minimum-expected-tests 4 --fail-skips on --timeout 2m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
   automation-locale:
     name: Automation thread locale (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
