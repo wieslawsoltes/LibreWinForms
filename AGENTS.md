@@ -1,3 +1,10 @@
+Unsmoothed Drawing axis lines admit the original inclusive integer pixel band
+only for opaque solid centered one-pixel flat pens, Default pixel offset,96DPI
+and exact unit-linear/integer-translation frames. Preserve original clip/brush
+ownership, full-frame Microsoft fixtures and exact edge/span representability.
+Keep wider, antialiased, fractional, transformed and other pen paths independent;
+do not infer general GDI+ or package grid qualification. See docs/drawing-integer-lines.md.
+
 Drawing SmoothingMode starts at None and normalizes original speed/quality aliases
 through validated, disposal-aware state. Preserve saved-state/container ownership
 and atomic invalid-value rejection. State correction does not qualify retained

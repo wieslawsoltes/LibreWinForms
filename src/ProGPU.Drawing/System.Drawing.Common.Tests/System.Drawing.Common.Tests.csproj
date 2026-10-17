@@ -31,6 +31,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Fixtures/OriginalLines/*.png" />
+    <EmbeddedResource Include="Fixtures/OriginalLines/reference.json" />
     <EmbeddedResource Include="$(ProGpuSourceRoot)/build/Assets/ProGpuAvaloniaIcon.png"
                       Link="Resources\ProGpuAvaloniaIcon.png"
                       LogicalName="ProGPU.SystemDrawing.Tests.Resources.ProGpuAvaloniaIcon.png" />

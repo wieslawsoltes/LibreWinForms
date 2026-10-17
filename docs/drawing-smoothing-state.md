@@ -12,9 +12,10 @@ values receive `InvalidEnumArgumentException`; the defined `Invalid` sentinel
 receives `ArgumentException`. Disposed access retains the existing graphics
 disposal guard.
 
-This correction concerns state, not completed rendering parity. Line and path
-recording still do not transport the smoothing setting into their retained
-commands. Original grid captures show partially covered cell borders. The
+This correction concerns state, not completed rendering parity. General line and
+path sampling remain unfinished; the separately verified integer axis-line
+case is documented in [drawing-integer-lines.md](drawing-integer-lines.md).
+Original grid captures showed partially covered cell borders. The
 independent `eng/WindowsThemeReference/LineRasterReference.cs` observation records
 unaltered Microsoft GDI+ lines to distinguish sample position, endpoints,
 antialiasing, transforms and clips before changing shared drawing behavior.

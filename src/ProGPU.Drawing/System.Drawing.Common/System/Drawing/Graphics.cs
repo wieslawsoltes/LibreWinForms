@@ -1616,6 +1616,14 @@ public partial class Graphics :
     public void DrawLine(Pen pen, int x1, int y1, int x2, int y2) => DrawLine(pen, (float)x1, y1, x2, y2);
 
     public void DrawLine(Pen pen, float x1, float y1, float x2, float y2)
+        => DrawLineCore(pen, x1, y1, x2, y2, sourceGdiLine: false);
+
+    // EMF/WMF LineTo uses the GDI current-position contract. Its original
+    // geometry is independent of GDI+ DrawLine's inclusive pixel endpoints.
+    internal void DrawGdiMetafileLine(Pen pen, PointF start, PointF end)
+        => DrawLineCore(pen, start.X, start.Y, end.X, end.Y, sourceGdiLine: true);
+
+    private void DrawLineCore(Pen pen, float x1, float y1, float x2, float y2, bool sourceGdiLine)
     {
         ArgumentNullException.ThrowIfNull(pen);
         if (pen.RequiresWidenedGeometry)
@@ -1628,6 +1636,11 @@ public partial class Graphics :
             return;
         }
 
+        if (!sourceGdiLine && TryDrawIntegerPixelLine(pen, x1, y1, x2, y2))
+        {
+            return;
+        }
+
         var localStart = new Vector2(x1, y1);
         var localEnd = new Vector2(x2, y2);
         _context.DrawLine(
@@ -1635,6 +1648,47 @@ public partial class Graphics :
             localStart,
             localEnd,
             CurrentTransform4x4());
+    }
+
+    private bool TryDrawIntegerPixelLine(Pen pen, float x1, float y1, float x2, float y2)
+    {
+        // Original GDI+ unsmoothed cosmetic axis lines include both integer
+        // endpoints. Wider, fractional and antialiased strokes have different
+        // sampling contracts and must retain their existing geometry.
+        Matrix3x2 transform = CombinedTransform;
+        if (SmoothingMode != SmoothingMode.None || PixelOffsetMode != PixelOffsetMode.Default ||
+            _dpiX != 96f || _dpiY != 96f || pen.Width != 1f || !pen.HasOpaqueSolidBrush ||
+            pen.DashStyle != DashStyle.Solid || pen.Alignment != PenAlignment.Center ||
+            pen.StartCap != LineCap.Flat || pen.EndCap != LineCap.Flat ||
+            transform.M11 != 1f || transform.M12 != 0f || transform.M21 != 0f || transform.M22 != 1f ||
+            !IsInteger(transform.M31) || !IsInteger(transform.M32) ||
+            !IsInteger(x1) || !IsInteger(y1) || !IsInteger(x2) || !IsInteger(y2) ||
+            (x1 != x2 && y1 != y2) || (x1 == x2 && y1 == y2))
+        {
+            return false;
+        }
+
+        double left = Math.Min(x1, x2);
+        double top = Math.Min(y1, y2);
+        double right = (double)Math.Max(x1, x2) + 1d;
+        double bottom = (double)Math.Max(y1, y2) + 1d;
+        double width = right - left;
+        double height = bottom - top;
+        if (!IsExactFloat(right) || !IsExactFloat(bottom) ||
+            !IsExactFloat(width) || !IsExactFloat(height) ||
+            (float)left + (float)width != right || (float)top + (float)height != bottom ||
+            !IsExactFloat(left + transform.M31) || !IsExactFloat(right + transform.M31) ||
+            !IsExactFloat(top + transform.M32) || !IsExactFloat(bottom + transform.M32))
+        {
+            return false;
+        }
+
+        _context.DrawRectangle(pen.ToProGpuBrush(_renderingOrigin), null,
+            new Rect((float)left, (float)top, (float)width, (float)height), ToMatrix4x4(transform));
+        return true;
+
+        static bool IsInteger(float value) => float.IsFinite(value) && value == MathF.Truncate(value);
+        static bool IsExactFloat(double value) => double.IsFinite(value) && (double)(float)value == value;
     }
 
     public void DrawLines(Pen pen, PointF[] points)
