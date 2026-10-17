@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Buffers.Binary;
 using System.Drawing;
 using System.Text.Json;
 using Xunit;
@@ -11,6 +12,54 @@ public sealed class WindowsThemeBitmapSourceTests
 {
     public static bool IsHostedWindows => OperatingSystem.IsWindows()
         && Environment.GetEnvironmentVariable("LIBREWINFORMS_NATIVE_THEME_TEST") == "1";
+
+    [Fact(Skip = "Requires the original hosted Windows theme and explicit no-input validation.", SkipUnless = nameof(IsHostedWindows))]
+    public void LiveNativeArrowResourcesMatchAllOriginalFramesThroughDefaultService()
+    {
+        string directory = Path.Combine(AppContext.BaseDirectory, "Fixtures", "WindowsThemeArrowAssets");
+        using JsonDocument receipt = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "receipt.json")));
+        int compared = 0;
+        foreach (JsonElement item in receipt.RootElement.GetProperty("cases").EnumerateArray())
+        {
+            using Bitmap original = new(Path.Combine(directory, item.GetProperty("file").GetString()!));
+            using Bitmap actual = new(original.Width, original.Height);
+            actual.SetResolution(96, 96);
+            int state = item.GetProperty("state").GetInt32();
+            using (Graphics graphics = Graphics.FromImage(actual))
+            {
+                graphics.Clear(Color.FromArgb(item.GetProperty("background").GetInt32()));
+                Assert.True(WindowsThemeBitmapSource.TryDraw(graphics, "SCROLLBAR", 1, state,
+                    new Rectangle(Point.Empty, actual.Size), null));
+                graphics.Clear(Color.FromArgb(item.GetProperty("background").GetInt32()));
+                new ProGpuVisualStyleService().DrawBackground(graphics, "SCROLLBAR", 1, state,
+                    new Rectangle(Point.Empty, actual.Size), null);
+            }
+
+            for (int y = 0; y < original.Height; y++)
+            for (int x = 0; x < original.Width; x++)
+                Assert.Equal(original.GetPixel(x, y).ToArgb(), actual.GetPixel(x, y).ToArgb());
+            compared++;
+        }
+
+        Assert.Equal(32, compared);
+    }
+
+    [Fact]
+    public void NativePngDimensionsBoundAllocationBeforeDecode()
+    {
+        string path = Path.Combine(AppContext.BaseDirectory, "Fixtures", "WindowsThemeArrowAssets", "source-image-1121.png");
+        byte[] bytes = File.ReadAllBytes(path);
+        Assert.True(WindowsThemeBitmapSource.TryReadPngSize(bytes, out Size size));
+        Assert.Equal(new Size(13, 260), size);
+        Assert.False(WindowsThemeBitmapSource.TryReadPngSize(bytes.AsSpan(0, 24), out size));
+        Assert.Equal(Size.Empty, size);
+        BinaryPrimitives.WriteUInt32BigEndian(bytes.AsSpan(16, 4), uint.MaxValue);
+        Assert.False(WindowsThemeBitmapSource.TryReadPngSize(bytes, out size));
+        Assert.Equal(Size.Empty, size);
+        BinaryPrimitives.WriteUInt32BigEndian(bytes.AsSpan(16, 4), 0);
+        Assert.False(WindowsThemeBitmapSource.TryReadPngSize(bytes, out size));
+        Assert.Equal(Size.Empty, size);
+    }
 
     [Fact(Skip = "Requires the original hosted Windows theme and explicit no-input validation.", SkipUnless = nameof(IsHostedWindows))]
     public void LiveNativeHorizontalThumbMatchesAllOriginalFramesThroughDefaultService()

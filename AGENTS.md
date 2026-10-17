@@ -1,8 +1,16 @@
+Live Windows arrow paint resolves the active version-four theme's original
+variant, class inheritance and image references before recording its two PNG
+frames. Validate complete tables and the explicit minimum target; preserve real
+PNG alpha, selected source identity and resource-only module ownership. Never
+load fixture assets in product paint or infer missing size/DPI policies. Keep
+native full-frame, package and caching/performance gates independent; see
+docs/live-theme-bitmap-rendering.md.
+
 Live Windows horizontal-thumb paint borrows only the actual opaque native theme
 resource at explicit 96-DPI targets, with supported image/layout/sizing metadata.
 Never infer alpha from RGB32 byte four or Stretch from a missing property. Keep
 per-paint native ownership, actual failed-owner retry and immutable retained image
-bytes; no reference/capture texture belongs in product paint. Vertical/arrow,
+bytes; no reference/capture texture belongs in product paint. Vertical,
 small-target, other-DPI/theme, caching and original package gates remain separate.
 See docs/live-theme-bitmap-rendering.md; local image controls are not native qualification.
 

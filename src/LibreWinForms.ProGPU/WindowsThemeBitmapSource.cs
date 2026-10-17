@@ -8,7 +8,7 @@ using LibreWinForms.Platform;
 
 namespace LibreWinForms.ProGPU;
 
-/// <summary>Reads an opaque, native horizontal-thumb resource without rendering into a capture.</summary>
+/// <summary>Reads actual native scrollbar image resources without rendering into a capture.</summary>
 internal static unsafe partial class WindowsThemeBitmapSource
 {
     internal static bool TryDraw(Graphics graphics, string className, int part, int state,
@@ -18,10 +18,12 @@ internal static unsafe partial class WindowsThemeBitmapSource
         // contracts. In particular a missing SizingType is not Stretch.
         if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 15063)
             || !string.Equals(className, "SCROLLBAR", StringComparison.OrdinalIgnoreCase)
-            || part != 2 || state is < 1 or > 4 || graphics.DpiX != 96 || graphics.DpiY != 96)
+            || part is not (1 or 2) || state < 1 || state > (part == 1 ? 16 : 4)
+            || graphics.DpiX != 96 || graphics.DpiY != 96)
             return false;
 
         RetryRetirements();
+        if (part == 1) return TryDrawArrow(graphics, state, bounds, clip);
         nint theme = OpenThemeDataForDpi(0, "SCROLLBAR", 96);
         if (theme == 0) return false;
         using NativeResources resources = new(theme);
@@ -115,6 +117,7 @@ internal static unsafe partial class WindowsThemeBitmapSource
         private nint _theme = theme;
         internal nint _bitmap;
         internal nint _dc;
+        internal nint _module;
         internal Exception? Primary { get; set; }
 
         public void Dispose()
@@ -136,6 +139,12 @@ internal static unsafe partial class WindowsThemeBitmapSource
             {
                 if (CloseThemeData(_theme) >= 0) _theme = 0;
                 else (failures ??= []).Add(new InvalidOperationException("Theme handle did not retire."));
+            }
+
+            if (_module != 0)
+            {
+                if (FreeLibrary(_module) != 0) _module = 0;
+                else (failures ??= []).Add(new InvalidOperationException("Theme resource module did not retire."));
             }
 
             if (failures is null) return;

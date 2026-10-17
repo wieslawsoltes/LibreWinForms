@@ -292,5 +292,47 @@
   ],
   "referenceRun": 39074238860,
   "referenceArtifact": 12116480928,
-  "originalCapturePreservation": "All32 PNGs byte-identical to retained original observation39068716244, artifact12114342016; native-asset cleanup failure in that run remains separate."
+  "originalCapturePreservation": "All32 PNGs byte-identical to retained original observation39068716244, artifact12114342016; native-asset cleanup failure in that run remains separate.",
+  "tables": [
+    {
+      "file": "cmap.native-table",
+      "sha256": "0f3c0632881ecb0d2c1b41c527ea54c6d907c2ef87c9e1f65ce5d5c2d4936464",
+      "bytes": 18760,
+      "resource": [
+        "CMAP",
+        "CMAP",
+        1033
+      ]
+    },
+    {
+      "file": "bcmap.native-table",
+      "sha256": "a176afdbb22e0ef20f7dff62845e016cb625f8674f9f33d4a1de32951699bd54",
+      "bytes": 1484,
+      "resource": [
+        "BCMAP",
+        "BCMAP",
+        1033
+      ]
+    },
+    {
+      "file": "vmap.native-table",
+      "sha256": "9351f5608b86c6d1030717291703a54123bccf628796747f83e04ac8f7c8f6fb",
+      "bytes": 76,
+      "resource": [
+        "VMAP",
+        "VMAP",
+        1033
+      ]
+    },
+    {
+      "file": "variant.native-table",
+      "sha256": "9168d28f0efc7a53b702b6d631bcac763158e59191ad3d2e3c6cb572c21d5a96",
+      "bytes": 449072,
+      "resource": [
+        "VARIANT",
+        "NORMAL",
+        1033
+      ]
+    }
+  ]
 }

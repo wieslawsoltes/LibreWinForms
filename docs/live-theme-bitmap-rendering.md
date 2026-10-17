@@ -45,10 +45,10 @@ also dispose the borrowed bitmap after recording and verify the retained image
 content, caller transform/clip/sampling restoration, invalid frames and separate
 small-target rejection.
 
-The arrow background resource reproduces the eight idle frames. Its separate
-glyph is still missing:24 active arrow frames retain their original differences.
-No glyph, theme/DPI default, animation, border contraction or transparent-image
-policy is inferred from the thumb result.
+That public bitmap inventory reproduced the eight idle arrow frames but lacked
+the separate glyph:24 active arrow frames retained their original differences.
+The later source-file investigation below resolves those images independently;
+no arrow policy is inferred from the thumb result.
 
 ## Live source and remaining validation
 
@@ -83,9 +83,9 @@ invalid sizes, and part/DPI rejection; the sixteen original image-renderer frame
 remain independent. Hosted passage and original application captures are still
 required before qualification. Vertical native sizing remains unavailable rather
 than being replaced by an assumed Stretch value. All 192 filename queries in
-run39070628504 were unavailable; the original arrow glyph is still unacquired.
-Original active arrow resources, smaller targets and other source policies remain
-required. After integration, whole producer CI and the original
+run39070628504 were unavailable; they did not supply the arrow glyph. The later
+source-file loader is described below. Smaller targets and other source policies
+remain required. After integration, whole producer CI and the original
 packaged application must pass; local image comparisons alone do not qualify
 the package or close #174. Local VMs were not used.
 
@@ -120,7 +120,31 @@ captures are also byte-identical to the previously retained original observation
 The32 new managed renderer cases retain these original source PNGs only as test
 fixtures, verify their hashes and all full reference frames, and dispose both
 source images before reading the retained result. Together with the18 existing
-thumb/ownership/state controls, all50 focused cases pass without skips. Product
-code still does not acquire the selected arrow resource. Live resource selection,
-theme ownership, other sizes/DPIs, original package paint and input remain
-required; exploratory binary parsing is not a qualified product reader.
+thumb/ownership/state controls, all50 focused cases pass without skips. These
+resource observations are independent of the live loader described below.
+
+## Live arrow resource selection
+
+The live arrow path reads the current theme path/color/size, opens that theme at
+96DPI and maps its file with resource-only LoadLibraryEx flags. It checks the
+native image/layout/selection properties, version-four resource marker and full
+VMAP, CMAP, BCMAP and selected VARIANT tables before selecting image IDs. The
+class map uses eight-byte alignment; base indices exclude leading variant names.
+The actual ScrollBar inheritance chain contributes metadata, with closest-class
+precedence and duplicate rejection within a class. Malformed unrelated records
+or base chains also reject the complete candidate.
+
+Only the explicit first minimum-size family is admitted. Both actual PNGs are
+copied before releasing module storage, bounded before decode and fully prepared
+before paint. The selected image keeps its real alpha. The current theme identity
+is rechecked before recording either frame. The resource module joins the existing
+independent retirement and failed-owner retry path; product code contains no
+fixture path or hardcoded image resource IDs.
+
+The hosted no-input test requires native selection and all32 original arrow
+frames through the default service, alongside the eight horizontal-thumb frames.
+Local tests validate whole-table rejection, inherited metadata and derived
+precedence; macOS explicitly skips native selection. Hosted passage, caching and
+theme-change performance, other sizes/DPIs, original packaged grid paint and
+physical input remain required. This implementation does not close #174 or
+qualify the pending release.
