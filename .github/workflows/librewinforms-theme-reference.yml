@@ -1,6 +1,10 @@
 name: Independent Windows theme reference
 
 on:
+  pull_request:
+    paths:
+      - 'eng/WindowsThemeReference/**'
+      - '.github/workflows/librewinforms-theme-reference.yml'
   workflow_dispatch:
 
 permissions:

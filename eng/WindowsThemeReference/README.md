@@ -13,7 +13,8 @@ system theme or setting. Its original bounds are 120 captures, 16 MiB of images,
 45 seconds of internal observation and a 60-second owned-child deadline. Partial
 outputs and original errors are uploaded on failure; there is no retry loop.
 
-Run the `Independent Windows theme reference` workflow explicitly. The results
+The `Independent Windows theme reference` workflow runs on pull requests changing
+this reference, or by explicit dispatch after it reaches the default branch. The results
 support #174's theme implementation and comparisons; they do not qualify pointer
 gestures, packages, application pixels or another Windows theme/DPI. Native
 reference rasterization belongs only to this diagnostic and is not a portable
