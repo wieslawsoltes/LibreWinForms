@@ -39,6 +39,11 @@ def native_scrollbar_class(user, hwnd):
     return observed
 
 
+def reference_arguments(app, evidence, *, diagnose_startup=False, observe_startup_only=False):
+    require(not diagnose_startup or observe_startup_only, "Startup phases require read-only diagnosis")
+    return [str(app), str(evidence / 'app')] + (['--startup-phases'] if diagnose_startup else [])
+
+
 class HeldInput:
     def __init__(self, backend, deadline, *, authorized=False, environment=None, clock=time.monotonic, sleep=time.sleep, input_started=None):
         environment = os.environ if environment is None else environment
@@ -181,11 +186,13 @@ def run(args):
     require(not evidence.exists(), "Evidence must be new"); evidence.mkdir(parents=True)
     spec = importlib.util.spec_from_file_location("repeat_native_helper", helper_path); helper = importlib.util.module_from_spec(spec); spec.loader.exec_module(helper)
     identity = {str(p): helper.digest(p) for p in app.parent.glob('*') if p.is_file()}
+    command = reference_arguments(app, evidence, diagnose_startup=args.diagnose_startup,
+                                  observe_startup_only=args.observe_startup_only)
     receipt = dict(qualified=False, helperSha256=helper.digest(helper_path), payloadBefore=identity, actions=[], completed=False)
     started = time.monotonic(); deadline = started + 60; lease = None; child = None
     try:
         with (evidence / "stdout.log").open('xb') as out, (evidence / "stderr.log").open('xb') as err:
-            child = subprocess.Popen([str(app), str(evidence / 'app')], stdin=subprocess.DEVNULL, stdout=out, stderr=err, cwd=app.parent)
+            child = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=out, stderr=err, cwd=app.parent)
             while not (evidence / 'app/ready.json').exists():
                 require(time.monotonic() < started + 15 and child.poll() is None, "Original startup bound expired or app ended")
                 time.sleep(.025)
@@ -277,5 +284,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--app', type=Path, required=True)
     parser.add_argument('--helper', type=Path, required=True); parser.add_argument('--evidence', type=Path, required=True)
     parser.add_argument('--observe-startup-only', action='store_true')
+    parser.add_argument('--diagnose-startup', action='store_true')
     parser.add_argument('--hosted-startup', action='store_true')
     parser.add_argument('--authorized', action='store_true'); run(parser.parse_args())

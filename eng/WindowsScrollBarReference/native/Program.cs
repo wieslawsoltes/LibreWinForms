@@ -9,11 +9,12 @@ internal static class Program
     private static readonly Stopwatch Clock = Stopwatch.StartNew();
     private static StreamWriter? Journal;
     private static int Sequence;
+    private static bool StartupPhases;
 
     [STAThread]
     private static int Main(string[] args)
     {
-        if (args.Length != 1 || Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true"
+        if ((args.Length != 1 && (args.Length != 2 || args[1] != "--startup-phases")) || Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true"
             || Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT") != "github-hosted"
             || Environment.GetEnvironmentVariable("GITHUB_REPOSITORY") != "wieslawsoltes/LibreWinForms")
             throw new InvalidOperationException("Disposable hosted Forms runner only.");
@@ -28,12 +29,16 @@ internal static class Program
         Application.SetCompatibleTextRenderingDefault(false);
         using var log = new StreamWriter(File.Open(Path.Combine(directory, "events.jsonl"), FileMode.CreateNew, FileAccess.Write, FileShare.Read)) { AutoFlush = true };
         Journal = log;
+        StartupPhases = args.Length == 2;
+        Phase("framework-initialized");
         using var form = new Form { Text = $"ScrollBarRepeatReference [{Environment.ProcessId}]",
             AutoScaleMode = AutoScaleMode.None, StartPosition = FormStartPosition.Manual,
             Location = new Point(100, 100), ClientSize = new Size(620, 400) };
+        Phase("form-constructed");
         var bars = new List<ScrollBar>();
         foreach (string name in new[] { "h-decrement", "h-increment", "h-page", "h-leave", "v-decrement", "v-increment", "v-page" })
         {
+            Phase("control-start", name);
             bool vertical = name[0] == 'v';
             ScrollBar bar = vertical ? new VerticalProbe() : new HorizontalProbe();
             int index = bars.Count;
@@ -45,9 +50,11 @@ internal static class Program
             bar.Scroll += (_, e) => Record(new { kind = "scroll", name, type = e.Type.ToString(), e.OldValue, e.NewValue, value = bar.Value });
             bar.ValueChanged += (_, _) => Record(new { kind = "value", name, value = bar.Value });
             form.Controls.Add(bar); bars.Add(bar);
+            Phase("control-added", name);
         }
         form.Shown += (_, _) =>
         {
+            Phase("shown-entered");
             var ready = new { schema = 1, qualified = false, pid = Environment.ProcessId, title = form.Text,
                 hwnd = (long)form.Handle, forms, runtime = RuntimeInformation.FrameworkDescription,
                 dpi = form.DeviceDpi, keyboardDelay = SystemInformation.KeyboardDelay, keyboardSpeed = SystemInformation.KeyboardSpeed,
@@ -57,6 +64,7 @@ internal static class Program
             File.WriteAllText(Path.Combine(directory, "ready.tmp"), JsonSerializer.Serialize(ready));
             File.Move(Path.Combine(directory, "ready.tmp"), Path.Combine(directory, "ready.json"));
             Record(new { kind = "ready" });
+            Phase("ready-published");
         };
         bool completed = false;
         using var timer = new System.Windows.Forms.Timer { Interval = 25 };
@@ -65,12 +73,18 @@ internal static class Program
             completed = File.Exists(Path.Combine(directory, "complete"));
             if (completed || Clock.Elapsed.TotalSeconds >= 55) form.Close();
         };
-        timer.Start(); Application.Run(form);
+        timer.Start();
+        Phase("before-message-loop");
+        Application.Run(form);
         Record(new { kind = "closed", completed });
         return completed ? 0 : 1;
     }
 
     private static object Rect(Rectangle r) => new { x = r.X, y = r.Y, width = r.Width, height = r.Height };
+    private static void Phase(string phase, string? control = null)
+    {
+        if (StartupPhases) Record(new { kind = "startup-phase", phase, control });
+    }
     private static void Record(object value)
     {
         if (++Sequence > 1024) throw new InvalidOperationException("Original event budget exceeded.");

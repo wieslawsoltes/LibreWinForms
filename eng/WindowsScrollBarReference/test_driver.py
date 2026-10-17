@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 import driver
 
 
@@ -20,6 +21,16 @@ class Backend:
 
 
 class Guards(unittest.TestCase):
+    def test_phase_logging_is_only_admitted_for_read_only_diagnosis(self):
+        with self.assertRaisesRegex(RuntimeError, 'read-only'):
+            driver.reference_arguments('original.exe', Path('evidence'), diagnose_startup=True)
+        self.assertEqual(['original.exe', str(Path('evidence') / 'app'), '--startup-phases'],
+            driver.reference_arguments('original.exe', Path('evidence'), diagnose_startup=True, observe_startup_only=True))
+
+    def test_ordinary_reference_arguments_stay_unchanged(self):
+        self.assertEqual(['original.exe', str(Path('evidence') / 'app')],
+            driver.reference_arguments('original.exe', Path('evidence')))
+
     def test_native_class_uses_read_only_original_type_not_registered_alias(self):
         class User:
             def GetClassNameW(self, hwnd, buffer, count):

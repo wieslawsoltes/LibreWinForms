@@ -5,6 +5,11 @@ on:
     branches: [diagnostic/scrollbar-repeat-reference]
   workflow_dispatch:
     inputs:
+      diagnose_startup:
+        description: Read-only startup phase logging; requires observe_startup_only
+        type: boolean
+        required: true
+        default: false
       hosted_startup:
         description: Explicitly approved bounded account-close, shell Escape and owned caption startup
         type: boolean
@@ -67,9 +72,11 @@ jobs:
         shell: pwsh
         env:
           HOSTED_STARTUP: ${{ inputs.hosted_startup }}
+          DIAGNOSE_STARTUP: ${{ inputs.diagnose_startup }}
           OBSERVE_STARTUP_ONLY: ${{ github.event_name == 'push' || inputs.observe_startup_only }}
         run: |
           $mode = @()
+          if ($env:DIAGNOSE_STARTUP -eq 'true') { $mode += '--diagnose-startup' }
           if ($env:HOSTED_STARTUP -eq 'true') { $mode += '--hosted-startup' }
           if ($env:OBSERVE_STARTUP_ONLY -eq 'true') { $mode += '--observe-startup-only' }
           python eng/WindowsScrollBarReference/driver.py --authorized `
