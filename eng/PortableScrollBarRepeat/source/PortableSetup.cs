@@ -33,16 +33,15 @@ internal static class PortableSetup
     {
         LibrePlatformServices platform = LibrePlatform.Current;
         var token = new LibreHandle(form.Handle, LibreHandleKind.Window);
-        if (platform.Windows is not SilkWindowService service
+        if (platform.Windows is not SilkWindowService
             || !platform.Handles.TryGet(token, out ILibreWindow? window) || window.Handle != token
-            || !service.TryGetNativeGeometrySnapshot(token, out NativeWindowGeometrySnapshot native)
-            || native.Window.Kind != NativeWindowKind.Win32 || native.Window.Handle == 0
-            || native.BackingScale != 1 || window.FramebufferScale != 1 || window.DpiScale != 1 || form.DeviceDpi != 96)
-            throw new InvalidOperationException("Actual owned 96-DPI Win32 geometry is required.");
+            || window.FramebufferScale != 1 || window.DpiScale != 1 || form.DeviceDpi != 96
+            || window.CoordinateMode != LibreWindowCoordinateMode.DevicePixels)
+            throw new InvalidOperationException("Actual owned 96-DPI source window is required.");
         Rectangle client = form.RectangleToScreen(form.ClientRectangle);
-        NativeWindowBounds bounds = native.ContentBounds;
-        if (bounds.X != client.X || bounds.Y != client.Y || bounds.Width != client.Width || bounds.Height != client.Height)
-            throw new InvalidOperationException("Original source/native root client rectangles differ.");
+        // This is source geometry only. The external read-only Win32 observer
+        // must independently bind one exact process/title/client root and retain
+        // its actual HWND. The optional Cocoa geometry API is unavailable on Win32.
         object[] controls = bars.Select(bar =>
         {
             PaintObservation.PaintFrame paint = PaintObservation.Latest[bar];
@@ -64,8 +63,8 @@ internal static class PortableSetup
             throw new InvalidOperationException("Owned root changed during observation.");
         return new
         {
-            schema = 1, qualified = false, pid = Environment.ProcessId, title = form.Text,
-            hwnd = (long)native.Window.Handle, sourceHandle = (long)form.Handle,
+            schema = 2, qualified = false, pid = Environment.ProcessId, title = form.Text,
+            sourceHandle = (long)form.Handle,
             forms, runtime = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
             dpi = form.DeviceDpi, coordinateMode = window.CoordinateMode.ToString(),
             keyboardDelay = SystemInformation.KeyboardDelay, keyboardSpeed = SystemInformation.KeyboardSpeed,

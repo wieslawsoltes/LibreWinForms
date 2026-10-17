@@ -8,13 +8,20 @@ from pathlib import Path
 import subprocess
 import time
 from reference_driver import HOST, NAMES, HeldInput, require, observe_desktop, reference_arguments, Native as OriginalNative
-from geometry import inventory, painted_target, contains
+from geometry import inventory, painted_target, contains, bind_native_root
 
 
 class Native(OriginalNative):
     def __init__(self, helper, child, ready, record, snapshot_path):
         self.snapshot_path = snapshot_path
-        super().__init__(helper, child, ready, record)
+        self.source_ready = ready
+        desktop = helper.WindowsDesktop()
+        observed = bind_native_root(desktop.windows(child.pid), ready, child.pid)
+        require(desktop.pid(observed['hwnd']) == child.pid, 'Native root process differs')
+        record.append(dict(kind='independent-native-root', sourceHandle=ready['sourceHandle'], native=observed))
+        # The original base guard receives independently observed native identity.
+        # Source snapshots remain distinct and cannot fabricate or replace it.
+        super().__init__(helper, child, dict(ready, hwnd=observed['hwnd']), record)
         self.kernel = C.WinDLL('kernel32')
         self.kernel.GetTickCount64.argtypes = []
         self.kernel.GetTickCount64.restype = C.c_uint64
@@ -25,7 +32,7 @@ class Native(OriginalNative):
         require(0 < len(snapshots) <= 2200, 'Bounded source snapshots unavailable')
         data = max(snapshots, key=lambda p: p.name).read_bytes()
         require(len(data) <= 65536, 'Source snapshot exceeds its bound')
-        return inventory(json.loads(data), self.ready, int(self.kernel.GetTickCount64()))
+        return inventory(json.loads(data), self.source_ready, int(self.kernel.GetTickCount64()))
 
     def check(self, target, point, held):
         # Reuse all original foreground, cloak, foreign-input, process, real

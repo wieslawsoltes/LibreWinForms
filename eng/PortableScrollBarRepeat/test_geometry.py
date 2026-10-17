@@ -1,6 +1,6 @@
 import copy
 import unittest
-from geometry import NAMES, inventory, painted_target
+from geometry import NAMES, inventory, painted_target, bind_native_root
 
 
 def rect(x, y, width, height):
@@ -24,7 +24,7 @@ def receipt():
                              client=screen, localClient=local, Minimum=0, Maximum=10000, SmallChange=1,
                              LargeChange=1000 if name.endswith('page') else 10, Value=5000,
                              visible=True, enabled=True, paintCurrent=True, paint=paint))
-    return dict(schema=1, qualified=False, pid=123, title='PortableScrollBarRepeat [123]', hwnd=900,
+    return dict(schema=2, qualified=False, pid=123, title='PortableScrollBarRepeat [123]',
                 sourceHandle=901, forms='C:/owned/System.Windows.Forms.dll', dpi=96,
                 client=rect(100,100,620,400), coordinateMode='DevicePixels', tickMilliseconds=1000, controls=controls)
 
@@ -41,7 +41,7 @@ class GeometryGuards(unittest.TestCase):
                 current=receipt(); current['tickMilliseconds']=tick; inventory(current,receipt(),1001)
 
     def test_changed_root_identity_fails(self):
-        for field in ('pid','title','hwnd','sourceHandle','forms','client','coordinateMode'):
+        for field in ('pid','title','sourceHandle','forms','client','coordinateMode'):
             with self.subTest(field=field), self.assertRaises(RuntimeError):
                 current=receipt(); current[field]=None; inventory(current,receipt(),1001)
 
@@ -97,5 +97,29 @@ class GeometryGuards(unittest.TestCase):
         control=receipt()['controls'][0];control['paint'].append(dict(part=99,state=1,bounds=rect(0,0,1,1)))
         with self.assertRaises(RuntimeError):painted_target(control)
 
+
+class IndependentNativeRootGuards(unittest.TestCase):
+    def native(self):
+        source=receipt()
+        return dict(hwnd=900,title=source['title'],enabled=True,client=source['client'])
+
+    def test_bind_uses_independent_native_handle_and_leaves_source_unchanged(self):
+        source=receipt(); before=copy.deepcopy(source)
+        self.assertEqual(bind_native_root([self.native()],source,123)['hwnd'],900)
+        self.assertEqual(source,before); self.assertNotIn('hwnd',source)
+
+    def test_absent_or_ambiguous_native_root_rejects(self):
+        for windows in ([],[self.native(),self.native()]):
+            with self.subTest(),self.assertRaises(RuntimeError):bind_native_root(windows,receipt(),123)
+
+    def test_native_identity_or_client_mismatch_rejects(self):
+        for field,value in [('hwnd',0),('hwnd',True),('title','Other'),('enabled',False),('client',rect(101,100,620,400))]:
+            native=self.native();native[field]=value
+            with self.subTest(field=field),self.assertRaises(RuntimeError):bind_native_root([native],receipt(),123)
+
+    def test_source_cannot_supply_native_handle_or_wrong_policy(self):
+        for field,value in [('hwnd',900),('schema',1),('pid',124),('dpi',144),('coordinateMode','Logical'),('qualified',True)]:
+            source=receipt();source[field]=value
+            with self.subTest(field=field),self.assertRaises(RuntimeError):bind_native_root([self.native()],source,123)
 
 if __name__=='__main__':unittest.main()

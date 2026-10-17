@@ -26,9 +26,9 @@ def nested(outer, inner):
 def inventory(snapshot, ready, now_ms):
     require(type(now_ms) is int and type(snapshot.get('tickMilliseconds')) is int
             and 0 <= now_ms - snapshot['tickMilliseconds'] <= 500, 'Source receipt stale or from future')
-    require(snapshot.get('schema') == 1 and snapshot.get('qualified') is False
-            and snapshot.get('dpi') == 96, 'Source receipt policy differs')
-    for field in ('pid', 'title', 'hwnd', 'sourceHandle', 'forms', 'client', 'coordinateMode'):
+    require(snapshot.get('schema') == 2 and snapshot.get('qualified') is False
+            and snapshot.get('dpi') == 96 and 'hwnd' not in snapshot, 'Source receipt policy differs')
+    for field in ('pid', 'title', 'sourceHandle', 'forms', 'client', 'coordinateMode'):
         require(snapshot.get(field) == ready.get(field) and snapshot.get(field) is not None, 'Owned root identity changed: ' + field)
     owner = rectangle(snapshot['client'])
     controls = snapshot.get('controls')
@@ -86,3 +86,20 @@ def painted_target(control):
     point = (screen['x'] + screen['width'] // 2, screen['y'] + offset) if vertical else (screen['x'] + offset, screen['y'] + screen['height'] // 2)
     require(contains(screen, point), 'Target outside original source client')
     return point
+
+
+def bind_native_root(windows, source, child_pid):
+    """Bind independent native observation; never publish an HWND as source data."""
+    require(type(child_pid) is int and child_pid > 0 and source.get('pid') == child_pid,
+            'Source process is not the launched child')
+    require(source.get('schema') == 2 and source.get('qualified') is False
+            and source.get('dpi') == 96 and source.get('coordinateMode') == 'DevicePixels'
+            and 'hwnd' not in source, 'Source-only geometry policy differs')
+    require(source.get('title') == f'PortableScrollBarRepeat [{child_pid}]', 'Owned source title differs')
+    require(isinstance(windows, list) and len(windows) == 1, 'Native root inventory is not unique')
+    owner = windows[0]
+    require(type(owner.get('hwnd')) is int and owner['hwnd'] > 0
+            and owner.get('title') == source['title'] and owner.get('enabled') is True,
+            'Native root identity differs')
+    require(rectangle(owner.get('client')) == rectangle(source.get('client')), 'Independent native/source root geometry differs')
+    return dict(owner)
