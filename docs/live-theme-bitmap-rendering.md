@@ -88,3 +88,39 @@ Original active arrow resources, smaller targets and other source policies remai
 required. After integration, whole producer CI and the original
 packaged application must pass; local image comparisons alone do not qualify
 the package or close #174. Local VMs were not used.
+
+## Arrow source resource investigation
+
+The original public atlas observation in run39073996776 returned unavailable for
+all84 stream/rectangle/name queries across28 cases. Vertical SizingType reported
+PO_NOTFOUND, including default state zero. Both native owners retired. This does
+not supply a missing sizing default or an arrow image.
+
+The subsequent read-only observation in
+[run39074238860](https://github.com/wieslawsoltes/LibreWinForms/actions/runs/39074238860)
+retained the exact currently selected Aero.msstyles file, without installing or
+changing a theme. Artifact12116480928 SHA256 is
+`96cc1de631ae03e88a33c5f88d526e75b1bc78632f95b0a498c0fd6310398516`;
+the source file SHA256 is
+`40878bc58a991112004fb35c4130911c4c0bbaa94d9045365107d4f941c06f59`.
+Five retained C# source files match revision
+`3f4e74b15983334b2f7afb2a51d47365f1492b0c`. The bounded application completed in
+0.073seconds with both native owners retired and no injected input. Separate
+diagnostic workflow CI is unavailable through PR Code Review; these are original
+application/resource observations, not whole-producer qualification.
+
+Exploratory resource-table analysis identifies the ScrollBar part1/state0
+IMAGEFILE and IMAGEFILE1 references as IMAGE1120 and IMAGE1121. Their unchanged
+PNGs contain a17-by340 opaque background and a13-by260 image with actual alpha
+coverage, respectively. The public bitmap query had returned only the first.
+Centering each13-pixel selected frame at(2,2) inside its17-pixel background
+reproduces every pixel of all32 independent original arrow captures. All32
+captures are also byte-identical to the previously retained original observation.
+
+The32 new managed renderer cases retain these original source PNGs only as test
+fixtures, verify their hashes and all full reference frames, and dispose both
+source images before reading the retained result. Together with the18 existing
+thumb/ownership/state controls, all50 focused cases pass without skips. Product
+code still does not acquire the selected arrow resource. Live resource selection,
+theme ownership, other sizes/DPIs, original package paint and input remain
+required; exploratory binary parsing is not a qualified product reader.

@@ -16,6 +16,51 @@ public sealed class ProGpuThemeBitmapRendererTests
 {
     public static IEnumerable<object[]> OriginalFrames => Enumerable.Range(0, 16).Select(i => new object[] { i });
 
+    public static IEnumerable<object[]> OriginalArrowFrames => Enumerable.Range(0, 32).Select(i => new object[] { i });
+
+    [Theory]
+    [MemberData(nameof(OriginalArrowFrames))]
+    public void ThemeBitmapRecordsOriginalArrowResourcePair(int index)
+    {
+        string directory = Path.Combine(AppContext.BaseDirectory, "Fixtures", "WindowsThemeArrowAssets");
+        using JsonDocument receipt = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "receipt.json")));
+        JsonElement cases = receipt.RootElement.GetProperty("cases"), sources = receipt.RootElement.GetProperty("sources");
+        Assert.Equal(32, cases.GetArrayLength());
+        Assert.Equal(2, sources.GetArrayLength());
+        string VerifiedPath(JsonElement descriptor)
+        {
+            string path = Path.Combine(directory, descriptor.GetProperty("file").GetString()!);
+            Assert.Equal(descriptor.GetProperty("sha256").GetString(), Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(path))));
+            return path;
+        }
+
+        // These are immutable original source PNG resources, including actual
+        // transparent coverage; no image is synthesized from reference pixels.
+        using Bitmap background = new(VerifiedPath(sources[0]));
+        using Bitmap selected = new(VerifiedPath(sources[1]));
+        Assert.Equal(new Size(17, 340), background.Size);
+        Assert.Equal(new Size(13, 260), selected.Size);
+        JsonElement item = cases[index];
+        int state = item.GetProperty("state").GetInt32();
+        using Bitmap original = new(VerifiedPath(item));
+        Assert.Equal(new Size(17, 17), original.Size);
+        using Bitmap result = new(17, 17);
+        using (Graphics graphics = Graphics.FromImage(result))
+        {
+            graphics.Clear(Color.FromArgb(item.GetProperty("background").GetInt32()));
+            Assert.True(ProGpuThemeBitmapRenderer.TryDraw(graphics, background,
+                new Rectangle(0, (state - 1) * 17, 17, 17), new(8, 8, 8, 8), new(0, 0, 17, 17), null));
+            Assert.True(ProGpuThemeBitmapRenderer.TryDraw(graphics, selected,
+                new Rectangle(0, (state - 1) * 13, 13, 13), default, new(2, 2, 13, 13), null));
+        }
+
+        background.Dispose();
+        selected.Dispose();
+        for (int y = 0; y < 17; y++)
+        for (int x = 0; x < 17; x++)
+            Assert.Equal(original.GetPixel(x, y).ToArgb(), result.GetPixel(x, y).ToArgb());
+    }
+
     [Theory]
     [MemberData(nameof(OriginalFrames))]
     public void ThemeBitmapRetainsOriginalNativeThumbFrame(int index)

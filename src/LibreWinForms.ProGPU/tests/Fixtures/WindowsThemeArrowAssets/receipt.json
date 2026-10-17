@@ -1,0 +1,296 @@
+{
+  "qualified": false,
+  "sourceHead": "3f4e74b15983334b2f7afb2a51d47365f1492b0c",
+  "sourceRun": 39074238860,
+  "sourceArtifact": 12116480928,
+  "sourceArchiveSha256": "96cc1de631ae03e88a33c5f88d526e75b1bc78632f95b0a498c0fd6310398516",
+  "themeFileSha256": "40878bc58a991112004fb35c4130911c4c0bbaa94d9045365107d4f941c06f59",
+  "referenceArchiveSha256": "96cc1de631ae03e88a33c5f88d526e75b1bc78632f95b0a498c0fd6310398516",
+  "sources": [
+    {
+      "file": "source-image-1120.png",
+      "sha256": "7885004b4aded443e723a74834f34477f9c75e54953cdc399864c233873f6406",
+      "resourceType": "IMAGE",
+      "resourceId": 1120,
+      "language": 1033,
+      "property": 3001,
+      "class": "ScrollBar",
+      "part": 1,
+      "state": 0
+    },
+    {
+      "file": "source-image-1121.png",
+      "sha256": "ed36c0116a224735af69a4239d03d052db3fc1fef83c206d1ee83ef2ed714f93",
+      "resourceType": "IMAGE",
+      "resourceId": 1121,
+      "language": 1033,
+      "property": 3002,
+      "class": "ScrollBar",
+      "part": 1,
+      "state": 0
+    }
+  ],
+  "imageCount": 20,
+  "placement": "13-pixel selected image centered at2 within17; original32frame observation only, other frames remain separate",
+  "cases": [
+    {
+      "file": "024-SCROLLBAR-1-1.png",
+      "sha256": "25e1c350515b7b9d9a68e6d82208bcb9b400177194e565d37df4ef539c1dc086",
+      "state": 1,
+      "background": -1,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "025-SCROLLBAR-1-1.png",
+      "sha256": "25e1c350515b7b9d9a68e6d82208bcb9b400177194e565d37df4ef539c1dc086",
+      "state": 1,
+      "background": -986896,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "026-SCROLLBAR-1-2.png",
+      "sha256": "d1deefccb518e07da1211aa9446678b6497cf51044c040f6b4bc215e74969d15",
+      "state": 2,
+      "background": -1,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "027-SCROLLBAR-1-2.png",
+      "sha256": "d1deefccb518e07da1211aa9446678b6497cf51044c040f6b4bc215e74969d15",
+      "state": 2,
+      "background": -986896,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "028-SCROLLBAR-1-3.png",
+      "sha256": "a144bddff52e180aa437d29cdcaf10b405e6928154cd00d5c25c9532fa18484f",
+      "state": 3,
+      "background": -1,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "029-SCROLLBAR-1-3.png",
+      "sha256": "a144bddff52e180aa437d29cdcaf10b405e6928154cd00d5c25c9532fa18484f",
+      "state": 3,
+      "background": -986896,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "030-SCROLLBAR-1-4.png",
+      "sha256": "b78dc9d6ceedd4c637309fb3f69829ba6c3c81acbe5787dbe2e1e514bdf01ceb",
+      "state": 4,
+      "background": -1,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "031-SCROLLBAR-1-4.png",
+      "sha256": "b78dc9d6ceedd4c637309fb3f69829ba6c3c81acbe5787dbe2e1e514bdf01ceb",
+      "state": 4,
+      "background": -986896,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "032-SCROLLBAR-1-5.png",
+      "sha256": "25e1c350515b7b9d9a68e6d82208bcb9b400177194e565d37df4ef539c1dc086",
+      "state": 5,
+      "background": -1,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "033-SCROLLBAR-1-5.png",
+      "sha256": "25e1c350515b7b9d9a68e6d82208bcb9b400177194e565d37df4ef539c1dc086",
+      "state": 5,
+      "background": -986896,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "034-SCROLLBAR-1-6.png",
+      "sha256": "a6442a72c04ba7feaf74f3d30ea55117f09f6feb65a72d4f7357ccbcf5857bc4",
+      "state": 6,
+      "background": -1,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "035-SCROLLBAR-1-6.png",
+      "sha256": "a6442a72c04ba7feaf74f3d30ea55117f09f6feb65a72d4f7357ccbcf5857bc4",
+      "state": 6,
+      "background": -986896,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "036-SCROLLBAR-1-7.png",
+      "sha256": "6a0078d5aea3a7f275c0c014a8d7d343391ea984018a435fb2a9fb2219bbb855",
+      "state": 7,
+      "background": -1,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "037-SCROLLBAR-1-7.png",
+      "sha256": "6a0078d5aea3a7f275c0c014a8d7d343391ea984018a435fb2a9fb2219bbb855",
+      "state": 7,
+      "background": -986896,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "038-SCROLLBAR-1-8.png",
+      "sha256": "c8bace6d331da27d03b2c07454f61bd9ce97ca0068f9b71ea90a1436280068a5",
+      "state": 8,
+      "background": -1,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "039-SCROLLBAR-1-8.png",
+      "sha256": "c8bace6d331da27d03b2c07454f61bd9ce97ca0068f9b71ea90a1436280068a5",
+      "state": 8,
+      "background": -986896,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "040-SCROLLBAR-1-9.png",
+      "sha256": "004bdd3a9e9cac16158a47c4c8f773fdd5b39aa44ca540fb8ddde6a4fc668c70",
+      "state": 9,
+      "background": -1,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "041-SCROLLBAR-1-9.png",
+      "sha256": "004bdd3a9e9cac16158a47c4c8f773fdd5b39aa44ca540fb8ddde6a4fc668c70",
+      "state": 9,
+      "background": -986896,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "042-SCROLLBAR-1-10.png",
+      "sha256": "a30fb9567e721061a2ad4bf77e0a8e7d48a37bb161259a0d01d725cdea84dbd3",
+      "state": 10,
+      "background": -1,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "043-SCROLLBAR-1-10.png",
+      "sha256": "a30fb9567e721061a2ad4bf77e0a8e7d48a37bb161259a0d01d725cdea84dbd3",
+      "state": 10,
+      "background": -986896,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "044-SCROLLBAR-1-11.png",
+      "sha256": "99e03e2f74666a27d57cf0845c764b270d4cc7e05584651fab1c1fcf986c7b44",
+      "state": 11,
+      "background": -1,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "045-SCROLLBAR-1-11.png",
+      "sha256": "99e03e2f74666a27d57cf0845c764b270d4cc7e05584651fab1c1fcf986c7b44",
+      "state": 11,
+      "background": -986896,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "046-SCROLLBAR-1-12.png",
+      "sha256": "5be3c56362289acd73a34386fbb6506b764711623848c41832f3861a827e0e39",
+      "state": 12,
+      "background": -1,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "047-SCROLLBAR-1-12.png",
+      "sha256": "5be3c56362289acd73a34386fbb6506b764711623848c41832f3861a827e0e39",
+      "state": 12,
+      "background": -986896,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "048-SCROLLBAR-1-13.png",
+      "sha256": "004bdd3a9e9cac16158a47c4c8f773fdd5b39aa44ca540fb8ddde6a4fc668c70",
+      "state": 13,
+      "background": -1,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "049-SCROLLBAR-1-13.png",
+      "sha256": "004bdd3a9e9cac16158a47c4c8f773fdd5b39aa44ca540fb8ddde6a4fc668c70",
+      "state": 13,
+      "background": -986896,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "050-SCROLLBAR-1-14.png",
+      "sha256": "5aec8a568981df26be160167e22e6ff218b95ab858fc8e59ca9e26bc6025676b",
+      "state": 14,
+      "background": -1,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "051-SCROLLBAR-1-14.png",
+      "sha256": "5aec8a568981df26be160167e22e6ff218b95ab858fc8e59ca9e26bc6025676b",
+      "state": 14,
+      "background": -986896,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "052-SCROLLBAR-1-15.png",
+      "sha256": "fa734a710b77ee1ef9ae5493d54e63de5d2fa13c773c07d9d2521f1ad734462f",
+      "state": 15,
+      "background": -1,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "053-SCROLLBAR-1-15.png",
+      "sha256": "fa734a710b77ee1ef9ae5493d54e63de5d2fa13c773c07d9d2521f1ad734462f",
+      "state": 15,
+      "background": -986896,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "054-SCROLLBAR-1-16.png",
+      "sha256": "65213eb6d6a9e529f314144dcb5f8bdeb968b0bde776f7977c2f4cc974723d33",
+      "state": 16,
+      "background": -1,
+      "width": 17,
+      "height": 17
+    },
+    {
+      "file": "055-SCROLLBAR-1-16.png",
+      "sha256": "65213eb6d6a9e529f314144dcb5f8bdeb968b0bde776f7977c2f4cc974723d33",
+      "state": 16,
+      "background": -986896,
+      "width": 17,
+      "height": 17
+    }
+  ],
+  "referenceRun": 39074238860,
+  "referenceArtifact": 12116480928,
+  "originalCapturePreservation": "All32 PNGs byte-identical to retained original observation39068716244, artifact12114342016; native-asset cleanup failure in that run remains separate."
+}

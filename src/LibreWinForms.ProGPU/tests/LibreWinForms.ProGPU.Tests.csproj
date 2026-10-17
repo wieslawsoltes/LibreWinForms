@@ -23,6 +23,7 @@
     <None Update="Fixtures\WindowsScrollTrackReference\**\*" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Fixtures\WindowsScrollIdleReference\**\*" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Fixtures\WindowsThemeThumbAssets\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fixtures\WindowsThemeArrowAssets\**\*" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\SilkWindowService.cs" Link="SourceContracts\SilkWindowService.cs"
           CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\LibreWinForms.Sdk\targets\LibreWinForms.Sdk.targets" Link="SourceContracts\LibreWinForms.Sdk.targets"
