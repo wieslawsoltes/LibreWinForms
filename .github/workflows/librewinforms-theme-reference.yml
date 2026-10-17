@@ -59,7 +59,8 @@ jobs:
           $app = Join-Path $source 'bin/Release/net10.0-windows/win-arm64/WindowsThemeReference.exe'
           $out = Join-Path $env:RUNNER_TEMP 'thumb-primitive-stdout.log'
           $err = Join-Path $env:RUNNER_TEMP 'thumb-primitive-stderr.log'
-          $child = Start-Process -FilePath $app -ArgumentList @('--thumb-primitives', '"' + $evidence + '"') -NoNewWindow -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+          $arguments = @('--thumb-primitives', ('"' + $evidence + '"'))
+          $child = Start-Process -FilePath $app -ArgumentList $arguments -NoNewWindow -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
           if (-not $child.WaitForExit(60000)) {
             $child.Kill($true)
             $child.WaitForExit()
