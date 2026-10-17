@@ -44,7 +44,10 @@ internal static unsafe partial class WindowsThemeBitmapSource
 
             // GBF_COPY owns a fresh, unselected bitmap. Initialize the result:
             // failed calls are allowed to leave output storage untouched.
-            int result = GetThemeBitmap(theme, part, state, 2, 2, ref resources._bitmap);
+            // Original thumb resources use automatic property zero. Explicit
+            // TMT_DIBDATA is unavailable for these same original parts; this is
+            // source selection, not a retry after a failed bitmap request.
+            int result = GetThemeBitmap(theme, part, state, 0, 2, ref resources._bitmap);
             if (result < 0 || resources._bitmap == 0) return false;
             if (GetObjectW(resources._bitmap, sizeof(NativeBitmap), out NativeBitmap description) != sizeof(NativeBitmap)
                 || description.Width <= 0 || description.Height <= 0 || description.Planes != 1

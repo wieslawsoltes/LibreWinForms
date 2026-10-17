@@ -73,6 +73,11 @@ The first run rejected before paint because the part-defined query incorrectly
 passed the visual state to its reserved argument. The corrected call uses zero,
 as required by Windows and the original WinForms implementation; all subsequent
 resource queries retain the actual state and every pixel/admission check remains.
+The subsequent run reached image acquisition and exposed a second call mismatch:
+the original thumb inventory succeeds with automatic property zero but returns
+E_INVALIDARG for explicit TMT_DIBDATA. The source now directly requests the same
+automatic property used by those original thumb resources. No failed query is
+converted into a fallback image, and all original pixel checks remain intact.
 Three portable controls cover RGB row/channel identity, independent byte ownership,
 invalid sizes, and part/DPI rejection; the sixteen original image-renderer frames
 remain independent. Hosted passage and original application captures are still
