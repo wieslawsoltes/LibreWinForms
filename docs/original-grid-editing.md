@@ -51,6 +51,13 @@ key/modifier rejects input; Caps Lock/layout are not silently changed.
 
 ## Prepared producer requirements
 
+Hosted preparation recognizes the historical nine-job Build layout and the
+ten-job layout that also requires `Live Windows theme resource pixels`. It checks
+the complete named inventory, exact source head and successful status of every
+job, alongside successful whole Build/Docs and the immutable artifact identity.
+An equal job count cannot hide a duplicate, substituted or missing job. A
+ten-job producer cannot qualify through a nine-job pin.
+
 Stage only a complete successful exact-head producer using the existing package
 admission process. Preserve the original sample bytes and the independently
 verified nine designer-only annotations from `librewinforms-grid-designer-metadata.py`.
