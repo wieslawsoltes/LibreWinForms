@@ -12,6 +12,9 @@ on:
 permissions:
   contents: read
 
+env:
+  LIBREWINFORMS_QUALIFIED_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+
 jobs:
   automation-locale:
     name: Automation thread locale (${{ matrix.os }})
@@ -28,6 +31,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.LIBREWINFORMS_QUALIFIED_COMMIT }}
+
+      - name: Verify exact producer source
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${LIBREWINFORMS_QUALIFIED_COMMIT}"
 
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
@@ -63,7 +72,7 @@ jobs:
                              DOTNET_ADD_GLOBAL_TOOLS_TO_PATH='false', DOTNET_CLI_TELEMETRY_OPTOUT='1')
           phases = []
           manifest = {'schema': 'native-edit-word-selection-execution-v1',
-                      'sourceHead': os.environ['GITHUB_SHA'], 'completed': False,
+                      'sourceHead': os.environ['LIBREWINFORMS_QUALIFIED_COMMIT'], 'completed': False,
                       'desktopQualified': False, 'phases': phases,
                       'sources': {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
                                   for path in (project, project.parent / 'Program.cs', project.parent / 'WordSelectionReference.cs',
@@ -249,7 +258,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ env.LIBREWINFORMS_QUALIFIED_COMMIT }}
           submodules: recursive
+
+      - name: Verify exact producer source
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${LIBREWINFORMS_QUALIFIED_COMMIT}"
 
       - name: Validate offline popup desktop harness contracts
         run: python3 eng/tests/test_popup_desktop_harness.py
@@ -403,6 +417,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.LIBREWINFORMS_QUALIFIED_COMMIT }}
+
+      - name: Verify exact producer source
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${LIBREWINFORMS_QUALIFIED_COMMIT}"
 
       - name: Install Linux display and software WebGPU adapter
         if: runner.os == 'Linux'
@@ -463,7 +483,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ env.LIBREWINFORMS_QUALIFIED_COMMIT }}
           submodules: recursive
+
+      - name: Verify exact producer source
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${LIBREWINFORMS_QUALIFIED_COMMIT}"
 
       - name: Compile macOS popup native helper without desktop execution
         shell: bash
@@ -526,7 +551,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ env.LIBREWINFORMS_QUALIFIED_COMMIT }}
           submodules: recursive
+
+      - name: Verify exact producer source
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${LIBREWINFORMS_QUALIFIED_COMMIT}"
 
       - name: Validate canonical native staging and release closure contracts
         run: python3 eng/tests/test_canonical_native_staging.py
@@ -642,7 +672,7 @@ jobs:
       - name: Upload packages
         uses: actions/upload-artifact@v4
         with:
-          name: librewinforms-ci-packages-${{ github.sha }}
+          name: librewinforms-ci-packages-${{ env.LIBREWINFORMS_QUALIFIED_COMMIT }}
           path: |
             artifacts/packages/Release/NonShipping/*.nupkg
             artifacts/packages/Release/NonShipping/*.json

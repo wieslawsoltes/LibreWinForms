@@ -24,6 +24,9 @@ on:
 permissions:
   contents: read
 
+env:
+  LIBREWINFORMS_QUALIFIED_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+
 jobs:
   verify-docs:
     name: Verify release documentation
@@ -33,6 +36,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.LIBREWINFORMS_QUALIFIED_COMMIT }}
+
+      - name: Verify exact producer source
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "${LIBREWINFORMS_QUALIFIED_COMMIT}"
 
       - name: Verify package docs
         run: ./eng/librewinforms-verify-docs.sh

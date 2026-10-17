@@ -68,3 +68,11 @@ native runtime, manifests and notices. The original 20/60-second paired protocol
 also checks the real device's DXC selection and library path from the existing
 backend diagnostics, then rechecks all output hashes. A compiler request alone
 does not qualify a loaded runtime or a completed application.
+
+Build and Docs check out and verify the exact pull-request head (or the triggering
+commit for branch/manual runs) in every owned lane. The GitHub synthetic merge
+commit is not the qualified producer. Build 39021091670's canonical packages
+record merge commit `940c0742f055474d48affa1a89f759b77950095b`, although its run
+identifies PR head `715b8fddeb0778a49fb014d5b5e49f2c67bbf4e6`; that artifact is
+retained as evidence and is not admitted as an exact-head producer. The actual
+checkout check precedes builds; package repository metadata is never relabeled.
