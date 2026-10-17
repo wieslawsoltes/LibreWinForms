@@ -185,7 +185,16 @@ behavior is unchanged. This adds no contracted-border or other-DPI policy.
 The retained128-frame inventory is test evidence only. Managed tests compare all64
 noncontracted frames and retained image lifetime; hosted tests additionally require
 actual native selection through the default service and every original pixel.
-Final native and whole-package passage remain required before qualification.
+The final-source hosted observation
+[39078770604](https://github.com/wieslawsoltes/LibreWinForms/actions/runs/39078770604)
+passes all9 native checks with zero skips in52.409seconds. Its9 retained source
+files match product`d22533267a3d197e88b06b30a56bdffbc3c64b56` apart from source
+line endings; all130 sizing-fixture hashes match, including the original JSON
+bytes. Artifact12118081526 SHA256 is
+`776deaca50117a59368af78922f8da993722bb7ca85603d9acbb6d36f032736c`.
+The application receipt reports exit0 and no input. This diagnostic is not
+whole-producer qualification; final whole-package and original application
+acceptance remain required.
 
 ## Whole-table inheritance allocation
 
