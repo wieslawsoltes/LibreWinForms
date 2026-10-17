@@ -51,3 +51,18 @@ The explicit DXC path requires fresh whole producer qualification, the original
 paired grid workload and image review before release. Host/SDK tests establish
 transport, ownership and package selection only; they are not Windows startup,
 pixel or input qualification. The original Automatic failures remain retained.
+
+The original-grid workflow accepts an explicit `Dxc` compiler and an exact
+producer JSON manifest after that producer's whole Build and Docs succeed.
+The manifest includes the artifact identity/digest and every package's source
+commit, version, size and SHA-256; the runner rechecks all nine Build jobs and
+the complete downloaded feed. Its default retains the original checked-in
+Automatic producer. An override does not relax any producer gate.
+
+DXC selection is passed as SDK build properties with an explicit `win-arm64`
+RID and the qualified package version. All 52 original source hashes and the
+passive observer remain unchanged. The consumer must contain the exact compiler,
+native runtime, manifests and notices. The original 20/60-second paired protocol
+also checks the real device's DXC selection and library path from the existing
+backend diagnostics, then rechecks all output hashes. A compiler request alone
+does not qualify a loaded runtime or a completed application.

@@ -13,6 +13,16 @@ on:
         type: boolean
         required: false
         default: false
+      dx12_compiler:
+        description: Explicit portable SDK compiler; requires a qualified producer with DXC
+        type: choice
+        options: [Automatic, Dxc]
+        required: false
+        default: Automatic
+      producer_pin:
+        description: Optional exact producer JSON with successful Build/Docs, artifact and complete package hashes
+        type: string
+        required: false
   push:
     branches: [fix-hosted-original-grid]
     paths:
@@ -74,18 +84,29 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           github-token: ${{ github.token }}
-          run-id: 38975594619
+          run-id: ${{ inputs.producer_pin && fromJSON(inputs.producer_pin).build || 38975594619 }}
           name: canonical-source-first-package
           path: ${{ runner.temp }}/original-grid-feed
       - name: Prepare and compile original pair without desktop execution
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          GRID_DX12_COMPILER: ${{ inputs.dx12_compiler || 'Automatic' }}
+          GRID_PRODUCER_PIN: ${{ inputs.producer_pin }}
         run: |
+          $pinPath = "$env:RUNNER_TEMP/original-grid-producer.json"
+          if ([string]::IsNullOrWhiteSpace($env:GRID_PRODUCER_PIN)) {
+            Copy-Item eng/OriginalGrid/qualified-producer.json $pinPath
+          } else {
+            $null = ConvertFrom-Json -InputObject $env:GRID_PRODUCER_PIN -AsHashtable
+            [IO.File]::WriteAllText($pinPath, $env:GRID_PRODUCER_PIN, [Text.UTF8Encoding]::new($false))
+          }
           python eng/OriginalGrid/prepare-hosted.py `
             --sample-checkout original-samples `
             --feed "$env:RUNNER_TEMP/original-grid-feed" `
-            --output "$env:RUNNER_TEMP/original-grid-pair"
+            --output "$env:RUNNER_TEMP/original-grid-pair" `
+            --dx12-compiler "$env:GRID_DX12_COMPILER" `
+            --producer-pin $pinPath
           if ($LASTEXITCODE -ne 0) { throw 'Original grid package preparation failed; evidence retained.' }
       - name: Build owned native stack observer
         if: github.event_name == 'workflow_dispatch' && inputs.run_original_input && inputs.diagnose_startup

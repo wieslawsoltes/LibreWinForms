@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.spec_from_file_location("hosted_grid", ROOT / "eng/OriginalGrid/prepare-hosted.py")
@@ -26,8 +27,50 @@ def producer():
 
 
 class HostedPreparationTests(unittest.TestCase):
+    def test_explicit_compiler_requires_qualified_package_and_preserves_reference(self):
+        self.assertEqual(PREP.compiler_build_options("Microsoft", "Dxc", PIN), ([], None))
+        self.assertEqual(PREP.compiler_build_options("Portable", "Automatic", PIN), ([], None))
+        pin = dict(PIN, packages=[])
+        with self.assertRaisesRegex(ValueError, "whole-qualified"):
+            PREP.compiler_build_options("Portable", "Dxc", pin)
+        package = dict(id="ProGPU.Backend.Dx12", version="1.2.3", repository=dict(commit=PIN["progpuHead"]))
+        pin["packages"] = [package]
+        options, rid = PREP.compiler_build_options("Portable", "Dxc", pin)
+        self.assertEqual(rid, "win-arm64")
+        self.assertEqual(options, ["-p:LibreWinFormsDx12ShaderCompiler=Dxc", "-p:RuntimeIdentifier=win-arm64",
+                                   "-p:LibreWinFormsProGpuPackageVersion=1.2.3"])
+        package["repository"]["commit"] = "0" * 40
+        with self.assertRaisesRegex(ValueError, "whole-qualified"):
+            PREP.compiler_build_options("Portable", "Dxc", pin)
+
+    def test_compiler_payload_requires_exact_files_and_notices(self):
+        names = ["wgpu_native.dll", "dxcompiler.dll", "dxil.dll", "wgpu-native-build.json",
+                 "dxc-compiler-package.json", "progpu-dx12-runtime.json", "LICENSE.MIT", "LICENSE.APACHE",
+                 "LICENSE-MS.txt", "LICENSE-LLVM.txt", "LICENCE-MIT.txt", "Microsoft.Direct3D.DXC.package.xml"]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); output = root / "app"; output.mkdir()
+            archive = root / "compiler.nupkg"
+            with zipfile.ZipFile(archive, "w") as package:
+                for name in names:
+                    payload = ("owned package fixture " + name).encode()
+                    package.writestr("buildTransitive/runtimes/win-arm64/native/" + name, payload)
+                    (output / name).write_bytes(payload)
+            pin = dict(packages=[dict(id="ProGPU.Backend.Dx12", file=archive.name, sha256=PREP.digest(archive))])
+            receipt = PREP.verify_compiler_payload(output, root, pin, "win-arm64")
+            self.assertEqual(set(receipt["files"]), set(names))
+            (output / "dxcompiler.dll").write_bytes(b"another compiler")
+            with self.assertRaisesRegex(ValueError, "substituted"):
+                PREP.verify_compiler_payload(output, root, pin, "win-arm64")
+            (output / "dxcompiler.dll").unlink()
+            with self.assertRaisesRegex(ValueError, "Missing"):
+                PREP.verify_compiler_payload(output, root, pin, "win-arm64")
+            with self.assertRaisesRegex(ValueError, "incomplete"):
+                PREP.verify_compiler_payload(output, root, pin, "win-x64")
+
     def test_complete_exact_producer(self):
         PREP.validate_producer(PIN, *producer())
+        with self.assertRaisesRegex(ValueError, "all nine"):
+            PREP.validate_producer(dict(PIN, expectedBuildJobs=1), *producer())
 
     def test_other_head_pending_failed_wrong_workflow_and_partial_jobs_rejected(self):
         for index, field, value in [(0, "head_sha", "0" * 40), (0, "status", "in_progress"),

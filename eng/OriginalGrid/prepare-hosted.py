@@ -45,6 +45,7 @@ def api(path):
 
 
 def validate_producer(pin, build, docs, jobs, artifact):
+    require(pin["expectedBuildJobs"] == 9, "Original whole producer requires all nine Build jobs")
     for record, run, workflow in ((build, pin["build"], ".github/workflows/librewinforms-ci.yml"),
                                   (docs, pin["docs"], ".github/workflows/librewinforms-docs.yml")):
         require(record["id"] == run and record["head_sha"] == pin["head"]
@@ -165,18 +166,58 @@ def stage_configuration(root, contract):
     ET.ElementTree(config).write(root / "NuGet.config", encoding="utf-8", xml_declaration=True)
 
 
+def compiler_build_options(mode, compiler, pin):
+    require(mode in ("Microsoft", "Portable") and compiler in ("Automatic", "Dxc"),
+            "Unsupported original grid compiler configuration")
+    if compiler == "Automatic" or mode == "Microsoft":
+        return [], None
+    packages = [item for item in pin["packages"] if item["id"] == "ProGPU.Backend.Dx12"]
+    require(len(packages) == 1 and packages[0]["repository"].get("commit") == pin["progpuHead"],
+            "DXC requires the exact whole-qualified producer package")
+    return ["-p:LibreWinFormsDx12ShaderCompiler=Dxc", "-p:RuntimeIdentifier=win-arm64",
+            "-p:LibreWinFormsProGpuPackageVersion=" + packages[0]["version"]], "win-arm64"
+
+
+def verify_compiler_payload(output, feed, pin, rid):
+    package = next(item for item in pin["packages"] if item["id"] == "ProGPU.Backend.Dx12")
+    prefix = "buildTransitive/runtimes/" + rid + "/native/"
+    with zipfile.ZipFile(feed / package["file"]) as archive:
+        members = [name for name in archive.namelist() if name.startswith(prefix) and not name.endswith("/")]
+        require(len(members) == len(set(members)) and len(members) <= 64,
+                "Compiler payload inventory is invalid")
+        names = {name.removeprefix(prefix) for name in members}
+        require({"wgpu_native.dll", "dxcompiler.dll", "dxil.dll", "wgpu-native-build.json",
+                 "dxc-compiler-package.json", "progpu-dx12-runtime.json", "LICENSE.MIT", "LICENSE.APACHE",
+                 "LICENSE-MS.txt", "LICENSE-LLVM.txt", "LICENCE-MIT.txt", "Microsoft.Direct3D.DXC.package.xml"} <= names,
+                "Compiler payload or notices are incomplete")
+        require(all(Path(name).name == name for name in names), "Unexpected nested compiler payload")
+        hashes = {}
+        for member in members:
+            name = member.removeprefix(prefix)
+            target = output / name
+            require(target.is_file() and not target.is_symlink(), "Missing compiler output: " + name)
+            actual = digest(target)
+            require(actual == hashlib.sha256(archive.read(member)).hexdigest(),
+                    "Consumer substituted qualified compiler output: " + name)
+            hashes[name] = actual
+    return dict(requested="Dxc", runtimeIdentifier=rid, package=package["id"],
+                packageSha256=package["sha256"], files=hashes)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sample-checkout", type=Path, required=True)
     parser.add_argument("--feed", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--dotnet", default="dotnet")
+    parser.add_argument("--dx12-compiler", choices=("Automatic", "Dxc"), default="Automatic")
+    parser.add_argument("--producer-pin", type=Path, default=HERE / "qualified-producer.json")
     args = parser.parse_args()
     require(sys.platform == "win32" and os.environ.get("GITHUB_ACTIONS") == "true"
             and os.environ.get("RUNNER_ENVIRONMENT") == "github-hosted"
             and os.environ.get("GITHUB_REPOSITORY") == REPOSITORY,
             "Build preparation is restricted to this repository's disposable hosted Windows runner")
-    pin = json.loads((HERE / "qualified-producer.json").read_text())
+    pin = json.loads(args.producer_pin.read_text(encoding="utf-8-sig"))
     contract = json.loads((HERE / "source-contract.json").read_text())
     build, docs = (api("actions/runs/" + str(pin[key])) for key in ("build", "docs"))
     jobs = api("actions/runs/" + str(pin["build"]) + "/jobs?per_page=100")
@@ -184,11 +225,13 @@ def main():
     validate_producer(pin, build, docs, jobs, artifact)
     feed = args.feed.resolve(strict=True)
     validate_feed(feed, pin)
+    compiler_build_options("Portable", args.dx12_compiler, pin)
     root = args.output.resolve()
     stage_source(args.sample_checkout, root, contract)
     stage_configuration(root, contract)
     shutil.copytree(feed, root / "feed")
     save(root / "producer.json", dict(build=build, docs=docs, jobs=jobs, artifact=artifact))
+    save(root / "selected-producer.json", pin)
     save(root / "preparation.json", dict(sourceCommit=contract["commit"], sourceHead=pin["head"],
         producerSuccess=True, files=contract["preparedFiles"], packages=pin["packages"],
         observerSha256=contract["observerSha256"], qualified=False))
@@ -208,9 +251,11 @@ def main():
         receipt["sdkVersion"] = version
         for mode, framework in (("Microsoft", "net11.0-windows"), ("Portable", "net11.0")):
             project = root / mode / "CSWinFormDataGridView.csproj"
+            compiler_options, rid = compiler_build_options(mode, args.dx12_compiler, pin)
             with (root / (mode + "-build.log")).open("xb") as log:
                 child = subprocess.Popen([str(dotnet), "build", str(project), "-c", "Release", "-m:1",
-                    "-nodeReuse:false", "-p:UseSharedCompilation=false", "--configfile", str(root / "NuGet.config")],
+                    "-nodeReuse:false", "-p:UseSharedCompilation=false", "--configfile", str(root / "NuGet.config"),
+                    *compiler_options],
                     cwd=root, env=environment, stdout=log, stderr=subprocess.STDOUT)
                 try:
                     code = child.wait(timeout=300)
@@ -222,6 +267,9 @@ def main():
             entry = receipt["builds"][mode] = dict(exitCode=code)
             require(code == 0, mode + " original sample build failed; log retained")
             output = project.parent / "bin/Release" / framework
+            if rid:
+                output = output / rid
+                entry["compiler"] = verify_compiler_payload(output, feed, pin, rid)
             entry["app"] = str(output / "CSWinFormDataGridView.exe")
             require(Path(entry["app"]).is_file(), "Original apphost missing")
             entry["outputs"] = [dict(path=str(p.relative_to(output)), sha256=digest(p))

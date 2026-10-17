@@ -240,6 +240,10 @@ def run_mode(root, build, mode, evidence, desktop, reference=None, hosted_startu
     environment.pop("DOTNET_STARTUP_HOOKS", None)
     environment.update(DOTNET_ROOT=str(sdk.parent), DOTNET_ROOT_ARM64=str(sdk.parent),
                        DOTNET_CLI_TELEMETRY_OPTOUT="1", LIBREWINFORMS_GRID_OBSERVER="1")
+    compiler = compiled.get("compiler")
+    if compiler:
+        require(mode == "Portable" and compiler["requested"] == "Dxc", "Unexpected explicit compiler")
+        environment["PROGPU_BACKEND_DIAGNOSTICS"] = "1"
     evidence.mkdir()
     receipt = dict(mode=mode, qualified=False, status="incomplete", sourceHead=build["sourceHead"],
                    observerSha256=build["observerSha256"], applicationDeadlineSeconds=60, startupDeadlineSeconds=20)
@@ -252,6 +256,9 @@ def run_mode(root, build, mode, evidence, desktop, reference=None, hosted_startu
             dpi = None if reference is None else reference["metrics"]["DeviceDpi"]
             session = Session(desktop, child, evidence, started, dpi, hosted_startup, mode == "Microsoft")
             layout = scenario(session, reference)
+            if compiler:
+                receipt["compiler"] = verify_compiler_selection(evidence / "stdout.log", app.parent, compiler)
+                require(time.monotonic() < started + 60, "Original process deadline expired during compiler validation")
             for name in ("FormsAssembly", "DrawingAssembly"):
                 loaded = Path(session.state[name]).resolve(strict=True)
                 require(loaded.parent == app.parent if mode == "Portable" else
@@ -278,6 +285,22 @@ def run_mode(root, build, mode, evidence, desktop, reference=None, hosted_startu
             receipt["payloadUnchanged"] = True
         finally:
             save(evidence / "receipt.json", receipt)
+
+
+def verify_compiler_selection(log, output, compiler):
+    require(log.stat().st_size <= MAX_LOG_BYTES, "Application log exceeded its bound")
+    lines = [line for line in log.read_text(encoding="utf-8").splitlines()
+             if line.startswith("[D3D12] Shader compiler=")]
+    require(0 < len(lines) <= 16, "No bounded actual device compiler observation")
+    library = (output / "dxcompiler.dll").resolve(strict=True)
+    for line in lines:
+        match = re.fullmatch(r"\[D3D12\] Shader compiler=Dxc, requested=Dxc, library='(.+)'\.", line)
+        require(match is not None and Path(match[1]).resolve(strict=True) == library,
+                "Actual device did not select the qualified packaged DXC compiler")
+    for name, expected in compiler["files"].items():
+        require(Path(name).name == name and digest(output / name) == expected,
+                "Compiler package output changed during execution")
+    return dict(compiler, actualDeviceObservations=lines)
 
 
 def main():

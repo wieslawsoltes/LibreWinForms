@@ -26,6 +26,22 @@ def snapshot():
 
 
 class OriginalGridContracts(unittest.TestCase):
+    def test_compiler_requires_actual_device_selection_and_exact_output(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); library = root / "dxcompiler.dll"; library.write_bytes(b"owned fixture")
+            log = root / "stdout.log"
+            compiler = dict(requested="Dxc", files={library.name:DRIVER.digest(library)})
+            line = f"[D3D12] Shader compiler=Dxc, requested=Dxc, library='{library}'."
+            log.write_text(line + "\n")
+            self.assertEqual(DRIVER.verify_compiler_selection(log, root, compiler)["actualDeviceObservations"], [line])
+            for invalid in ("", line.replace("compiler=Dxc", "compiler=Fxc"),
+                            line.replace("requested=Dxc", "requested=Automatic"), line + " extra"):
+                log.write_text(invalid)
+                with self.assertRaises(RuntimeError): DRIVER.verify_compiler_selection(log, root, compiler)
+            log.write_text(line); library.write_bytes(b"changed")
+            with self.assertRaisesRegex(RuntimeError, "changed"):
+                DRIVER.verify_compiler_selection(log, root, compiler)
+
     def test_observer_installs_no_validation_input_focus_or_grid_handlers(self):
         source = (ROOT / "eng/OriginalGrid/OriginalGridObserver.cs").read_text()
         subscriptions = [line.strip().split(" += ")[0] for line in source.splitlines() if " += " in line]
