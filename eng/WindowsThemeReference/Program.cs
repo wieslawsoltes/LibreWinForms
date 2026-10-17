@@ -31,13 +31,21 @@ internal static class Program
             if (!VisualStyleRenderer.IsSupported) throw new InvalidOperationException("Native visual styles are unavailable.");
             Stopwatch elapsed = Stopwatch.StartNew();
             List<object> cases = new();
+            int renderedCases = 0;
             long bytes = 0;
             foreach (var item in Inventory())
             foreach (Color background in new[] { Color.White, SystemColors.Control })
             {
                 if (elapsed.Elapsed > TimeSpan.FromSeconds(45) || cases.Count >= 128)
                     throw new TimeoutException("Original reference count/time bound exceeded.");
-                VisualStyleRenderer renderer = new(item.Class, item.Part, item.State);
+                VisualStyleElement element = VisualStyleElement.CreateElement(item.Class, item.Part, item.State);
+                if (!VisualStyleRenderer.IsElementDefined(element))
+                {
+                    cases.Add(new { item.Class, item.Part, item.State, item.Width, item.Height,
+                        background = background.ToArgb(), defined = false, rendered = false });
+                    continue;
+                }
+                VisualStyleRenderer renderer = new(element);
                 using Bitmap bitmap = new(item.Width, item.Height, PixelFormat.Format32bppArgb);
                 bitmap.SetResolution(96, 96);
                 using Graphics graphics = Graphics.FromImage(bitmap);
@@ -57,7 +65,8 @@ internal static class Program
                     () => renderer.GetEnumValue(property), renderer)).ToArray();
                 var integers = Enum.GetValues<IntegerProperty>().Select(property => Observe(property.ToString(),
                     () => renderer.GetInteger(property), renderer)).ToArray();
-                cases.Add(new { item.Class, item.Part, item.State, item.Width, item.Height,
+                renderedCases++;
+                cases.Add(new { item.Class, item.Part, item.State, item.Width, item.Height, defined = true, rendered = true,
                     background = background.ToArgb(), targetDpi = new[] { graphics.DpiX, graphics.DpiY }, drawResult,
                     content = Observe("content", () => Rect(renderer.GetBackgroundContentRectangle(graphics, bounds)), renderer),
                     margins = Observe("contentMargins", () =>
@@ -73,11 +82,11 @@ internal static class Program
                     colors, enums, integers, file, sha256 = Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(path))) });
             }
             if (cases.Count != 120) throw new InvalidOperationException("Incomplete original reference inventory.");
-            var result = new { schema = "windows-theme-reference-v1", qualified = false, injectedInput = false,
+            var result = new { schema = "windows-theme-reference-v2", qualified = false, injectedInput = false,
                 runtime = Environment.Version.ToString(), os = Environment.OSVersion.VersionString,
                 formsAssembly = typeof(Form).Assembly.Location, drawingAssembly = typeof(Bitmap).Assembly.Location,
                 theme = VisualStyleInformation.DisplayName, scheme = VisualStyleInformation.ColorScheme,
-                size = VisualStyleInformation.Size, elapsedSeconds = elapsed.Elapsed.TotalSeconds, bytes, cases };
+                size = VisualStyleInformation.Size, elapsedSeconds = elapsed.Elapsed.TotalSeconds, bytes, renderedCases, cases };
             File.WriteAllText(Path.Combine(root, "reference.json"), JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }));
             return 0;
         }
