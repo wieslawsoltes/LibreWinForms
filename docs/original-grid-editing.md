@@ -124,3 +124,11 @@ Original guards are not bypassed, deadlines do not restart, and failed actions a
 not retried. The ordinary default path still uses its original activation request.
 The two earlier foreground failures remain retained; the extension is not evidence
 of a product repair or acceptance until the actual paired workload passes.
+
+Run39012843688 closed verified Search with one Escape, then retained an inactive
+Start surface covering all three native caption candidates. No caption click or
+grid input occurred. The integration had omitted the original driver's ordinary
+activation request. Restore that single `SetForegroundWindow` request after shell
+dismissal, before the guarded optional caption click. Recheck the exact native
+owner and original deadline afterward; a refused request never authorizes a click
+through an obstruction. Artifact12093189687 preserves the original failure.

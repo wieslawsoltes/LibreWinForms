@@ -57,6 +57,13 @@ def activate(session, state, owner, read_snapshot, *, authorized=False, environm
                                             limit, record["shell"], environment, authorized=True)
         require(clock() < limit and session.child.poll() is None, "Original startup budget ended before caption")
         require(session.native(state) == [owner], "Original native owner changed before caption")
+        # Preserve the original driver's one ordinary activation request. Shell
+        # dismissal can leave an inactive Start surface above the app; a caption
+        # click must still prove an unobstructed owned point if activation fails.
+        record["originalActivationRequested"] = True
+        session.desktop.activate(owner)
+        require(clock() < limit and session.child.poll() is None, "Original startup budget ended during activation")
+        require(session.native(state) == [owner], "Original native owner changed during activation")
         try:
             modules["caption"].Desktop(adopt_physical_coordinates=True).activate_ci_window(
                 owner["hwnd"], session.child.pid, limit, record["caption"], environment)

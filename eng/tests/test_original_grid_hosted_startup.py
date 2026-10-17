@@ -29,6 +29,7 @@ class StartupTests(unittest.TestCase):
             for _ in range(shell_count): claim('hosted-shell-escape', nativeProof={})
         def caption(hwnd, pid, deadline, record, environment):
             self.assertEqual((hwnd,pid,deadline),(123,99,20))
+            session.desktop.activate.assert_called_once_with(owner)
             record['clickCount'] = 1
             if caption_error: raise RuntimeError('original caption failure')
         reader = mock.Mock()
@@ -55,6 +56,7 @@ class StartupTests(unittest.TestCase):
             self.assertEqual((record['shellActions'],record['captionClicks']),(2,1))
             self.assertEqual((record['startupDeadline'],record['applicationDeadline']),(20,60))
             self.assertTrue(record['completed']);self.assertFalse(record['qualified'])
+            self.assertTrue(record['originalActivationRequested'])
             self.assertEqual(session.record.call_count,3)
             session.desktop.foreground.assert_called_once_with(99)
 
@@ -74,6 +76,7 @@ class StartupTests(unittest.TestCase):
                 modules['prepare-desktop'].Desktop.assert_not_called()
                 modules['caption'].Desktop.assert_not_called()
                 session.record.assert_not_called()
+                session.desktop.activate.assert_not_called()
                 self.assertFalse((Path(temporary)/'startup-input.json').exists())
 
     def test_repeated_or_nonstartup_activation_is_rejected(self):
@@ -104,6 +107,25 @@ class StartupTests(unittest.TestCase):
             session,state,owner,modules=self.fixture(Path(temporary),shell_count=3)
             with self.assertRaisesRegex(RuntimeError,'budget'):self.run_startup(session,state,owner,modules)
             modules['caption'].Desktop.assert_not_called();self.assertEqual(session.record.call_count,2)
+            session.desktop.activate.assert_not_called()
+
+    def test_original_activation_failure_is_not_retried_or_replaced_with_input(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            session,state,owner,modules=self.fixture(Path(temporary),shell=False)
+            session.desktop.activate.side_effect=RuntimeError('original activation failure')
+            with self.assertRaisesRegex(RuntimeError,'original activation failure'):
+                self.run_startup(session,state,owner,modules)
+            session.desktop.activate.assert_called_once_with(owner)
+            modules['caption'].Desktop.assert_not_called()
+            session.record.assert_not_called()
+
+    def test_activation_cannot_change_original_native_owner(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            session,state,owner,modules=self.fixture(Path(temporary),shell=False)
+            session.native.side_effect=[[owner],[owner],[owner|{'hwnd':456}]]
+            with self.assertRaisesRegex(RuntimeError,'owner changed during activation'):
+                self.run_startup(session,state,owner,modules)
+            modules['caption'].Desktop.assert_not_called()
 
     def test_foreground_change_is_only_permitted_source_difference(self):
         state={'Sequence':1,'FormFocused':False,'EditorFocused':False,'FirstNameUtf16':None}
