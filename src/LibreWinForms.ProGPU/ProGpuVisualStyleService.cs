@@ -85,6 +85,9 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
         }
     }
 
+    private static bool IsHeaderItem(string className, int part)
+        => part == 1 && string.Equals(className, "HEADER", StringComparison.OrdinalIgnoreCase);
+
     public Region? GetBackgroundRegion(string className, int part, int state, Rectangle bounds)
     {
         ValidateElement(className, part);
@@ -94,6 +97,17 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
     public Rectangle GetBackgroundContentRectangle(string className, int part, int state, Rectangle bounds)
     {
         ValidateElement(className, part);
+        if (IsHeaderItem(className, part))
+        {
+            // Match the explicit source DataGridView Aero header content policy,
+            // rather than subtracting generic button padding from its fixed row.
+            int left = Math.Min(2, Math.Max(0, bounds.Width));
+            int top = Math.Min(1, Math.Max(0, bounds.Height));
+            int bottom = Math.Min(2, Math.Max(0, bounds.Height - top));
+            return new Rectangle(bounds.X + left, bounds.Y + top,
+                Math.Max(0, bounds.Width - left), Math.Max(0, bounds.Height - top - bottom));
+        }
+
         int horizontalInset = Math.Min(3, Math.Max(0, bounds.Width / 2));
         int verticalInset = Math.Min(3, Math.Max(0, bounds.Height / 2));
         return Rectangle.Inflate(bounds, -horizontalInset, -verticalInset);
@@ -102,6 +116,12 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
     public Rectangle GetBackgroundExtent(string className, int part, int state, Rectangle contentBounds)
     {
         ValidateElement(className, part);
+        if (IsHeaderItem(className, part))
+        {
+            return new Rectangle(checked(contentBounds.X - 2), checked(contentBounds.Y - 1),
+                checked(contentBounds.Width + 2), checked(contentBounds.Height + 3));
+        }
+
         return Rectangle.Inflate(contentBounds, 3, 3);
     }
 
@@ -407,6 +427,7 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
         return property switch
         {
             LibreVisualStyleMarginProperty.Sizing => new(3, 3, 3, 3),
+            LibreVisualStyleMarginProperty.Content when IsHeaderItem(className, part) => new(2, 1, 0, 2),
             LibreVisualStyleMarginProperty.Content => new(3, 3, 3, 3),
             LibreVisualStyleMarginProperty.Caption => new(2, 2, 2, 2),
             _ => throw new ArgumentOutOfRangeException(nameof(property)),
