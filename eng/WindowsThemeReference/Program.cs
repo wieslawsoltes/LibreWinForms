@@ -13,6 +13,9 @@ internal static class Program
     {
         try
         {
+            if (args.Length == 2 && args[0] == "--thumb-primitives")
+                return ThumbPrimitiveReference.Run(args[1]);
+
             if (!OperatingSystem.IsWindows() || args.Length != 1 ||
                 Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true" ||
                 Environment.GetEnvironmentVariable("RUNNER_ENVIRONMENT") != "github-hosted")

@@ -51,6 +51,22 @@ jobs:
           if ($child.ExitCode -ne 0) { throw "Original reference exited $($child.ExitCode)." }
           $hashes = Get-ChildItem $source -Recurse -File | Where-Object { $_.Extension -in '.cs', '.csproj', '.props', '.targets', '.config', '.exe', '.dll', '.json' } | Get-FileHash -Algorithm SHA256
           $hashes | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $evidence 'source-and-payload-hashes.json')
+      - name: Observe original thumb primitive rasterization without input
+        shell: pwsh
+        run: |
+          $source = Join-Path $env:RUNNER_TEMP 'theme-reference-source'
+          $evidence = Join-Path $env:RUNNER_TEMP 'thumb-primitive-evidence'
+          $app = Join-Path $source 'bin/Release/net10.0-windows/win-arm64/WindowsThemeReference.exe'
+          $out = Join-Path $env:RUNNER_TEMP 'thumb-primitive-stdout.log'
+          $err = Join-Path $env:RUNNER_TEMP 'thumb-primitive-stderr.log'
+          $child = Start-Process -FilePath $app -ArgumentList @('--thumb-primitives', '"' + $evidence + '"') -NoNewWindow -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+          if (-not $child.WaitForExit(60000)) {
+            $child.Kill($true)
+            $child.WaitForExit()
+            throw 'Primitive reference process exceeded 60 seconds.'
+          }
+          $child.Refresh()
+          if ($child.ExitCode -ne 0) { throw "Primitive reference exited $($child.ExitCode)." }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -62,3 +78,7 @@ jobs:
             ${{ runner.temp }}/theme-reference-stdout.log
             ${{ runner.temp }}/theme-reference-stderr.log
             ${{ runner.temp }}/theme-reference-source/Program.cs
+            ${{ runner.temp }}/theme-reference-source/ThumbPrimitiveReference.cs
+            ${{ runner.temp }}/thumb-primitive-evidence/**
+            ${{ runner.temp }}/thumb-primitive-stdout.log
+            ${{ runner.temp }}/thumb-primitive-stderr.log
