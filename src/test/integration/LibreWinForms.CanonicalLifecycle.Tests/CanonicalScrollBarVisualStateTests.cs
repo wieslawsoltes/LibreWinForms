@@ -13,9 +13,9 @@ public partial class CanonicalLifecycleTests
     [Fact]
     public void PortableScrollBarVisualState_ArrowHoverPressReleaseAndLeave()
     {
-        using PaintableHScrollBar supplied = new();
         RunNativeScrollBar(true, (platform, form, bar, _, _) =>
         {
+            PaintableHScrollBar supplied = Assert.IsType<PaintableHScrollBar>(bar);
             Application.EnableVisualStyles();
             Assert.Equal(13, State(1, last: true));
             SendScrollPointer(platform, form, bar, LibreInputEventKind.PointerMove, new(176, 8));
@@ -29,7 +29,7 @@ public partial class CanonicalLifecycleTests
             Assert.Equal(13, State(1, last: true));
 
             int State(int part, bool last) => PaintScrollBarState(platform, supplied, part, last);
-        }, supplied);
+        }, static () => new PaintableHScrollBar());
     }
 
     [Theory]
@@ -37,9 +37,9 @@ public partial class CanonicalLifecycleTests
     [InlineData(true)]
     public void PortableScrollBarVisualState_ThumbCaptureRetainsPressedOutside(bool cancel)
     {
-        using PaintableHScrollBar supplied = new();
         RunNativeScrollBar(true, (platform, form, bar, _, _) =>
         {
+            PaintableHScrollBar supplied = Assert.IsType<PaintableHScrollBar>(bar);
             Application.EnableVisualStyles();
             bar.Value = 0;
             SendScrollPointer(platform, form, bar, LibreInputEventKind.PointerMove, new(22, 8));
@@ -51,15 +51,15 @@ public partial class CanonicalLifecycleTests
             if (cancel) bar.Capture = false;
             else SendScrollPointer(platform, form, bar, LibreInputEventKind.PointerUp, new(210, 8));
             Assert.Equal(1, PaintScrollBarState(platform, supplied, 2));
-        }, supplied);
+        }, static () => new PaintableHScrollBar());
     }
 
     [Fact]
     public void PortableScrollBarVisualState_DisabledAndSourceMutationCannotPaintOldPress()
     {
-        using PaintableHScrollBar supplied = new();
         RunNativeScrollBar(true, (platform, form, bar, _, _) =>
         {
+            PaintableHScrollBar supplied = Assert.IsType<PaintableHScrollBar>(bar);
             Application.EnableVisualStyles();
             SendScrollPointer(platform, form, bar, LibreInputEventKind.PointerDown, new(176, 8));
             Assert.Equal(15, PaintScrollBarState(platform, supplied, 1));
@@ -68,30 +68,30 @@ public partial class CanonicalLifecycleTests
             bar.Enabled = false;
             Assert.Equal(16, PaintScrollBarState(platform, supplied, 1));
             Assert.Equal(4, PaintScrollBarState(platform, supplied, 2));
-        }, supplied);
+        }, static () => new PaintableHScrollBar());
     }
 
     [Fact]
     public void PortableScrollBarVisualState_TrackPressedRegionStaysInsideOriginalTrack()
     {
-        using PaintableHScrollBar supplied = new();
         RunNativeScrollBar(true, (platform, form, bar, _, _) =>
         {
+            PaintableHScrollBar supplied = Assert.IsType<PaintableHScrollBar>(bar);
             Application.EnableVisualStyles();
             SendScrollPointer(platform, form, bar, LibreInputEventKind.PointerDown, new(155, 8));
             Assert.Equal(3, PaintScrollBarState(platform, supplied, 4));
             Assert.Equal(1, PaintScrollBarState(platform, supplied, 2));
             SendScrollPointer(platform, form, bar, LibreInputEventKind.PointerUp, new(155, 8));
             Assert.Equal(2, PaintScrollBarState(platform, supplied, 4));
-        }, supplied);
+        }, static () => new PaintableHScrollBar());
     }
 
     [Fact]
     public void PortableScrollBarVisualState_ReleaseInvalidationCannotNotifyOrRetireNestedPress()
     {
-        using PaintableHScrollBar supplied = new();
         RunNativeScrollBar(true, (platform, form, bar, _, _) =>
         {
+            PaintableHScrollBar supplied = Assert.IsType<PaintableHScrollBar>(bar);
             SendScrollPointer(platform, form, bar, LibreInputEventKind.PointerDown, new(176, 8));
             bool nested = false;
             int ups = 0;
@@ -110,7 +110,7 @@ public partial class CanonicalLifecycleTests
             SendScrollPointer(platform, form, bar, LibreInputEventKind.PointerUp, new(3, 8));
             Assert.Equal(1, ups);
             Assert.False(bar.Capture);
-        }, supplied);
+        }, static () => new PaintableHScrollBar());
     }
 
     private static int PaintScrollBarState(HeadlessPlatform platform, PaintableHScrollBar bar, int part, bool last = true)

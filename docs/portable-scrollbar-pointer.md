@@ -34,3 +34,10 @@ pressed state. Held-button repeat, original Microsoft gesture/theme comparison
 and complete package desktop validation remain required work in #174. These
 source controls do not establish native gesture or theme parity. No release pin
 or qualification exception is implied.
+
+Source fixtures construct their actual custom controls only after registering
+the owned headless platform. The isolated six-case visual gate reproduced a
+setup failure masked by earlier tests in the full suite; its original CI and
+local failures remain retained. A factory keeps platform registration, control
+construction and disposal in the same fixture lifetime. Visual and custom
+pointer/wheel cases must also pass in fresh processes, without prior-test state.

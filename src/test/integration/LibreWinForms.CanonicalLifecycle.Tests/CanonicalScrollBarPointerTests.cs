@@ -228,9 +228,9 @@ public partial class CanonicalLifecycleTests
     [InlineData(true)]
     public void PortableScrollBarPointer_UserMouseKeepsDefaultInputOwnership(bool changedAfterDown)
     {
-        using UserMouseScrollBar supplied = new();
         RunNativeScrollBar(true, (platform, form, bar, _, _) =>
         {
+            UserMouseScrollBar supplied = Assert.IsType<UserMouseScrollBar>(bar);
             int events = 0;
             bar.Scroll += (_, _) => events++;
             supplied.OwnMouse = !changedAfterDown;
@@ -239,7 +239,7 @@ public partial class CanonicalLifecycleTests
             SendScrollPointer(platform, form, bar, LibreInputEventKind.PointerUp, new(176, 8));
             Assert.Equal(changedAfterDown ? 53 : 50, bar.Value);
             Assert.Equal(changedAfterDown ? 1 : 0, events);
-        }, supplied);
+        }, static () => new UserMouseScrollBar());
     }
 
     private sealed class UserMouseScrollBar : HScrollBar
@@ -250,9 +250,9 @@ public partial class CanonicalLifecycleTests
     [Fact]
     public void PortableScrollBarPointer_ReentrantDirectionGetterCannotRetireNestedMove()
     {
-        using NativeScrollBarDirectionProbe supplied = new();
         RunNativeScrollBar(true, (platform, form, bar, _, _) =>
         {
+            NativeScrollBarDirectionProbe supplied = Assert.IsType<NativeScrollBarDirectionProbe>(bar);
             bar.Value = 0;
             SendScrollPointer(platform, form, bar, LibreInputEventKind.PointerDown, new(22, 8));
             supplied.Reading = () =>
@@ -265,7 +265,7 @@ public partial class CanonicalLifecycleTests
             SendScrollPointer(platform, form, bar, LibreInputEventKind.PointerMove, new(22, 8));
             Assert.Equal(0, bar.Value);
             SendScrollPointer(platform, form, bar, LibreInputEventKind.PointerUp, new(22, 8));
-        }, supplied);
+        }, static () => new NativeScrollBarDirectionProbe());
     }
 
     private static void SendScrollPointer(HeadlessPlatform platform, Form form, ScrollBar bar, LibreInputEventKind kind, Point point)
