@@ -14,11 +14,12 @@ internal static unsafe partial class WindowsThemeBitmapSource
     internal static bool TryDraw(Graphics graphics, string className, int part, int state,
         Rectangle bounds, Rectangle? clip)
     {
-        // Other parts, source DPIs and native sizing policies have independent
-        // contracts. In particular a missing SizingType is not Stretch.
+        // Other parts and source DPIs have independent contracts. A missing
+        // SizingType never supplies Stretch; vertical thumbs require the
+        // separate actual native draw-extent query below.
         if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 15063)
             || !string.Equals(className, "SCROLLBAR", StringComparison.OrdinalIgnoreCase)
-            || part is not (1 or 2) || state < 1 || state > (part == 1 ? 16 : 4)
+            || part is not (1 or 2 or 3) || state < 1 || state > (part == 1 ? 16 : 4)
             || graphics.DpiX != 96 || graphics.DpiY != 96)
             return false;
 
@@ -36,7 +37,7 @@ internal static unsafe partial class WindowsThemeBitmapSource
             if (IsThemePartDefined(theme, part, 0) == 0
                 || IsThemeBackgroundPartiallyTransparent(theme, part, state) != 0
                 || !EnumEquals(theme, part, state, 4001, 0) // BGTYPE: image
-                || !EnumEquals(theme, part, state, 4004, 1) // SIZINGTYPE: stretch
+                || !HasThumbSizing(theme, part, state, bounds)
                 || !EnumEquals(theme, part, state, 4011, 0) // IMAGELAYOUT: vertical
                 || !EnumEquals(theme, part, state, 4013, 2) // IMAGESELECTTYPE: DPI
                 || GetThemeInt(theme, part, state, 2420, out int minDpi) < 0 || minDpi != 96
@@ -93,6 +94,28 @@ internal static unsafe partial class WindowsThemeBitmapSource
         }
         catch (Exception error) { resources.Primary = error; throw; }
     }
+
+    private static bool HasThumbSizing(nint theme, int part, int state, Rectangle bounds)
+    {
+        int result = GetThemeEnumValue(theme, part, state, 4004, out int sizing);
+        if (result >= 0) return sizing == 1; // Explicit native Stretch.
+        if (part != 3 || result != unchecked((int)0x80070490) // HRESULT_FROM_WIN32(ERROR_NOT_FOUND)
+            || bounds.Width <= 0 || bounds.Height <= 0
+            || (long)bounds.X + bounds.Width > int.MaxValue
+            || (long)bounds.Y + bounds.Height > int.MaxValue) return false;
+
+        // Do not manufacture an enum default. TS_DRAW is the actual size the
+        // native theme manager uses for this destination. The subsequent image
+        // validation separately requires one-pixel stretch bands and complete
+        // fixed borders, matching the original full-frame observations.
+        NativeRect target = new() { Left = bounds.X, Top = bounds.Y, Right = bounds.Right, Bottom = bounds.Bottom };
+        int drawResult = GetThemePartSize(theme, 0, part, state, in target, 2, out NativeSize size);
+        return NativeDrawExtentMatches(drawResult, size.Width, size.Height, bounds.Size);
+    }
+
+    internal static bool NativeDrawExtentMatches(int result, int width, int height, Size requested)
+        => result == 0 && requested.Width > 0 && requested.Height > 0
+            && width == requested.Width && height == requested.Height;
 
     [ThreadStatic]
     private static List<NativeResources>? s_pendingRetirement;
@@ -189,6 +212,12 @@ internal static unsafe partial class WindowsThemeBitmapSource
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect { internal int Left, Top, Right, Bottom; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeSize { internal int Width, Height; }
+
+    [StructLayout(LayoutKind.Sequential)]
     private struct NativeMargins { internal int Left, Right, Top, Bottom; }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -219,6 +248,9 @@ internal static unsafe partial class WindowsThemeBitmapSource
     private static partial int GetThemeEnumValue(nint theme, int part, int state, int property, out int value);
     [LibraryImport("uxtheme.dll")]
     private static partial int GetThemeInt(nint theme, int part, int state, int property, out int value);
+    [LibraryImport("uxtheme.dll")]
+    private static partial int GetThemePartSize(nint theme, nint dc, int part, int state,
+        in NativeRect bounds, int sizeKind, out NativeSize size);
     [LibraryImport("uxtheme.dll")]
     private static partial int GetThemeMargins(nint theme, nint dc, int part, int state, int property, nint bounds, out NativeMargins margins);
     [LibraryImport("uxtheme.dll")]

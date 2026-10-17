@@ -9,10 +9,13 @@ docs/live-theme-bitmap-rendering.md.
 
 Live Windows horizontal-thumb paint borrows only the actual opaque native theme
 resource at explicit 96-DPI targets, with supported image/layout/sizing metadata.
-Never infer alpha from RGB32 byte four or Stretch from a missing property. Keep
-per-paint native ownership, actual failed-owner retry and immutable retained image
-bytes; no reference/capture texture belongs in product paint. Vertical,
-small-target, other-DPI/theme, caching and original package gates remain separate.
+Never infer alpha from RGB32 byte four or Stretch from a missing property. Vertical
+thumbs require the separate successful TS_DRAW query for the exact positive
+requested extent when SizingType is ERROR_NOT_FOUND; all one-pixel-band, fixed-border
+and opacity gates remain mandatory. Keep per-paint native ownership, actual
+failed-owner retry and immutable retained image bytes; no reference/capture texture
+belongs in product paint. Small-target, other-DPI/theme, caching and original
+package gates remain separate.
 See docs/live-theme-bitmap-rendering.md; local image controls are not native qualification.
 
 Portable scrollbar held repeat uses exact press and one-shot timer identities.

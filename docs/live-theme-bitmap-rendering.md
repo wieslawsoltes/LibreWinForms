@@ -10,11 +10,13 @@ atlas states outside the selected source frame. The complete descriptor is
 validated before any draw command. Targets smaller than the fixed borders
 return unsupported; they do not acquire an invented border-contraction policy.
 
-The default visual-style service now attempts an actual Windows horizontal-thumb
-resource at an explicit 96-DPI drawing target. It requires a native opaque part,
-image background, explicit Stretch, vertical five-frame layout, 96-DPI image
-selection and one-pixel stretch bands. Unsupported metadata, transparent themes,
-other parts/DPIs and contracted borders retain the existing path. No reference
+The default visual-style service attempts actual Windows thumb resources at an
+explicit96-DPI drawing target. It requires a native opaque part, image background,
+vertical five-frame layout,96-DPI image selection and one-pixel stretch bands.
+Horizontal thumbs require explicit Stretch. Vertical thumbs may instead use the
+separate exact native draw-extent query described below when the enum is absent.
+Unsupported metadata, transparent themes, other parts/DPIs and contracted borders
+retain the existing path. No reference
 image or captured texture is embedded or loaded by product code. The active
 scrollbar appearance issue remains open pending native and application validation.
 
@@ -81,8 +83,8 @@ converted into a fallback image, and all original pixel checks remain intact.
 Three portable controls cover RGB row/channel identity, independent byte ownership,
 invalid sizes, and part/DPI rejection; the sixteen original image-renderer frames
 remain independent. Hosted passage and original application captures are still
-required before qualification. Vertical native sizing remains unavailable rather
-than being replaced by an assumed Stretch value. All 192 filename queries in
+required before qualification. The original vertical sizing enum remains unavailable;
+the later draw-extent path below does not replace it with an assumed Stretch value. All 192 filename queries in
 run39070628504 were unavailable; they did not supply the arrow glyph. The later
 source-file loader is described below. Smaller targets and other source policies
 remain required. After integration, whole producer CI and the original
@@ -157,6 +159,33 @@ all40 original frames. Six retained source files match diagnostic
 The application receipt records exit0, no injected input and qualified=false.
 The later empty-scalar rejection retains separate local controls and must pass
 the final head's hosted lane. This observation is not whole-CI qualification.
+
+## Vertical thumb draw-extent admission
+
+The independent original Microsoft sizing observation in
+[run39078292505](https://github.com/wieslawsoltes/LibreWinForms/actions/runs/39078292505)
+retains128 complete frames: both thumb orientations, all four visual states,
+eight sizes and two backgrounds. It finishes in0.619seconds within the original
+45-second application/60-second controller limits, without input. The selected
+theme file is unchanged from the earlier source observation. Artifact12117583842
+SHA256 is`db62178f961e1b4644b0dbd23ed3eb9f6d754924090eeb4f1cb38533f71b4370`.
+All16 earlier original thumb images remain identical; all64 noncontracted frames
+match the existing one-pixel-band slice renderer in independent pixel analysis.
+
+Vertical SizingType still returns ERROR_NOT_FOUND. It is not substituted with
+Stretch. Instead, vertical thumbs may use the separate successful
+[TS_DRAW size query](https://learn.microsoft.com/en-us/windows/win32/api/uxtheme/ne-uxtheme-themesize),
+which reports the extent used by the native theme manager for the exact requested
+destination. Both returned dimensions must equal the positive requested extent.
+Other query failures and explicit non-Stretch enum values still reject. Source
+image opacity,96DPI, five-state inventory, margins, one-pixel bands and complete
+fixed borders remain independent mandatory checks. Horizontal explicit-Stretch
+behavior is unchanged. This adds no contracted-border or other-DPI policy.
+
+The retained128-frame inventory is test evidence only. Managed tests compare all64
+noncontracted frames and retained image lifetime; hosted tests additionally require
+actual native selection through the default service and every original pixel.
+Final native and whole-package passage remain required before qualification.
 
 ## Whole-table inheritance allocation
 

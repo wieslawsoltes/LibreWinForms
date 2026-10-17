@@ -42,7 +42,7 @@ jobs:
             -p:LibreWinFormsUseProGpuSystemDrawing=true -p:LibreWinFormsReferenceMode=Project
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           & artifacts/bin/LibreWinForms.ProGPU.Tests/Release/net10.0/LibreWinForms.ProGPU.Tests.exe `
-            --filter-class '*WindowsThemeBitmapSourceTests' --minimum-expected-tests 6 --fail-skips on --timeout 2m
+            --filter-class '*WindowsThemeBitmapSourceTests' --minimum-expected-tests 9 --fail-skips on --timeout 2m
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   automation-locale:

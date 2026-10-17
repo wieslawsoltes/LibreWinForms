@@ -110,6 +110,44 @@ public sealed class ProGpuThemeBitmapRendererTests
     }
 
     [Fact]
+    public void ThemeBitmapRetainsEveryOriginalUncontractedThumbSize()
+    {
+        string directory = Path.Combine(AppContext.BaseDirectory, "Fixtures", "WindowsThemeThumbAssets");
+        using JsonDocument assets = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "receipt.json")));
+        int compared = 0;
+        foreach (var (item, path) in OriginalThumbSizingFrames.Uncontracted())
+        {
+            int part = item.GetProperty("Part").GetInt32(), state = item.GetProperty("State").GetInt32();
+            JsonElement source = assets.RootElement.GetProperty("cases").EnumerateArray()
+                .First(c => c.GetProperty("part").GetInt32() == part && c.GetProperty("state").GetInt32() == state);
+            JsonElement asset = source.GetProperty("asset"), margin = source.GetProperty("margins");
+            byte[] bytes = File.ReadAllBytes(Path.Combine(directory, asset.GetProperty("file").GetString()!));
+            Assert.Equal(asset.GetProperty("sha256").GetString(), Convert.ToHexStringLower(SHA256.HashData(bytes)));
+            using Bitmap image = WindowsThemeBitmapSource.CreateOpaqueImage(asset.GetProperty("width").GetInt32(),
+                -asset.GetProperty("signedHeight").GetInt32(), bytes);
+            int frameHeight = image.Height / source.GetProperty("imageCount").GetInt32();
+            using Bitmap original = new(path);
+            using Bitmap actual = new(original.Width, original.Height);
+            using (Graphics graphics = Graphics.FromImage(actual))
+            {
+                graphics.Clear(Color.FromArgb(item.GetProperty("background").GetInt32()));
+                Assert.True(ProGpuThemeBitmapRenderer.TryDraw(graphics, image,
+                    new Rectangle(0, (state - 1) * frameHeight, image.Width, frameHeight),
+                    new(margin[0].GetInt32(), margin[1].GetInt32(), margin[2].GetInt32(), margin[3].GetInt32()),
+                    new Rectangle(Point.Empty, actual.Size), null));
+            }
+
+            image.Dispose();
+            for (int y = 0; y < original.Height; y++)
+            for (int x = 0; x < original.Width; x++)
+                Assert.Equal(original.GetPixel(x, y).ToArgb(), actual.GetPixel(x, y).ToArgb());
+            compared++;
+        }
+
+        Assert.Equal(64, compared);
+    }
+
+    [Fact]
     public void ThemeBitmapPreservesCallerTransformClipAndSampling()
     {
         using Bitmap image = new(3, 3);
