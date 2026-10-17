@@ -52,7 +52,9 @@ public sealed class ProGpuVisualStyleServiceTests
         }
 
         target.GetPixel(4, 5).A.Should().Be(0);
-        target.GetPixel(7, 3).ToArgb().Should().Be(target.GetPixel(8, 7).ToArgb());
+        target.GetPixel(7, 3).ToArgb().Should().Be((part is 4 or 5
+            ? Color.White : Color.FromArgb(240, 240, 240)).ToArgb());
+        target.GetPixel(8, 7).ToArgb().Should().Be(Color.FromArgb(240, 240, 240).ToArgb());
         target.GetPixel(8, 7).A.Should().Be(255);
     }
 

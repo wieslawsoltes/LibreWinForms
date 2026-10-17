@@ -85,6 +85,21 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
             }
 
             bool scrollBar = string.Equals(className, "SCROLLBAR", StringComparison.OrdinalIgnoreCase);
+            if (scrollBar && part is >= 4 and <= 9 && state is >= 1 and <= 4)
+            {
+                // Aero grippers contribute no paint. Tracks retain the same
+                // opaque body and orientation edge in every original state.
+                if (part >= 8 || bounds.Width <= 0 || bounds.Height <= 0) return;
+                using var track = new SolidBrush(Color.FromArgb(240, 240, 240));
+                using var edge = new SolidBrush(Color.White);
+                graphics.FillRectangle(track, bounds);
+                Rectangle edgeBounds = part is 4 or 5
+                    ? new Rectangle(bounds.X, bounds.Y, bounds.Width, 1)
+                    : new Rectangle(bounds.X, bounds.Y, 1, bounds.Height);
+                graphics.FillRectangle(edge, edgeBounds);
+                return;
+            }
+
             bool scrollArrow = scrollBar && part == 1 && state is >= 1 and <= 16;
             int paintState = scrollArrow ? ((state - 1) % 4) + 1 : state;
             Color fillColor = paintState switch

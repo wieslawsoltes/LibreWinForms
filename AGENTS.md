@@ -1,3 +1,10 @@
+Portable SCROLLBAR track parts4–7 retain the observed grey body and white top/left
+orientation edge across states1–4. Gripper parts8–9 add no paint in those states.
+Preserve source geometry, caller transforms/clips and all48 complete independent
+Microsoft reference frames. Never use captured textures in product paint or claim
+arrow/thumb, other-DPI/theme or native gesture qualification from these tracks.
+See docs/portable-scrollbar-track-paint.md.
+
 Portable HEADER part1 states1–3 use independently captured Aero flat fills and
 the normal state's right separator through the existing managed Graphics path.
 Preserve caller clips/transforms, canonical row-header rotation and source-owned
