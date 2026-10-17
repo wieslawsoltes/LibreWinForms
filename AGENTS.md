@@ -1,3 +1,10 @@
+Drawing SmoothingMode starts at None and normalizes original speed/quality aliases
+through validated, disposal-aware state. Preserve saved-state/container ownership
+and atomic invalid-value rejection. State correction does not qualify retained
+line/path sampling: retain original endpoints, transforms, clips and independent
+Microsoft full-frame controls before admitting rasterization changes. See
+docs/drawing-smoothing-state.md.
+
 Portable SCROLLBAR track parts4–7 retain the observed grey body and white top/left
 orientation edge across states1–4. Gripper parts8–9 add no paint in those states.
 Idle arrow states1/5/9/13 and disabled thumb state4 retain only that oriented

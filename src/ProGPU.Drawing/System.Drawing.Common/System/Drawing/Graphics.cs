@@ -52,6 +52,7 @@ public partial class Graphics :
     private GraphicsUnit _pageUnit = GraphicsUnit.Display;
     private CompositingMode _compositingMode = CompositingMode.SourceOver;
     private CompositingQuality _compositingQuality = CompositingQuality.Default;
+    private SmoothingMode _smoothingMode = SmoothingMode.None;
     private Point _renderingOrigin;
     private int _textContrast = 4;
     private Region? _clip;
@@ -123,7 +124,29 @@ public partial class Graphics :
         }
     }
 
-    public SmoothingMode SmoothingMode { get; set; } = SmoothingMode.AntiAlias;
+    public SmoothingMode SmoothingMode
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _smoothingMode;
+        }
+        set
+        {
+            if (value is < SmoothingMode.Invalid or > SmoothingMode.AntiAlias)
+            {
+                throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(SmoothingMode));
+            }
+
+            ThrowIfDisposed();
+            _smoothingMode = value switch
+            {
+                SmoothingMode.Default or SmoothingMode.HighSpeed or SmoothingMode.None => SmoothingMode.None,
+                SmoothingMode.HighQuality or SmoothingMode.AntiAlias => SmoothingMode.AntiAlias,
+                _ => throw new ArgumentException("Parameter is not valid.")
+            };
+        }
+    }
     public InterpolationMode InterpolationMode { get; set; } = InterpolationMode.Bilinear;
     public TextRenderingHint TextRenderingHint { get; set; } = TextRenderingHint.ClearTypeGridFit;
     public PixelOffsetMode PixelOffsetMode { get; set; } = PixelOffsetMode.Default;
