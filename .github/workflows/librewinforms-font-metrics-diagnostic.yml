@@ -1,6 +1,11 @@
 name: DIAGNOSTIC ONLY Windows font autoscale metrics
 on:
   workflow_dispatch:
+  push:
+    branches: [fix-hosted-original-grid]
+    paths:
+      - .github/workflows/librewinforms-font-metrics-diagnostic.yml
+      - eng/OriginalGrid/FontMetricsDiagnostic.cs
 permissions:
   contents: read
 jobs:
