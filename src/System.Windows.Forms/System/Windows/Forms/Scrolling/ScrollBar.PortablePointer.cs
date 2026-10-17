@@ -42,9 +42,11 @@ public abstract partial class ScrollBar
         PortableScrollBarGeometry geometry = ReadPortableScrollBarGeometry();
         if (!dispatch.IsCurrent || !IsCurrentPortableScrollBarFrame(frame) || !dispatch.IsCurrent) return false;
         PortableScrollBarPart part = geometry.Hit(e.Location);
-        if (part == PortableScrollBarPart.None || frame.Values.Last <= frame.Values.Minimum) return true;
+        if (part == PortableScrollBarPart.None || frame.Values.Last <= frame.Values.Minimum)
+            return SetPortableScrollBarHover(e.Location, dispatch, geometry);
         PortableScrollBarPress press = new(dispatch, frame, geometry, part, e.Location, Bounds, DeviceDpi, Parent);
         _portableScrollBarPress = press;
+        if (!SetPortableScrollBarHover(e.Location, dispatch, geometry, forceInvalidate: true)) return false;
         if (part == PortableScrollBarPart.Thumb) return true;
         bool increment = part is PortableScrollBarPart.Increment or PortableScrollBarPart.PageIncrement;
         if (frame.Values.Direction == RightToLeft.Yes) increment = !increment;
@@ -60,6 +62,9 @@ public abstract partial class ScrollBar
 
     internal override bool ProcessPortableMouseMoveDefault(MouseEventArgs e, in PortablePointerDispatchContext dispatch)
     {
+        if (!dispatch.IsCurrent) return false;
+        PortableScrollBarGeometry currentGeometry = ReadPortableScrollBarGeometry();
+        if (!SetPortableScrollBarHover(e.Location, dispatch, currentGeometry)) return false;
         PortableScrollBarPress? press = _portableScrollBarPress;
         if (press is null) return true;
         press.InputIdentity = new();
@@ -103,8 +108,14 @@ public abstract partial class ScrollBar
             }
             finally
             {
-                if (ReferenceEquals(_portableScrollBarPress, press)) _portableScrollBarPress = null;
+                if (ReferenceEquals(_portableScrollBarPress, press))
+                {
+                    _portableScrollBarPress = null;
+                    Invalidate();
+                }
             }
+
+            if (!press.Dispatch.IsCurrentPress) return;
         }
 
         if (isCurrentRelease?.Invoke() != false)
@@ -137,31 +148,41 @@ public abstract partial class ScrollBar
 
     protected override void OnVisibleChanged(EventArgs e)
     {
-        if (!Visible) _portableScrollBarPress = null;
+        if (!Visible)
+        {
+            _portableScrollBarPress = null;
+            _portableScrollBarHover = null;
+        }
+
         base.OnVisibleChanged(e);
     }
 
     protected override void OnParentChanged(EventArgs e)
     {
         _portableScrollBarPress = null;
+        _portableScrollBarHover = null;
         base.OnParentChanged(e);
     }
 
     protected override void OnMouseCaptureChanged(EventArgs e)
     {
         _portableScrollBarPress = null;
+        _portableScrollBarHover = null;
+        Invalidate();
         base.OnMouseCaptureChanged(e);
     }
 
     protected override void OnSizeChanged(EventArgs e)
     {
         _portableScrollBarPress = null;
+        _portableScrollBarHover = null;
         base.OnSizeChanged(e);
     }
 
     protected override void OnLocationChanged(EventArgs e)
     {
         _portableScrollBarPress = null;
+        _portableScrollBarHover = null;
         base.OnLocationChanged(e);
     }
 }

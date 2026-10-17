@@ -21,8 +21,16 @@ press. Default value publication consumes its own generation token before public
 callbacks. Reentrant input owns its replacement; callback failures keep their
 original exception and retire only the old operation.
 
-This change covers initial arrow/track actions and thumb tracking. Held-button
-repeat, pointer hover/pressed theme paint, original Microsoft gesture comparison
+Hover and pressed states now reach the existing theme renderer for arrows, thumb
+and the selected track region. Hover retains only the exact live source/target
+handle; it does not confer press ownership after release. Press paint separately
+requires the original press/capture/value generation. Track overlays clip to the
+original track, and classic paint uses the existing pressed button/track colors.
+No pixel palette or geometry is inferred from a reference screenshot. Capture
+loss and leave invalidate stale visual state before public continuations.
+
+This change covers initial arrow/track actions, thumb tracking and source hover/
+pressed state. Held-button repeat, original Microsoft gesture/theme comparison
 and complete package desktop validation remain required work in #174. These
 source controls do not establish native gesture or theme parity. No release pin
 or qualification exception is implied.

@@ -25,6 +25,7 @@ public abstract partial class ScrollBar
             bool enabled = Enabled;
             bool themed = ScrollBarRenderer.IsSupported;
             ScrollBarState state = enabled ? ScrollBarState.Normal : ScrollBarState.Disabled;
+            ScrollBarState thumbState = PortableScrollBarVisualState(PortableScrollBarPart.Thumb, geometry, enabled);
             GraphicsState saved = e.Graphics.Save();
             try
             {
@@ -43,6 +44,12 @@ public abstract partial class ScrollBar
                     e.Graphics.FillRectangle(background, trackBounds);
                 }
 
+                DrawTrackState(PortableScrollBarPart.PageDecrement,
+                    geometry.Part(arrow, Math.Max(0, geometry.Start - arrow)), upper: true);
+                int afterThumb = Math.Clamp(geometry.Start + geometry.Thumb, arrow, arrow + geometry.Track);
+                DrawTrackState(PortableScrollBarPart.PageIncrement,
+                    geometry.Part(afterThumb, arrow + geometry.Track - afterThumb), upper: false);
+
                 // Native thumb metadata can extend beyond a tiny track. Keep its
                 // measured frame, but never paint over the independent arrows.
                 GraphicsState thumbClip = e.Graphics.Save();
@@ -52,21 +59,21 @@ public abstract partial class ScrollBar
                     if (themed)
                     {
                         if (vertical)
-                            ScrollBarRenderer.DrawVerticalThumb(e.Graphics, thumbBounds, state);
+                            ScrollBarRenderer.DrawVerticalThumb(e.Graphics, thumbBounds, thumbState);
                         else
-                            ScrollBarRenderer.DrawHorizontalThumb(e.Graphics, thumbBounds, state);
+                            ScrollBarRenderer.DrawHorizontalThumb(e.Graphics, thumbBounds, thumbState);
                     }
                     else
                     {
-                        ControlPaint.DrawButton(e.Graphics, thumbBounds, enabled ? ButtonState.Normal : ButtonState.Inactive);
+                        ControlPaint.DrawButton(e.Graphics, thumbBounds, ButtonPaintState(thumbState));
                     }
                 }
                 finally { e.Graphics.Restore(thumbClip); }
 
                 DrawArrow(Part(0, arrow), vertical ? ScrollButton.Up : ScrollButton.Left,
-                    vertical ? ScrollBarArrowButtonState.UpNormal : ScrollBarArrowButtonState.LeftNormal);
+                    vertical ? ScrollBarArrowButtonState.UpNormal : ScrollBarArrowButtonState.LeftNormal, PortableScrollBarPart.Decrement);
                 DrawArrow(Part(length - arrow, arrow), vertical ? ScrollButton.Down : ScrollButton.Right,
-                    vertical ? ScrollBarArrowButtonState.DownNormal : ScrollBarArrowButtonState.RightNormal);
+                    vertical ? ScrollBarArrowButtonState.DownNormal : ScrollBarArrowButtonState.RightNormal, PortableScrollBarPart.Increment);
             }
             finally { e.Graphics.Restore(saved); }
 
@@ -74,21 +81,55 @@ public abstract partial class ScrollBar
                 ? new(client.X, client.Y + offset, breadth, extent)
                 : new(client.X + offset, client.Y, extent, breadth);
 
-            void DrawArrow(Rectangle bounds, ScrollButton direction, ScrollBarArrowButtonState normal)
+            void DrawTrackState(PortableScrollBarPart part, Rectangle bounds, bool upper)
+            {
+                bounds.Intersect(trackBounds);
+                ScrollBarState trackState = PortableScrollBarVisualState(part, geometry, enabled);
+                if (bounds.Width <= 0 || bounds.Height <= 0 || trackState is ScrollBarState.Normal or ScrollBarState.Disabled)
+                    return;
+                if (themed)
+                {
+                    if (vertical)
+                    {
+                        if (upper) ScrollBarRenderer.DrawUpperVerticalTrack(e.Graphics, bounds, trackState);
+                        else ScrollBarRenderer.DrawLowerVerticalTrack(e.Graphics, bounds, trackState);
+                    }
+                    else
+                    {
+                        if (upper) ScrollBarRenderer.DrawLeftHorizontalTrack(e.Graphics, bounds, trackState);
+                        else ScrollBarRenderer.DrawRightHorizontalTrack(e.Graphics, bounds, trackState);
+                    }
+                }
+                else if (trackState == ScrollBarState.Pressed)
+                {
+                    using SolidBrush pressed = new(SystemColors.ControlDark);
+                    e.Graphics.FillRectangle(pressed, bounds);
+                }
+            }
+
+            void DrawArrow(Rectangle bounds, ScrollButton direction, ScrollBarArrowButtonState normal, PortableScrollBarPart part)
             {
                 if (bounds.Width <= 0 || bounds.Height <= 0)
                     return;
+                ScrollBarState arrowState = PortableScrollBarVisualState(part, geometry, enabled);
                 if (themed)
                     ScrollBarRenderer.DrawArrowButton(e.Graphics, bounds,
-                        enabled ? normal : (ScrollBarArrowButtonState)((int)normal + 3));
+                        (ScrollBarArrowButtonState)((int)normal + (int)arrowState - 1));
                 else
                     ControlPaint.DrawScrollButton(e.Graphics, bounds, direction,
-                        enabled ? ButtonState.Normal : ButtonState.Inactive);
+                        ButtonPaintState(arrowState));
             }
         }
 
         base.OnPaint(e);
     }
+
+    private static ButtonState ButtonPaintState(ScrollBarState state) => state switch
+    {
+        ScrollBarState.Disabled => ButtonState.Inactive,
+        ScrollBarState.Pressed => ButtonState.Pushed,
+        _ => ButtonState.Normal,
+    };
 
     // Input and paint consume the same original source metrics, including tiny
     // tracks. Input never turns the native metadata outside the track into a hit.

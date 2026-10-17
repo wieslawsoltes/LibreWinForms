@@ -2,9 +2,12 @@ Portable scrollbar pointer defaults share the unchanged source paint geometry an
 run through actual Control dispatch before public notifications. Retain exact
 press/capture/source-value generations, RTL/range policies, callback overrides
 and cancellation; never revive a drag after source mutation or capture loss.
+Hover paint may retain the exact live source/target after release; press defaults
+still require their independent press/capture generations. Preserve original track
+clipping, theme state transport and callback-safe visual invalidation.
 Protected mouse notifications remain notifications. Keep the original 96-state
 geometry fixture and native Windows procedure unchanged. See
-docs/portable-scrollbar-pointer.md; repeat, theme and native/package gesture
+docs/portable-scrollbar-pointer.md; repeat, exact theme pixels and native/package gesture
 qualification remain independent unfinished gates.
 
 Portable scrollbar paint retains source range/page/value, per-axis system metrics
