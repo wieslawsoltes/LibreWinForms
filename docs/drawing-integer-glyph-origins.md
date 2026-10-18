@@ -18,11 +18,14 @@ including the producer's origin-preserving capacity fallback.
 This uses the typed API from
 [ProGPU #396](https://github.com/wieslawsoltes/ProGPU/pull/396). The consumer pin
 and real runtime payload select commit
-`9f82017bdeadc7dd01e15c5cead93934bb1aefeb`, whose complete
-[producer Build](https://github.com/wieslawsoltes/ProGPU/actions/runs/39125588718)
+`3f4581cb7ebd22de61b82764a4b14875ba426533`, whose complete
+[producer Build](https://github.com/wieslawsoltes/ProGPU/actions/runs/39135173910)
 passed all 61 jobs. Source validation used that exact checkout, its manifest-pinned
 framework sources and its verified native package payload. This does not qualify
 the consumer package until its own whole Build and original package checks pass.
+This successor retains the original `9f82017` integer-origin policy and adds
+the independent explicit grayscale transfer described in
+[drawing-grayscale-contrast.md](drawing-grayscale-contrast.md).
 
 ## Evidence and remaining work
 

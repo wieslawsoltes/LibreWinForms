@@ -7,11 +7,22 @@ current Graphics paint state. Native prepared outlines receive the transfer
 only when their actual selected coverage is grayscale. GDI TextRenderer,
 SystemDefault, ClearType and binary modes retain independent policy.
 
-The matching producer is ProGPU PR397. Its explicit metadata survives recording,
-archive, managed/native paint and vector fallback. The source consumer has 15
-passing coverage controls. Its public-package/native qualification and producer
-pin are still pending the complete successful producer Build. These tests do
-not establish original Microsoft images or qualify the other raster families.
+The consumer pins the matching producer from
+[ProGPU PR397](https://github.com/wieslawsoltes/ProGPU/pull/397), commit
+`3f4581cb7ebd22de61b82764a4b14875ba426533`. Its explicit metadata survives
+recording, archive, managed/native paint and vector fallback. All 76 producer
+checks passed, including every one of the 61 jobs in
+[Build39135173910](https://github.com/wieslawsoltes/ProGPU/actions/runs/39135173910).
+Source validation stages the real native, SDK, DX12 and Xlib payloads from that
+exact build. The source consumer has 15 passing coverage controls; the consumer's
+own whole Build and original package comparison remain independent gates.
+These controls do not establish original Microsoft images or qualify the other
+raster families.
+
+The complete Drawing source suite passes all 993 tests without skips using this
+exact producer and staged payload. The earlier source-only attempt had ten
+missing-native-library failures; its results remain retained separately. No old
+native binary or skipped test was used to satisfy the corrected source run.
 
 The earlier 1a90/ProGPU9f package pair completed all 72 original cases in hosted
 run39133925801. The six ordinary SingleBitPerPixel cases improved from177 to26

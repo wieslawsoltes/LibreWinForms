@@ -1,3 +1,10 @@
+Explicit GDI+ grayscale contrast is selected per draw from the original Graphics
+state, independently of retained layout and glyph-array identity. Apply it only
+to admitted grayscale coverage; preserve binary gasp, GDI, ClearType and default
+policies. Source execution requires the exact whole-qualified producer and its
+real native payload. Original Microsoft images, consumer packages and application
+acceptance remain separate gates; see docs/drawing-grayscale-contrast.md.
+
 Ordinary GDI+ SingleBitPerPixel may select explicit integer raster origins only
 with a known physical target, square layout DPI, translation frame and supported
 ordinary outline run. Preserve original shaped arrays and measurements, paint-time
