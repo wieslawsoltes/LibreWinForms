@@ -54,6 +54,8 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
         ArgumentException.ThrowIfNullOrWhiteSpace(className);
         ArgumentOutOfRangeException.ThrowIfNegative(part);
 
+        if (WindowsThemeBitmapSource.TryDraw(graphics, className, part, state, bounds, clipRectangle)) return;
+
         GraphicsState saved = graphics.Save();
         try
         {
@@ -62,7 +64,48 @@ public sealed class ProGpuVisualStyleService : ILibreVisualStyleService
                 graphics.SetClip(clip, CombineMode.Intersect);
             }
 
+            if (IsHeaderItem(className, part) && state is >= 1 and <= 3)
+            {
+                if (bounds.Width <= 0 || bounds.Height <= 0) return;
+                // Original Aero HEADER part1 observations use an opaque flat
+                // state fill and a right separator only in the normal state.
+                Color headerColor = state switch
+                {
+                    2 => Color.FromArgb(217, 235, 249),
+                    3 => Color.FromArgb(188, 220, 244),
+                    _ => Color.White,
+                };
+                using var headerFill = new SolidBrush(headerColor);
+                graphics.FillRectangle(headerFill, bounds);
+                if (state == 1)
+                {
+                    using var separator = new SolidBrush(Color.FromArgb(229, 229, 229));
+                    graphics.FillRectangle(separator, bounds.Right - 1, bounds.Top, 1, bounds.Height);
+                }
+
+                return;
+            }
+
             bool scrollBar = string.Equals(className, "SCROLLBAR", StringComparison.OrdinalIgnoreCase);
+            bool idleArrow = part == 1 && state is 1 or 5 or 9 or 13;
+            bool disabledThumb = part is 2 or 3 && state == 4;
+            if (scrollBar && (idleArrow || disabledThumb || (part is >= 4 and <= 9 && state is >= 1 and <= 4)))
+            {
+                // Aero grippers contribute no paint. Tracks retain the same
+                // opaque body and orientation edge in every original state;
+                // idle arrows and disabled thumbs retain that background too.
+                if (part >= 8 || bounds.Width <= 0 || bounds.Height <= 0) return;
+                using var track = new SolidBrush(Color.FromArgb(240, 240, 240));
+                using var edge = new SolidBrush(Color.White);
+                graphics.FillRectangle(track, bounds);
+                bool horizontal = part is 2 or 4 or 5 || (idleArrow && state >= 9);
+                Rectangle edgeBounds = horizontal
+                    ? new Rectangle(bounds.X, bounds.Y, bounds.Width, 1)
+                    : new Rectangle(bounds.X, bounds.Y, 1, bounds.Height);
+                graphics.FillRectangle(edge, edgeBounds);
+                return;
+            }
+
             bool scrollArrow = scrollBar && part == 1 && state is >= 1 and <= 16;
             int paintState = scrollArrow ? ((state - 1) % 4) + 1 : state;
             Color fillColor = paintState switch

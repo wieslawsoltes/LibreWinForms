@@ -94,6 +94,9 @@ public class Bitmap : Image, IProGpuContextTextureLeaseSource
     {
         ValidateConcretePixelFormat(format);
         _pixelFormat = format;
+        _cpuAlphaMode = IsPremultiplied(format)
+            ? GpuTextureAlphaMode.Premultiplied
+            : GpuTextureAlphaMode.Straight;
         InitializeDefaultPalette(format);
     }
 
@@ -1853,7 +1856,17 @@ public class Bitmap : Image, IProGpuContextTextureLeaseSource
             return 0;
         }
 
-        return (byte)Math.Min(255, (channel * 255 + alpha / 2) / alpha);
+        // Original byte GetPixel, ARGB locks and PNG decoding agree on a
+        // truncated reciprocal. Rounding the completed division changes
+        // translucent colors, including exact-integer boundary results.
+        // Preserve saturation for malformed premultiplied channels and bound
+        // the multiplication before using the original valid-byte arithmetic.
+        if (channel > alpha)
+        {
+            return 255;
+        }
+
+        return (byte)((channel * ((255 << 16) / alpha)) >> 16);
     }
 
     private static byte PremultiplyChannel(byte channel, byte alpha)

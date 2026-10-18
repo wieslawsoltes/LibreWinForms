@@ -51,6 +51,13 @@ key/modifier rejects input; Caps Lock/layout are not silently changed.
 
 ## Prepared producer requirements
 
+Hosted preparation recognizes the historical nine-job Build layout and the
+ten-job layout that also requires `Live Windows theme resource pixels`. It checks
+the complete named inventory, exact source head and successful status of every
+job, alongside successful whole Build/Docs and the immutable artifact identity.
+An equal job count cannot hide a duplicate, substituted or missing job. A
+ten-job producer cannot qualify through a nine-job pin.
+
 Stage only a complete successful exact-head producer using the existing package
 admission process. Preserve the original sample bytes and the independently
 verified nine designer-only annotations from `librewinforms-grid-designer-metadata.py`.
@@ -71,11 +78,29 @@ python eng/librewinforms-original-grid-desktop.py --prepared-root C:\Temp\Verifi
 python3 eng/tests/test_original_grid_desktop.py
 ```
 
-Evidence must be fresh; no result is overwritten. A successful result means only
-the listed input phases passed. Header/border/caret pixels still need inspection;
+Evidence must be fresh; no result is overwritten. A successful result means the
+listed input phases and bounded normal shutdown passed. Header/border/caret pixels still need inspection;
 masked columns, Unicode/layout/IME, other editors and Linux/macOS native input
 remain independent requirements. Offline harness tests do not qualify desktop
 behavior, and an observed editor value is not proof of painted text or a commit.
+
+After all four original captures and runtime-identity checks, the driver sends
+one ordinary `WM_CLOSE` to the freshly revalidated sample HWND/PID/thread/title.
+This is a normal window-close request, not a new keyboard or pointer gesture.
+It reuses the existing one-second native message helper, admits no retry and
+waits at most two further seconds within the original 60-second process deadline.
+The child must exit with code zero and leave no visible owned windows. Forced
+termination remains failure cleanup and is explicitly recorded; it cannot satisfy
+normal shutdown. Both source samples, the observer, original input sequence,
+20-second startup limit and all captures remain unchanged.
+
+The native message result is retained separately from the actual process result:
+[`SMTO_ERRORONEXIT`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendmessagetimeoutw)
+can return zero when the receiving window is destroyed during its close handler.
+Neither that return nor a successful message acknowledgement proves process exit.
+Offline controls reject replaced targets, incomplete scenarios, repeated requests,
+nonzero exits, retained windows and deadline overruns. Hosted execution is still
+required; the earlier force-terminated captures remain incomplete shutdown evidence.
 
 ## Hosted build preparation
 

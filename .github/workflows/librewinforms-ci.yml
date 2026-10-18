@@ -16,6 +16,35 @@ env:
   LIBREWINFORMS_QUALIFIED_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
 
 jobs:
+  native-theme:
+    name: Live Windows theme resource pixels
+    runs-on: windows-11-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.LIBREWINFORMS_QUALIFIED_COMMIT }}
+          submodules: recursive
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Build actual backend and run original full-frame controls without input
+        shell: pwsh
+        env:
+          LIBREWINFORMS_NATIVE_THEME_TEST: '1'
+        run: |
+          if ((git rev-parse HEAD) -ne $env:LIBREWINFORMS_QUALIFIED_COMMIT) { throw 'Producer revision changed.' }
+          dotnet build src/LibreWinForms.ProGPU/tests/LibreWinForms.ProGPU.Tests.csproj -c Release -m:1 `
+            -p:NetCurrent=net10.0 -p:MicrosoftNETCoreAppRefPackageVersion= `
+            -p:LibreWinFormsUseProGpuSystemDrawing=true -p:LibreWinFormsReferenceMode=Project
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & artifacts/bin/LibreWinForms.ProGPU.Tests/Release/net10.0/LibreWinForms.ProGPU.Tests.exe `
+            --filter-class '*WindowsThemeBitmapSourceTests' --minimum-expected-tests 9 --fail-skips on --timeout 2m
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
   automation-locale:
     name: Automation thread locale (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -252,7 +281,7 @@ jobs:
       contents: read
       actions: read
     env:
-      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: 8de5e06584e7672ed9ef8c31f2827d41f312f651
+      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: f9fc6aa1578a97cd6cf7ba8393c6cbd0cdba1b33
 
     steps:
       - name: Checkout
@@ -317,12 +346,6 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Validate canonical source and local ProGPU graph
-        shell: bash
-        env:
-          LIBREWINFORMS_DRAWING_TRACE: "1"
-        run: ./eng/librewinforms-source-first.sh
-
       - name: Checkout immutable LibreWPF native staging helper
         uses: actions/checkout@v4
         with:
@@ -350,7 +373,17 @@ jobs:
           ./artifacts/checkouts/wpf-native-staging/eng/progpu-stage-ci-native-runtimes.sh \
             "${pinned_progpu_commit}" \
             "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-native/package" \
-            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-dx12/package"
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-dx12/package" \
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-xlib/package"
+
+      - name: Validate source application Linux runtime assets
+        run: python3 eng/tests/test_xlib_source_assets.py --runtime-root external/ProGPU/artifacts/progpu-xlib/package
+
+      - name: Validate canonical source and local ProGPU graph
+        shell: bash
+        env:
+          LIBREWINFORMS_DRAWING_TRACE: "1"
+        run: ./eng/librewinforms-source-first.sh
 
       - name: Pack and consume canonical source-first package
         shell: bash
@@ -545,7 +578,7 @@ jobs:
       LIBREWINFORMS_BRIDGE_REF: librewpf-v0.1.0-preview.65
       # Use the fully qualified owning source, including Windows RID SDK isolation.
       LIBREWINFORMS_CANONICAL_WFI_REF: beef4c0b83571448fa5bf897fd66f68f3077fdb1
-      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: 8de5e06584e7672ed9ef8c31f2827d41f312f651
+      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: f9fc6aa1578a97cd6cf7ba8393c6cbd0cdba1b33
 
     steps:
       - name: Checkout
@@ -622,7 +655,8 @@ jobs:
           ./artifacts/checkouts/wpf-native-staging/eng/progpu-stage-ci-native-runtimes.sh \
             "${qualified_progpu_commit}" \
             "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-native/package" \
-            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-dx12/package"
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-dx12/package" \
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-xlib/package"
 
       - name: Build canonical WindowsFormsIntegration from LibreWPF source
         shell: bash

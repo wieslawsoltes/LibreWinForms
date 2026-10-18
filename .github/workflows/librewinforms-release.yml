@@ -159,7 +159,8 @@ jobs:
           ./artifacts/checkouts/wpf-canonical/eng/progpu-stage-ci-native-runtimes.sh \
             "${qualified_progpu_commit}" \
             "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-native/package" \
-            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-dx12/package"
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-dx12/package" \
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-xlib/package"
 
       - name: Verify docs
         run: ./eng/librewinforms-verify-docs.sh

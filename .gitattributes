@@ -12,3 +12,6 @@ eng/OriginalGrid/OriginalGridObserver.cs text eol=lf
 
 # Retain the original hosted Microsoft scrollbar observation bytes, including CRLF.
 src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/TestAssets/original-scrollbar-geometry.json -text whitespace=cr-at-eol
+
+# Preserve the original native observation bytes used by the fixture hash.
+src/LibreWinForms.ProGPU/tests/Fixtures/WindowsThemeSizingReference/reference.json -text whitespace=cr-at-eol

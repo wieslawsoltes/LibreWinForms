@@ -6726,6 +6726,9 @@ public partial class CanonicalLifecycleTests
             return new HeadlessTimerRegistration(this, generation);
         }
 
+        internal Action CaptureTimerCallback()
+            => _timerCallback ?? throw new InvalidOperationException("No headless timer is active.");
+
         internal void FireTimer()
             => (_timerCallback ?? throw new InvalidOperationException("No headless timer is active."))();
 

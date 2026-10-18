@@ -25,11 +25,12 @@ public sealed class WindowRenderBoundaryTests
         Assert.Contains("_events.PaintRequested(frame)", render);
         Assert.Contains("frame.Complete()", render);
         Assert.Contains("if (!OwnsRenderResources(context, compositor))", render);
-        Assert.Contains("PresentFrame(context, compositor, surfaceBounds)", render);
+        const string presentCall = "PresentFrame(context, compositor, surfaceBounds, resolution.RasterScale)";
+        Assert.Contains(presentCall, render);
         Assert.True(render.IndexOf("_events.PaintRequested(frame)", StringComparison.Ordinal)
             < render.IndexOf("frame.Complete()", StringComparison.Ordinal));
         Assert.True(render.LastIndexOf("if (!OwnsRenderResources(context, compositor))", StringComparison.Ordinal)
-            < render.IndexOf("PresentFrame(context, compositor, surfaceBounds)", StringComparison.Ordinal));
+            < render.IndexOf(presentCall, StringComparison.Ordinal));
         Assert.Contains("=> !_disposed && ReferenceEquals(_wgpuContext, context) && ReferenceEquals(_compositor, compositor)", source);
         string presentation = Section(source, "private unsafe void PresentFrame(", "private void OnClosing(");
         Assert.Contains("finally", presentation);

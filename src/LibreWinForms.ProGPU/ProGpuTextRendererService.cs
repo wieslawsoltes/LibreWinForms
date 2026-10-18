@@ -6,6 +6,8 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Drawing.Text;
 using LibreWinForms.Platform;
+using ProGPU.SystemDrawing;
+using ProGPU.Text;
 
 namespace LibreWinForms.ProGPU;
 
@@ -32,8 +34,8 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         using StringFormat selected = CreateStringFormat(format);
         selected.FormatFlags &= ~StringFormatFlags.LineLimit;
         selected.SetDigitSubstitution(0, StringDigitSubstitute.None);
-        return new RetainedLayout(global::ProGPU.SystemDrawing.DrawingTextLayout.Create(
-            graphics, text, font, layoutSize, selected));
+        DrawingSourceText.TryGetLineMetrics(graphics, font, out var metrics);
+        return new RetainedLayout(DrawingGdiText.CreateLayout(graphics, text, font, layoutSize, selected, metrics));
     }
 
     private sealed class RetainedLayout(global::ProGPU.SystemDrawing.DrawingTextLayout layout)
@@ -172,7 +174,8 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         }
 
         Font selectedFont = font ?? SystemFonts.DefaultFont;
-        (int left, int right) = GetTextMargins(graphics, selectedFont, format);
+        DrawingSourceText.TryGetLineMetrics(graphics, selectedFont, out var metrics);
+        (int left, int right) = GetTextMargins(graphics, selectedFont, format, metrics);
         if (!backColor.IsEmpty && backColor != Color.Transparent && bounds.Width > 0 && bounds.Height > 0)
         {
             using var background = new SolidBrush(backColor);
@@ -193,7 +196,7 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         {
             // DrawText clips an oversized single line; its vertical viewport
             // must not make DrawString's ellipsis trimming remove every glyph.
-            float lineHeight = selectedFont.GetHeight(graphics);
+            float lineHeight = metrics?.Height ?? selectedFont.GetHeight(graphics);
             if (lineHeight > textBounds.Height)
             {
                 float remaining = textBounds.Height - lineHeight;
@@ -219,7 +222,7 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
             }
 
             stringFormat.FormatFlags |= StringFormatFlags.NoClip;
-            graphics.DrawString(text, selectedFont, foreground, textBounds, stringFormat);
+            DrawingGdiText.Draw(graphics, text, selectedFont, foreground, textBounds, stringFormat, metrics);
         }
         finally
         {
@@ -259,7 +262,8 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         LibreTextFormat format)
     {
         using StringFormat stringFormat = CreateStringFormat(format);
-        (int left, int right) = GetTextMargins(graphics, font, format);
+        DrawingSourceText.TryGetLineMetrics(graphics, font, out var metrics);
+        (int left, int right) = GetTextMargins(graphics, font, format, metrics);
         // DrawTextEx measures in the space remaining after both margins. Its
         // minimum content width is one, not an unconstrained paragraph.
         float width = proposedSize.Width == int.MaxValue
@@ -268,7 +272,9 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         // DT_CALCRECT extends the bottom to the last line, even without
         // DT_SINGLELINE. A proposed height is not a fitting/trimming viewport:
         // using it here can feed a clipped height back into source AutoSize.
-        SizeF measured = graphics.MeasureString(text, font, new SizeF(width, float.MaxValue), stringFormat);
+        SizeF measured = metrics is null
+            ? graphics.MeasureString(text, font, new SizeF(width, float.MaxValue), stringFormat)
+            : DrawingSourceText.Measure(graphics, text, font, new SizeF(width, float.MaxValue), stringFormat, metrics);
         int measuredWidth = Math.Max(0, (int)MathF.Ceiling(measured.Width));
         int measuredHeight = Math.Max(0, (int)MathF.Ceiling(measured.Height));
         return new Size(checked(measuredWidth + left + right), measuredHeight);
@@ -320,7 +326,7 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         return stringFormat;
     }
 
-    private static (int Left, int Right) GetTextMargins(Graphics graphics, Font font, LibreTextFormat format)
+    private static (int Left, int Right) GetTextMargins(Graphics graphics, Font font, LibreTextFormat format, SourceDeviceLineMetrics? metrics)
     {
         bool noPadding = format.HasFlag(LibreTextFormat.NoPadding);
         bool leftAndRightPadding = format.HasFlag(LibreTextFormat.LeftAndRightPadding);
@@ -331,7 +337,7 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
 
         // Canonical TextRenderer has already realized the source font to pixels.
         // Direct service callers retain their actual Drawing target-DPI semantics.
-        int height = checked((int)MathF.Ceiling(font.GetHeight(graphics)));
+        int height = metrics?.Height ?? checked((int)MathF.Ceiling(font.GetHeight(graphics)));
         return TextRendererMargins.Get(height, noPadding, leftAndRightPadding);
     }
 

@@ -16,6 +16,12 @@ import zipfile
 
 HERE = Path(__file__).resolve().parent
 REPOSITORY = "wieslawsoltes/LibreWinForms"
+LEGACY_BUILD_JOBS = frozenset({
+    "Package lane", "Canonical source and ProGPU submodule lane", "AppKit adapter lane",
+    *(f"Automation thread locale ({os})" for os in ("ubuntu-24.04", "macos-15", "windows-latest")),
+    *(f"Visible canonical package ({os})" for os in ("ubuntu-24.04", "macos-15", "windows-latest")),
+})
+NATIVE_THEME_BUILD_JOB = "Live Windows theme resource pixels"
 SPEC = importlib.util.spec_from_file_location("grid_metadata", HERE.parent / "librewinforms-grid-designer-metadata.py")
 METADATA = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(METADATA)
@@ -45,13 +51,16 @@ def api(path):
 
 
 def validate_producer(pin, build, docs, jobs, artifact):
-    require(pin["expectedBuildJobs"] == 9, "Original whole producer requires all nine Build jobs")
+    count = pin["expectedBuildJobs"]
+    require(type(count) is int and count in (9, 10), "Original whole producer requires the complete nine- or ten-job Build layout")
+    expected_jobs = LEGACY_BUILD_JOBS | ({NATIVE_THEME_BUILD_JOB} if count == 10 else set())
     for record, run, workflow in ((build, pin["build"], ".github/workflows/librewinforms-ci.yml"),
                                   (docs, pin["docs"], ".github/workflows/librewinforms-docs.yml")):
         require(record["id"] == run and record["head_sha"] == pin["head"]
                 and record["path"] == workflow and record["status"] == "completed"
                 and record["conclusion"] == "success", "Whole exact producer Build/Docs must succeed")
     require(jobs["total_count"] == len(jobs["jobs"]) == pin["expectedBuildJobs"]
+            and {job.get("name") for job in jobs["jobs"]} == expected_jobs
             and all(job["head_sha"] == pin["head"] and job["status"] == "completed"
                     and job["conclusion"] == "success" for job in jobs["jobs"]),
             "Complete original producer job inventory must succeed")

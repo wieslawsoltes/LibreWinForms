@@ -297,6 +297,7 @@ internal sealed class SilkLibreWindow : ILibreWindow, ILibreModalWindow, IProGpu
     private bool _initializingRenderer;
     private bool _paintQueued;
     private float _lastPaintDpi = 96f;
+    private float _lastPaintRasterDpiScale = 1f;
     private bool _presentationQueued;
     private LibreRectangle? _dirtyRectangle;
     private LibreHandle _owner;
@@ -1097,8 +1098,18 @@ internal sealed class SilkLibreWindow : ILibreWindow, ILibreModalWindow, IProGpu
         }
     }
 
-    private float DrawingDpi => _coordinateMode == LibreWindowCoordinateMode.DevicePixels
-        ? LibreWindowCoordinates.ToDeviceDpi(DpiScale) : 96f;
+    private (float LayoutDpi, float RasterScale) DrawingResolution
+    {
+        get
+        {
+            double scale = DpiScale;
+            return _coordinateMode == LibreWindowCoordinateMode.DevicePixels
+                ? (LibreWindowCoordinates.ToDeviceDpi(scale), 1f)
+                : (96f, (float)scale);
+        }
+    }
+
+    private float DrawingDpi => DrawingResolution.LayoutDpi;
 
     internal Graphics CreateGraphics(
         LibrePoint origin,
@@ -1109,12 +1120,12 @@ internal sealed class SilkLibreWindow : ILibreWindow, ILibreModalWindow, IProGpu
             ?? throw new InvalidOperationException("The ProGPU window drawing context is not initialized.");
         DrawingContext recording = new();
         int infrastructureCommandCount = 0;
-        float dpi = DrawingDpi;
+        var resolution = DrawingResolution;
         Graphics graphics = Graphics.FromProGpuDrawingContext(
             recording,
             ToDrawingRectangle(clipRectangle),
             Matrix4x4.CreateTranslation(origin.X, origin.Y, 0f),
-            dpi, dpi,
+            resolution.LayoutDpi, resolution.LayoutDpi, resolution.RasterScale,
             targetContext,
             intention => FlushGraphics(recording, infrastructureCommandCount, intention),
             () => CompleteGraphics(recording, infrastructureCommandCount));
@@ -1144,12 +1155,12 @@ internal sealed class SilkLibreWindow : ILibreWindow, ILibreModalWindow, IProGpu
         WgpuContext targetContext = _wgpuContext
             ?? throw new InvalidOperationException("The ProGPU window drawing context is not initialized.");
         DrawingContext recording = new();
-        float dpi = DrawingDpi;
+        var resolution = DrawingResolution;
         Graphics graphics = Graphics.FromProGpuDrawingContext(
             recording,
             new RectangleF(0f, 0f, bounds.Width, bounds.Height),
             Matrix4x4.Identity,
-            dpi, dpi,
+            resolution.LayoutDpi, resolution.LayoutDpi, resolution.RasterScale,
             targetContext,
             completed: () => CompleteAdornerGraphics(adorner, bounds, clipRectangle, recording));
         graphics.SetClip(new RectangleF(
@@ -1803,8 +1814,10 @@ internal sealed class SilkLibreWindow : ILibreWindow, ILibreModalWindow, IProGpu
         WgpuContext context = _wgpuContext!;
         Compositor compositor = _compositor!;
 
-        float targetDpi = DrawingDpi;
-        bool dpiChanged = _lastPaintDpi != targetDpi;
+        var resolution = DrawingResolution;
+        float targetDpi = resolution.LayoutDpi;
+        bool dpiChanged = _lastPaintDpi != targetDpi ||
+            _lastPaintRasterDpiScale != resolution.RasterScale;
         bool repaint = _paintQueued || dpiChanged;
         _paintQueued = false;
         _presentationQueued = false;
@@ -1827,7 +1840,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, ILibreModalWindow, IProGpu
                     _paintLayers,
                     surfaceBounds,
                     dirty,
-                    targetDpi);
+                    targetDpi,
+                    resolution.RasterScale);
                 Exception? paintFailure = null;
                 try
                 {
@@ -1847,15 +1861,24 @@ internal sealed class SilkLibreWindow : ILibreWindow, ILibreModalWindow, IProGpu
                 if (!OwnsRenderResources(context, compositor))
                     return;
                 _lastPaintDpi = targetDpi;
+                _lastPaintRasterDpiScale = resolution.RasterScale;
             }
         }
 
         if (!OwnsRenderResources(context, compositor))
             return;
+        // User paint can pump native DPI callbacks. Never present commands
+        // prepared for the old target lattice on a newly scaled target.
+        if (DrawingResolution != resolution)
+        {
+            RequestPaint(GetSurfaceBounds());
+            return;
+        }
+
         _paintRoot.Size = new Vector2(surfaceBounds.Width, surfaceBounds.Height);
         _adornerRoot.Size = new Vector2(surfaceBounds.Width, surfaceBounds.Height);
         _paintRoot.Invalidate();
-        PresentFrame(context, compositor, surfaceBounds);
+        PresentFrame(context, compositor, surfaceBounds, resolution.RasterScale);
     }
 
     private bool OwnsRenderResources(WgpuContext context, Compositor compositor)
@@ -1864,7 +1887,8 @@ internal sealed class SilkLibreWindow : ILibreWindow, ILibreModalWindow, IProGpu
     private unsafe void PresentFrame(
         WgpuContext context,
         Compositor compositor,
-        LibreRectangle surfaceBounds)
+        LibreRectangle surfaceBounds,
+        float dpiScale)
     {
         Vector2D<int> framebufferSize = _window.FramebufferSize;
         uint framebufferWidth = checked((uint)Math.Max(1, framebufferSize.X));
@@ -1909,9 +1933,6 @@ internal sealed class SilkLibreWindow : ILibreWindow, ILibreModalWindow, IProGpu
                 Aspect = TextureAspect.All,
             };
             targetView = context.Api.TextureCreateView(surfaceTexture.Texture, &viewDescriptor);
-            float dpiScale = _coordinateMode == LibreWindowCoordinateMode.DevicePixels
-                ? 1.0f
-                : (float)DpiScale;
             compositor.RenderScene(
                 _paintRoot,
                 checked((uint)surfaceBounds.Width),
