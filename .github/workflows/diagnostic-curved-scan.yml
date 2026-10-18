@@ -1,0 +1,37 @@
+name: DIAGNOSTIC ONLY curved dropout scan rules
+on:
+  pull_request:
+    branches: [fix/portable-scrollbar-pointer]
+    paths: [eng/CurvedScanReference/**, .github/workflows/diagnostic-curved-scan.yml]
+permissions:
+  contents: read
+jobs:
+  placement:
+    name: Original Microsoft authored scan observations without input
+    runs-on: windows-11-arm
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+          sparse-checkout: eng/CurvedScanReference
+      - name: Bootstrap isolated SDK and observe authored scan inputs
+        shell: python {0}
+        run: |
+          import runpy
+          runpy.run_path("eng/CurvedScanReference/run.py", run_name="__main__")
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: authored-scan-reference-${{ github.event.pull_request.head.sha }}-${{ github.run_id }}
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/authored-scan-reference/*.ttf
+            ${{ runner.temp }}/authored-scan-reference/*.cs
+            ${{ runner.temp }}/authored-scan-reference/*.py
+            ${{ runner.temp }}/authored-scan-reference/*.csproj
+            ${{ runner.temp }}/authored-scan-reference/*.json
+            ${{ runner.temp }}/authored-scan-reference/*.log
+            ${{ runner.temp }}/authored-scan-reference/evidence/**
