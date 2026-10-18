@@ -1,0 +1,81 @@
+{
+  "wholeBuildSuccess": true,
+  "head": "67bd8978ebfda3fae53ff6d2a61955e977367ee9",
+  "build": 39104639010,
+  "artifactId": 12128791412,
+  "artifactSha256": "9422dfecd3a5a40c9d83cbe43f614249ab2778fa4b9028aa12aca5669fa02a2f",
+  "packages": [
+    {
+      "name": "LibreWinForms.ProGPU.0.1.0-source-first.nupkg",
+      "sha256": "26c27c14bdd17bedaf44451a3021ea1549a038e750b817ade78d05ddf16d1ef2"
+    },
+    {
+      "name": "LibreWinForms.Sdk.0.1.0-source-first.nupkg",
+      "sha256": "975dff811276acd6777253c7b8cea779575969d199330b764aa644cb8e72b4be"
+    },
+    {
+      "name": "LibreWinForms.System.Windows.Forms.0.1.0-source-first.nupkg",
+      "sha256": "a2a42176046fee4b1f6a724e44812832279d4b638fbc6b251a4b6929b6d73b2b"
+    },
+    {
+      "name": "LibreWinForms.ApplicationIsolation.0.1.0-source-first.nupkg",
+      "sha256": "8fb3a68cb8fbde9770877eded5bc8bc5c12ebef7470c187e9e918ff91bb9473b"
+    },
+    {
+      "name": "ProGPU.Backend.0.1.0-source-first.nupkg",
+      "sha256": "432f39f461c6c7a2e640ef5236b0eb9992e28a3fa757d8f8b07befa74f6b86de"
+    },
+    {
+      "name": "ProGPU.Backend.Dawn.0.1.0-source-first.nupkg",
+      "sha256": "6c2dd1694d471d5585b1e3e0c82f99a7fd0396722f0e3aca5c5065ec90a843d0"
+    },
+    {
+      "name": "ProGPU.Backend.Dx12.0.1.0-source-first.nupkg",
+      "sha256": "c446dd0ce291f5d70f4e8a2bf723b42411f0948298179f63fcc0a5954dcf55c8"
+    },
+    {
+      "name": "ProGPU.Backend.Native.0.1.0-source-first.nupkg",
+      "sha256": "e3e9f063cbaaccc338073bf9538edd37b679db7d7fbd3030d691a8fef48decc9"
+    },
+    {
+      "name": "ProGPU.Compute.0.1.0-source-first.nupkg",
+      "sha256": "99bc2e7c5892c97394ce6c72baab5ab9e0a1929f355227da44a45159ad5ff62f"
+    },
+    {
+      "name": "ProGPU.Native.Sdk.0.1.0-source-first.nupkg",
+      "sha256": "867e481d6f48f8a6e6c2897af212d36c69fd6f84ed7a17b405f19ec3db77e69d"
+    },
+    {
+      "name": "ProGPU.Scene.0.1.0-source-first.nupkg",
+      "sha256": "aeb5925f8ec99b0b1465f410c6cc041e452197416ddd131db54620a834814adb"
+    },
+    {
+      "name": "ProGPU.SkiaSharp.0.1.0-source-first.nupkg",
+      "sha256": "43ef7c25de7069a6e6d641dd9d23b251d28aed6c243cf8a338c952d4ff93c773"
+    },
+    {
+      "name": "ProGPU.System.Drawing.Common.0.1.0-source-first.nupkg",
+      "sha256": "fc43fe4a709ababc18b23fd8b40ab8e90810f83cf9e40b2137cb8f293a322574"
+    },
+    {
+      "name": "ProGPU.Text.0.1.0-source-first.nupkg",
+      "sha256": "c00bf6037ec5b659eccd432f4e5be0435d8badbe59bf687cc62483b0e6997129"
+    },
+    {
+      "name": "ProGPU.Text.Shaping.0.1.0-source-first.nupkg",
+      "sha256": "d494e50b0da9900b97c076dba02b95ffdfdc0b4b191d37173ea3fd7b182e5d0f"
+    },
+    {
+      "name": "ProGPU.Transpiler.0.1.0-source-first.nupkg",
+      "sha256": "15ee330862a5a957f8fc588de234e39c634ec0ca3ba0e84c17d61e0ddf3c4d55"
+    },
+    {
+      "name": "ProGPU.Vector.0.1.0-source-first.nupkg",
+      "sha256": "038756f849db17209e710dd2aef01e361de82bc8332da2edea6fa70bd08a45ba"
+    },
+    {
+      "name": "ProGPU.WinRT.0.1.0-source-first.nupkg",
+      "sha256": "5643af2d0f9938d2b65a9b3007b4acc19c4f5a71d81337a17dcfb23cc0b30ac3"
+    }
+  ]
+}
