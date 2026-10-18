@@ -47,6 +47,15 @@ RID builds place libraries alongside their corresponding NuGet native dependenci
 Notices are retained, SDK archives are excluded, and Package-mode consumers keep
 ordinary NuGet resolution. No package-cache or system-library patch is used.
 
+The source pin is the exact tested ProGPU commit
+`b2ac03b1e5fd2a997c30ae48a0c1743f1f4d8f98`, merged through
+[ProGPU PR395](https://github.com/wieslawsoltes/ProGPU/pull/395).
+Its complete Build39115306861 passes all 61 jobs; all 62 reported checks pass.
+Compared with the previous qualified `983a01b` producer, only package-list,
+closure-test and documentation files change. Source and native implementations
+are identical. This qualifies producer staging, not the downstream Drawing
+candidate or its original Windows pixels.
+
 Seventeen local controls cover original placement, all admitted policy choices,
 excluded source contracts, malformed-table rejection, mutable caller arrays,
 warm retained reuse and real bitmap replay after cache eviction. The complete
@@ -63,3 +72,29 @@ remains, with corner and actual-ink samples checked against `GetPixel`. The orig
 per-pixel run and the complete post-change run both pass all 973 cases; original
 logs and TRX are retained. This removes 48,000 individual GPU readbacks from that
 inspection path without changing paint, image dimensions, fonts or expected pixels.
+
+The independent original GDI+ contrast probe in
+[diagnostic PR181](https://github.com/wieslawsoltes/LibreWinForms/pull/181)
+captured 936 complete frames in 8.949943 seconds with no input or desktop windows.
+All 36 overlapping GDI+ frames exactly match the retained original baseline;
+font hashes and smoothing metadata also match. Ordinary grayscale coverage changes
+before source color/alpha blending. SystemDefault and ClearType have independent
+complement and transparent-target behavior. This reference evidence does not
+implement TextContrast, determine the spatial sampler, or qualify the current
+native outline path. Preserve the original 72-case pair and all failed frames.
+
+The producer's design records in `docs/native-font-hinting.md` and
+`docs/source-hinted-text-ownership.md` provide the ownership and implementation
+provenance. [Skia's text model](https://skia.org/docs/dev/design/text_overview/),
+[DirectWrite rendering parameters](https://learn.microsoft.com/en-us/windows/win32/api/dwrite/nn-dwrite-idwriterenderingparams),
+[Win2D drawing parameters](https://microsoft.github.io/Win2D/WinUI3/html/T_Microsoft_Graphics_Canvas_Text_CanvasTextRenderingParameters.htm),
+[WebRender font identity](https://doc.servo.org/webrender_api/font/struct.FontInstanceOptions.html),
+[Vello](https://github.com/linebender/vello/blob/main/ARCHITECTURE.md),
+[Parley](https://github.com/linebender/parley/blob/main/doc/concept.md), and
+[HarfBuzz](https://harfbuzz.github.io/what-does-harfbuzz-do.html)
+inform the separation of reusable CPU layout, exact font/device generations and
+GPU paint. Adopt that separation and bounded owned generations; reject reshaping
+for paint, global gamma changes and foreign implementation code. Existing culling,
+worker scheduling, demand uploads, batching and device-loss ownership stay in the
+producer. The bounded array-key lookup still examines glyph values; original
+cold/warm allocation and application frame-time qualification remain outstanding.
