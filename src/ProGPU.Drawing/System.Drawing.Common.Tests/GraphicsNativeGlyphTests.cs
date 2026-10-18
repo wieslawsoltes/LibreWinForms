@@ -38,6 +38,8 @@ public sealed class GraphicsNativeGlyphTests
         Assert.Equal(RenderCommandType.DrawGlyphRun, before.Type);
         Assert.Equal(RenderCommandType.DrawHintedGlyphs, after.Type);
         Assert.Equal(coverage, after.TextRenderingMode);
+        Assert.Equal(coverage == TextRenderingMode.Aliased ? TextHintingMode.IntegerPixel : TextHintingMode.Auto,
+            after.TextHintingMode);
         Assert.Equal(before.Position, after.Position);
         Assert.Equal(before.Transform, after.Transform);
         FontGlyphPlacement[] placements = after.HintedGlyphGeometry!.FontPlacements.ToArray();

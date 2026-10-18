@@ -1,3 +1,11 @@
+Prepared native grid-fit paint selects explicit integer raster origins only for
+its already-admitted aliased coverage. Keep grayscale Auto, original source
+placements and ink bounds, cache identity, and GDI selection unchanged. The
+qualified producer composes the complete actual target translation before
+rounding; never pre-round source positions. Original dropout, outline and full
+application/package qualification remain separate; see
+docs/drawing-integer-glyph-origins.md.
+
 Explicit GDI+ grayscale contrast is selected per draw from the original Graphics
 state, independently of retained layout and glyph-array identity. Apply it only
 to admitted grayscale coverage; preserve binary gasp, GDI, ClearType and default

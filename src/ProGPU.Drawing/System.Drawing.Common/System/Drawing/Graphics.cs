@@ -3562,8 +3562,10 @@ public partial class Graphics :
             {
                 if (native?[index].Use is { } use)
                 {
-                    _context.DrawHintedGlyphs(use.Geometry, origin, native[index].InkBounds,
-                        nativeBrush, transform, native[index].Coverage,
+                    _context.DrawHintedGlyphsWithRasterOrigin(use.Geometry, origin, native[index].InkBounds,
+                        nativeBrush, native[index].Coverage == TextRenderingMode.Aliased
+                            ? TextHintingMode.IntegerPixel : TextHintingMode.Auto,
+                        transform, native[index].Coverage,
                         glyphCoverageTransfer: native[index].Coverage == TextRenderingMode.Grayscale
                             ? coverageTransfer : default);
                     continue;
