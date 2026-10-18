@@ -17,13 +17,15 @@ public sealed class DrawingTextLayout
     private readonly float _emptyLineHeight;
     private readonly string _source;
     private readonly int _paragraphLevel;
+    internal bool SourceGdiText { get; }
     private Lazy<DrawingEditWordBoundaryCapture>? _editWordBoundaries;
     private readonly Lazy<TextEditInteractionSnapshot> _editInteraction;
 
     internal DrawingTextLayout(TextLayout layout, SizeF layoutSize, Vector2 offset,
         float emptyLineHeight, float dpiX, float dpiY, FontStyle style, bool clip,
-        PreparedDrawingGlyphRun[] runs, PreparedDrawingTextDecoration[] decorations)
+        PreparedDrawingGlyphRun[] runs, PreparedDrawingTextDecoration[] decorations, bool sourceGdiText)
     {
+        SourceGdiText = sourceGdiText;
         _interaction = layout.CreateInteractionSnapshot();
         _editInteraction = new(_interaction.CreateEditInteractionSnapshot,
             LazyThreadSafetyMode.ExecutionAndPublication);

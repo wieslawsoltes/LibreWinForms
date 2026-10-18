@@ -3,6 +3,11 @@ defined values through saved/nested contexts. Preserve atomic invalid-value
 rejection and existing disposed-access errors. Public state is independent of
 glyph raster/hinting, contrast and original package pixel qualification; see
 docs/drawing-text-rendering-state.md.
+Ordinary GDI+ single-bit modes select binary coverage at paint time without
+changing layout or original glyph placements. GDI source text carries explicit
+identity through immediate and retained DrawingGdiText entry points; never infer
+it from VDMX availability or alias Proof/Draft quality to GDI+ binary coverage.
+Keep source quality, native hint execution, dropout and original pixels separate.
 
 Source Xlib applications import the qualified producer's runtime target only at
 their executable/test boundary. Preserve Project/Package separation, actual

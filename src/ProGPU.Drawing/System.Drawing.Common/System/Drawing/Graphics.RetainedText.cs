@@ -8,7 +8,8 @@ namespace System.Drawing;
 public partial class Graphics
 {
     internal DrawingTextLayout CreateRetainedTextLayout(string text, Font font,
-        SizeF layoutSize, StringFormat? format, ProGPU.Text.SourceDeviceLineMetrics? sourceMetrics = null)
+        SizeF layoutSize, StringFormat? format, ProGPU.Text.SourceDeviceLineMetrics? sourceMetrics = null,
+        bool sourceGdiText = false)
     {
         EnsureNotDisposed();
         ArgumentNullException.ThrowIfNull(text);
@@ -46,7 +47,7 @@ public partial class Graphics
         return new DrawingTextLayout(formatted.Layout, layoutSize, offset,
             GetLineHeight(font, formatted.Layout.FontSize, sourceMetrics), DpiX, DpiY, font.Style,
             (selected.FormatFlags & StringFormatFlags.NoClip) == 0,
-            PrepareDrawingGlyphRuns(formatted.Layout), decorations.ToArray());
+            PrepareDrawingGlyphRuns(formatted.Layout), decorations.ToArray(), sourceGdiText);
     }
 
     internal void DrawRetainedTextLayout(DrawingTextLayout layout, Brush brush, PointF location)
@@ -62,7 +63,7 @@ public partial class Graphics
             _context.PushClip(new Rect(location.X, location.Y, layout.LayoutSize.Width, layout.LayoutSize.Height), transform);
         try
         {
-            DrawPreparedGlyphRuns(layout.Runs, layout.Style, layout.FontSize, brush, origin, transform);
+            DrawPreparedGlyphRuns(layout.Runs, layout.Style, layout.FontSize, brush, origin, transform, layout.SourceGdiText);
             if (layout.Decorations.Length != 0)
             {
                 var nativeBrush = TransformBrush(brush);

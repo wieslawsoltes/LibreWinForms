@@ -34,9 +34,8 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         using StringFormat selected = CreateStringFormat(format);
         selected.FormatFlags &= ~StringFormatFlags.LineLimit;
         selected.SetDigitSubstitution(0, StringDigitSubstitute.None);
-        return new RetainedLayout(DrawingSourceText.TryGetLineMetrics(graphics, font, out var metrics)
-            ? DrawingSourceText.CreateLayout(graphics, text, font, layoutSize, selected, metrics)
-            : DrawingTextLayout.Create(graphics, text, font, layoutSize, selected));
+        DrawingSourceText.TryGetLineMetrics(graphics, font, out var metrics);
+        return new RetainedLayout(DrawingGdiText.CreateLayout(graphics, text, font, layoutSize, selected, metrics));
     }
 
     private sealed class RetainedLayout(global::ProGPU.SystemDrawing.DrawingTextLayout layout)
@@ -223,8 +222,7 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
             }
 
             stringFormat.FormatFlags |= StringFormatFlags.NoClip;
-            if (metrics is null) graphics.DrawString(text, selectedFont, foreground, textBounds, stringFormat);
-            else DrawingSourceText.Draw(graphics, text, selectedFont, foreground, textBounds, stringFormat, metrics);
+            DrawingGdiText.Draw(graphics, text, selectedFont, foreground, textBounds, stringFormat, metrics);
         }
         finally
         {

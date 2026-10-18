@@ -22,8 +22,31 @@ contexts, four out-of-range integers and disposed access. Against the original
 implementation six fail and six pass. After the correction the complete Drawing
 suite passes all 921 tests, with no skips. Original failed logs and TRX are retained.
 
-This corrects public state only. The current retained glyph writer still has
-independent work to implement each requested raster/hinting policy and contrast.
+Ordinary GDI+ `SingleBitPerPixel` and `SingleBitPerPixelGridFit` now select binary
+glyph coverage in both immediate and retained draws. The previous writer always
+recorded grayscale coverage. Selection happens at paint time, leaving original
+glyph IDs, positions, layout, brush, clips and transforms unchanged. It uses the
+existing GPU aliased path, with no CPU pixel conversion or per-frame font work.
+Both modes share this coverage requirement; they still require distinct native
+hint execution, and binary vector coverage does not implement monochrome dropout.
+
+Source GDI `TextRenderer` has separate quality semantics. `DrawingGdiText.Draw`
+and `CreateLayout` retain that source identity explicitly, including the path
+without VDMX metrics. The Forms backend uses these entry points for ordinary
+control text and retained editors. An exact device line frame is independent of
+raster policy; neither the presence of VDMX nor a single-bit GDI+ enum is used to
+infer GDI binary coverage. No mutable Graphics mode override is used, and source
+identity cannot leak into a subsequent ordinary draw. The current GDI paint
+policy is preserved while its font-quality/system-aware raster work is completed.
+
+Four recording regressions fail before the correction. Controls cover paint-time
+selection, retained placement identity, both source metric paths and subsequent
+ordinary draws. Four actual bitmap controls examine every pixel of opaque black
+single-bit text over white, requiring only the two original colors and real ink.
+These establish binary coverage, not equality to the retained Microsoft images.
+
+The writer still has independent work to implement complete native hinting,
+font/size policy, monochrome dropout, contrast and source GDI quality selection.
 ClearType pixel parity, system font-smoothing selection, busy-HDC behavior and
 original package/application captures remain separate requirements in
 [issue #174](https://github.com/wieslawsoltes/LibreWinForms/issues/174).

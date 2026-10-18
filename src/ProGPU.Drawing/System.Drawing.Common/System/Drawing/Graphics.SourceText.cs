@@ -27,6 +27,19 @@ public partial class Graphics
         DrawFormattedString(text, font, brush, bounds, format, pointAnchor: false, sourceMetrics: metrics);
     }
 
+    internal void DrawGdiSourceString(string text, Font font, Brush brush, RectangleF bounds,
+        StringFormat format, SourceDeviceLineMetrics? metrics)
+    {
+        EnsureNotDisposed();
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentNullException.ThrowIfNull(font);
+        ArgumentNullException.ThrowIfNull(brush);
+        ArgumentNullException.ThrowIfNull(format);
+        if (metrics is not null) ValidateSourceLineFrame(font);
+        DrawFormattedString(text, font, brush, bounds, format, pointAnchor: false,
+            sourceMetrics: metrics, sourceGdiText: true);
+    }
+
     internal SizeF MeasureSourceString(string text, Font font, SizeF bounds,
         StringFormat format, SourceDeviceLineMetrics metrics)
     {

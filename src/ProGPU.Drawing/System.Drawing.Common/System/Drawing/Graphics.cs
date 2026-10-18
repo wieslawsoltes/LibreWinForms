@@ -3367,7 +3367,8 @@ public partial class Graphics :
         RectangleF layoutRectangle,
         StringFormat format,
         bool pointAnchor,
-        ProGPU.Text.SourceDeviceLineMetrics? sourceMetrics = null)
+        ProGPU.Text.SourceDeviceLineMetrics? sourceMetrics = null,
+        bool sourceGdiText = false)
     {
         var layoutArea = new SizeF(layoutRectangle.Width, layoutRectangle.Height);
         FormattedTextLayout formatted = CreateFormattedTextLayout(text, font, layoutArea, format, sourceMetrics: sourceMetrics);
@@ -3394,7 +3395,7 @@ public partial class Graphics :
                 transform);
         }
 
-        DrawFormattedGlyphRuns(formatted.Layout, font, brush, origin, transform);
+        DrawFormattedGlyphRuns(formatted.Layout, font, brush, origin, transform, sourceGdiText);
         DrawFontDecorations(formatted.Layout, font, brush, origin, transform);
         if (formatted.MnemonicIndex >= 0)
         {
@@ -3459,9 +3460,10 @@ public partial class Graphics :
         Font font,
         Brush brush,
         Vector2 origin,
-        Matrix4x4 transform)
+        Matrix4x4 transform,
+        bool sourceGdiText = false)
     {
-        DrawPreparedGlyphRuns(PrepareDrawingGlyphRuns(layout), font.Style, GetFontPixelSize(font), brush, origin, transform);
+        DrawPreparedGlyphRuns(PrepareDrawingGlyphRuns(layout), font.Style, GetFontPixelSize(font), brush, origin, transform, sourceGdiText);
     }
 
     private static PreparedDrawingGlyphRun[] PrepareDrawingGlyphRuns(ProGPU.Text.TextLayout layout)
@@ -3492,11 +3494,18 @@ public partial class Graphics :
     }
 
     private void DrawPreparedGlyphRuns(PreparedDrawingGlyphRun[] runs, FontStyle style,
-        float fontSize, Brush brush, Vector2 origin, Matrix4x4 transform)
+        float fontSize, Brush brush, Vector2 origin, Matrix4x4 transform, bool sourceGdiText)
     {
         bool isBold = (style & FontStyle.Bold) != 0;
         bool isItalic = (style & FontStyle.Italic) != 0;
         var nativeBrush = TransformBrush(brush);
+        // GDI's source font quality has independent semantics: Proof/Draft do
+        // not mean GDI+ binary coverage. Do not change that path by enum alias.
+        // This selects coverage only; native font execution and dropout policy
+        // remain separate from the compositor's sampling/hinting controls.
+        TextRenderingMode coverage = !sourceGdiText &&
+            TextRenderingHint is TextRenderingHint.SingleBitPerPixel or TextRenderingHint.SingleBitPerPixelGridFit
+            ? TextRenderingMode.Aliased : TextRenderingMode.Grayscale;
         foreach (PreparedDrawingGlyphRun run in runs)
         {
             _context.DrawGlyphRun(
@@ -3508,7 +3517,8 @@ public partial class Graphics :
                 origin,
                 transform,
                 isBold,
-                isItalic);
+                isItalic,
+                textRenderingMode: coverage);
         }
     }
 
