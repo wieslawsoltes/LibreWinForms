@@ -59,6 +59,17 @@ class CanonicalNativeStagingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "ProGPU.Backend.Dawn"):
             verify_drawing_source_closure([p for p in drawing_package_ids() if p != "ProGPU.Backend.Dawn"])
 
+    def test_omitting_native_scene_bridge_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "ProGPU.System.Drawing.Common.*ProGPU.Scene.Native"):
+            verify_drawing_source_closure([p for p in drawing_package_ids() if p != "ProGPU.Scene.Native"])
+
+    def test_native_scene_before_managed_scene_is_rejected(self):
+        packages = drawing_package_ids()
+        packages.remove("ProGPU.Scene.Native")
+        packages.insert(packages.index("ProGPU.Scene"), "ProGPU.Scene.Native")
+        with self.assertRaisesRegex(ValueError, "ProGPU.Scene.Native.*ProGPU.Scene"):
+            verify_drawing_source_closure(packages)
+
     def staging_step(self):
         workflow = (ROOT / ".github/workflows/librewinforms-ci.yml").read_text()
         package = workflow.split("\n  packages:\n", 1)[1]

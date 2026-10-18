@@ -56,6 +56,13 @@ closure-test and documentation files change. Source and native implementations
 are identical. This qualifies producer staging, not the downstream Drawing
 candidate or its original Windows pixels.
 
+LibreWinForms' own release package registry also includes `ProGPU.Scene.Native`
+after `ProGPU.Scene`. The producer's Drawing group alone does not populate this
+consumer registry. Its original omission failed the unchanged source-closure
+checks before packaging; both CI and release staging now verify the real source
+dependencies, with independent missing-bridge and wrong-order rejection controls.
+All 28 staging controls pass locally. Exact whole consumer CI is still required.
+
 Seventeen local controls cover original placement, all admitted policy choices,
 excluded source contracts, malformed-table rejection, mutable caller arrays,
 warm retained reuse and real bitmap replay after cache eviction. The complete
