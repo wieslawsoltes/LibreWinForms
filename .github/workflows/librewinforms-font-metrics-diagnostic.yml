@@ -1,50 +1,41 @@
-name: DIAGNOSTIC ONLY Windows font autoscale metrics
+name: DIAGNOSTIC ONLY paired text raster observation
 on:
   workflow_dispatch:
-  push:
-    branches: [fix-hosted-original-grid]
-    paths:
-      - .github/workflows/librewinforms-font-metrics-diagnostic.yml
-      - eng/OriginalGrid/FontMetricsDiagnostic.cs
 permissions:
   contents: read
+  actions: read
 jobs:
-  metrics:
-    name: Read original GDI metrics without creating application windows
+  pair:
+    name: Original and portable package text without input
     runs-on: windows-11-arm
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: eng/TextRasterPair
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 11.0.100-preview.5.26302.115
-      - name: Build and run bounded read-only native metric probe
+          dotnet-version: 10.0.201
+      - name: Build and observe exact original and qualified package
         shell: pwsh
-        run: |
-          $root = Join-Path $env:RUNNER_TEMP 'original-font-metrics'
-          New-Item -ItemType Directory -Path $root -ErrorAction Stop | Out-Null
-          Copy-Item eng/OriginalGrid/FontMetricsDiagnostic.cs $root
-          '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net11.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors></PropertyGroup></Project>' | Set-Content "$root/Probe.csproj"
-          '{"sdk":{"version":"11.0.100-preview.5.26302.115","rollForward":"disable"}}' | Set-Content "$root/global.json"
-          Push-Location $root
-          try {
-            dotnet build Probe.csproj -c Release -m:1 -p:UseSharedCompilation=false *> build.log
-            if ($LASTEXITCODE -ne 0) { throw 'Native metric probe did not compile.' }
-            $process = Start-Process dotnet -ArgumentList @('bin/Release/net11.0/Probe.dll') -PassThru -NoNewWindow -RedirectStandardOutput metrics.json -RedirectStandardError stderr.log
-            if (-not $process.WaitForExit(30000)) { $process.Kill(); throw 'Original 30-second diagnostic limit exceeded.' }
-            if ($process.ExitCode -ne 0) { throw 'Native metric diagnostic failed.' }
-            $result = Get-Content metrics.json -Raw | ConvertFrom-Json
-            if ($result.cases.Count -ne 45 -or $result.qualified -or -not $result.diagnosticOnly) { throw 'Unexpected original case inventory.' }
-            Get-FileHash FontMetricsDiagnostic.cs, metrics.json -Algorithm SHA256 | ConvertTo-Json | Set-Content hashes.json
-          } finally { Pop-Location }
-      - name: Retain original metrics and build failures
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./eng/TextRasterPair/run.ps1
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
-          name: diagnostic-native-font-metrics
+          name: paired-text-raster-${{ github.sha }}-${{ github.run_id }}
           retention-days: 14
+          if-no-files-found: error
           path: |
-            ${{ runner.temp }}/original-font-metrics/*.cs
-            ${{ runner.temp }}/original-font-metrics/*.csproj
-            ${{ runner.temp }}/original-font-metrics/*.json
-            ${{ runner.temp }}/original-font-metrics/*.log
+            ${{ runner.temp }}/text-pair/original/**
+            ${{ runner.temp }}/text-pair/portable/**
+            ${{ runner.temp }}/text-pair/*.log
+            ${{ runner.temp }}/text-pair/payload-hashes.json
+            ${{ runner.temp }}/text-pair/producer.json
+            eng/TextRasterPair/reference/Program.cs
+            eng/TextRasterPair/reference/TextRasterReference.csproj
+            eng/TextRasterPair/portable/Program.cs
+            eng/TextRasterPair/portable/PortableTextRaster.csproj
+            eng/TextRasterPair/run.ps1
