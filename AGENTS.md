@@ -1,3 +1,11 @@
+Byte premultiplied Drawing readback uses the original truncated reciprocal over
+the complete valid channel/alpha domain. Preserve zero-alpha handling, invalid-
+channel saturation, original PArgb storage and unchanged bytes after read-only
+GetPixel/ARGB-lock/PNG access. Do not round the completed division or convert
+new PArgb CPU storage through straight colors. Original eight-bit observations
+do not qualify sixteen-bit precision, font sampling, GPU blending or packages;
+see docs/drawing-premultiplied-readback.md.
+
 Drawing TextRenderingHint begins at SystemDefault and retains only its six
 defined values through saved/nested contexts. Preserve atomic invalid-value
 rejection and existing disposed-access errors. Public state is independent of
