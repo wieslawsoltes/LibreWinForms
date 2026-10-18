@@ -25,7 +25,7 @@ def receipt():
                              LargeChange=1000 if name.endswith('page') else 10, Value=5000,
                              visible=True, enabled=True, paintCurrent=True, paint=paint))
     return dict(schema=2, qualified=False, pid=123, title='PortableScrollBarRepeat [123]',
-                sourceHandle=901, forms='C:/owned/System.Windows.Forms.dll', dpi=96,
+                sourceHandle=901, forms='C:/owned/System.Windows.Forms.dll', runtime='.NET 11.0.0-preview.5', dpi=96,
                 client=rect(100,100,620,400), coordinateMode='DevicePixels', tickMilliseconds=1000, controls=controls)
 
 

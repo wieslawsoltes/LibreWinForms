@@ -28,7 +28,7 @@ def inventory(snapshot, ready, now_ms):
             and 0 <= now_ms - snapshot['tickMilliseconds'] <= 500, 'Source receipt stale or from future')
     require(snapshot.get('schema') == 2 and snapshot.get('qualified') is False
             and snapshot.get('dpi') == 96 and 'hwnd' not in snapshot, 'Source receipt policy differs')
-    for field in ('pid', 'title', 'sourceHandle', 'forms', 'client', 'coordinateMode'):
+    for field in ('pid', 'title', 'sourceHandle', 'forms', 'client', 'coordinateMode', 'runtime'):
         require(snapshot.get(field) == ready.get(field) and snapshot.get(field) is not None, 'Owned root identity changed: ' + field)
     owner = rectangle(snapshot['client'])
     controls = snapshot.get('controls')

@@ -32,12 +32,22 @@ class PayloadIdentity(unittest.TestCase):
             self.assertNotEqual(identity, receipt['payloadAfter'])
 
 
+class SourceClock(unittest.TestCase):
+    def test_uses_original_unsigned_integer_clock_and_millisecond_floor(self):
+        def query(pointer):
+            pointer._obj.value=2560359999
+            return 1
+        self.assertEqual(driver.source_clock_milliseconds(SimpleNamespace(QueryUnbiasedInterruptTime=query)),256035)
+    def test_unavailable_clock_never_returns_a_substitute(self):
+        with self.assertRaisesRegex(RuntimeError,'clock unavailable'):
+            driver.source_clock_milliseconds(SimpleNamespace(QueryUnbiasedInterruptTime=lambda pointer: 0))
+
 class CompleteNativeInventory(unittest.TestCase):
     def test_native_binding_reuses_the_single_initialized_physical_desktop(self):
         original=test_geometry.PassiveShadowGuards().observation()
         desktop=SimpleNamespace(user=SimpleNamespace(GetAncestor=Mock(),GetClassNameW=Mock(),RealGetWindowClassW=Mock()))
         helper=SimpleNamespace(WindowsDesktop=Mock(return_value=desktop))
-        library=SimpleNamespace(DwmGetWindowAttribute=Mock(),GetTickCount64=Mock())
+        library=SimpleNamespace(DwmGetWindowAttribute=Mock(),QueryUnbiasedInterruptTime=Mock())
         with patch.object(driver,'native_root_inventory',return_value=original), \
              patch.object(driver.C,'WinDLL',return_value=library,create=True), \
              patch.object(driver.Native,'current_controls',return_value={}):

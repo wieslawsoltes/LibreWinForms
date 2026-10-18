@@ -33,6 +33,14 @@ def native_root_inventory(desktop, pid):
     return dict(windows=windows, metadata=metadata)
 
 
+def source_clock_milliseconds(kernel):
+    # .NET 11 Environment.TickCount64 uses this exact Windows counter, not
+    # GetTickCount64. Keep integer 100-nanosecond conversion and the 500ms gate.
+    ticks = C.c_uint64()
+    require(kernel.QueryUnbiasedInterruptTime(C.byref(ticks)), 'Original source clock unavailable')
+    return ticks.value // 10000
+
+
 class Native(OriginalNative):
     def __init__(self, helper, child, ready, record, snapshot_path):
         self.snapshot_path = snapshot_path
@@ -44,8 +52,9 @@ class Native(OriginalNative):
         record.append(dict(kind='independent-native-root', sourceHandle=ready['sourceHandle'], native=observed))
         super().__init__(helper, child, dict(ready, hwnd=observed['hwnd']), record, desktop=desktop)
         self.kernel = C.WinDLL('kernel32')
-        self.kernel.GetTickCount64.argtypes = []
-        self.kernel.GetTickCount64.restype = C.c_uint64
+        require(isinstance(ready.get('runtime'), str) and ready['runtime'].startswith('.NET 11.'), 'Source clock runtime is not the prepared .NET 11 contract')
+        self.kernel.QueryUnbiasedInterruptTime.argtypes = [C.POINTER(C.c_uint64)]
+        self.kernel.QueryUnbiasedInterruptTime.restype = C.c_int32
         self.current_controls()
 
     def owner_now(self):
@@ -58,7 +67,10 @@ class Native(OriginalNative):
         require(0 < len(snapshots) <= 2200, 'Bounded source snapshots unavailable')
         data = max(snapshots, key=lambda p: p.name).read_bytes()
         require(len(data) <= 65536, 'Source snapshot exceeds its bound')
-        return inventory(json.loads(data), self.source_ready, int(self.kernel.GetTickCount64()))
+        snapshot = json.loads(data)
+        now = source_clock_milliseconds(self.kernel)
+        self.record.append(dict(kind='source-clock', source=snapshot.get('tickMilliseconds'), native=now, clock='QueryUnbiasedInterruptTime'))
+        return inventory(snapshot, self.source_ready, now)
 
     def check(self, target, point, held):
         # Reuse all original foreground, cloak, foreign-input, process, real
