@@ -3548,6 +3548,11 @@ public partial class Graphics :
         TextRenderingMode coverage = !sourceGdiText &&
             TextRenderingHint is TextRenderingHint.SingleBitPerPixel or TextRenderingHint.SingleBitPerPixelGridFit
             ? TextRenderingMode.Aliased : TextRenderingMode.Grayscale;
+        // GDI+ grayscale contrast belongs to each draw's coverage, not to the
+        // font cache, layout, GDI quality, or ordinary ClearType policy.
+        ProGPU.Backend.GlyphCoverageTransfer coverageTransfer = !sourceGdiText &&
+            TextRenderingHint is TextRenderingHint.AntiAlias or TextRenderingHint.AntiAliasGridFit
+            ? ProGPU.Backend.GlyphCoverageTransfer.GdiPlusGrayscale(_textContrast) : default;
         NativeDrawingGlyphPaint[]? native = PrepareNativeGlyphPaint(
             runs, style, fontSize, nativeBrush, origin, transform, sourceGdiText);
         Exception? primary = null;
@@ -3558,7 +3563,9 @@ public partial class Graphics :
                 if (native?[index].Use is { } use)
                 {
                     _context.DrawHintedGlyphs(use.Geometry, origin, native[index].InkBounds,
-                        nativeBrush, transform, native[index].Coverage);
+                        nativeBrush, transform, native[index].Coverage,
+                        glyphCoverageTransfer: native[index].Coverage == TextRenderingMode.Grayscale
+                            ? coverageTransfer : default);
                     continue;
                 }
                 PreparedDrawingGlyphRun run = runs[index];
@@ -3575,7 +3582,8 @@ public partial class Graphics :
                     isItalic,
                     textRenderingMode: coverage,
                     textHintingMode: integerOrigin ? TextHintingMode.IntegerPixel : TextHintingMode.Auto,
-                    preferGlyphAtlas: integerOrigin);
+                    preferGlyphAtlas: integerOrigin,
+                    glyphCoverageTransfer: coverageTransfer);
             }
         }
         catch (Exception failure) { primary = failure; throw; }

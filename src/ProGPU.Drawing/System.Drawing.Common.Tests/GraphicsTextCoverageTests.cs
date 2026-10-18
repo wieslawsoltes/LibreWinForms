@@ -10,6 +10,42 @@ namespace System.Drawing.Tests;
 public sealed class GraphicsTextCoverageTests
 {
     [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void GrayscaleContrastIsCapturedAtPaintAndRetainedLayoutsKeepOriginalGlyphs(bool retained)
+    {
+        var recorder = new GpuPictureRecorder();
+        var context = recorder.BeginRecording(new ProGPU.Scene.Rect(0, 0, 200, 60));
+        using Graphics graphics = Graphics.FromProGpuDrawingContext(context);
+        using var font = new Font(FontFamily.GenericSansSerif, 12);
+        using var brush = new SolidBrush(Color.Black);
+        using StringFormat format = MakeFormat();
+        var size = new SizeF(200, 60);
+        var layout = DrawingTextLayout.Create(graphics, "Name 123", font, size, format);
+        RenderCommand[]? previous = null;
+        graphics.TextRenderingHint = TextRenderingHint.AntiAlias;
+        for (int contrast = 0; contrast <= 12; contrast++)
+        {
+            graphics.TextContrast = contrast;
+            int start = context.Commands.Count;
+            if (retained) layout.Draw(graphics, brush, PointF.Empty);
+            else graphics.DrawString("Name 123", font, brush, new RectangleF(PointF.Empty, size), format);
+            var commands = context.Commands.Skip(start).Where(c => c.Type == RenderCommandType.DrawGlyphRun).ToArray();
+            Assert.NotEmpty(commands);
+            Assert.All(commands, c => Assert.Equal((uint)contrast + 1, c.GlyphCoverageTransfer.Encoding));
+            if (retained && previous is not null)
+                for (int i = 0; i < commands.Length; i++)
+                {
+                    Assert.Same(previous[i].GlyphIndices, commands[i].GlyphIndices);
+                    Assert.Same(previous[i].GlyphPositions, commands[i].GlyphPositions);
+                }
+            previous = commands;
+        }
+        using var picture = recorder.EndRecording();
+        graphics.TextContrast = 0;
+        Assert.Contains(picture.Commands, c => c.GlyphCoverageTransfer.Encoding == 13U);
+    }
+
+    [Theory]
     [InlineData(TextRenderingHint.SingleBitPerPixel, false)]
     [InlineData(TextRenderingHint.SingleBitPerPixel, true)]
     [InlineData(TextRenderingHint.SingleBitPerPixelGridFit, false)]
@@ -60,6 +96,7 @@ public sealed class GraphicsTextCoverageTests
             // This preserves the old GDI paint route while its independent
             // font-quality/system/coverage policy is implemented and qualified.
             Assert.All(source, c => Assert.Equal(TextRenderingMode.Grayscale, c.TextRenderingMode));
+            Assert.All(source, c => Assert.Equal(default, c.GlyphCoverageTransfer));
             Assert.Equal(hint, graphics.TextRenderingHint);
             start = context.Commands.Count;
             graphics.DrawString("Name 123", font, brush, new RectangleF(PointF.Empty, size), format);
