@@ -131,7 +131,8 @@ internal static class Program
             byte[] data = new byte[checked((int)length)];
             if (GetFontData(dc, 0, 0, data, length) != length) throw new InvalidOperationException("Incomplete original font bytes.");
             return new { requested = font.OriginalFontName, managed = font.Name, native = face.ToString(),
-                points = font.SizeInPoints, charset = font.GdiCharSet, bytes = length, sha256 = Hash(data) };
+                points = font.SizeInPoints, charset = font.GdiCharSet, bytes = length, sha256 = Hash(data),
+                gasp = ObserveFontTable(dc, "gasp") };
         }
         finally
         {
@@ -140,6 +141,23 @@ internal static class Program
             bool fontReleased = selected == 0 || DeleteObject(selected);
             if (!restored || !fontReleased || !dcReleased) throw new InvalidOperationException("Owned font native cleanup failed.");
         }
+    }
+
+    // Read-only metadata from the same selected native face. An unavailable
+    // query is recorded as its raw GDI result, never interpreted as an empty table.
+    private static object ObserveFontTable(nint dc, string tag)
+    {
+        uint nativeTag = (uint)tag[0] | (uint)tag[1] << 8 | (uint)tag[2] << 16 | (uint)tag[3] << 24;
+        uint length = GetFontData(dc, nativeTag, 0, null, 0);
+        if (length == uint.MaxValue)
+            return new { tag, queryResult = length, available = false };
+        if (length == 0 || length > 16384)
+            throw new InvalidOperationException("Original font policy table exceeds its metadata bound.");
+        byte[] table = new byte[checked((int)length)];
+        if (GetFontData(dc, nativeTag, 0, table, length) != length)
+            throw new InvalidOperationException("Original font policy table changed during observation.");
+        return new { tag, queryResult = length, available = true, sha256 = Hash(table),
+            hex = Convert.ToHexString(table).ToLowerInvariant() };
     }
 
     private static string Hash(byte[] data) => Convert.ToHexString(SHA256.HashData(data)).ToLowerInvariant();
