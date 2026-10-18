@@ -49,9 +49,11 @@ The padding and short-line tests retain every original pixel comparison and now
 use the realized source frame. Their independent reference still paints a full
 line before clipping; authored 15-pixel controls require exact 3+4 and 5+7 margins
 and top/center/bottom baselines 47/43/39 in a seven-pixel viewport at Y=35.
-The submodule pins ProGPU `f3b3ea24bee3e3434e67e116450915395ee69e5b`,
+The initial device-line integration pinned ProGPU `f3b3ea24bee3e3434e67e116450915395ee69e5b`,
 whose whole Build39081260342 passed all59 jobs and whose exact head passed all69
-checks before PR391 merged. Before merge/release, run the complete Forms producer,
+checks before PR391 merged. The subsequent qualified producer pin and its complete
+build are recorded in [Linux source runtime integration](linux-source-runtime.md).
+Before merge/release, run the complete Forms producer,
 then validate original source grid and editor
 captures, normal shutdown, native glyph rasterization and public package closure.
 Issue [#174](https://github.com/wieslawsoltes/LibreWinForms/issues/174) remains open.
