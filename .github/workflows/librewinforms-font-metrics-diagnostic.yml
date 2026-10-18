@@ -1,13 +1,14 @@
-name: DIAGNOSTIC ONLY original GDI outline observation
+name: DIAGNOSTIC ONLY paired native font outlines
 on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 jobs:
   reference:
-    name: Original GDI outlines and unchanged 72 raster frames
+    name: Original GDI and exact native package font outlines
     runs-on: windows-11-arm
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -16,17 +17,21 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.201
-      - name: Capture original font outlines without input
+      - name: Compare original and native font outlines without input
         shell: pwsh
-        run: ./eng/OriginalFontOutlines/run.ps1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./eng/OriginalFontOutlines/run_pair.ps1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: original-font-outlines-${{ github.sha }}-${{ github.run_id }}
+          name: paired-font-outlines-${{ github.sha }}-${{ github.run_id }}
           retention-days: 14
           if-no-files-found: error
           path: |
-            ${{ runner.temp }}/font-outline-original/original/**
-            ${{ runner.temp }}/font-outline-original/*.log
-            ${{ runner.temp }}/font-outline-original/payload-hashes.json
+            ${{ runner.temp }}/font-outline-pair/original/**
+            ${{ runner.temp }}/font-outline-pair/*.log
+            ${{ runner.temp }}/font-outline-pair/payload-hashes.json
+            ${{ runner.temp }}/font-outline-pair/native/**
+            ${{ runner.temp }}/font-outline-pair/producer.json
             eng/OriginalFontOutlines/**
