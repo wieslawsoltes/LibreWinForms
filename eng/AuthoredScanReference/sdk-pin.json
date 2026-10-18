@@ -1,0 +1,10 @@
+{
+  "metadata": "https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/10.0/releases.json",
+  "version": "10.0.301",
+  "file": {
+    "name": "dotnet-sdk-win-arm64.zip",
+    "rid": "win-arm64",
+    "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.301/dotnet-sdk-10.0.301-win-arm64.zip",
+    "hash": "cd2aabcf089d76c6f904e2b77ed06b9f397e105f8a9b8fb425ce6b8ab01413a01d59a1c298c58c627db3e8d197280825d7c2cfc8b8345a149ed5b86457cf5c5b"
+  }
+}
