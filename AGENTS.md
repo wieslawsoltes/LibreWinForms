@@ -9,6 +9,16 @@ identity through immediate and retained DrawingGdiText entry points; never infer
 it from VDMX availability or alias Proof/Draft quality to GDI+ binary coverage.
 Keep source quality, native hint execution, dropout and original pixels separate.
 
+Bounded ordinary GDI+ grid-fit paint retains original source placements and an
+explicit raster scale while executing owned native font outlines. Validate whole
+original gasp tables before mixed-run publication; never infer GDI source quality
+or exact Microsoft policy from the selected TrueType interpreter. Keep bounded
+font-owned cache keys, caller/recorded leases and eviction lifetime intact.
+Source executables/tests use real whole-qualified staged native assets with their
+actual dependency loader layout; Package mode remains NuGet-owned. Preserve the
+original 72-case pair, dropout/contrast/ClearType and application gates; authored
+Inter controls are not qualification. See docs/drawing-native-grid-fit.md.
+
 Source Xlib applications import the qualified producer's runtime target only at
 their executable/test boundary. Preserve Project/Package separation, actual
 source-root ownership, both Linux payloads and exact whole-producer staging before

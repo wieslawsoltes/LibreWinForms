@@ -55,7 +55,9 @@ retained drawing, failures before glyphs and during underline preparation, and
 actual subsequent bitmap pixels. Eight fail before the fix; the four retained
 controls pass unchanged.
 
-The writer still has independent work to implement complete native hinting,
+The bounded [owned native grid-fit path](drawing-native-grid-fit.md) executes
+original font instructions for admitted ordinary GDI+ draws while retaining source
+placements. The writer still has independent work to implement complete native hinting,
 font/size policy, monochrome dropout, contrast and source GDI quality selection.
 ClearType pixel parity, system font-smoothing selection, busy-HDC behavior and
 original package/application captures remain separate requirements in

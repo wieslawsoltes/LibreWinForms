@@ -1,4 +1,6 @@
+using System.Drawing.Imaging;
 using System.Drawing.Text;
+using System.Runtime.InteropServices;
 using ProGPU.Scene;
 using ProGPU.SystemDrawing;
 using Xunit;
@@ -117,11 +119,28 @@ public sealed class GraphicsTextCoverageTests
                     .Draw(graphics, brush, new PointF(8, 8));
             else graphics.DrawString("Name Age 123", font, brush, new RectangleF(8, 8, 180, 40), format);
         }
+        // Inspect the complete original image once instead of submitting one
+        // GPU readback per pixel. Keep every alpha/color/ink assertion below.
+        int[] pixels = new int[bitmap.Width * bitmap.Height];
+        BitmapData locked = bitmap.LockBits(new Rectangle(Point.Empty, bitmap.Size),
+            ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        try
+        {
+            for (int y = 0; y < bitmap.Height; y++)
+                Marshal.Copy(IntPtr.Add(locked.Scan0, y * locked.Stride), pixels, y * bitmap.Width, bitmap.Width);
+        }
+        finally { bitmap.UnlockBits(locked); }
+        foreach (int index in new[] { 0, bitmap.Width - 1, pixels.Length - bitmap.Width, pixels.Length - 1,
+                     Array.FindIndex(pixels, value => value == Color.Black.ToArgb()) })
+        {
+            Assert.InRange(index, 0, pixels.Length - 1);
+            Assert.Equal(bitmap.GetPixel(index % bitmap.Width, index / bitmap.Width).ToArgb(), pixels[index]);
+        }
         int ink = 0;
         for (int y = 0; y < bitmap.Height; y++)
         for (int x = 0; x < bitmap.Width; x++)
         {
-            Color pixel = bitmap.GetPixel(x, y);
+            Color pixel = Color.FromArgb(pixels[y * bitmap.Width + x]);
             Assert.Equal(255, pixel.A);
             Assert.True(pixel.ToArgb() == Color.White.ToArgb() || pixel.ToArgb() == Color.Black.ToArgb(),
                 $"Single-bit coverage produced an intermediate pixel at ({x},{y}): {pixel}.");

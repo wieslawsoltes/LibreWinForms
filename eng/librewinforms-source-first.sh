@@ -44,6 +44,9 @@ fi
 python3 "${progpu_root}/eng/progpu-prepare-framework-sources.py"
 
 python3 "${repo_root}/eng/tests/test_dx12_sdk.py" --dotnet "${repo_root}/eng/common/dotnet.sh"
+python3 -B "${repo_root}/eng/tests/test_native_drawing_source_assets.py" \
+  --dotnet "${repo_root}/eng/common/dotnet.sh" \
+  --runtime-root "${progpu_root}/artifacts/progpu-native/package"
 
 echo "Building canonical System.Windows.Forms source graph."
 "${repo_root}/eng/common/dotnet.sh" build \

@@ -3548,20 +3548,35 @@ public partial class Graphics :
         TextRenderingMode coverage = !sourceGdiText &&
             TextRenderingHint is TextRenderingHint.SingleBitPerPixel or TextRenderingHint.SingleBitPerPixelGridFit
             ? TextRenderingMode.Aliased : TextRenderingMode.Grayscale;
-        foreach (PreparedDrawingGlyphRun run in runs)
+        NativeDrawingGlyphPaint[]? native = PrepareNativeGlyphPaint(
+            runs, style, fontSize, nativeBrush, origin, transform, sourceGdiText);
+        Exception? primary = null;
+        try
         {
-            _context.DrawGlyphRun(
-                run.GlyphIndices,
-                run.GlyphPositions,
-                run.Font,
-                fontSize,
-                nativeBrush,
-                origin,
-                transform,
-                isBold,
-                isItalic,
-                textRenderingMode: coverage);
+            for (int index = 0; index < runs.Length; index++)
+            {
+                if (native?[index].Use is { } use)
+                {
+                    _context.DrawHintedGlyphs(use.Geometry, origin, native[index].InkBounds,
+                        nativeBrush, transform, native[index].Coverage);
+                    continue;
+                }
+                PreparedDrawingGlyphRun run = runs[index];
+                _context.DrawGlyphRun(
+                    run.GlyphIndices,
+                    run.GlyphPositions,
+                    run.Font,
+                    fontSize,
+                    nativeBrush,
+                    origin,
+                    transform,
+                    isBold,
+                    isItalic,
+                    textRenderingMode: coverage);
+            }
         }
+        catch (Exception failure) { primary = failure; throw; }
+        finally { ReleaseNativeGlyphPaint(native, primary); }
     }
 
     private void DrawFontDecorations(

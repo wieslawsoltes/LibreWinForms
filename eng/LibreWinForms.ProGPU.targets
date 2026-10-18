@@ -1,5 +1,6 @@
 <Project>
   <Import Project="$(MSBuildThisFileDirectory)LibreWinForms.XlibRuntime.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)LibreWinForms.NativeRuntime.targets" />
   <Target Name="ValidateLibreWinFormsProGpuProjectReference"
           BeforeTargets="PrepareForBuild"
           Condition="'$(LibreWinFormsReferenceMode)' == 'Project'">

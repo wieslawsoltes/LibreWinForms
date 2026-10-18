@@ -6,6 +6,8 @@
           Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Project' And '$(LibreWinFormsSourceRoot)' != '' And Exists('$(LibreWinFormsSourceRoot)eng/LibreWinForms.ProGPU.props')" />
   <Import Project="$(LibreWinFormsSourceRoot)eng/LibreWinForms.XlibRuntime.targets"
           Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Project' And '$(LibreWinFormsSourceRoot)' != '' And Exists('$(LibreWinFormsSourceRoot)eng/LibreWinForms.XlibRuntime.targets')" />
+  <Import Project="$(LibreWinFormsSourceRoot)eng/LibreWinForms.NativeRuntime.targets"
+          Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Project' And '$(LibreWinFormsSourceRoot)' != '' And Exists('$(LibreWinFormsSourceRoot)eng/LibreWinForms.NativeRuntime.targets')" />
   <Target Name="_LibreWinFormsValidateCanonicalSdkConfiguration"
           BeforeTargets="PrepareForBuild">
     <Error Condition="'$(LibreWinFormsUseCanonicalRuntime)' != 'true'"
