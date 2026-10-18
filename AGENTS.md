@@ -4,6 +4,14 @@ rejection and existing disposed-access errors. Public state is independent of
 glyph raster/hinting, contrast and original package pixel qualification; see
 docs/drawing-text-rendering-state.md.
 
+Source Xlib applications import the qualified producer's runtime target only at
+their executable/test boundary. Preserve Project/Package separation, actual
+source-root ownership, both Linux payloads and exact whole-producer staging before
+source validation. Normalize a private root for runtime discovery/import without
+mutating caller globals or requiring a trailing separator.
+Never patch consumer/native cache files or infer desktop
+qualification from asset selection. See docs/linux-source-runtime.md.
+
 Explicit source text rows share one exact font-owned VDMX frame across Drawing
 layout, source margins, height trimming, painting and retained editor geometry.
 Keep point/pixel and actual square-DPI admission, exact integral em and immutable

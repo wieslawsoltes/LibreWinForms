@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 
 
 ROOT = Path(__file__).resolve().parents[2]
-HELPER_COMMIT = "8de5e06584e7672ed9ef8c31f2827d41f312f651"
+HELPER_COMMIT = "f9fc6aa1578a97cd6cf7ba8393c6cbd0cdba1b33"
 
 
 def drawing_package_ids():
@@ -105,7 +105,7 @@ class CanonicalNativeStagingTests(unittest.TestCase):
     def test_stages_exact_forms_progpu_checkout_not_wpf_prerequisite(self):
         status, arguments, root = self.run_step()
         self.assertEqual(status, 0)
-        self.assertEqual(arguments, ["a" * 40, root + "/external/ProGPU/artifacts/progpu-native/package", root + "/external/ProGPU/artifacts/progpu-dx12/package"])
+        self.assertEqual(arguments, ["a" * 40, root + "/external/ProGPU/artifacts/progpu-native/package", root + "/external/ProGPU/artifacts/progpu-dx12/package", root + "/external/ProGPU/artifacts/progpu-xlib/package"])
 
     def test_failed_qualification_stops_packaging(self):
         status, arguments, _ = self.run_step(helper_status=23)
@@ -216,7 +216,7 @@ class SourceFirstNativeStagingTests(unittest.TestCase):
         checkout = "      - name: Checkout immutable LibreWPF native staging helper\n"
         stage = "      - name: Stage exact successful ProGPU native runtimes for source-first packaging\n"
         pack = "      - name: Pack and consume canonical source-first package\n"
-        positions = [job.index(name) for name in (validate, checkout, stage, pack)]
+        positions = [job.index(name) for name in (checkout, stage, validate, pack)]
         self.assertEqual(positions, sorted(positions))
         helper_checkout = job.split(checkout, 1)[1].split("\n      - name:", 1)[0]
         for setting in ("uses: actions/checkout@v4", "repository: wieslawsoltes/LibreWPF",
@@ -264,7 +264,7 @@ class SourceFirstNativeStagingTests(unittest.TestCase):
     def test_stages_exact_gitlink_into_actual_forms_progpu_checkout(self):
         status, arguments, root = self.run_step()
         self.assertEqual(status, 0)
-        self.assertEqual(arguments, ["a" * 40, root + "/external/ProGPU/artifacts/progpu-native/package", root + "/external/ProGPU/artifacts/progpu-dx12/package"])
+        self.assertEqual(arguments, ["a" * 40, root + "/external/ProGPU/artifacts/progpu-native/package", root + "/external/ProGPU/artifacts/progpu-dx12/package", root + "/external/ProGPU/artifacts/progpu-xlib/package"])
 
     def test_failed_producer_qualification_stops_packaging(self):
         status, arguments, _ = self.run_step(helper_status=23)

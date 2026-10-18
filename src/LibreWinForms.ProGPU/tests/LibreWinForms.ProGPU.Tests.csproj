@@ -5,6 +5,7 @@
     <AssemblyName>LibreWinForms.ProGPU.Tests</AssemblyName>
     <Nullable>enable</Nullable>
     <IsTestProject>true</IsTestProject>
+    <LibreWinFormsUseSourceXlibRuntime>true</LibreWinFormsUseSourceXlibRuntime>
     <OutputType>Exe</OutputType>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>

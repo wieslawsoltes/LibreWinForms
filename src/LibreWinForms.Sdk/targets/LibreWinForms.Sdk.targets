@@ -4,6 +4,8 @@
   <Import Project="$(MSBuildThisFileDirectory)LibreWinForms.Analyzers.targets" />
   <Import Project="$(LibreWinFormsSourceRoot)eng/LibreWinForms.ProGPU.props"
           Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Project' And '$(LibreWinFormsSourceRoot)' != '' And Exists('$(LibreWinFormsSourceRoot)eng/LibreWinForms.ProGPU.props')" />
+  <Import Project="$(LibreWinFormsSourceRoot)eng/LibreWinForms.XlibRuntime.targets"
+          Condition="'$(LibreWinFormsUsePortableFrameworkReferences)' == 'true' And '$(LibreWinFormsReferenceMode)' == 'Project' And '$(LibreWinFormsSourceRoot)' != '' And Exists('$(LibreWinFormsSourceRoot)eng/LibreWinForms.XlibRuntime.targets')" />
   <Target Name="_LibreWinFormsValidateCanonicalSdkConfiguration"
           BeforeTargets="PrepareForBuild">
     <Error Condition="'$(LibreWinFormsUseCanonicalRuntime)' != 'true'"
