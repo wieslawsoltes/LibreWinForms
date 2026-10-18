@@ -1,5 +1,10 @@
 name: DIAGNOSTIC ONLY original GDI bitmap observation
 on:
+  pull_request:
+    branches: [fix/portable-scrollbar-pointer]
+    paths:
+      - eng/OriginalFontBitmaps/**
+      - .github/workflows/diagnostic-original-font-bitmaps.yml
   workflow_dispatch:
 permissions:
   contents: read
