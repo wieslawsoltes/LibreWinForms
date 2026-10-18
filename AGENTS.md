@@ -416,6 +416,13 @@ at the end, not the GDI em height. Preserve original source Font identity and ra
 Graphics/DrawString semantics. Native appearance remains a separate gate; see
 docs/portable-text-target-dpi.md.
 
+The explicit glyph raster target is independent of layout DPI and outer
+transforms. Legacy recorders keep it unknown; bitmap replay owns scale1.
+Capture source resolution and raster scale together, invalidate retained layers
+when either changes, and repaint before presenting if paint callbacks change
+the target. Preserve source glyph positions and unknown-frame admission; this
+metadata does not qualify native font policy or the original text pixel gates.
+
 ## LibreWinForms Port Rules
 
 LibreWinForms follows the same source-reuse and reflection-free rules as LibreWPF. Reuse upstream WinForms managed code wherever possible, and modify it only where a portable platform seam, ProGPU/Silk.NET backend, or Win32 abstraction is required.

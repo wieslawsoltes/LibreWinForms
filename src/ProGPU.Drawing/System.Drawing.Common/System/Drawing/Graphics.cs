@@ -37,6 +37,9 @@ public partial class Graphics :
     private readonly Bitmap? _bitmap;
     private readonly float _dpiX;
     private readonly float _dpiY;
+    // Layout resolution and the eventual compositor sample lattice are
+    // independent. Legacy recorders do not establish a raster target.
+    internal float? GlyphRasterDpiScale { get; }
     private readonly RectangleF? _deviceBounds;
     private readonly WgpuContext? _targetContext;
     private readonly Action? _completed;
@@ -324,7 +327,8 @@ public partial class Graphics :
             flushed: null,
             metafileRecording: null,
             dpiX: bitmap?.HorizontalResolution ?? 96f,
-            dpiY: bitmap?.VerticalResolution ?? 96f)
+            dpiY: bitmap?.VerticalResolution ?? 96f,
+            glyphRasterDpiScale: bitmap is null ? null : 1f)
     {
     }
 
@@ -338,7 +342,8 @@ public partial class Graphics :
         Action<FlushIntention>? flushed,
         PortableMetafileRecordingSession? metafileRecording = null,
         float dpiX = 96f,
-        float dpiY = 96f)
+        float dpiY = 96f,
+        float? glyphRasterDpiScale = null)
     {
         ValidateDpi(dpiX, nameof(dpiX));
         ValidateDpi(dpiY, nameof(dpiY));
@@ -346,6 +351,7 @@ public partial class Graphics :
         _bitmap = bitmap;
         _dpiX = dpiX;
         _dpiY = dpiY;
+        GlyphRasterDpiScale = glyphRasterDpiScale;
         _baseTransform = baseTransform;
         _deviceBounds = deviceBounds;
         _targetContext = targetContext;
@@ -660,6 +666,35 @@ public partial class Graphics :
         }
     }
 
+    /// <summary>
+    /// Creates a recorder whose host explicitly owns both layout resolution and
+    /// the compositor's raster scale. This is target metadata, not permission to
+    /// infer a transformed glyph frame or to change source text placement.
+    /// </summary>
+    public static Graphics FromProGpuDrawingContext(
+        DrawingContext drawingContext,
+        RectangleF deviceBounds,
+        Matrix4x4 outerTransform,
+        float dpiX,
+        float dpiY,
+        float glyphRasterDpiScale,
+        WgpuContext? targetContext = null,
+        Action<FlushIntention>? flushed = null,
+        Action? completed = null)
+    {
+        if (!float.IsFinite(glyphRasterDpiScale) || glyphRasterDpiScale <= 0f ||
+            !float.IsFinite(1f / glyphRasterDpiScale))
+            throw new ArgumentOutOfRangeException(nameof(glyphRasterDpiScale));
+        if (!IsFiniteNonNegative(deviceBounds))
+            throw new ArgumentOutOfRangeException(nameof(deviceBounds));
+        ValidateDpi(dpiX, nameof(dpiX));
+        ValidateDpi(dpiY, nameof(dpiY));
+        if (targetContext is not null)
+            ObjectDisposedException.ThrowIf(targetContext.IsDisposed, targetContext);
+        return FromProGpuDrawingContextCore(drawingContext, outerTransform,
+            deviceBounds, targetContext, completed, flushed, dpiX, dpiY, glyphRasterDpiScale);
+    }
+
     private static Graphics FromProGpuDrawingContextCore(
         DrawingContext drawingContext,
         Matrix4x4 outerTransform,
@@ -668,7 +703,8 @@ public partial class Graphics :
         Action? completed = null,
         Action<FlushIntention>? flushed = null,
         float dpiX = 96f,
-        float dpiY = 96f)
+        float dpiY = 96f,
+        float? glyphRasterDpiScale = null)
     {
         ArgumentNullException.ThrowIfNull(drawingContext);
         if (!IsFinite2DAffineTransform(outerTransform))
@@ -693,7 +729,8 @@ public partial class Graphics :
             completed,
             flushed,
             dpiX: dpiX,
-            dpiY: dpiY);
+            dpiY: dpiY,
+            glyphRasterDpiScale: glyphRasterDpiScale);
     }
 
     private static bool IsFiniteNonNegative(RectangleF bounds) =>
