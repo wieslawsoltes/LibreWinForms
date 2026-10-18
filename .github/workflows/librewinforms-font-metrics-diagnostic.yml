@@ -1,0 +1,62 @@
+name: DIAGNOSTIC ONLY original premultiplied bitmap readback
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  alpha:
+    name: Original GDI+ premultiplied readback without input
+    runs-on: windows-11-arm
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: eng/AlphaReference
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.301
+      - name: Build and observe original readback in a bounded process
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted' -or -not $IsWindows) {
+            throw 'Disposable hosted Windows required.'
+          }
+          $root = Join-Path $env:RUNNER_TEMP 'original-alpha-readback'
+          New-Item -ItemType Directory -Path $root -ErrorAction Stop | Out-Null
+          Copy-Item eng/AlphaReference/*.cs, eng/AlphaReference/*.csproj, eng/AlphaReference/global.json $root
+          Push-Location $root
+          try {
+            dotnet build AlphaReference.csproj -c Release -r win-arm64 --nologo *> build.log
+            if ($LASTEXITCODE -ne 0) { throw 'Original reference did not compile.' }
+            $output = Join-Path $root 'evidence'
+            $child = Start-Process 'bin/Release/net10.0-windows/win-arm64/AlphaReference.exe' `
+              -ArgumentList @('"' + $output + '"') -NoNewWindow -PassThru `
+              -RedirectStandardOutput stdout.log -RedirectStandardError stderr.log
+            if (-not $child.WaitForExit(60000)) {
+              $child.Kill($true); $child.WaitForExit()
+              throw 'Original 60-second controller deadline exceeded.'
+            }
+            $child.Refresh()
+            if ($child.ExitCode -ne 0) { throw "Original alpha reference exited $($child.ExitCode)." }
+            $result = Get-Content evidence/reference.json -Raw | ConvertFrom-Json
+            if ($result.validPairs -ne 32896 -or $result.passed -ne $true -or $result.files.Count -ne 6 -or $result.qualified -or $result.inputEvents -ne 0 -or
+                $result.desktopWindows -ne 0 -or $result.elapsedSeconds -gt 45) {
+              throw 'Incomplete original bounded no-input inventory.'
+            }
+            Get-FileHash Program.cs, AlphaReference.csproj, global.json, evidence/reference.json -Algorithm SHA256 |
+              ConvertTo-Json | Set-Content source-hashes.json
+          } finally { Pop-Location }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: original-alpha-readback-${{ github.sha }}-${{ github.run_id }}
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/original-alpha-readback/*.cs
+            ${{ runner.temp }}/original-alpha-readback/*.csproj
+            ${{ runner.temp }}/original-alpha-readback/*.json
+            ${{ runner.temp }}/original-alpha-readback/*.log
+            ${{ runner.temp }}/original-alpha-readback/evidence/**
