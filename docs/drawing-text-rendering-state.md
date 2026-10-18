@@ -45,6 +45,16 @@ ordinary draws. Four actual bitmap controls examine every pixel of opaque black
 single-bit text over white, requiring only the two original colors and real ink.
 These establish binary coverage, not equality to the retained Microsoft images.
 
+Immediate text paint now retires its temporary layout clip even when glyph or
+decoration preparation throws. Previously a failed brush conversion left that
+clip active, hiding subsequent paint outside the failed text rectangle. Cleanup
+removes only the scope created by that draw and preserves the original failure;
+already recorded glyph commands are not rolled back. The retained path already
+had this cleanup. Twelve controls cover both source identities, immediate and
+retained drawing, failures before glyphs and during underline preparation, and
+actual subsequent bitmap pixels. Eight fail before the fix; the four retained
+controls pass unchanged.
+
 The writer still has independent work to implement complete native hinting,
 font/size policy, monochrome dropout, contrast and source GDI quality selection.
 ClearType pixel parity, system font-smoothing selection, busy-HDC behavior and

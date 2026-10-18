@@ -3395,16 +3395,21 @@ public partial class Graphics :
                 transform);
         }
 
-        DrawFormattedGlyphRuns(formatted.Layout, font, brush, origin, transform, sourceGdiText);
-        DrawFontDecorations(formatted.Layout, font, brush, origin, transform);
-        if (formatted.MnemonicIndex >= 0)
+        try
         {
-            DrawMnemonicUnderline(formatted.Layout, formatted.MnemonicIndex, brush, origin, transform);
+            DrawFormattedGlyphRuns(formatted.Layout, font, brush, origin, transform, sourceGdiText);
+            DrawFontDecorations(formatted.Layout, font, brush, origin, transform);
+            if (formatted.MnemonicIndex >= 0)
+            {
+                DrawMnemonicUnderline(formatted.Layout, formatted.MnemonicIndex, brush, origin, transform);
+            }
         }
-
-        if (useClip)
+        finally
         {
-            _context.PopClip();
+            if (useClip)
+            {
+                _context.PopClip();
+            }
         }
     }
 
