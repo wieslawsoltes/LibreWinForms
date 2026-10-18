@@ -99,6 +99,14 @@ public partial class Graphics
             System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(firstCleanup).Throw();
     }
 
+    private bool UsesIntegerGlyphRasterOrigin(TtfFont font, FontStyle style,
+        Matrix4x4 transform, bool sourceGdiText)
+        => !sourceGdiText && TextRenderingHint == TextRenderingHint.SingleBitPerPixel &&
+            GlyphRasterDpiScale is > 0f && _dpiX == _dpiY &&
+            (style & (FontStyle.Bold | FontStyle.Italic)) == 0 &&
+            !font.HasCffOutlines && !font.HasColorGlyphs && !font.HasBitmapGlyphs &&
+            IsNativeGlyphTranslation(transform);
+
     private static bool IsNativeGlyphTranslation(Matrix4x4 matrix)
         => matrix.M11 == 1f && matrix.M22 == 1f && matrix.M33 == 1f && matrix.M44 == 1f &&
             matrix.M12 == 0f && matrix.M13 == 0f && matrix.M14 == 0f &&

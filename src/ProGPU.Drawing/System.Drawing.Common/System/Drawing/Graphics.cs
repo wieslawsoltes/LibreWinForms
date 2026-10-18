@@ -3562,6 +3562,7 @@ public partial class Graphics :
                     continue;
                 }
                 PreparedDrawingGlyphRun run = runs[index];
+                bool integerOrigin = UsesIntegerGlyphRasterOrigin(run.Font, style, transform, sourceGdiText);
                 _context.DrawGlyphRun(
                     run.GlyphIndices,
                     run.GlyphPositions,
@@ -3572,7 +3573,9 @@ public partial class Graphics :
                     transform,
                     isBold,
                     isItalic,
-                    textRenderingMode: coverage);
+                    textRenderingMode: coverage,
+                    textHintingMode: integerOrigin ? TextHintingMode.IntegerPixel : TextHintingMode.Auto,
+                    preferGlyphAtlas: integerOrigin);
             }
         }
         catch (Exception failure) { primary = failure; throw; }

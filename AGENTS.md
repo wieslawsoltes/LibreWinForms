@@ -1,3 +1,11 @@
+Ordinary GDI+ SingleBitPerPixel may select explicit integer raster origins only
+with a known physical target, square layout DPI, translation frame and supported
+ordinary outline run. Preserve original shaped arrays and measurements, paint-time
+selection, separate GDI source identity and every other hint policy. Source execution
+requires the matching whole-qualified producer and real native payload; authored
+Inter images do not qualify original Microsoft pixels. See
+docs/drawing-integer-glyph-origins.md.
+
 Byte premultiplied Drawing readback uses the original truncated reciprocal over
 the complete valid channel/alpha domain. Preserve zero-alpha handling, invalid-
 channel saturation, original PArgb storage and unchanged bytes after read-only
