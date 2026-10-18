@@ -1,0 +1,589 @@
+{
+  "head": "df9e13c4f570ea19aa49177e1253d2628f600ee5",
+  "progpuHead": "b2ac03b1e5fd2a997c30ae48a0c1743f1f4d8f98",
+  "build": 39118662733,
+  "wholeBuildSuccess": true,
+  "artifactId": 12133304988,
+  "artifactSha256": "471a715cfe0fb2181818d94b560c4b43d77addc4e6d3fff82698c3f92f53f0e9",
+  "artifactBytes": 341328104,
+  "packages": [
+    {
+      "name": "LibreWinForms.ApplicationIsolation.0.1.0-source-first.nupkg",
+      "id": "LibreWinForms.ApplicationIsolation",
+      "version": "0.1.0-source-first",
+      "bytes": 26609,
+      "sha256": "20dab20353f117e25a64b1054f64828201ad82cfaed5410161ed4c6cea59f397",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/LibreWinForms",
+        "commit": "df9e13c4f570ea19aa49177e1253d2628f600ee5"
+      }
+    },
+    {
+      "name": "LibreWinForms.ProGPU.0.1.0-source-first.nupkg",
+      "id": "LibreWinForms.ProGPU",
+      "version": "0.1.0-source-first",
+      "bytes": 207572,
+      "sha256": "31871eb0403f8b4b128e5da0cc145b5cc72b6fe1ab22f8fc5dd31d504432b86e",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/LibreWinForms",
+        "commit": "df9e13c4f570ea19aa49177e1253d2628f600ee5"
+      }
+    },
+    {
+      "name": "LibreWinForms.Sdk.0.1.0-source-first.nupkg",
+      "id": "LibreWinForms.Sdk",
+      "version": "0.1.0-source-first",
+      "bytes": 188351,
+      "sha256": "cc0e4ff52d4ba7610b69d4cb2eece3ea9ce1bf5d05a83af70245f86f721586e7",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/LibreWinForms",
+        "commit": "df9e13c4f570ea19aa49177e1253d2628f600ee5"
+      }
+    },
+    {
+      "name": "LibreWinForms.System.Windows.Forms.0.1.0-source-first.nupkg",
+      "id": "LibreWinForms.System.Windows.Forms",
+      "version": "0.1.0-source-first",
+      "bytes": 11789924,
+      "sha256": "ec8d4feedec15fd805600399b34c0b875713cc32ed614635c6355a68a7fcba85",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/LibreWinForms",
+        "commit": "df9e13c4f570ea19aa49177e1253d2628f600ee5"
+      }
+    },
+    {
+      "name": "ProGPU.Backend.0.1.0-source-first.nupkg",
+      "id": "ProGPU.Backend",
+      "version": "0.1.0-source-first",
+      "bytes": 5638996,
+      "sha256": "1ece8918f2b9c616de09907704fc0704541da8a1192bb149e3f02f339523fb70",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "b2ac03b1e5fd2a997c30ae48a0c1743f1f4d8f98"
+      }
+    },
+    {
+      "name": "ProGPU.Backend.Dawn.0.1.0-source-first.nupkg",
+      "id": "ProGPU.Backend.Dawn",
+      "version": "0.1.0-source-first",
+      "bytes": 162401,
+      "sha256": "6f69792644a5e8f982f483c79a7ddb1c8a74e8c72c5d44aac407fe2abc568bec",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "b2ac03b1e5fd2a997c30ae48a0c1743f1f4d8f98"
+      }
+    },
+    {
+      "name": "ProGPU.Backend.Dx12.0.1.0-source-first.nupkg",
+      "id": "ProGPU.Backend.Dx12",
+      "version": "0.1.0-source-first",
+      "bytes": 24176730,
+      "sha256": "244a380d1ff38135bcab46a4d2d011ac87548b91689b071bd66b5cab57b63866",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "b2ac03b1e5fd2a997c30ae48a0c1743f1f4d8f98"
+      }
+    },
+    {
+      "name": "ProGPU.Backend.Native.0.1.0-source-first.nupkg",
+      "id": "ProGPU.Backend.Native",
+      "version": "0.1.0-source-first",
+      "bytes": 195944379,
+      "sha256": "078423cd76e23575e7d6a363324a534878444870c341422fe92efee066407aa9",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "b2ac03b1e5fd2a997c30ae48a0c1743f1f4d8f98"
+      }
+    },
+    {
+      "name": "ProGPU.Compute.0.1.0-source-first.nupkg",
+      "id": "ProGPU.Compute",
+      "version": "0.1.0-source-first",
+      "bytes": 211342,
+      "sha256": "2fe95b8411d5703f8165b1037db80c7bb0ba98491b8cdb5f32222dbdd2a964c3",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "b2ac03b1e5fd2a997c30ae48a0c1743f1f4d8f98"
+      }
+    },
+    {
+      "name": "ProGPU.Native.Sdk.0.1.0-source-first.nupkg",
+      "id": "ProGPU.Native.Sdk",
+      "version": "0.1.0-source-first",
+      "bytes": 103372215,
+      "sha256": "779cb24dc30e238fb77ef188fc43afe52602d3465e8d5e0f31dc59753771ff8a",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "b2ac03b1e5fd2a997c30ae48a0c1743f1f4d8f98"
+      }
+    },
+    {
+      "name": "ProGPU.Scene.0.1.0-source-first.nupkg",
+      "id": "ProGPU.Scene",
+      "version": "0.1.0-source-first",
+      "bytes": 467647,
+      "sha256": "c70180f457996cc865eb058f0049d7fe4620d5c778b675fe6a00a1bd8a8ec6c3",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "b2ac03b1e5fd2a997c30ae48a0c1743f1f4d8f98"
+      }
+    },
+    {
+      "name": "ProGPU.Scene.Native.0.1.0-source-first.nupkg",
+      "id": "ProGPU.Scene.Native",
+      "version": "0.1.0-source-first",
+      "bytes": 176606,
+      "sha256": "420af7596dee94ea28ede3301481f907dddab0f21d812ceba46e83b5ff96bfc9",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "b2ac03b1e5fd2a997c30ae48a0c1743f1f4d8f98"
+      }
+    },
+    {
+      "name": "ProGPU.SkiaSharp.0.1.0-source-first.nupkg",
+      "id": "ProGPU.SkiaSharp",
+      "version": "0.1.0-source-first",
+      "bytes": 415642,
+      "sha256": "982e5bcd3ebd1c73bf5c04a1f73c84c0d9007702334dc927ef81b1b943b4c111",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "b2ac03b1e5fd2a997c30ae48a0c1743f1f4d8f98"
+      }
+    },
+    {
+      "name": "ProGPU.System.Drawing.Common.0.1.0-source-first.nupkg",
+      "id": "ProGPU.System.Drawing.Common",
+      "version": "0.1.0-source-first",
+      "bytes": 302123,
+      "sha256": "64803a2fd4eb045d053d7c8caf7c92d1db7cb51804f1356fa99756b0cb9b9c5e",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/LibreWinForms",
+        "commit": "df9e13c4f570ea19aa49177e1253d2628f600ee5"
+      }
+    },
+    {
+      "name": "ProGPU.Text.0.1.0-source-first.nupkg",
+      "id": "ProGPU.Text",
+      "version": "0.1.0-source-first",
+      "bytes": 552732,
+      "sha256": "1b4bc231e1685c0920741a432bc3649252c453bdbe2791c4ba07110495717650",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "b2ac03b1e5fd2a997c30ae48a0c1743f1f4d8f98"
+      }
+    },
+    {
+      "name": "ProGPU.Text.Shaping.0.1.0-source-first.nupkg",
+      "id": "ProGPU.Text.Shaping",
+      "version": "0.1.0-source-first",
+      "bytes": 112554,
+      "sha256": "14cce8b46870497789b3ee69b13c1bd18b135ca3611d78fe7bb102a1944dfb8f",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "b2ac03b1e5fd2a997c30ae48a0c1743f1f4d8f98"
+      }
+    },
+    {
+      "name": "ProGPU.Transpiler.0.1.0-source-first.nupkg",
+      "id": "ProGPU.Transpiler",
+      "version": "0.1.0-source-first",
+      "bytes": 130775,
+      "sha256": "78016cb8f13b6ebfbb92388e0b033254b27606e85d87cc96f7bb77009993943c",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "b2ac03b1e5fd2a997c30ae48a0c1743f1f4d8f98"
+      }
+    },
+    {
+      "name": "ProGPU.Vector.0.1.0-source-first.nupkg",
+      "id": "ProGPU.Vector",
+      "version": "0.1.0-source-first",
+      "bytes": 215092,
+      "sha256": "43b885fd22330b5bfe0d9992aa97793b0989bb7e418a6216f3121eb340c3b7d9",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "b2ac03b1e5fd2a997c30ae48a0c1743f1f4d8f98"
+      }
+    },
+    {
+      "name": "ProGPU.WinRT.0.1.0-source-first.nupkg",
+      "id": "ProGPU.WinRT",
+      "version": "0.1.0-source-first",
+      "bytes": 124089,
+      "sha256": "c6557f19510930f23d5fb63e90a58630660aecab629baedafaf4a73db717937c",
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/wieslawsoltes/ProGPU",
+        "commit": "b2ac03b1e5fd2a997c30ae48a0c1743f1f4d8f98"
+      }
+    }
+  ],
+  "nativePayloads": [
+    {
+      "path": "runtimes/win-arm64/native/progpu_native.dll",
+      "bytes": 38523392,
+      "sha256": "ca588cd0832868f49d2fcd08c9e63d31203a0e15ac76ca1ad2597cf8f7fb2c29"
+    },
+    {
+      "path": "runtimes/win-arm64/native/progpu_native_dawn.dll",
+      "bytes": 38576128,
+      "sha256": "4f75da4368dddd62e4fc0669f02bf9cdc14ce54160b66e331dabd31de27f577a"
+    },
+    {
+      "path": "runtimes/win-arm64/native/progpu_native_direct2d.dll",
+      "bytes": 925184,
+      "sha256": "308b89e775c3ffe9c8e78560afeebcbcb7613bbc357d727627bf44ec3049281e"
+    }
+  ],
+  "dependencies": [
+    {
+      "package": "LibreWinForms.ProGPU",
+      "id": "LibreWinForms.System.Windows.Forms",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "LibreWinForms.ProGPU",
+      "id": "ProGPU.System.Drawing.Common",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "LibreWinForms.ProGPU",
+      "id": "Tmds.DBus.Protocol",
+      "version": "0.95.0",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "LibreWinForms.System.Windows.Forms",
+      "id": "ProGPU.System.Drawing.Common",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "LibreWinForms.System.Windows.Forms",
+      "id": "System.CodeDom",
+      "version": "10.0.10",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "LibreWinForms.System.Windows.Forms",
+      "id": "System.Configuration.ConfigurationManager",
+      "version": "10.0.10",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "LibreWinForms.System.Windows.Forms",
+      "id": "System.Resources.Extensions",
+      "version": "10.0.10",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "LibreWinForms.System.Windows.Forms",
+      "id": "System.Windows.Extensions",
+      "version": "10.0.10",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "LibreWinForms.System.Windows.Forms",
+      "id": "Silk.NET.GLFW",
+      "version": "2.23.0",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "LibreWinForms.System.Windows.Forms",
+      "id": "Silk.NET.Input.Glfw",
+      "version": "2.23.0",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "LibreWinForms.System.Windows.Forms",
+      "id": "Silk.NET.Windowing.Glfw",
+      "version": "2.23.0",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "LibreWinForms.System.Windows.Forms",
+      "id": "System.Formats.Nrbf",
+      "version": "10.0.10",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Backend",
+      "id": "Silk.NET.GLFW",
+      "version": "2.23.0",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Backend",
+      "id": "Silk.NET.Input.Glfw",
+      "version": "2.23.0",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Backend",
+      "id": "Silk.NET.WebGPU",
+      "version": "2.23.0",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Backend",
+      "id": "Silk.NET.WebGPU.Native.WGPU",
+      "version": "2.23.0",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Backend",
+      "id": "Silk.NET.Windowing.Common",
+      "version": "2.23.0",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Backend",
+      "id": "Silk.NET.Windowing.Glfw",
+      "version": "2.23.0",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Backend.Dawn",
+      "id": "ProGPU.Backend",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Backend.Dawn",
+      "id": "WebGPUSharp",
+      "version": "0.5.5",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Backend.Native",
+      "id": "ProGPU.Backend.Dawn",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Backend.Native",
+      "id": "ProGPU.Backend",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Backend.Native",
+      "id": "ProGPU.Native.Sdk",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Compute",
+      "id": "ProGPU.Backend",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Compute",
+      "id": "ProGPU.Text.Shaping",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Compute",
+      "id": "ProGPU.Text",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Compute",
+      "id": "ProGPU.Vector",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Scene",
+      "id": "ProGPU.Backend",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Scene",
+      "id": "ProGPU.Compute",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Scene",
+      "id": "ProGPU.Text",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Scene",
+      "id": "ProGPU.Transpiler",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Scene",
+      "id": "ProGPU.Vector",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Scene.Native",
+      "id": "ProGPU.Backend.Native",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Scene.Native",
+      "id": "ProGPU.Scene",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.SkiaSharp",
+      "id": "ProGPU.Backend",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.SkiaSharp",
+      "id": "ProGPU.Scene",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.SkiaSharp",
+      "id": "ProGPU.Text",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.SkiaSharp",
+      "id": "ProGPU.Vector",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.SkiaSharp",
+      "id": "StbImageSharp",
+      "version": "2.30.15",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.SkiaSharp",
+      "id": "StbImageWriteSharp",
+      "version": "1.16.7",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.System.Drawing.Common",
+      "id": "ProGPU.Backend.Native",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.System.Drawing.Common",
+      "id": "ProGPU.Backend",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.System.Drawing.Common",
+      "id": "ProGPU.Scene.Native",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.System.Drawing.Common",
+      "id": "ProGPU.Scene",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.System.Drawing.Common",
+      "id": "ProGPU.Text",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.System.Drawing.Common",
+      "id": "ProGPU.Vector",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.System.Drawing.Common",
+      "id": "ProGPU.SkiaSharp",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.System.Drawing.Common",
+      "id": "StbImageWriteSharp",
+      "version": "1.16.7",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Text",
+      "id": "ProGPU.Backend",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Text",
+      "id": "ProGPU.Text.Shaping",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Text",
+      "id": "ProGPU.Vector",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Text",
+      "id": "OpenFontSharp",
+      "version": "1.0.0",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Text",
+      "id": "StbImageSharp",
+      "version": "2.30.15",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Vector",
+      "id": "ProGPU.Backend",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    },
+    {
+      "package": "ProGPU.Vector",
+      "id": "ProGPU.WinRT",
+      "version": "0.1.0-source-first",
+      "exclude": "Build,Analyzers"
+    }
+  ],
+  "qualification": "Whole exact-head Build and all twelve head checks passed. Package provenance, dependency closure and native inventory verified. Original application pixel comparison remains separate."
+}
