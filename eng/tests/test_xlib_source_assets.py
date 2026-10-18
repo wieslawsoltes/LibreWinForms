@@ -40,6 +40,8 @@ def main():
         selected = source / 'src/ProGPU.Backend/buildTransitive/ProGPU.Backend.targets'
         selected.parent.mkdir(parents=True)
         selected.write_bytes(target.read_bytes())
+        (source / 'src/ProGPU.Backend/ProGPU.Backend.csproj').write_bytes(
+            (args.progpu_root / 'src/ProGPU.Backend/ProGPU.Backend.csproj').read_bytes())
         stage = source / 'artifacts/progpu-xlib/package'
         stage.parent.mkdir(parents=True)
         stage.symlink_to(payload, target_is_directory=True)
@@ -64,6 +66,7 @@ def main():
                               LibreWinFormsUseSourceXlibRuntime=str(source_test).lower(),
                               IsTestProject=str(source_test).lower(),
                               LibreWinFormsSourceRoot=str(ROOT) + '/',
+                              LibreWinFormsDrawingRoot=str(ROOT / 'src/ProGPU.Drawing') + '/',
                               LibreWinFormsProGpuSourceRoot=str(source) + suffix)
                 if explicit:
                     values['ProGpuXlibSourceRuntimeRoot'] = str(payload)
@@ -76,8 +79,11 @@ def main():
                 ET.SubElement(document, 'Import', Project=str(ROOT / 'eng/LibreWinForms.XlibRuntime.targets'))
                 project = root / 'control.proj'
                 ET.ElementTree(document).write(project, encoding='unicode')
-                result = subprocess.run([args.dotnet, 'msbuild', str(project), '-nologo', '-getItem:Content',
-                                         '-p:LibreWinFormsProGpuSourceRoot=' + str(source) + suffix],
+                command = [args.dotnet, 'msbuild', str(project), '-nologo', '-getItem:Content',
+                           '-p:LibreWinFormsProGpuSourceRoot=' + str(source) + suffix]
+                if boundary == 'repository':
+                    command.append('-target:ValidateLibreWinFormsProGpuProjectReference')
+                result = subprocess.run(command,
                                         capture_output=True, text=True, timeout=30)
                 assert result.returncode == 0, result.stdout + result.stderr
                 items = json.loads(result.stdout)['Items']['Content']

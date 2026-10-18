@@ -17,6 +17,10 @@ import. An explicit global root without a trailing separator must select the
 same payload bytes as its separated form, without changing the caller's value.
 The original no-separator case silently selected no runtime assets; both forms
 now participate in the metadata controls below.
+The repository's source-project validation also joins this path explicitly;
+it must not reject an existing producer solely because the global root lacks
+a final separator. The repository controls execute that original validation
+target as well as checking the resulting runtime items.
 
 The source-first and canonical packaging jobs stage both Linux architectures
 from the same whole successful ProGPU Build before source validation or packing.
