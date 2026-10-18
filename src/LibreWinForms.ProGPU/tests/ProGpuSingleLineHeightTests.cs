@@ -6,6 +6,7 @@ using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using FluentAssertions;
 using LibreWinForms.Platform;
+using ProGPU.SystemDrawing;
 using Xunit;
 
 namespace LibreWinForms.ProGPU.Tests;
@@ -39,7 +40,8 @@ public sealed class ProGpuSingleLineHeightTests
         using (Graphics graphics = Graphics.FromImage(actual))
         using (Graphics reference = Graphics.FromImage(expected))
         {
-            float lineHeight = font.GetHeight(graphics);
+            DrawingSourceText.TryGetLineMetrics(reference, font, out var metrics);
+            float lineHeight = metrics?.Height ?? font.GetHeight(graphics);
             lineHeight.Should().BeGreaterThan(bounds.Height);
             service.DrawText(graphics, "alice", font, bounds, Color.Black, Color.Empty, flags);
 
@@ -54,8 +56,11 @@ public sealed class ProGpuSingleLineHeightTests
             reference.SetClip(bounds);
             using var format = new StringFormat(StringFormatFlags.NoWrap | StringFormatFlags.NoClip);
             using var brush = new SolidBrush(Color.Black);
-            reference.DrawString("alice", font, brush,
-                new RectangleF(bounds.X + left, bounds.Y + offset, bounds.Width - left - right, lineHeight), format);
+            var fullLine = new RectangleF(bounds.X + left, bounds.Y + offset, bounds.Width - left - right, lineHeight);
+            // Both sides use the explicit source font frame. The independent
+            // oracle still paints a complete line then clips the entire image.
+            if (metrics is null) reference.DrawString("alice", font, brush, fullLine, format);
+            else DrawingSourceText.Draw(reference, "alice", font, brush, fullLine, format, metrics);
         }
 
         AssertClippedPixels(actual, expected, bounds);
@@ -104,8 +109,10 @@ public sealed class ProGpuSingleLineHeightTests
                 Trimming = drawingTrimming,
             };
             using var brush = new SolidBrush(Color.Black);
-            reference.DrawString(text, font, brush,
-                new RectangleF(bounds.X, bounds.Y, bounds.Width, font.GetHeight(reference)), format);
+            DrawingSourceText.TryGetLineMetrics(reference, font, out var metrics);
+            var fullLine = new RectangleF(bounds.X, bounds.Y, bounds.Width, metrics?.Height ?? font.GetHeight(reference));
+            if (metrics is null) reference.DrawString(text, font, brush, fullLine, format);
+            else DrawingSourceText.Draw(reference, text, font, brush, fullLine, format, metrics);
         }
 
         AssertClippedPixels(actual, expected, bounds);

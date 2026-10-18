@@ -3348,10 +3348,11 @@ public partial class Graphics :
         Brush brush,
         RectangleF layoutRectangle,
         StringFormat format,
-        bool pointAnchor)
+        bool pointAnchor,
+        ProGPU.Text.SourceDeviceLineMetrics? sourceMetrics = null)
     {
         var layoutArea = new SizeF(layoutRectangle.Width, layoutRectangle.Height);
-        FormattedTextLayout formatted = CreateFormattedTextLayout(text, font, layoutArea, format);
+        FormattedTextLayout formatted = CreateFormattedTextLayout(text, font, layoutArea, format, sourceMetrics: sourceMetrics);
         if (formatted.Layout.Glyphs.Count == 0)
         {
             return;
@@ -3626,7 +3627,8 @@ public partial class Graphics :
         Font font,
         SizeF layoutArea,
         StringFormat format,
-        bool retainCompleteParagraph = false)
+        bool retainCompleteParagraph = false,
+        ProGPU.Text.SourceDeviceLineMetrics? sourceMetrics = null)
     {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(font);
@@ -3669,6 +3671,7 @@ public partial class Graphics :
             EnableFontFallback = (flags & StringFormatFlags.NoFontFallback) == 0,
             MeasureTrailingWhitespace = (flags & StringFormatFlags.MeasureTrailingSpaces) != 0,
             RetainOriginalGraphemeOwnership = retainCompleteParagraph,
+            SourceDeviceLineMetrics = sourceMetrics,
             FirstTabOffset = firstTabOffset,
             TabStops = tabStops
         };
@@ -3687,7 +3690,7 @@ public partial class Graphics :
         float layoutHeightLimit = maxHeight;
         if (!lineLimit && clipToLayout && float.IsFinite(maxHeight))
         {
-            float lineHeight = GetLineHeight(font, fontSize);
+            float lineHeight = GetLineHeight(font, fontSize, sourceMetrics);
             if (lineHeight > 0f)
             {
                 layoutHeightLimit = MathF.Ceiling((maxHeight / lineHeight) - 0.0001f) * lineHeight;
@@ -4176,14 +4179,15 @@ public partial class Graphics :
             return 0;
         }
 
-        float lineHeight = GetLineHeight(font, fontSize);
+        float lineHeight = GetLineHeight(font, fontSize, layout.FormattingOptions.SourceDeviceLineMetrics);
         return lineHeight > 0f
             ? Math.Max(1, (int)MathF.Round(layout.ContentSize.Y / lineHeight))
             : CountLines(layout.Text);
     }
 
-    private static float GetLineHeight(Font font, float fontSize)
+    private static float GetLineHeight(Font font, float fontSize, ProGPU.Text.SourceDeviceLineMetrics? sourceMetrics = null)
     {
+        if (sourceMetrics is not null) return sourceMetrics.Height;
         ProGPU.Text.TtfFont face = font.TtfFont;
         return face.UnitsPerEm == 0
             ? 0f

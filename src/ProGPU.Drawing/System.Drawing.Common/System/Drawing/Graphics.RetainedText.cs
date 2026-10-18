@@ -8,11 +8,12 @@ namespace System.Drawing;
 public partial class Graphics
 {
     internal DrawingTextLayout CreateRetainedTextLayout(string text, Font font,
-        SizeF layoutSize, StringFormat? format)
+        SizeF layoutSize, StringFormat? format, ProGPU.Text.SourceDeviceLineMetrics? sourceMetrics = null)
     {
         EnsureNotDisposed();
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(font);
+        if (sourceMetrics is not null) ValidateSourceLineFrame(font);
         if (!float.IsFinite(layoutSize.Width) || !float.IsFinite(layoutSize.Height) ||
             layoutSize.Width < 0 || layoutSize.Height < 0)
             throw new ArgumentOutOfRangeException(nameof(layoutSize));
@@ -35,7 +36,7 @@ public partial class Graphics
             throw new NotSupportedException("Unknown retained text-format flags.");
         _ = font.GetHeight(this); // Reject disposed caller fonts before borrowing their immutable face.
         FormattedTextLayout formatted = CreateFormattedTextLayout(text, font, layoutSize, selected,
-            retainCompleteParagraph: true);
+            retainCompleteParagraph: true, sourceMetrics: sourceMetrics);
         var offset = new Vector2(
             GetNoWrapAlignmentOffset(formatted.Layout.ContentSize.X, layoutSize.Width,
                 selected.Alignment, selected.FormatFlags),
@@ -43,7 +44,7 @@ public partial class Graphics
         var decorations = new List<PreparedDrawingTextDecoration>();
         DrawFontDecorations(formatted.Layout, font, null!, Vector2.Zero, Matrix4x4.Identity, decorations);
         return new DrawingTextLayout(formatted.Layout, layoutSize, offset,
-            GetLineHeight(font, formatted.Layout.FontSize), DpiX, DpiY, font.Style,
+            GetLineHeight(font, formatted.Layout.FontSize, sourceMetrics), DpiX, DpiY, font.Style,
             (selected.FormatFlags & StringFormatFlags.NoClip) == 0,
             PrepareDrawingGlyphRuns(formatted.Layout), decorations.ToArray());
     }

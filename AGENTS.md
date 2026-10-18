@@ -1,3 +1,12 @@
+Explicit source text rows share one exact font-owned VDMX frame across Drawing
+layout, source margins, height trimming, painting and retained editor geometry.
+Keep point/pixel and actual square-DPI admission, exact integral em and immutable
+font ownership; never round fractional sizes or repair completed paragraph height.
+Missing records retain the existing unsupported-family path; malformed data rejects.
+Ordinary Drawing metrics and glyph advances stay unchanged. See
+docs/source-device-text-lines.md; authored controls do not qualify native pixels
+or packages, and the consumer requires its matching whole-qualified producer.
+
 Live Windows arrow paint resolves the active version-four theme's original
 variant, class inheritance and image references before recording its two PNG
 frames. Validate complete tables and the explicit minimum target; preserve real
