@@ -34,7 +34,7 @@ older three-argument revisions cannot stage the Linux runtime.
 Release packaging retains that same dependency closure. Runtime/native/SDK/DXC
 directories remain separate.
 
-The source runtime integration pins ProGPU
+The initial source runtime integration pinned ProGPU
 `a37f235057ee58b26b3322864c62dfeb1d041715`. Its complete
 [Build 39093685811](https://github.com/wieslawsoltes/ProGPU/actions/runs/39093685811)
 passed all 61 jobs and all 70 checks on that head passed before this pin update.
@@ -42,6 +42,15 @@ Both original Linux runtime archives match the producer artifact digests;
 40 Forms source-asset evaluations pass against those exact files. The 24 native
 staging controls also pass. These checks establish dependency and asset selection;
 the complete Forms build and original application acceptance remain required.
+
+The current source pin is `983a01bea68c31684d99c77f77bc72d79cd02c62`.
+Its complete [Build 39109299688](https://github.com/wieslawsoltes/ProGPU/actions/runs/39109299688)
+passes all 61 jobs and all 72 checks on that exact head pass. ProGPU PR #393
+merged the identical file tree as `98c46b629bfdb6e89c48e2fb349bea3bf673d588`.
+The pin makes the explicit owned font-outline API available for the remaining
+Drawing work. Source-first staging still resolves real native and Linux assets
+from the exact successful producer Build. This dependency update does not select
+a new Drawing raster policy or qualify the unresolved text pixels in #174.
 
 The asset control evaluates both real repository and SDK imports with original
 producer files. It covers portable and RID-specific applications, test hosts,
