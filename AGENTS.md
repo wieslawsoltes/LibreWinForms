@@ -1,3 +1,9 @@
+Drawing TextRenderingHint begins at SystemDefault and retains only its six
+defined values through saved/nested contexts. Preserve atomic invalid-value
+rejection and existing disposed-access errors. Public state is independent of
+glyph raster/hinting, contrast and original package pixel qualification; see
+docs/drawing-text-rendering-state.md.
+
 Explicit source text rows share one exact font-owned VDMX frame across Drawing
 layout, source margins, height trimming, painting and retained editor geometry.
 Keep point/pixel and actual square-DPI admission, exact integral em and immutable

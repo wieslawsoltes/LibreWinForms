@@ -53,6 +53,7 @@ public partial class Graphics :
     private CompositingMode _compositingMode = CompositingMode.SourceOver;
     private CompositingQuality _compositingQuality = CompositingQuality.Default;
     private SmoothingMode _smoothingMode = SmoothingMode.None;
+    private TextRenderingHint _textRenderingHint = TextRenderingHint.SystemDefault;
     private Point _renderingOrigin;
     private int _textContrast = 4;
     private Region? _clip;
@@ -148,7 +149,24 @@ public partial class Graphics :
         }
     }
     public InterpolationMode InterpolationMode { get; set; } = InterpolationMode.Bilinear;
-    public TextRenderingHint TextRenderingHint { get; set; } = TextRenderingHint.ClearTypeGridFit;
+    public TextRenderingHint TextRenderingHint
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _textRenderingHint;
+        }
+        set
+        {
+            if (value is < TextRenderingHint.SystemDefault or > TextRenderingHint.ClearTypeGridFit)
+            {
+                throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(TextRenderingHint));
+            }
+
+            ThrowIfDisposed();
+            _textRenderingHint = value;
+        }
+    }
     public PixelOffsetMode PixelOffsetMode { get; set; } = PixelOffsetMode.Default;
 
     public CompositingMode CompositingMode
