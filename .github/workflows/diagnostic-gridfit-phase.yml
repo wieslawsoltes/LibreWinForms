@@ -16,41 +16,11 @@ jobs:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha }}
           sparse-checkout: eng/GridFitPhaseReference
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.301
-      - name: Build and observe original readback in a bounded process
-        shell: pwsh
+      - name: Bootstrap isolated SDK and observe original readback
+        shell: python {0}
         run: |
-          $ErrorActionPreference = 'Stop'
-          if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted' -or -not $IsWindows) {
-            throw 'Disposable hosted Windows required.'
-          }
-          $root = Join-Path $env:RUNNER_TEMP 'original-gridfit-phase'
-          New-Item -ItemType Directory -Path $root -ErrorAction Stop | Out-Null
-          Copy-Item eng/GridFitPhaseReference/*.cs, eng/GridFitPhaseReference/*.csproj, eng/GridFitPhaseReference/global.json $root
-          Push-Location $root
-          try {
-            dotnet build RasterPhaseReference.csproj -c Release -r win-arm64 --nologo *> build.log
-            if ($LASTEXITCODE -ne 0) { throw 'Original reference did not compile.' }
-            $output = Join-Path $root 'evidence'
-            $child = Start-Process 'bin/Release/net10.0-windows/win-arm64/RasterPhaseReference.exe' `
-              -ArgumentList @('"' + $output + '"') -NoNewWindow -PassThru `
-              -RedirectStandardOutput stdout.log -RedirectStandardError stderr.log
-            if (-not $child.WaitForExit(60000)) {
-              $child.Kill($true); $child.WaitForExit()
-              throw 'Original 60-second controller deadline exceeded.'
-            }
-            $child.Refresh()
-            if ($child.ExitCode -ne 0) { throw "Original phase reference exited $($child.ExitCode)." }
-            $result = Get-Content evidence/reference.json -Raw | ConvertFrom-Json
-            if ($result.cases.Count -ne 648 -or $result.controls.Count -ne 8 -or $result.fonts.Count -ne 2 -or $result.qualified -or $result.inputEvents -ne 0 -or
-                $result.desktopWindows -ne 0 -or $result.elapsedSeconds -gt 45) {
-              throw 'Incomplete original bounded no-input inventory.'
-            }
-            Get-FileHash Program.cs, NativeDriver.cs, RasterPhaseReference.csproj, global.json, evidence/reference.json -Algorithm SHA256 |
-              ConvertTo-Json | Set-Content source-hashes.json
-          } finally { Pop-Location }
+          import runpy
+          runpy.run_path("eng/GridFitPhaseReference/run.py", run_name="__main__")
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -59,6 +29,7 @@ jobs:
           if-no-files-found: error
           path: |
             ${{ runner.temp }}/original-gridfit-phase/*.cs
+            ${{ runner.temp }}/original-gridfit-phase/*.py
             ${{ runner.temp }}/original-gridfit-phase/*.csproj
             ${{ runner.temp }}/original-gridfit-phase/*.json
             ${{ runner.temp }}/original-gridfit-phase/*.log
