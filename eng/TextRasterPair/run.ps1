@@ -50,6 +50,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Original reference did not compile.' }
     dotnet build portable-source/PortableTextRaster.csproj -c Release -r win-arm64 --nologo *> portable-build.log
     if ($LASTEXITCODE -ne 0) { throw 'Portable package consumer did not compile.' }
+    Get-ChildItem reference-source,portable-source -Recurse -File | Get-FileHash -Algorithm SHA256 |
+        ConvertTo-Json -Depth 5 | Set-Content payload-hashes.json
+    Copy-Item (Join-Path $prepared 'producer.json') producer.json
     function Invoke-Bounded([string]$executable, [string[]]$arguments, [string]$name) {
         $child = Start-Process $executable -ArgumentList $arguments -NoNewWindow -PassThru `
             -RedirectStandardOutput (Join-Path $root "$name-stdout.log") -RedirectStandardError (Join-Path $root "$name-stderr.log")
@@ -71,7 +74,4 @@ try {
         # Exact same-run native font bytes never leave this ephemeral runner.
         if (Test-Path $fontRoot) { Remove-Item $fontRoot -Recurse -Force }
     }
-    Get-ChildItem reference-source,portable-source -Recurse -File | Get-FileHash -Algorithm SHA256 |
-        ConvertTo-Json -Depth 5 | Set-Content payload-hashes.json
-    Copy-Item (Join-Path $prepared 'producer.json') producer.json
 } finally { Pop-Location }

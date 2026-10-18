@@ -48,6 +48,7 @@ internal static class Program
         var service = new ProGpuTextRendererService();
         Directory.CreateDirectory(root);
         Stopwatch clock = Stopwatch.StartNew();
+        ValidateBulkCapture();
         List<object> cases = new(), fonts = new();
         long bytes = 0;
         foreach (var specification in new[] { (Name: "Microsoft Sans Serif", Points: 9.75f), (Name: "Segoe UI", Points: 9f) })
@@ -91,15 +92,14 @@ internal static class Program
                     state = new { hint = graphics.TextRenderingHint.ToString(), contrast = graphics.TextContrast,
                         dpiX = graphics.DpiX, dpiY = graphics.DpiY };
                 }
-                byte[] rgba = new byte[Width * Height * 4];
+                byte[] rgba = ReadStraightRgba(bitmap);
                 int colored = 0, intermediate = 0, ink = 0;
                 int minX = Width, minY = Height, maxX = -1, maxY = -1;
                 for (int y = 0; y < Height; y++)
                 for (int x = 0; x < Width; x++)
                 {
-                    Color color = bitmap.GetPixel(x, y);
                     int offset = (y * Width + x) * 4;
-                    rgba[offset] = color.R; rgba[offset + 1] = color.G; rgba[offset + 2] = color.B; rgba[offset + 3] = color.A;
+                    Color color = Color.FromArgb(rgba[offset + 3], rgba[offset], rgba[offset + 1], rgba[offset + 2]);
                     if (color.R != color.G || color.G != color.B) colored++;
                     if ((color.R > 0 && color.R < 255) || (color.G > 0 && color.G < 255) || (color.B > 0 && color.B < 255)) intermediate++;
                     if (color.R != 255 || color.G != 255 || color.B != 255)
@@ -124,6 +124,7 @@ internal static class Program
             runtime = Environment.Version.ToString(), os = Environment.OSVersion.VersionString,
             adapterEntry = "ProGpuTextRendererService.DrawText (canonical TextRenderer dispatch not exercised)",
             smoothingSource = "Original reference observation only; not injected into portable policy",
+            pixelCapture = "One read-only Format32bppArgb LockBits per image; complete straight RGBA, no tolerance",
             backendAssembly = typeof(ProGpuTextRendererService).Assembly.Location, drawingAssembly = typeof(Graphics).Assembly.Location,
             elapsedSeconds = clock.Elapsed.TotalSeconds, pngBytes = bytes };
         File.WriteAllText(Path.Combine(root, "reference.json"), JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }));
@@ -131,6 +132,56 @@ internal static class Program
         {
             if (clock.Elapsed.TotalSeconds > 45 || cases.Count > 72 || bytes > 16 * 1024 * 1024)
                 throw new TimeoutException("Portable comparison budget exceeded.");
+        }
+    }
+
+    private static byte[] ReadStraightRgba(Bitmap bitmap)
+    {
+        byte[] result = new byte[checked(bitmap.Width * bitmap.Height * 4)];
+        BitmapData data = bitmap.LockBits(new Rectangle(0, 0, bitmap.Width, bitmap.Height),
+            ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        try
+        {
+            if (data.Width != bitmap.Width || data.Height != bitmap.Height ||
+                data.PixelFormat != PixelFormat.Format32bppArgb || data.Scan0 == IntPtr.Zero ||
+                Math.Abs((long)data.Stride) < bitmap.Width * 4L)
+                throw new InvalidOperationException("Unexpected complete straight-ARGB capture layout.");
+            byte[] row = new byte[checked(bitmap.Width * 4)];
+            for (int y = 0; y < bitmap.Height; y++)
+            {
+                Marshal.Copy(IntPtr.Add(data.Scan0, checked(y * data.Stride)), row, 0, row.Length);
+                for (int x = 0; x < bitmap.Width; x++)
+                {
+                    int source = x * 4, destination = (y * bitmap.Width + x) * 4;
+                    result[destination] = row[source + 2];
+                    result[destination + 1] = row[source + 1];
+                    result[destination + 2] = row[source];
+                    result[destination + 3] = row[source + 3];
+                }
+            }
+        }
+        finally { bitmap.UnlockBits(data); }
+        return result;
+    }
+
+    private static void ValidateBulkCapture()
+    {
+        using Bitmap probe = new(17, 17, PixelFormat.Format32bppArgb);
+        for (int y = 0; y < probe.Height; y++)
+        for (int x = 0; x < probe.Width; x++)
+        {
+            int index = y * probe.Width + x;
+            probe.SetPixel(x, y, Color.FromArgb(index % 256, index * 37 % 256, index * 71 % 256, index * 113 % 256));
+        }
+        byte[] captured = ReadStraightRgba(probe);
+        for (int y = 0; y < probe.Height; y++)
+        for (int x = 0; x < probe.Width; x++)
+        {
+            Color actual = probe.GetPixel(x, y);
+            int offset = (y * probe.Width + x) * 4;
+            if (captured[offset] != actual.R || captured[offset + 1] != actual.G ||
+                captured[offset + 2] != actual.B || captured[offset + 3] != actual.A)
+                throw new InvalidOperationException("Bulk capture changed original GetPixel channel values.");
         }
     }
 
