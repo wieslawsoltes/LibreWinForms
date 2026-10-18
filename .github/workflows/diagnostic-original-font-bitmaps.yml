@@ -1,0 +1,32 @@
+name: DIAGNOSTIC ONLY original GDI bitmap observation
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  reference:
+    name: Original GDI bitmap policies and unchanged 72 raster frames
+    runs-on: windows-11-arm
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: eng/OriginalFontBitmaps
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.201
+      - name: Capture original font bitmaps without input
+        shell: pwsh
+        run: ./eng/OriginalFontBitmaps/run.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: original-font-bitmaps-${{ github.sha }}-${{ github.run_id }}
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/font-bitmap-original/original/**
+            ${{ runner.temp }}/font-bitmap-original/*.log
+            ${{ runner.temp }}/font-bitmap-original/payload-hashes.json
+            eng/OriginalFontBitmaps/**
