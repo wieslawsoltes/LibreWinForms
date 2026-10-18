@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import shutil
 import urllib.request
+import urllib.parse
 import zipfile
 import xml.etree.ElementTree as ET
 
@@ -24,7 +25,17 @@ feed = root / 'feed'; feed.mkdir()
 archive = root / 'producer.zip'
 request = urllib.request.Request(artifact['archive_download_url'], headers={
     'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
-with urllib.request.urlopen(request, timeout=60) as response, archive.open('xb') as output:
+class ArtifactRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if urllib.parse.urlsplit(newurl).scheme != 'https':
+            raise RuntimeError('Insecure artifact redirect')
+        redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if redirected is not None:
+            redirected.remove_header('Authorization')
+        return redirected
+
+opener = urllib.request.build_opener(ArtifactRedirect())
+with opener.open(request, timeout=60) as response, archive.open('xb') as output:
     shutil.copyfileobj(response, output)
 def sha256(path):
     with path.open('rb') as data:
