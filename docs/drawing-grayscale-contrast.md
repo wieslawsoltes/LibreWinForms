@@ -19,6 +19,21 @@ own whole Build and original package comparison remain independent gates.
 These controls do not establish original Microsoft images or qualify the other
 raster families.
 
+The coordinated source graph subsequently advances to
+`905d52ac185278db60c312a709cf5aa045772dd5` from
+[ProGPU PR398](https://github.com/wieslawsoltes/ProGPU/pull/398). All 61 jobs in
+[Build39138606765](https://github.com/wieslawsoltes/ProGPU/actions/runs/39138606765)
+and all 76 head checks pass. This descendant retains the grayscale implementation
+and adds independent native Close enabled state required by LibreWPF. Forms and
+WPF must pin the same exact producer for canonical source integration; neither
+consumer may substitute an older nested producer. Source validation uses this
+commit's real staged Native/SDK, DX12 and Xlib payloads.
+
+The preceding Forms `96fab7db3d064b1d8b491093b3c3d13155df2ea7` candidate passes
+all ten jobs in Build39140416185 and all twelve checks. Its 19-package closure,
+source provenance and native payloads are verified. These results retain their
+original commit identity; the coordinated pin update requires fresh consumer CI.
+
 The complete Drawing source suite passes all 993 tests without skips using this
 exact producer and staged payload. The earlier source-only attempt had ten
 missing-native-library failures; its results remain retained separately. No old
