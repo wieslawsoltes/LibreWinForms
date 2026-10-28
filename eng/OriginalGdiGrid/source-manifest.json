@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "files": {
+    "global.json": "6e8ea1d80966e817f64f6eaf16fa6b1e9a682bb4bd4b05ff6a849498356390d6",
+    "reference/GdiGridReference.csproj": "7d4f76184347b4e7c7101b6cffaf019c242cddd496f8ecef22df605754331933",
+    "reference/Program.cs": "f74b7f296aab804450670b36d372036cbc76c394a7c2cb690eb5330ea65c3238",
+    "reference/GdiMemoryFont.cs": "5fd4c15c36304fa6bb3b03c7dea72fa987d11a19254970dbc239499f4700c4f6",
+    "run.py": "5a0b74353ec88ae6451e6e1bb65a1d5e095f37cd40c3a31f7657250033e6b74e",
+    "verify.py": "e63b5ea382590b9bc117a6990fa3bafb9ed76ac12de8788351cc538f6dc4832c",
+    "owned_process.py": "5b80cb85404fadc5db96c2893dfd6777ce57eaa2587c755d859be0b9b9f18618",
+    "test_guards.py": "974e81219432b3bc2882aa306f5716999c4a5fe1607db95bc29231ec78820bb8",
+    "workflow.yml": "1e6e1a66621b51627c11ec71c997f3928a41e24259ab17eac455cd496c5fd7ff"
+  },
+  "scope": "Original Microsoft-only offscreen GDI; no ProGPU dependency; no native input; no window creation"
+}
