@@ -1,0 +1,33 @@
+name: Original Segoe font identity observation
+on:
+  pull_request:
+    branches: [fix/portable-scrollbar-pointer]
+    paths: ['eng/SegoeFontMetadata/**', '.github/workflows/original-segoe-metadata.yml']
+permissions:
+  contents: read
+jobs:
+  original:
+    runs-on: windows-11-arm
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: eng/SegoeFontMetadata/global.json
+      - name: Original Microsoft only, no input or windows
+        shell: pwsh
+        env:
+          SEGOE_METADATA_EVIDENCE: ${{ github.workspace }}/artifacts/original-segoe-metadata
+        run: |
+          python eng/SegoeFontMetadata/run.py
+          if ($LASTEXITCODE -ne 0) { throw 'Original GDI observation failed; preserve outcome without retry.' }
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: original-segoe-metadata
+          path: |
+            artifacts/original-segoe-metadata
+            eng/SegoeFontMetadata
+          if-no-files-found: error

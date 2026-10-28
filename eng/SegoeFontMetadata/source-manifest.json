@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "files": {
+    ".gitattributes": "a79691a93b46e49ce460c26ef22afcc03d6eca1e63bf2edbc20e96159510f6c9",
+    "global.json": "6e8ea1d80966e817f64f6eaf16fa6b1e9a682bb4bd4b05ff6a849498356390d6",
+    "reference/SegoeMetadata.csproj": "25c88cf0e1575d80d5145d9b2d720dd34a99f3e2d0e578c001a1384f9f3c10f1",
+    "reference/Program.cs": "152c7ddaa6cb8902c686c7607cc6d2b5f3b74a21e6fa5c29d991f1dc545af439",
+    "reference/original.json": "3057450086c0fcfde0c07ddda86ae61c45c855b685715af260278429c5d0f426",
+    "run.py": "18fb8f1bfc00b2c89ad8f23067d0e6573f5e23e480619eb1e78037cf2fa8ecc6",
+    "verify.py": "fdbd658f0fd68bbaf9fb4a8400d2fe3e363eb165480214471039a1047fd6e298",
+    "owned_process.py": "5b80cb85404fadc5db96c2893dfd6777ce57eaa2587c755d859be0b9b9f18618",
+    "test_guards.py": "b35ca12dab5630cadc01f0696d717fd34d8779cdee5ab158f6ebb61f14fec458",
+    "workflow.yml": "0e7b5e38b738e36dc5d602e877f34cb04d77f4207edb50c01f91a951f7426ccf"
+  }
+}

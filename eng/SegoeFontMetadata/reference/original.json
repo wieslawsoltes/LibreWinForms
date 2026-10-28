@@ -1,0 +1,12 @@
+{
+  "artifactSha256": "57ef66ec9f8d20524426708179c81eae2c9afef876c6269ca784121aaedd62c2",
+  "fontSha256": "8134dbcd09e7b123c9a7f229d49cffbcb01352cc72ea5e1076b65d0dca9f73cd",
+  "fontBytes": 959752,
+  "selectedLogFontBase64": "9P///wAAAAAAAAAAAAAAAJABAAAAAAAAAAAAAFMAZQBnAG8AZQAgAFUASQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+  "fontName": "Segoe UI",
+  "points": 9,
+  "runtime": "10.0.13",
+  "os": "Microsoft Windows NT 10.0.26200.0",
+  "formsAssembly": "C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App\\10.0.12\\System.Windows.Forms.dll",
+  "drawingAssembly": "C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App\\10.0.12\\System.Drawing.Common.dll"
+}
