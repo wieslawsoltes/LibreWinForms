@@ -1,3 +1,12 @@
+Source Windows applications select the qualified producer's owned default runtime
+at the executable/test boundary, with one owner for its exact DLL, receipts and
+notices. Require both Windows payloads for portable Windows builds and the exact
+selected payload for an explicit RID; never silently retain stock assets after
+new producer capability is declared. Preserve legacy producers, Package mode,
+private native dependencies and explicit optional DX12 selection. Whole-producer
+staging and original application qualification remain separate; see
+docs/windows-source-runtime.md.
+
 Prepared native grid-fit paint selects explicit integer raster origins only for
 its already-admitted aliased coverage. Keep grayscale Auto, original source
 placements and ink bounds, cache identity, and GDI selection unchanged. The

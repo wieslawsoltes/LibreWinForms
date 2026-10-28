@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 
 
 ROOT = Path(__file__).resolve().parents[2]
-HELPER_COMMIT = "f9fc6aa1578a97cd6cf7ba8393c6cbd0cdba1b33"
+HELPER_COMMIT = "4ab76a8a111a1b176d66bcd332f2d65e1c7dabca"
 
 
 def drawing_package_ids():
@@ -116,7 +116,7 @@ class CanonicalNativeStagingTests(unittest.TestCase):
     def test_stages_exact_forms_progpu_checkout_not_wpf_prerequisite(self):
         status, arguments, root = self.run_step()
         self.assertEqual(status, 0)
-        self.assertEqual(arguments, ["a" * 40, root + "/external/ProGPU/artifacts/progpu-native/package", root + "/external/ProGPU/artifacts/progpu-dx12/package", root + "/external/ProGPU/artifacts/progpu-xlib/package"])
+        self.assertEqual(arguments, ["a" * 40, root + "/external/ProGPU/artifacts/progpu-native/package", root + "/external/ProGPU/artifacts/progpu-dx12/package", root + "/external/ProGPU/artifacts/progpu-xlib/package", root + "/external/ProGPU/artifacts/progpu-wgpu-windows/package", root + "/external/ProGPU"])
 
     def test_failed_qualification_stops_packaging(self):
         status, arguments, _ = self.run_step(helper_status=23)
@@ -137,11 +137,13 @@ class PackageNativeHelperIdentityTests(unittest.TestCase):
 
 
 class ReleaseNativeStagingTests(CanonicalNativeStagingTests):
-    helper_checkout_path = "artifacts/checkouts/wpf-canonical"
+    helper_checkout_path = "artifacts/checkouts/wpf-native-staging"
 
     def staging_step(self):
         workflow = (ROOT / ".github/workflows/librewinforms-release.yml").read_text()
         self.assertIn("permissions:\n  actions: read\n  contents: write\n", workflow)
+        self.assertIn("LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: " + HELPER_COMMIT, workflow)
+        self.assertIn("Checkout immutable LibreWPF native staging helper", workflow)
         names = ["Align canonical LibreWPF ProGPU checkout",
                  "Stage exact successful ProGPU native runtimes for canonical packaging",
                  "Build canonical WindowsFormsIntegration from LibreWPF source",
@@ -275,7 +277,7 @@ class SourceFirstNativeStagingTests(unittest.TestCase):
     def test_stages_exact_gitlink_into_actual_forms_progpu_checkout(self):
         status, arguments, root = self.run_step()
         self.assertEqual(status, 0)
-        self.assertEqual(arguments, ["a" * 40, root + "/external/ProGPU/artifacts/progpu-native/package", root + "/external/ProGPU/artifacts/progpu-dx12/package", root + "/external/ProGPU/artifacts/progpu-xlib/package"])
+        self.assertEqual(arguments, ["a" * 40, root + "/external/ProGPU/artifacts/progpu-native/package", root + "/external/ProGPU/artifacts/progpu-dx12/package", root + "/external/ProGPU/artifacts/progpu-xlib/package", root + "/external/ProGPU/artifacts/progpu-wgpu-windows/package", root + "/external/ProGPU"])
 
     def test_failed_producer_qualification_stops_packaging(self):
         status, arguments, _ = self.run_step(helper_status=23)
@@ -319,6 +321,24 @@ class SourceFirstNativeStagingTests(unittest.TestCase):
         packer = (ROOT / "eng/librewinforms-pack-source-first.sh").read_text()
         self.assertIn("PROGPU_PACKAGE_GROUP=drawing-runtime", packer)
         self.assertIn('"${repo_root}/external/ProGPU/eng/progpu-pack.sh"', packer)
+
+
+class WindowsSourceNativeStagingTests(SourceFirstNativeStagingTests):
+    def staging_step(self):
+        workflow = (ROOT / '.github/workflows/librewinforms-ci.yml').read_text()
+        job = workflow.split('\n  native-theme:\n', 1)[1].split('\n  automation-locale:\n', 1)[0]
+        self.assertIn('      actions: read\n', job)
+        self.assertIn('LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: ' + self.helper_commit, job)
+        checkout = job.split('      - name: Checkout immutable LibreWPF native staging helper\n', 1)[1].split('\n      - name:', 1)[0]
+        name = '      - name: Stage exact successful ProGPU native runtimes for Windows source tests\n'
+        self.assertLess(job.index(name), job.index('      - name: Build actual backend'))
+        step = job.split(name, 1)[1].split('\n      - name:', 1)[0]
+        for selected in (checkout, step):
+            self.assertIn("if: hashFiles('external/ProGPU/eng/progpu-wgpu-windows-runtime.py') != ''", selected)
+        self.assertIn('ref: ${{ env.LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT }}', checkout)
+        self.assertIn('GH_TOKEN: ${{ github.token }}', step)
+        self.assertNotIn('continue-on-error', step)
+        return '\n'.join(line[10:] for line in step.split('        run: |\n', 1)[1].splitlines())
 
 
 if __name__ == "__main__":

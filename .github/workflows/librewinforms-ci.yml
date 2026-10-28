@@ -20,6 +20,11 @@ jobs:
     name: Live Windows theme resource pixels
     runs-on: windows-11-arm
     timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    env:
+      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: 4ab76a8a111a1b176d66bcd332f2d65e1c7dabca
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,6 +36,39 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+      - name: Checkout immutable LibreWPF native staging helper
+        if: hashFiles('external/ProGPU/eng/progpu-wgpu-windows-runtime.py') != ''
+        uses: actions/checkout@v4
+        with:
+          repository: wieslawsoltes/LibreWPF
+          ref: ${{ env.LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT }}
+          path: artifacts/checkouts/wpf-native-staging
+          sparse-checkout: |
+            eng/progpu-stage-ci-native-runtimes.sh
+            eng/progpu-stage-release-native-packages.py
+          sparse-checkout-cone-mode: false
+      - name: Stage exact successful ProGPU native runtimes for Windows source tests
+        if: hashFiles('external/ProGPU/eng/progpu-wgpu-windows-runtime.py') != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git -C artifacts/checkouts/wpf-native-staging rev-parse HEAD)" = "${LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT}"
+          pinned_progpu_commit="$(git rev-parse HEAD:external/ProGPU)"
+          if [[ ! "${pinned_progpu_commit}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Forms must record a full ProGPU gitlink commit before native staging." >&2
+            exit 2
+          fi
+          test "$(git -C external/ProGPU rev-parse HEAD)" = "${pinned_progpu_commit}"
+          workspace_root="${GITHUB_WORKSPACE//\\//}"
+          ./artifacts/checkouts/wpf-native-staging/eng/progpu-stage-ci-native-runtimes.sh \
+            "${pinned_progpu_commit}" \
+            "${workspace_root}/external/ProGPU/artifacts/progpu-native/package" \
+            "${workspace_root}/external/ProGPU/artifacts/progpu-dx12/package" \
+            "${workspace_root}/external/ProGPU/artifacts/progpu-xlib/package" \
+            "${workspace_root}/external/ProGPU/artifacts/progpu-wgpu-windows/package" \
+            "${workspace_root}/external/ProGPU"
       - name: Build actual backend and run original full-frame controls without input
         shell: pwsh
         env:
@@ -76,6 +114,9 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+
+      - name: Verify source Windows runtime selection contracts
+        run: python3 -B eng/tests/test_windows_source_runtime.py
 
       - name: Verify actual automation helper locale arguments
         shell: bash
@@ -281,7 +322,7 @@ jobs:
       contents: read
       actions: read
     env:
-      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: f9fc6aa1578a97cd6cf7ba8393c6cbd0cdba1b33
+      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: 4ab76a8a111a1b176d66bcd332f2d65e1c7dabca
 
     steps:
       - name: Checkout
@@ -374,7 +415,9 @@ jobs:
             "${pinned_progpu_commit}" \
             "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-native/package" \
             "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-dx12/package" \
-            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-xlib/package"
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-xlib/package" \
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-wgpu-windows/package" \
+            "${GITHUB_WORKSPACE}/external/ProGPU"
 
       - name: Validate source application Linux runtime assets
         run: python3 eng/tests/test_xlib_source_assets.py --runtime-root external/ProGPU/artifacts/progpu-xlib/package
@@ -578,7 +621,7 @@ jobs:
       LIBREWINFORMS_BRIDGE_REF: librewpf-v0.1.0-preview.65
       # Use the fully qualified owning source, including Windows RID SDK isolation.
       LIBREWINFORMS_CANONICAL_WFI_REF: beef4c0b83571448fa5bf897fd66f68f3077fdb1
-      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: f9fc6aa1578a97cd6cf7ba8393c6cbd0cdba1b33
+      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: 4ab76a8a111a1b176d66bcd332f2d65e1c7dabca
 
     steps:
       - name: Checkout
@@ -656,7 +699,9 @@ jobs:
             "${qualified_progpu_commit}" \
             "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-native/package" \
             "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-dx12/package" \
-            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-xlib/package"
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-xlib/package" \
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-wgpu-windows/package" \
+            "${GITHUB_WORKSPACE}/external/ProGPU"
 
       - name: Build canonical WindowsFormsIntegration from LibreWPF source
         shell: bash

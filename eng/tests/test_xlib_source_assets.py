@@ -40,6 +40,11 @@ def main():
         selected = source / 'src/ProGPU.Backend/buildTransitive/ProGPU.Backend.targets'
         selected.parent.mkdir(parents=True)
         selected.write_bytes(target.read_bytes())
+        # New producers split their Windows target into a companion import;
+        # preserve that original source file without inventing a legacy file.
+        companion = target.with_name('ProGPU.Backend.Windows.targets')
+        if companion.is_file():
+            selected.with_name(companion.name).write_bytes(companion.read_bytes())
         (source / 'src/ProGPU.Backend/ProGPU.Backend.csproj').write_bytes(
             (args.progpu_root / 'src/ProGPU.Backend/ProGPU.Backend.csproj').read_bytes())
         stage = source / 'artifacts/progpu-xlib/package'
