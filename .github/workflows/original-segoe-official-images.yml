@@ -1,0 +1,39 @@
+name: Original Segoe identity on official x64 images
+on:
+  pull_request:
+    branches: [fix/portable-scrollbar-pointer]
+    paths: ['eng/SegoeOfficialImageInventory/**', '.github/workflows/original-segoe-official-images.yml']
+permissions:
+  contents: read
+jobs:
+  original:
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.image }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: eng/SegoeOfficialImageInventory/global.json
+      - name: Observe original Microsoft font metadata only
+        shell: pwsh
+        env:
+          SEGOE_METADATA_EVIDENCE: ${{ github.workspace }}/artifacts/original-segoe-${{ matrix.image }}
+          SEGOE_RUNNER_LABEL: ${{ matrix.image }}
+          SEGOE_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python eng/SegoeOfficialImageInventory/run.py
+          if ($LASTEXITCODE -ne 0) { throw 'Original metadata observation failed; retain outcome without retry.' }
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: original-segoe-${{ matrix.image }}
+          path: |
+            artifacts/original-segoe-${{ matrix.image }}
+            eng/SegoeOfficialImageInventory
+          if-no-files-found: error

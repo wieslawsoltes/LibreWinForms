@@ -15,3 +15,6 @@ src/test/integration/LibreWinForms.CanonicalLifecycle.Tests/TestAssets/original-
 
 # Preserve the original native observation bytes used by the fixture hash.
 src/LibreWinForms.ProGPU/tests/Fixtures/WindowsThemeSizingReference/reference.json -text whitespace=cr-at-eol
+
+/eng/SegoeOfficialImageInventory/** -text
+/.github/workflows/original-segoe-official-images.yml -text

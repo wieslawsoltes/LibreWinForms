@@ -1,0 +1,31 @@
+Bounded official Windows image font identity inventory
+
+Purpose: determine whether either official windows-2022 or windows-2025 x64 image
+selects the retained historical Segoe UI SHA8134dbcd09e7b123c9a7f229d49cffbcb01352cc72ea5e1076b65d0dca9f73cd.
+This is metadata discovery, not reference substitution or renderer qualification.
+
+Reuse byte-identical prior Program.cs, project, original.json, metadata verifier
+and owned-process harness. Run two original recipes (Font.ToHfont and exact saved
+LOGFONT) once per image. Both retain 15-second app/30-second owned-process limits,
+600-second build limit, 15-minute job. Fixed two-image matrix, no retries; attempt1
+only. No GPU, visible windows, input, VM access, font installation or font upload.
+Only raw LOGFONT/name/version/hash/metrics metadata and framework/module identities
+are retained. Current installed matching segoeui.ttf is hashed, never uploaded.
+
+Preparation changes are win-x64 publication, actual AMD64 PE admission, verified
+head/runner label/architecture and recorded hosted image identifiers. Build occurs
+in a fresh owned temporary directory outside repository build props/feed settings.
+The original Microsoft app source, selection recipes and cleanup remain unchanged.
+Successful metadata collection with a different font remains an observed mismatch.
+A matching font only identifies a possible original64 host; it does not admit a
+new font, qualify source pixels, replace an ARM64 observation or validate packages.
+
+Publish diagnostic-only files on a temporary PR based on current Forms
+fix/portable-scrollbar-pointer. Restrict workflow to that base/path; preserve every
+terminal outcome before closing unmerged and deleting only its expected-head ref.
+Root review required before dispatch. Original64 remains unchanged and unexecuted.
+
+Final preparation guard: informational git rev-parse and dotnet --info each have a
+30-second subprocess timeout. This adds no renderer/workload and does not alter
+the original app or owned-process limits. Root approved publication; independent
+popup source review found no blocker.

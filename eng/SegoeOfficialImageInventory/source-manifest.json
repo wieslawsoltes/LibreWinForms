@@ -1,0 +1,13 @@
+{
+  "files": {
+    "global.json": "6e8ea1d80966e817f64f6eaf16fa6b1e9a682bb4bd4b05ff6a849498356390d6",
+    "owned_process.py": "5b80cb85404fadc5db96c2893dfd6777ce57eaa2587c755d859be0b9b9f18618",
+    "reference/Program.cs": "152c7ddaa6cb8902c686c7607cc6d2b5f3b74a21e6fa5c29d991f1dc545af439",
+    "reference/SegoeMetadata.csproj": "25c88cf0e1575d80d5145d9b2d720dd34a99f3e2d0e578c001a1384f9f3c10f1",
+    "reference/original.json": "3057450086c0fcfde0c07ddda86ae61c45c855b685715af260278429c5d0f426",
+    "run.py": "a1d4a92a39abe74af5edad7cebc0c5c4e3c82a7cef5d7d49e0deca2b98411eb8",
+    "test_guards.py": "1fbaca7913768358d3c393879143093d678301e524e90739c958f552d9d23fcf",
+    "verify.py": "fdbd658f0fd68bbaf9fb4a8400d2fe3e363eb165480214471039a1047fd6e298",
+    "workflow.yml": "147c19335abd0eb252561b646c072b713831d06617adbe14645d85b4093adc5f"
+  }
+}
