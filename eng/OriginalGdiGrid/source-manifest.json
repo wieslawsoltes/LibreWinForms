@@ -9,7 +9,8 @@
     "verify.py": "e63b5ea382590b9bc117a6990fa3bafb9ed76ac12de8788351cc538f6dc4832c",
     "owned_process.py": "5b80cb85404fadc5db96c2893dfd6777ce57eaa2587c755d859be0b9b9f18618",
     "test_guards.py": "974e81219432b3bc2882aa306f5716999c4a5fe1607db95bc29231ec78820bb8",
-    "workflow.yml": "1e6e1a66621b51627c11ec71c997f3928a41e24259ab17eac455cd496c5fd7ff"
+    "workflow.yml": "1e6e1a66621b51627c11ec71c997f3928a41e24259ab17eac455cd496c5fd7ff",
+    ".gitattributes": "a79691a93b46e49ce460c26ef22afcc03d6eca1e63bf2edbc20e96159510f6c9"
   },
   "scope": "Original Microsoft-only offscreen GDI; no ProGPU dependency; no native input; no window creation"
 }
