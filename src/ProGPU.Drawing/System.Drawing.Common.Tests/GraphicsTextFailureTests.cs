@@ -41,15 +41,21 @@ public sealed class GraphicsTextFailureTests
         });
         Assert.Same(brush.Failure, failure);
         var text = context.Commands.Skip(start).ToArray();
-        Assert.Equal(1, text.Count(c => c.Type == RenderCommandType.PushClip));
-        Assert.Equal(1, text.Count(c => c.Type == RenderCommandType.PopClip));
-        Assert.Equal(RenderCommandType.PopClip, text[^1].Type);
+        if (failingConversion == 1)
+            Assert.Empty(text); // Whole-paint preparation fails before its clip exists.
+        else
+        {
+            Assert.Equal(1, text.Count(c => c.Type == RenderCommandType.PushClip));
+            Assert.Equal(1, text.Count(c => c.Type == RenderCommandType.PopClip));
+            Assert.Equal(RenderCommandType.PopClip, text[^1].Type);
+        }
         Assert.Equal(failingConversion == 2, text.Any(c => c.Type == RenderCommandType.DrawGlyphRun));
         using var good = new SolidBrush(Color.Red);
         graphics.FillRectangle(good, 160, 60, 10, 10);
         Assert.Equal(RenderCommandType.DrawRect, context.Commands[^1].Type);
         context.PopClip();
-        Assert.Equal(2, context.Commands.Count(c => c.Type == RenderCommandType.PopClip));
+        Assert.Equal(failingConversion == 1 ? 1 : 2,
+            context.Commands.Count(c => c.Type == RenderCommandType.PopClip));
     }
 
     [Theory]

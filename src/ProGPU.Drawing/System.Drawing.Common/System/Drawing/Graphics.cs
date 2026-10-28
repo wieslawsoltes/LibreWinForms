@@ -3428,29 +3428,34 @@ public partial class Graphics :
             : GetRectangleAlignmentOffset(formatted.Layout.ContentSize.Y, layoutRectangle.Height, format.LineAlignment);
         var origin = new Vector2(layoutRectangle.X + offsetX, layoutRectangle.Y + offsetY);
         var transform = CurrentTransform4x4();
+        PreparedDrawingGlyphRun[] runs = PrepareDrawingGlyphRuns(formatted.Layout);
+        float fontSize = GetFontPixelSize(font);
+        PreparedDrawingGlyphPaint prepared = PrepareDrawingGlyphPaint(runs, font.Style,
+            fontSize, brush, origin, transform, sourcePolicy, sourceGdiText, gdiPolicy);
         bool useClip = !pointAnchor && (flags & StringFormatFlags.NoClip) == 0;
-        if (useClip)
-        {
-            _context.PushClip(
-                new Rect(layoutRectangle.X, layoutRectangle.Y, layoutRectangle.Width, layoutRectangle.Height),
-                transform);
-        }
-
+        bool clipPushed = false;
+        Exception? primary = null;
         try
         {
-            DrawFormattedGlyphRuns(formatted.Layout, font, brush, origin, transform, sourcePolicy, sourceGdiText, gdiPolicy);
+            if (useClip)
+            {
+                _context.PushClip(
+                    new Rect(layoutRectangle.X, layoutRectangle.Y, layoutRectangle.Width, layoutRectangle.Height),
+                    transform);
+                clipPushed = true;
+            }
+            DrawPreparedGlyphRuns(runs, font.Style, fontSize, origin, transform, sourceGdiText, prepared);
             DrawFontDecorations(formatted.Layout, font, brush, origin, transform);
             if (formatted.MnemonicIndex >= 0)
             {
                 DrawMnemonicUnderline(formatted.Layout, formatted.MnemonicIndex, brush, origin, transform);
             }
         }
+        catch (Exception failure) { primary = failure; throw; }
         finally
         {
-            if (useClip)
-            {
-                _context.PopClip();
-            }
+            try { ReleaseNativeGlyphPaint(prepared.Native, primary); }
+            finally { if (clipPushed) _context.PopClip(); }
         }
     }
 
@@ -3510,7 +3515,14 @@ public partial class Graphics :
         DrawingGdiPlusTextPolicy? sourcePolicy,
         bool sourceGdiText = false, DrawingGdiTextPolicy? gdiPolicy = null)
     {
-        DrawPreparedGlyphRuns(PrepareDrawingGlyphRuns(layout), font.Style, GetFontPixelSize(font), brush, origin, transform, sourcePolicy, sourceGdiText, gdiPolicy);
+        PreparedDrawingGlyphRun[] runs = PrepareDrawingGlyphRuns(layout);
+        float fontSize = GetFontPixelSize(font);
+        PreparedDrawingGlyphPaint prepared = PrepareDrawingGlyphPaint(runs, font.Style,
+            fontSize, brush, origin, transform, sourcePolicy, sourceGdiText, gdiPolicy);
+        Exception? primary = null;
+        try { DrawPreparedGlyphRuns(runs, font.Style, fontSize, origin, transform, sourceGdiText, prepared); }
+        catch (Exception failure) { primary = failure; throw; }
+        finally { ReleaseNativeGlyphPaint(prepared.Native, primary); }
     }
 
     private static PreparedDrawingGlyphRun[] PrepareDrawingGlyphRuns(ProGPU.Text.TextLayout layout)
@@ -3540,7 +3552,11 @@ public partial class Graphics :
         return runs;
     }
 
-    private void DrawPreparedGlyphRuns(PreparedDrawingGlyphRun[] runs, FontStyle style,
+    private readonly record struct PreparedDrawingGlyphPaint(
+        NativeDrawingGlyphPaint[]? Native, ProGPU.Vector.Brush Brush,
+        TextRenderingMode Coverage, ProGPU.Backend.GlyphCoverageTransfer CoverageTransfer);
+
+    private PreparedDrawingGlyphPaint PrepareDrawingGlyphPaint(PreparedDrawingGlyphRun[] runs, FontStyle style,
         float fontSize, Brush brush, Vector2 origin, Matrix4x4 transform, DrawingGdiPlusTextPolicy? sourcePolicy, bool sourceGdiText,
         DrawingGdiTextPolicy? gdiPolicy = null)
     {
@@ -3555,8 +3571,6 @@ public partial class Graphics :
         // not yet select font execution, RGB filtering or system-dependent coverage.
         TextRenderingHint sourceHint = sourcePolicy?.Hint ?? TextRenderingHint;
         int sourceContrast = sourcePolicy?.TextContrast ?? _textContrast;
-        bool isBold = (style & FontStyle.Bold) != 0;
-        bool isItalic = (style & FontStyle.Italic) != 0;
         var nativeBrush = TransformBrush(brush);
         // GDI's source font quality has independent semantics: Proof/Draft do
         // not mean GDI+ binary coverage. Do not change that path by enum alias.
@@ -3572,41 +3586,48 @@ public partial class Graphics :
             ? ProGPU.Backend.GlyphCoverageTransfer.GdiPlusGrayscale(sourceContrast) : default;
         NativeDrawingGlyphPaint[]? native = PrepareNativeGlyphPaint(
             runs, style, fontSize, nativeBrush, origin, transform, sourceGdiText);
-        Exception? primary = null;
-        try
+        return new(native, nativeBrush, coverage, coverageTransfer);
+    }
+
+    private void DrawPreparedGlyphRuns(PreparedDrawingGlyphRun[] runs, FontStyle style,
+        float fontSize, Vector2 origin, Matrix4x4 transform, bool sourceGdiText,
+        PreparedDrawingGlyphPaint prepared)
+    {
+        NativeDrawingGlyphPaint[]? native = prepared.Native;
+        ProGPU.Vector.Brush nativeBrush = prepared.Brush;
+        TextRenderingMode coverage = prepared.Coverage;
+        ProGPU.Backend.GlyphCoverageTransfer coverageTransfer = prepared.CoverageTransfer;
+        bool isBold = (style & FontStyle.Bold) != 0;
+        bool isItalic = (style & FontStyle.Italic) != 0;
+        for (int index = 0; index < runs.Length; index++)
         {
-            for (int index = 0; index < runs.Length; index++)
+            if (native?[index].Use is { } use)
             {
-                if (native?[index].Use is { } use)
-                {
-                    _context.DrawHintedGlyphsWithRasterOrigin(use.Geometry, origin, native[index].InkBounds,
-                        nativeBrush, native[index].Coverage == TextRenderingMode.Aliased
-                            ? TextHintingMode.IntegerPixel : TextHintingMode.Auto,
-                        transform, native[index].Coverage,
-                        glyphCoverageTransfer: native[index].Coverage == TextRenderingMode.Grayscale
-                            ? coverageTransfer : default);
-                    continue;
-                }
-                PreparedDrawingGlyphRun run = runs[index];
-                bool integerOrigin = UsesIntegerGlyphRasterOrigin(run.Font, style, transform, sourceGdiText);
-                _context.DrawGlyphRun(
-                    run.GlyphIndices,
-                    run.GlyphPositions,
-                    run.Font,
-                    fontSize,
-                    nativeBrush,
-                    origin,
-                    transform,
-                    isBold,
-                    isItalic,
-                    textRenderingMode: coverage,
-                    textHintingMode: integerOrigin ? TextHintingMode.IntegerPixel : TextHintingMode.Auto,
-                    preferGlyphAtlas: integerOrigin,
-                    glyphCoverageTransfer: coverageTransfer);
+                _context.DrawHintedGlyphsWithRasterOrigin(use.Geometry, origin, native[index].InkBounds,
+                    nativeBrush, native[index].Coverage == TextRenderingMode.Aliased
+                        ? TextHintingMode.IntegerPixel : TextHintingMode.Auto,
+                    transform, native[index].Coverage,
+                    glyphCoverageTransfer: native[index].Coverage == TextRenderingMode.Grayscale
+                        ? coverageTransfer : default);
+                continue;
             }
+            PreparedDrawingGlyphRun run = runs[index];
+            bool integerOrigin = UsesIntegerGlyphRasterOrigin(run.Font, style, transform, sourceGdiText);
+            _context.DrawGlyphRun(
+                run.GlyphIndices,
+                run.GlyphPositions,
+                run.Font,
+                fontSize,
+                nativeBrush,
+                origin,
+                transform,
+                isBold,
+                isItalic,
+                textRenderingMode: coverage,
+                textHintingMode: integerOrigin ? TextHintingMode.IntegerPixel : TextHintingMode.Auto,
+                preferGlyphAtlas: integerOrigin,
+                glyphCoverageTransfer: coverageTransfer);
         }
-        catch (Exception failure) { primary = failure; throw; }
-        finally { ReleaseNativeGlyphPaint(native, primary); }
     }
 
     private void DrawFontDecorations(

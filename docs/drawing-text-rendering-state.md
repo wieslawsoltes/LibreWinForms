@@ -62,3 +62,16 @@ font/size policy, monochrome dropout, contrast and source GDI quality selection.
 ClearType pixel parity, system font-smoothing selection, busy-HDC behavior and
 original package/application captures remain separate requirements in
 [issue #174](https://github.com/wieslawsoltes/LibreWinForms/issues/174).
+
+Whole-paint preflight now resolves the transformed glyph brush and prepares every
+admitted native glyph generation before publishing the layout clip. A malformed
+original `gasp` table previously recorded an empty PushClip/PopClip pair before
+rejection in both immediate and retained paint; the new controls require no
+commands at all. This does not roll back glyphs after a later decoration failure.
+The paint scope retains each prepared native generation until recording ends and
+releases it once on success or failure, including a failure to push the clip.
+Existing source placements, metrics, hint selection and retained-command owners
+are unchanged. Successful controls retain clip/glyph/decoration/pop ordering;
+the first failed brush conversion publishes nothing, while a later conversion
+still retires only the clip owned by that draw. Original raster and package
+qualification remain independent.

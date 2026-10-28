@@ -1,3 +1,11 @@
+Text paint preflights its complete admitted native generation and transformed
+glyph brush before publishing a layout clip. Preserve exact source placements,
+existing raster admission, original exceptions and independently retained command
+owners. Release prepared caller leases exactly once across successful recording,
+failed clip creation and later decoration failures; do not roll back already
+recorded glyphs or pop a caller's outer clip. See
+docs/drawing-text-rendering-state.md.
+
 Raw text-system observations retain each original host word and independent query
 availability. Keep requested GDI quality separate from GDI+ hint/contrast and
 observe settings once at actual paint, before clips or command publication, never

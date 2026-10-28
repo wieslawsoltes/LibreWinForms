@@ -61,13 +61,20 @@ public partial class Graphics
         DrawingGdiPlusTextPolicy? sourcePolicy = layout.SourceGdiText ? null : CaptureGdiPlusTextPolicy();
         Vector2 origin = new Vector2(location.X, location.Y) + layout.Offset;
         Matrix4x4 transform = CurrentTransform4x4();
-        if (layout.Clip)
-            _context.PushClip(new Rect(location.X, location.Y, layout.LayoutSize.Width, layout.LayoutSize.Height), transform);
+        DrawingGdiTextPolicy? policy = capturedPolicy ?? (layout.RequestedGdiQuality is { } quality
+            ? new DrawingGdiTextPolicy(quality, systemSettings) : null);
+        PreparedDrawingGlyphPaint prepared = PrepareDrawingGlyphPaint(layout.Runs, layout.Style,
+            layout.FontSize, brush, origin, transform, sourcePolicy, layout.SourceGdiText, policy);
+        bool clipPushed = false;
+        Exception? primary = null;
         try
         {
-            DrawingGdiTextPolicy? policy = capturedPolicy ?? (layout.RequestedGdiQuality is { } quality
-                ? new DrawingGdiTextPolicy(quality, systemSettings) : null);
-            DrawPreparedGlyphRuns(layout.Runs, layout.Style, layout.FontSize, brush, origin, transform, sourcePolicy, layout.SourceGdiText, policy);
+            if (layout.Clip)
+            {
+                _context.PushClip(new Rect(location.X, location.Y, layout.LayoutSize.Width, layout.LayoutSize.Height), transform);
+                clipPushed = true;
+            }
+            DrawPreparedGlyphRuns(layout.Runs, layout.Style, layout.FontSize, origin, transform, layout.SourceGdiText, prepared);
             if (layout.Decorations.Length != 0)
             {
                 var nativeBrush = TransformBrush(brush);
@@ -75,9 +82,11 @@ public partial class Graphics
                     _context.DrawRectangle(nativeBrush, null, decoration.Place(origin), transform);
             }
         }
+        catch (Exception failure) { primary = failure; throw; }
         finally
         {
-            if (layout.Clip) _context.PopClip();
+            try { ReleaseNativeGlyphPaint(prepared.Native, primary); }
+            finally { if (clipPushed) _context.PopClip(); }
         }
     }
 }
