@@ -24,7 +24,7 @@ jobs:
       contents: read
       actions: read
     env:
-      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: 4ab76a8a111a1b176d66bcd332f2d65e1c7dabca
+      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: 065e8cc0c027566f1316169063ba92f14fa715fb
     steps:
       - uses: actions/checkout@v4
         with:
@@ -322,7 +322,7 @@ jobs:
       contents: read
       actions: read
     env:
-      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: 4ab76a8a111a1b176d66bcd332f2d65e1c7dabca
+      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: 065e8cc0c027566f1316169063ba92f14fa715fb
 
     steps:
       - name: Checkout
@@ -621,7 +621,7 @@ jobs:
       LIBREWINFORMS_BRIDGE_REF: librewpf-v0.1.0-preview.65
       # Use the fully qualified owning source, including Windows RID SDK isolation.
       LIBREWINFORMS_CANONICAL_WFI_REF: beef4c0b83571448fa5bf897fd66f68f3077fdb1
-      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: 4ab76a8a111a1b176d66bcd332f2d65e1c7dabca
+      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: 065e8cc0c027566f1316169063ba92f14fa715fb
 
     steps:
       - name: Checkout

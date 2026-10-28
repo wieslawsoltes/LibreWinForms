@@ -33,7 +33,7 @@ These controls do not qualify a new producer, native rendering, packages or
 original application pixels. The existing ProGPU pin remains unchanged.
 
 CI and Release stage through immutable LibreWPF helper commit
-`4ab76a8a111a1b176d66bcd332f2d65e1c7dabca`. The six arguments retain the original
+`065e8cc0c027566f1316169063ba92f14fa715fb`. The six arguments retain the original
 ProGPU commit, native, optional DX12 and Xlib destinations and add the Windows
 destination plus the exact producer source root. The helper verifies committed
 capability and unchanged verifier inputs, accepts legacy producers only when no
@@ -42,3 +42,9 @@ own verifier before publication. Release uses this helper independently of the
 selected canonical WPF source ref, including older-tag recovery. The Windows
 theme source job stages only when its selected producer declares this capability;
 its original no-input fixture and deadlines are unchanged.
+
+This helper serializes Linux package inventory names with forward slashes on
+every host. Windows path separators therefore cannot reject the same valid
+two-architecture payload; exact member sets, original hashes, producer receipts
+and ELF checks remain required. The producer pin and canonical WPF source are
+independent of this staging-only correction.

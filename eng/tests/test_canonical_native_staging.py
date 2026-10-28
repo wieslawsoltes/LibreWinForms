@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 
 
 ROOT = Path(__file__).resolve().parents[2]
-HELPER_COMMIT = "4ab76a8a111a1b176d66bcd332f2d65e1c7dabca"
+HELPER_COMMIT = "065e8cc0c027566f1316169063ba92f14fa715fb"
 
 
 def drawing_package_ids():
