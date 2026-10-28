@@ -2857,12 +2857,13 @@ public partial class Graphics :
             layout.Glyphs[index] = glyph;
         }
 
+        DrawingGdiPlusTextPolicy sourcePolicy = CaptureGdiPlusTextPolicy();
         DrawFormattedGlyphRuns(
             layout,
             font,
             brush,
             new Vector2(x, y),
-            CurrentTransform4x4());
+            CurrentTransform4x4(), sourcePolicy);
         DrawFontDecorations(
             layout,
             font,
@@ -2945,12 +2946,13 @@ public partial class Graphics :
             layout.Glyphs[index] = glyph;
         }
 
+        DrawingGdiPlusTextPolicy sourcePolicy = CaptureGdiPlusTextPolicy();
         DrawFormattedGlyphRuns(
             layout,
             font,
             brush,
             new Vector2(x, y),
-            CurrentTransform4x4());
+            CurrentTransform4x4(), sourcePolicy);
     }
 
     internal void DrawGlyphIndicesWithCharacterAdvances(
@@ -3095,9 +3097,10 @@ public partial class Graphics :
             layout.Glyphs[lastIndex] = last;
         }
 
+        DrawingGdiPlusTextPolicy sourcePolicy = CaptureGdiPlusTextPolicy();
         Vector2 origin = new(x, y);
         Matrix4x4 transform = CurrentTransform4x4();
-        DrawFormattedGlyphRuns(layout, font, brush, origin, transform);
+        DrawFormattedGlyphRuns(layout, font, brush, origin, transform, sourcePolicy);
         DrawFontDecorations(layout, font, brush, origin, transform);
     }
 
@@ -3414,6 +3417,7 @@ public partial class Graphics :
             return;
         }
 
+        DrawingGdiPlusTextPolicy? sourcePolicy = sourceGdiText ? null : CaptureGdiPlusTextPolicy();
         StringFormatFlags flags = format.FormatFlags;
         bool rightToLeft = (flags & StringFormatFlags.DirectionRightToLeft) != 0;
         float offsetX = pointAnchor
@@ -3434,7 +3438,7 @@ public partial class Graphics :
 
         try
         {
-            DrawFormattedGlyphRuns(formatted.Layout, font, brush, origin, transform, sourceGdiText, gdiPolicy);
+            DrawFormattedGlyphRuns(formatted.Layout, font, brush, origin, transform, sourcePolicy, sourceGdiText, gdiPolicy);
             DrawFontDecorations(formatted.Layout, font, brush, origin, transform);
             if (formatted.MnemonicIndex >= 0)
             {
@@ -3503,9 +3507,10 @@ public partial class Graphics :
         Brush brush,
         Vector2 origin,
         Matrix4x4 transform,
+        DrawingGdiPlusTextPolicy? sourcePolicy,
         bool sourceGdiText = false, DrawingGdiTextPolicy? gdiPolicy = null)
     {
-        DrawPreparedGlyphRuns(PrepareDrawingGlyphRuns(layout), font.Style, GetFontPixelSize(font), brush, origin, transform, sourceGdiText, gdiPolicy);
+        DrawPreparedGlyphRuns(PrepareDrawingGlyphRuns(layout), font.Style, GetFontPixelSize(font), brush, origin, transform, sourcePolicy, sourceGdiText, gdiPolicy);
     }
 
     private static PreparedDrawingGlyphRun[] PrepareDrawingGlyphRuns(ProGPU.Text.TextLayout layout)
@@ -3536,7 +3541,7 @@ public partial class Graphics :
     }
 
     private void DrawPreparedGlyphRuns(PreparedDrawingGlyphRun[] runs, FontStyle style,
-        float fontSize, Brush brush, Vector2 origin, Matrix4x4 transform, bool sourceGdiText,
+        float fontSize, Brush brush, Vector2 origin, Matrix4x4 transform, DrawingGdiPlusTextPolicy? sourcePolicy, bool sourceGdiText,
         DrawingGdiTextPolicy? gdiPolicy = null)
     {
         if (gdiPolicy is { } policy)
@@ -3546,6 +3551,10 @@ public partial class Graphics :
             // The exact source request reaches the paint boundary. It must not
             // select raster modes until their independent qualification exists.
         }
+        // Preserve source GDI+ identity at actual paint. These observations do
+        // not yet select font execution, RGB filtering or system-dependent coverage.
+        TextRenderingHint sourceHint = sourcePolicy?.Hint ?? TextRenderingHint;
+        int sourceContrast = sourcePolicy?.TextContrast ?? _textContrast;
         bool isBold = (style & FontStyle.Bold) != 0;
         bool isItalic = (style & FontStyle.Italic) != 0;
         var nativeBrush = TransformBrush(brush);
@@ -3554,13 +3563,13 @@ public partial class Graphics :
         // This selects coverage only; native font execution and dropout policy
         // remain separate from the compositor's sampling/hinting controls.
         TextRenderingMode coverage = !sourceGdiText &&
-            TextRenderingHint is TextRenderingHint.SingleBitPerPixel or TextRenderingHint.SingleBitPerPixelGridFit
+            sourceHint is TextRenderingHint.SingleBitPerPixel or TextRenderingHint.SingleBitPerPixelGridFit
             ? TextRenderingMode.Aliased : TextRenderingMode.Grayscale;
         // GDI+ grayscale contrast belongs to each draw's coverage, not to the
         // font cache, layout, GDI quality, or ordinary ClearType policy.
         ProGPU.Backend.GlyphCoverageTransfer coverageTransfer = !sourceGdiText &&
-            TextRenderingHint is TextRenderingHint.AntiAlias or TextRenderingHint.AntiAliasGridFit
-            ? ProGPU.Backend.GlyphCoverageTransfer.GdiPlusGrayscale(_textContrast) : default;
+            sourceHint is TextRenderingHint.AntiAlias or TextRenderingHint.AntiAliasGridFit
+            ? ProGPU.Backend.GlyphCoverageTransfer.GdiPlusGrayscale(sourceContrast) : default;
         NativeDrawingGlyphPaint[]? native = PrepareNativeGlyphPaint(
             runs, style, fontSize, nativeBrush, origin, transform, sourceGdiText);
         Exception? primary = null;
@@ -5379,6 +5388,9 @@ public partial class Graphics :
         {
             return;
         }
+
+        _captureTextSystemSettings = null;
+        _textSystemSettingsIdentity = null;
 
         if (_hasPushedClip)
         {

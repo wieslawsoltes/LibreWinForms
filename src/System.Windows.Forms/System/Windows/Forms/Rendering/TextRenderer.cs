@@ -619,6 +619,10 @@ public static class TextRenderer
         Graphics graphics, string text, Font font, Size size, TextFormatFlags flags)
     {
         using Font? realizedFont = CreatePortableTextFont(font);
+        if (service is ILibreGdiTextSnapshotLayoutService snapshotService)
+            return snapshotService.CreateLayoutWithSystemSnapshot(graphics, text, realizedFont!, size,
+                GetPortableTextFormat(flags), (DrawingGdiFontQuality)FontQualityFromTextRenderingHint(graphics),
+                CapturePortableTextSystemSettings);
         return service is ILibreGdiTextLayoutService typed
             ? typed.CreateLayout(graphics, text, realizedFont!, size, GetPortableTextFormat(flags),
                 (DrawingGdiFontQuality)FontQualityFromTextRenderingHint(graphics), CapturePortableGdiSettings)
@@ -647,7 +651,22 @@ public static class TextRenderer
     }
 
     internal static DrawingGdiTextPolicy CapturePortableGdiPolicy(Graphics graphics)
-        => new((DrawingGdiFontQuality)FontQualityFromTextRenderingHint(graphics), CapturePortableGdiSettings());
+        => DrawingGdiTextPolicy.FromSystemSnapshot(
+            (DrawingGdiFontQuality)FontQualityFromTextRenderingHint(graphics), CapturePortableTextSystemSettings());
+
+    private static DrawingTextSystemSettings? CapturePortableTextSystemSettings()
+    {
+        if (!LibrePlatform.IsRegistered) return null;
+        ILibreSystemSettingsService settings = LibrePlatform.Current.SystemSettings;
+        if (settings is ILibreTextSystemSettingsService observed)
+            return observed.CaptureTextSystemSettings();
+        if (ReferenceEquals(settings, DefaultLibreSystemSettingsService.Instance))
+            return DrawingTextSystemPolicy.CaptureCurrentSystemSettings();
+        // Legacy custom settings keep their existing three property reads and
+        // unknown orientation; do not invent native observations for that owner.
+        return new(settings.FontSmoothingEnabled ? 1U : 0U,
+            unchecked((uint)settings.FontSmoothingType), unchecked((uint)settings.FontSmoothingContrast), null);
+    }
 
     private static DrawingGdiSystemSettings? CapturePortableGdiSettings()
     {

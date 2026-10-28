@@ -72,7 +72,7 @@ public partial class CanonicalLifecycleTests
     }
 
     [Fact]
-    public void CanonicalGdiCompatibilityDefaultsRemainUnknown()
+    public void CanonicalGdiCompatibilityDefaultsUseOnlyObservedHostValues()
     {
         if (RunDpiCaseInNewProcess()) return;
         var probe = new GdiQualityProbe();
@@ -85,7 +85,9 @@ public partial class CanonicalLifecycleTests
         using Graphics graphics = Graphics.FromProGpuDrawingContext(context);
         using Font font = new(FontFamily.GenericSansSerif, 13);
         TextRenderer.DrawText(graphics, "Name", font, Point.Empty, Color.Black);
-        Assert.Null(Assert.Single(probe.Policies).SystemSettings);
+        DrawingGdiTextPolicy captured = Assert.Single(probe.Policies);
+        if (OperatingSystem.IsWindows()) Assert.NotNull(captured.SystemSnapshot);
+        else Assert.Null(captured.SystemSnapshot);
     }
 
     [Fact]

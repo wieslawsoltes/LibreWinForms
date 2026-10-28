@@ -51,22 +51,23 @@ public partial class Graphics
     }
 
     internal void DrawRetainedTextLayout(DrawingTextLayout layout, Brush brush, PointF location,
-        DrawingGdiSystemSettings? systemSettings = null)
+        DrawingGdiSystemSettings? systemSettings = null, DrawingGdiTextPolicy? capturedPolicy = null)
     {
         EnsureNotDisposed();
         if (DpiX != layout.DpiX || DpiY != layout.DpiY)
             throw new InvalidOperationException("Recreate the retained text layout for the current target DPI.");
         if (!float.IsFinite(location.X) || !float.IsFinite(location.Y))
             throw new ArgumentOutOfRangeException(nameof(location));
+        DrawingGdiPlusTextPolicy? sourcePolicy = layout.SourceGdiText ? null : CaptureGdiPlusTextPolicy();
         Vector2 origin = new Vector2(location.X, location.Y) + layout.Offset;
         Matrix4x4 transform = CurrentTransform4x4();
         if (layout.Clip)
             _context.PushClip(new Rect(location.X, location.Y, layout.LayoutSize.Width, layout.LayoutSize.Height), transform);
         try
         {
-            DrawingGdiTextPolicy? policy = layout.RequestedGdiQuality is { } quality
-                ? new DrawingGdiTextPolicy(quality, systemSettings) : null;
-            DrawPreparedGlyphRuns(layout.Runs, layout.Style, layout.FontSize, brush, origin, transform, layout.SourceGdiText, policy);
+            DrawingGdiTextPolicy? policy = capturedPolicy ?? (layout.RequestedGdiQuality is { } quality
+                ? new DrawingGdiTextPolicy(quality, systemSettings) : null);
+            DrawPreparedGlyphRuns(layout.Runs, layout.Style, layout.FontSize, brush, origin, transform, sourcePolicy, layout.SourceGdiText, policy);
             if (layout.Decorations.Length != 0)
             {
                 var nativeBrush = TransformBrush(brush);

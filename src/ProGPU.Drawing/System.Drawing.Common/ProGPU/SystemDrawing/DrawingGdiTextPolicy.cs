@@ -28,7 +28,29 @@ public readonly record struct DrawingGdiTextPolicy
         ValidateQuality(requestedQuality);
         RequestedQuality = requestedQuality;
         SystemSettings = systemSettings;
+        SystemSnapshot = systemSettings is { } value
+            ? new(value.FontSmoothingEnabled ? 1U : 0U, unchecked((uint)value.FontSmoothingType),
+                unchecked((uint)value.FontSmoothingContrast), value.FontSmoothingOrientation is { } orientation
+                    ? unchecked((uint)orientation) : null)
+            : null;
     }
+
+    private DrawingGdiTextPolicy(DrawingGdiFontQuality quality, DrawingTextSystemSettings? snapshot, bool raw)
+    {
+        ValidateQuality(quality);
+        RequestedQuality = quality;
+        SystemSnapshot = snapshot;
+        SystemSettings = snapshot is { Enabled: { } enabled, Type: { } type, Contrast: { } contrast } value
+            ? new(enabled != 0, unchecked((int)type), unchecked((int)contrast),
+                value.Orientation is { } orientation ? unchecked((int)orientation) : null)
+            : null;
+    }
+
+    /// <summary>Preserves per-query unavailability and all original host words without overload ambiguity.</summary>
+    public static DrawingGdiTextPolicy FromSystemSnapshot(DrawingGdiFontQuality quality,
+        DrawingTextSystemSettings? snapshot) => new(quality, snapshot, true);
+
+    public DrawingTextSystemSettings? SystemSnapshot { get; }
 
     public DrawingGdiFontQuality RequestedQuality { get; }
     public DrawingGdiSystemSettings? SystemSettings { get; }

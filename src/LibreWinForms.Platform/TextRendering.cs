@@ -70,6 +70,14 @@ public interface ILibreGdiTextLayoutService : ILibreTextLayoutService
         Func<DrawingGdiSystemSettings?> capturePaintSettings);
 }
 
+/// <summary>Optional retained GDI request transport with per-query raw system availability.</summary>
+public interface ILibreGdiTextSnapshotLayoutService : ILibreGdiTextLayoutService
+{
+    ILibreTextLayout CreateLayoutWithSystemSnapshot(Graphics graphics, string text, Font font,
+        Size layoutSize, LibreTextFormat format, DrawingGdiFontQuality requestedQuality,
+        Func<DrawingTextSystemSettings?> capturePaintSettings);
+}
+
 /// <summary>Optional exact font-owned device metrics for canonical font autoscaling.</summary>
 public interface ILibreFontAutoScaleMetrics
 {

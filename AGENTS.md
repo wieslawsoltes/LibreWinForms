@@ -1,3 +1,13 @@
+Raw text-system observations retain each original host word and independent query
+availability. Keep requested GDI quality separate from GDI+ hint/contrast and
+observe settings once at actual paint, before clips or command publication, never
+at measurement/replay. Explicit borrowed observers retain their identity and
+reject reentrant retirement; sample target transforms after observation. Preserve
+legacy custom settings calls and unknown orientation, and never infer RGB or
+contrast defaults from historical samples. Transport changes no raster selection;
+original font-policy/pixel/provider qualification remains required. See
+docs/text-system-policy-observation.md.
+
 Source Windows applications select the qualified producer's owned default runtime
 at the executable/test boundary, with one owner for its exact DLL, receipts and
 notices. Require both Windows payloads for portable Windows builds and the exact

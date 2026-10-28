@@ -209,6 +209,18 @@ public sealed class DrawingTextLayout
         graphics.DrawRetainedTextLayout(this, brush, location, systemSettings);
     }
 
+    /// <summary>Paints the captured GDI request with current per-query raw system observations.</summary>
+    public void DrawWithSystemSnapshot(Graphics graphics, Brush brush, PointF location,
+        DrawingTextSystemSettings? systemSettings)
+    {
+        if (RequestedGdiQuality is not { } quality)
+            throw new InvalidOperationException("This layout has no explicit GDI quality request.");
+        ArgumentNullException.ThrowIfNull(graphics);
+        ArgumentNullException.ThrowIfNull(brush);
+        graphics.DrawRetainedTextLayout(this, brush, location,
+            capturedPolicy: DrawingGdiTextPolicy.FromSystemSnapshot(quality, systemSettings));
+    }
+
     private TextCaretStop Translate(TextCaretStop caret)
         => caret with { Position = caret.Position + Offset,
             Height = TextLength == 0 ? _emptyLineHeight : caret.Height };

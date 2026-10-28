@@ -13,7 +13,7 @@ namespace LibreWinForms.ProGPU;
 
 /// <summary>Implements canonical WinForms text rendering through managed ProGPU System.Drawing.</summary>
 public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibreTextSourceGeometryService,
-    ILibreFontAutoScaleMetrics, ILibreGdiTextRendererService, ILibreGdiTextLayoutService
+    ILibreFontAutoScaleMetrics, ILibreGdiTextRendererService, ILibreGdiTextSnapshotLayoutService
 {
     public bool TryGetFontAutoScaleHeight(Font font, int referenceDpi, out int height) =>
         global::ProGPU.SystemDrawing.DrawingFontMetrics.TryGetAutoScaleHeight(font, referenceDpi, out height);
@@ -31,9 +31,19 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         return CreateLayoutCore(graphics, text, font, layoutSize, format, requestedQuality, capturePaintSettings);
     }
 
+    public ILibreTextLayout CreateLayoutWithSystemSnapshot(Graphics graphics, string text, Font font,
+        Size layoutSize, LibreTextFormat format, DrawingGdiFontQuality requestedQuality,
+        Func<DrawingTextSystemSettings?> capturePaintSettings)
+    {
+        DrawingGdiTextPolicy.ValidateQuality(requestedQuality);
+        ArgumentNullException.ThrowIfNull(capturePaintSettings);
+        return CreateLayoutCore(graphics, text, font, layoutSize, format, requestedQuality, null, capturePaintSettings);
+    }
+
     private static RetainedLayout CreateLayoutCore(Graphics graphics, string text, Font font,
         Size layoutSize, LibreTextFormat format, DrawingGdiFontQuality? requestedQuality,
-        Func<DrawingGdiSystemSettings?>? capturePaintSettings)
+        Func<DrawingGdiSystemSettings?>? capturePaintSettings,
+        Func<DrawingTextSystemSettings?>? captureSnapshot = null)
     {
         ArgumentNullException.ThrowIfNull(graphics);
         ArgumentNullException.ThrowIfNull(text);
@@ -53,16 +63,19 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         DrawingTextLayout layout = requestedQuality is { } quality
             ? DrawingGdiText.CreateLayout(graphics, text, font, layoutSize, selected, metrics, quality)
             : DrawingGdiText.CreateLayout(graphics, text, font, layoutSize, selected, metrics);
-        return new RetainedLayout(layout, capturePaintSettings);
+        return new RetainedLayout(layout, capturePaintSettings, captureSnapshot);
     }
 
     private sealed class RetainedLayout(global::ProGPU.SystemDrawing.DrawingTextLayout layout,
-        Func<DrawingGdiSystemSettings?>? capturePaintSettings)
+        Func<DrawingGdiSystemSettings?>? capturePaintSettings,
+        Func<DrawingTextSystemSettings?>? captureSnapshot)
         : ILibreTextLayout, ILibreTextRowNavigation, ILibreTextSourceGeometry,
           ILibreEditWordBoundaryLayout, ILibreEditTextInteractionLayout
     {
         private global::ProGPU.SystemDrawing.DrawingTextLayout? _layout = layout;
         private Func<DrawingGdiSystemSettings?>? _capturePaintSettings = capturePaintSettings;
+        private Func<DrawingTextSystemSettings?>? _captureSnapshot = captureSnapshot;
+        private bool _capturingSnapshot;
         private int _selectionStart = -1;
         private int _selectionLength = -1;
         private RectangleF[] _selection = [];
@@ -160,7 +173,18 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
             var current = Layout;
             ArgumentNullException.ThrowIfNull(graphics);
             using var brush = new SolidBrush(color);
-            if (_capturePaintSettings is { } capture)
+            if (_captureSnapshot is { } snapshotCapture)
+            {
+                if (_capturingSnapshot)
+                    throw new InvalidOperationException("A retained system observation cannot recursively paint itself.");
+                DrawingTextSystemSettings? settings;
+                _capturingSnapshot = true;
+                try { settings = snapshotCapture(); }
+                finally { _capturingSnapshot = false; }
+                ObjectDisposedException.ThrowIf(!ReferenceEquals(current, _layout), this);
+                current.DrawWithSystemSnapshot(graphics, brush, origin, settings);
+            }
+            else if (_capturePaintSettings is { } capture)
             {
                 DrawingGdiSystemSettings? settings = capture();
                 ObjectDisposedException.ThrowIf(!ReferenceEquals(current, _layout), this);
@@ -174,6 +198,7 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         {
             _layout = null;
             _capturePaintSettings = null;
+            _captureSnapshot = null;
             _selection = [];
             _wordBoundaries = null;
             _editSelection = [];
