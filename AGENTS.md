@@ -1,3 +1,179 @@
+Text paint preflights its complete admitted native generation and transformed
+glyph brush before publishing a layout clip. Preserve exact source placements,
+existing raster admission, original exceptions and independently retained command
+owners. Release prepared caller leases exactly once across successful recording,
+failed clip creation and later decoration failures; do not roll back already
+recorded glyphs or pop a caller's outer clip. See
+docs/drawing-text-rendering-state.md.
+
+Raw text-system observations retain each original host word and independent query
+availability. Keep requested GDI quality separate from GDI+ hint/contrast and
+observe settings once at actual paint, before clips or command publication, never
+at measurement/replay. Explicit borrowed observers retain their identity and
+reject reentrant retirement; sample target transforms after observation. Preserve
+legacy custom settings calls and unknown orientation, and never infer RGB or
+contrast defaults from historical samples. Transport changes no raster selection;
+original font-policy/pixel/provider qualification remains required. See
+docs/text-system-policy-observation.md.
+
+Source Windows applications select the qualified producer's owned default runtime
+at the executable/test boundary, with one owner for its exact DLL, receipts and
+notices. Require both Windows payloads for portable Windows builds and the exact
+selected payload for an explicit RID; never silently retain stock assets after
+new producer capability is declared. Preserve legacy producers, Package mode,
+private native dependencies and explicit optional DX12 selection. Whole-producer
+staging and original application qualification remain separate; see
+docs/windows-source-runtime.md.
+
+Prepared native grid-fit paint selects explicit integer raster origins only for
+its already-admitted aliased coverage. Keep grayscale Auto, original source
+placements and ink bounds, cache identity, and GDI selection unchanged. The
+qualified producer composes the complete actual target translation before
+rounding; never pre-round source positions. Original dropout, outline and full
+application/package qualification remain separate; see
+docs/drawing-integer-glyph-origins.md.
+
+Explicit GDI+ grayscale contrast is selected per draw from the original Graphics
+state, independently of retained layout and glyph-array identity. Apply it only
+to admitted grayscale coverage; preserve binary gasp, GDI, ClearType and default
+policies. Source execution requires the exact whole-qualified producer and its
+real native payload. Original Microsoft images, consumer packages and application
+acceptance remain separate gates; see docs/drawing-grayscale-contrast.md.
+
+Ordinary GDI+ SingleBitPerPixel may select explicit integer raster origins only
+with a known physical target, square layout DPI, translation frame and supported
+ordinary outline run. Preserve original shaped arrays and measurements, paint-time
+selection, separate GDI source identity and every other hint policy. Source execution
+requires the matching whole-qualified producer and real native payload; authored
+Inter images do not qualify original Microsoft pixels. See
+docs/drawing-integer-glyph-origins.md.
+
+Byte premultiplied Drawing readback uses the original truncated reciprocal over
+the complete valid channel/alpha domain. Preserve zero-alpha handling, invalid-
+channel saturation, original PArgb storage and unchanged bytes after read-only
+GetPixel/ARGB-lock/PNG access. Do not round the completed division or convert
+new PArgb CPU storage through straight colors. Original eight-bit observations
+do not qualify sixteen-bit precision, font sampling, GPU blending or packages;
+see docs/drawing-premultiplied-readback.md.
+
+Explicit canonical GDI requested quality remains separate from raw system
+smoothing observations and GDI+ raster policies. Preserve optional service
+admission and legacy calls without extra settings reads. Retained explicit
+requests belong to the source/font generation; sample current settings only at
+paint and keep unavailable settings/orientation unknown. Reject undefined
+quality before font work. Transport does not change layout or qualify pixels;
+see docs/gdi-requested-quality-transport.md.
+
+Drawing TextRenderingHint begins at SystemDefault and retains only its six
+defined values through saved/nested contexts. Preserve atomic invalid-value
+rejection and existing disposed-access errors. Public state is independent of
+glyph raster/hinting, contrast and original package pixel qualification; see
+docs/drawing-text-rendering-state.md.
+Ordinary GDI+ single-bit modes select binary coverage at paint time without
+changing layout or original glyph placements. GDI source text carries explicit
+identity through immediate and retained DrawingGdiText entry points; never infer
+it from VDMX availability or alias Proof/Draft quality to GDI+ binary coverage.
+Keep source quality, native hint execution, dropout and original pixels separate.
+
+Bounded ordinary GDI+ grid-fit paint retains original source placements and an
+explicit raster scale while executing owned native font outlines. Validate whole
+original gasp tables before mixed-run publication; never infer GDI source quality
+or exact Microsoft policy from the selected TrueType interpreter. Keep bounded
+font-owned cache keys, caller/recorded leases and eviction lifetime intact.
+Source executables/tests use real whole-qualified staged native assets with their
+actual dependency loader layout; Package mode remains NuGet-owned. Preserve the
+original 72-case pair, dropout/contrast/ClearType and application gates; authored
+Inter controls are not qualification. See docs/drawing-native-grid-fit.md.
+
+Source Xlib applications import the qualified producer's runtime target only at
+their executable/test boundary. Preserve Project/Package separation, actual
+source-root ownership, both Linux payloads and exact whole-producer staging before
+source validation. Normalize a private root for runtime discovery/import without
+mutating caller globals or requiring a trailing separator.
+Never patch consumer/native cache files or infer desktop
+qualification from asset selection. See docs/linux-source-runtime.md.
+
+Explicit source text rows share one exact font-owned VDMX frame across Drawing
+layout, source margins, height trimming, painting and retained editor geometry.
+Keep point/pixel and actual square-DPI admission, exact integral em and immutable
+font ownership; never round fractional sizes or repair completed paragraph height.
+Missing records retain the existing unsupported-family path; malformed data rejects.
+Ordinary Drawing metrics and glyph advances stay unchanged. See
+docs/source-device-text-lines.md; authored controls do not qualify native pixels
+or packages, and the consumer requires its matching whole-qualified producer.
+
+Live Windows arrow paint resolves the active version-four theme's original
+variant, class inheritance and image references before recording its two PNG
+frames. Validate complete tables and the explicit minimum target; preserve real
+PNG alpha, selected source identity and resource-only module ownership. Never
+load fixture assets in product paint or infer missing size/DPI policies. Keep
+native full-frame, package and caching/performance gates independent. Bounded
+inheritance scratch retains whole-map cycle rejection and exactly64 visits; see
+docs/live-theme-bitmap-rendering.md.
+
+Live Windows horizontal-thumb paint borrows only the actual opaque native theme
+resource at explicit 96-DPI targets, with supported image/layout/sizing metadata.
+Never infer alpha from RGB32 byte four or Stretch from a missing property. Vertical
+thumbs require the separate successful TS_DRAW query for the exact positive
+requested extent when SizingType is ERROR_NOT_FOUND; all one-pixel-band, fixed-border
+and opacity gates remain mandatory. Keep per-paint native ownership, actual
+failed-owner retry and immutable retained image bytes; no reference/capture texture
+belongs in product paint. Small-target, other-DPI/theme, caching and original
+package gates remain separate.
+See docs/live-theme-bitmap-rendering.md; local image controls are not native qualification.
+
+Portable scrollbar held repeat uses exact press and one-shot timer identities.
+Re-hit the current thumb/track at the owned pointer; pause outside the original
+part and retire queued callbacks on source/capture/handle changes. Preserve
+callback NewValue, nested input ownership and one EndScroll. The portable 400/60 ms
+cadence is explicit policy, not inferred exact Win32 timing parity. Keep original
+seven-hold evidence, theme pixels and package qualification independent; see
+docs/portable-scrollbar-repeat.md.
+
+Unsmoothed Drawing axis lines admit the original inclusive integer pixel band
+only for opaque solid centered one-pixel flat pens, Default pixel offset,96DPI
+and exact unit-linear/integer-translation frames. Preserve original clip/brush
+ownership, full-frame Microsoft fixtures and exact edge/span representability.
+Keep wider, antialiased, fractional, transformed and other pen paths independent;
+do not infer general GDI+ or package grid qualification. See docs/drawing-integer-lines.md.
+
+Drawing SmoothingMode starts at None and normalizes original speed/quality aliases
+through validated, disposal-aware state. Preserve saved-state/container ownership
+and atomic invalid-value rejection. State correction does not qualify retained
+line/path sampling: retain original endpoints, transforms, clips and independent
+Microsoft full-frame controls before admitting rasterization changes. See
+docs/drawing-smoothing-state.md.
+
+Portable SCROLLBAR track parts4–7 retain the observed grey body and white top/left
+orientation edge across states1–4. Gripper parts8–9 add no paint in those states.
+Idle arrow states1/5/9/13 and disabled thumb state4 retain only that oriented
+background, preserving all12 original full-frame captures and caller state.
+Preserve source geometry, caller transforms/clips and all48 complete independent
+Microsoft reference frames. Never use captured textures in product paint or claim
+active arrow/thumb, other-DPI/theme or native gesture qualification from these tracks.
+See docs/portable-scrollbar-track-paint.md.
+
+Portable HEADER part1 states1–3 use independently captured Aero flat fills and
+the normal state's right separator through the existing managed Graphics path.
+Preserve caller clips/transforms, canonical row-header rotation and source-owned
+grid borders; keep the separate Aero content-margin override and original fonts,
+row heights and sample bounds. Native images are test-only fixtures, never product
+fallback textures. Retain all12 original full-frame comparisons, undefined native
+part outcomes and independent package/application qualification. See
+docs/portable-header-paint.md.
+
+Portable scrollbar pointer defaults share the unchanged source paint geometry and
+run through actual Control dispatch before public notifications. Retain exact
+press/capture/source-value generations, RTL/range policies, callback overrides
+and cancellation; never revive a drag after source mutation or capture loss.
+Hover paint may retain the exact live source/target after release; press defaults
+still require their independent press/capture generations. Preserve original track
+clipping, theme state transport and callback-safe visual invalidation.
+Protected mouse notifications remain notifications. Keep the original 96-state
+geometry fixture and native Windows procedure unchanged. See
+docs/portable-scrollbar-pointer.md; exact repeat timing, theme pixels and native/package gesture
+qualification remain independent unfinished gates.
+
 Portable scrollbar paint retains source range/page/value, per-axis system metrics
 and horizontal RTL reflection. Preserve native short-track thumb metadata while
 clipping paint to the actual track; painting never mutates Value or scroll events.
@@ -315,6 +491,13 @@ Pixel fonts remain pixels and FontHeight rounds the fractional line metric only
 at the end, not the GDI em height. Preserve original source Font identity and raw
 Graphics/DrawString semantics. Native appearance remains a separate gate; see
 docs/portable-text-target-dpi.md.
+
+The explicit glyph raster target is independent of layout DPI and outer
+transforms. Legacy recorders keep it unknown; bitmap replay owns scale1.
+Capture source resolution and raster scale together, invalidate retained layers
+when either changes, and repaint before presenting if paint callbacks change
+the target. Preserve source glyph positions and unknown-frame admission; this
+metadata does not qualify native font policy or the original text pixel gates.
 
 ## LibreWinForms Port Rules
 

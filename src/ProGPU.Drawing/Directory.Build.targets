@@ -1,3 +1,7 @@
 <Project>
   <Import Project="$(ProGpuSourceRoot)/Directory.Build.targets" />
+  <PropertyGroup>
+    <LibreWinFormsUseSourceNativeRuntime>true</LibreWinFormsUseSourceNativeRuntime>
+  </PropertyGroup>
+  <Import Project="$(MSBuildThisFileDirectory)../../eng/LibreWinForms.NativeRuntime.targets" />
 </Project>

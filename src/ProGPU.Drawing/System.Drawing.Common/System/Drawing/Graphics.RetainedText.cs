@@ -8,11 +8,13 @@ namespace System.Drawing;
 public partial class Graphics
 {
     internal DrawingTextLayout CreateRetainedTextLayout(string text, Font font,
-        SizeF layoutSize, StringFormat? format)
+        SizeF layoutSize, StringFormat? format, ProGPU.Text.SourceDeviceLineMetrics? sourceMetrics = null,
+        bool sourceGdiText = false, DrawingGdiFontQuality? requestedGdiQuality = null)
     {
         EnsureNotDisposed();
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(font);
+        if (sourceMetrics is not null) ValidateSourceLineFrame(font);
         if (!float.IsFinite(layoutSize.Width) || !float.IsFinite(layoutSize.Height) ||
             layoutSize.Width < 0 || layoutSize.Height < 0)
             throw new ArgumentOutOfRangeException(nameof(layoutSize));
@@ -35,7 +37,7 @@ public partial class Graphics
             throw new NotSupportedException("Unknown retained text-format flags.");
         _ = font.GetHeight(this); // Reject disposed caller fonts before borrowing their immutable face.
         FormattedTextLayout formatted = CreateFormattedTextLayout(text, font, layoutSize, selected,
-            retainCompleteParagraph: true);
+            retainCompleteParagraph: true, sourceMetrics: sourceMetrics);
         var offset = new Vector2(
             GetNoWrapAlignmentOffset(formatted.Layout.ContentSize.X, layoutSize.Width,
                 selected.Alignment, selected.FormatFlags),
@@ -43,25 +45,36 @@ public partial class Graphics
         var decorations = new List<PreparedDrawingTextDecoration>();
         DrawFontDecorations(formatted.Layout, font, null!, Vector2.Zero, Matrix4x4.Identity, decorations);
         return new DrawingTextLayout(formatted.Layout, layoutSize, offset,
-            GetLineHeight(font, formatted.Layout.FontSize), DpiX, DpiY, font.Style,
+            GetLineHeight(font, formatted.Layout.FontSize, sourceMetrics), DpiX, DpiY, font.Style,
             (selected.FormatFlags & StringFormatFlags.NoClip) == 0,
-            PrepareDrawingGlyphRuns(formatted.Layout), decorations.ToArray());
+            PrepareDrawingGlyphRuns(formatted.Layout), decorations.ToArray(), sourceGdiText, requestedGdiQuality);
     }
 
-    internal void DrawRetainedTextLayout(DrawingTextLayout layout, Brush brush, PointF location)
+    internal void DrawRetainedTextLayout(DrawingTextLayout layout, Brush brush, PointF location,
+        DrawingGdiSystemSettings? systemSettings = null, DrawingGdiTextPolicy? capturedPolicy = null)
     {
         EnsureNotDisposed();
         if (DpiX != layout.DpiX || DpiY != layout.DpiY)
             throw new InvalidOperationException("Recreate the retained text layout for the current target DPI.");
         if (!float.IsFinite(location.X) || !float.IsFinite(location.Y))
             throw new ArgumentOutOfRangeException(nameof(location));
+        DrawingGdiPlusTextPolicy? sourcePolicy = layout.SourceGdiText ? null : CaptureGdiPlusTextPolicy();
         Vector2 origin = new Vector2(location.X, location.Y) + layout.Offset;
         Matrix4x4 transform = CurrentTransform4x4();
-        if (layout.Clip)
-            _context.PushClip(new Rect(location.X, location.Y, layout.LayoutSize.Width, layout.LayoutSize.Height), transform);
+        DrawingGdiTextPolicy? policy = capturedPolicy ?? (layout.RequestedGdiQuality is { } quality
+            ? new DrawingGdiTextPolicy(quality, systemSettings) : null);
+        PreparedDrawingGlyphPaint prepared = PrepareDrawingGlyphPaint(layout.Runs, layout.Style,
+            layout.FontSize, brush, origin, transform, sourcePolicy, layout.SourceGdiText, policy);
+        bool clipPushed = false;
+        Exception? primary = null;
         try
         {
-            DrawPreparedGlyphRuns(layout.Runs, layout.Style, layout.FontSize, brush, origin, transform);
+            if (layout.Clip)
+            {
+                _context.PushClip(new Rect(location.X, location.Y, layout.LayoutSize.Width, layout.LayoutSize.Height), transform);
+                clipPushed = true;
+            }
+            DrawPreparedGlyphRuns(layout.Runs, layout.Style, layout.FontSize, origin, transform, layout.SourceGdiText, prepared);
             if (layout.Decorations.Length != 0)
             {
                 var nativeBrush = TransformBrush(brush);
@@ -69,9 +82,11 @@ public partial class Graphics
                     _context.DrawRectangle(nativeBrush, null, decoration.Place(origin), transform);
             }
         }
+        catch (Exception failure) { primary = failure; throw; }
         finally
         {
-            if (layout.Clip) _context.PopClip();
+            try { ReleaseNativeGlyphPaint(prepared.Native, primary); }
+            finally { if (clipPushed) _context.PopClip(); }
         }
     }
 }

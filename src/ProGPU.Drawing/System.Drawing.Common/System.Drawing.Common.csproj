@@ -23,6 +23,7 @@
     <ProjectReference Include="$(ProGpuSourceRoot)/src/ProGPU.Vector/ProGPU.Vector.csproj" />
     <ProjectReference Include="$(ProGpuSourceRoot)/src/ProGPU.Text/ProGPU.Text.csproj" />
     <ProjectReference Include="$(ProGpuSourceRoot)/src/ProGPU.Scene/ProGPU.Scene.csproj" />
+    <ProjectReference Include="$(ProGpuSourceRoot)/src/ProGPU.Scene.Native/ProGPU.Scene.Native.csproj" />
     <ProjectReference Include="$(ProGpuSourceRoot)/src/SkiaSharp/SkiaSharp.csproj" />
   </ItemGroup>
 

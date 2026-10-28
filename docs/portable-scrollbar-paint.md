@@ -27,8 +27,9 @@ remain caller-owned.
 
 The portable baseline theme now distinguishes scroll tracks from thumb borders
 and paints directional arrow glyphs. This remains its explicit managed theme,
-not a claim of Windows theme pixel parity. Hover/pressed state, pointer thumb
-dragging and repeat-button input are separate unfinished source-control work.
+not a claim of Windows theme pixel parity. Source hover/pressed state and pointer
+thumb dragging are implemented in [pointer defaults](portable-scrollbar-pointer.md).
+Held-button repeat and independent native gesture/theme qualification remain unfinished.
 Original package grid captures and full CI remain required before release.
 
 Local validation passes 99 source paint/publication cases, all 33 existing native

@@ -1,0 +1,19 @@
+<Project>
+  <!-- Prepare the shared producer root before the Xlib target imports Backend.
+       NativeRuntime imports the Windows target itself only when Xlib did not. -->
+  <PropertyGroup>
+    <LibreWinFormsUseSourceWindowsRuntime Condition="'$(LibreWinFormsReferenceMode)' == 'Project' And '$(LibreWinFormsUseProGpuSystemDrawing)' == 'true'">true</LibreWinFormsUseSourceWindowsRuntime>
+    <LibreWinFormsUseSourceWindowsRuntime Condition="'$(LibreWinFormsUseSourceNativeRuntime)' == 'true'">true</LibreWinFormsUseSourceWindowsRuntime>
+    <_LibreWinFormsWindowsBoundary Condition="'$(LibreWinFormsUseSourceWindowsRuntime)' == 'true' And '$(LibreWinFormsReferenceMode)' != 'Package' And ('$(OutputType)' == 'Exe' Or '$(OutputType)' == 'WinExe' Or '$(IsTestProject)' == 'true')">true</_LibreWinFormsWindowsBoundary>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(_LibreWinFormsWindowsBoundary)' == 'true'">
+    <_LibreWinFormsWindowsProGpuRoot Condition="'$(LibreWinFormsProGpuSourceRoot)' != ''">$([MSBuild]::NormalizeDirectory('$(LibreWinFormsProGpuSourceRoot)'))</_LibreWinFormsWindowsProGpuRoot>
+    <_LibreWinFormsWindowsProGpuRoot Condition="'$(_LibreWinFormsWindowsProGpuRoot)' == '' And '$(ProGpuSourceRoot)' != ''">$([MSBuild]::NormalizeDirectory('$(ProGpuSourceRoot)'))</_LibreWinFormsWindowsProGpuRoot>
+    <_LibreWinFormsSelectOwnedWindowsRuntime Condition="'$(_LibreWinFormsWindowsProGpuRoot)' != '' And Exists('$(_LibreWinFormsWindowsProGpuRoot)eng/progpu-wgpu-windows-runtime.py')">true</_LibreWinFormsSelectOwnedWindowsRuntime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(_LibreWinFormsSelectOwnedWindowsRuntime)' == 'true'">
+    <ProGpuWgpuWindowsSourceRuntimeRoot Condition="'$(ProGpuWgpuWindowsSourceRuntimeRoot)' == '' And '$(ProGpuWgpuWindowsRuntimeRoot)' != ''">$(ProGpuWgpuWindowsRuntimeRoot)</ProGpuWgpuWindowsSourceRuntimeRoot>
+    <ProGpuWgpuWindowsSourceRuntimeRoot Condition="'$(ProGpuWgpuWindowsSourceRuntimeRoot)' == ''">$(_LibreWinFormsWindowsProGpuRoot)artifacts/progpu-wgpu-windows/package</ProGpuWgpuWindowsSourceRuntimeRoot>
+  </PropertyGroup>
+  <PropertyGroup><_LibreWinFormsWindowsRuntimePropertiesImported>true</_LibreWinFormsWindowsRuntimePropertiesImported></PropertyGroup>
+</Project>

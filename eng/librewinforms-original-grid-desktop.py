@@ -194,6 +194,46 @@ def committed(state, text):
     return not state["InEdit"] and state["FirstNameUtf16"] == units(text)
 
 
+def finish_application(session, receipt, native=None, clock=time.monotonic):
+    """One ordinary owned-window close after all captures; never synthetic input."""
+    session.ready()
+    require(session.phase == "escape-cancel" and committed(session.state, "alice"),
+            "Normal shutdown requires the complete original grid scenario")
+    require("normalShutdown" not in receipt, "Normal shutdown cannot be retried")
+    # The existing native helper bounds SendMessageTimeout to one second.
+    require(session.deadline - clock() >= 1, "No original deadline budget for normal close")
+    owner = session.native(session.state)[0]
+    if native is None:
+        path = ENG / "OriginalGrid/prepare-desktop.py"
+        spec = importlib.util.spec_from_file_location("grid_normal_close", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        native = module.Desktop()
+    observed = native.snapshot(owner["hwnd"])
+    require(observed["hwnd"] == owner["hwnd"] and observed["pid"] == session.child.pid and observed["title"] == TITLE
+            and observed["thread"] > 0 and observed["visible"], "Normal close target is not the owned sample")
+    record = dict(window=observed, message=0x10, attempts=0, completed=False,
+                  deadline=session.deadline, inputSent=False)
+    receipt["normalShutdown"] = record
+    require(session.native(session.state) == [owner] and native.snapshot(owner["hwnd"]) == observed,
+            "Owned sample identity changed before normal close")
+    require(session.child.poll() is None and session.deadline - clock() >= 1,
+            "Original application or close budget ended")
+    session.phase = "normal-shutdown"
+    record["attempts"] = 1
+    record["result"] = native.close(owner["hwnd"])
+    # SMTO_ERRORONEXIT can report failure when WM_CLOSE destroys its recipient.
+    # Retain that result; only actual zero process exit and window retirement pass.
+    remaining = session.deadline - clock()
+    require(remaining > 0, "Normal close exceeded the original process deadline")
+    record["exitCode"] = session.child.wait(timeout=min(2, remaining))
+    require(clock() < session.deadline and record["exitCode"] == 0,
+            "Original application did not exit normally inside its deadline")
+    record["remainingWindows"] = session.desktop.windows(session.child.pid)
+    require(not record["remainingWindows"], "Original application retained a visible owned window")
+    record["completed"] = True
+
+
 def scenario(session, reference=None):
     session.wait(lambda state: state["FirstNameUtf16"] in (None, []) and not state["InEdit"], startup=True)
     layout = layout_contract(session.state)
@@ -264,7 +304,9 @@ def run_mode(root, build, mode, evidence, desktop, reference=None, hosted_startu
                 require(loaded.parent == app.parent if mode == "Portable" else
                         loaded.is_relative_to(sdk.parent / "shared/Microsoft.WindowsDesktop.App"),
                         "Unexpected loaded Forms/Drawing runtime identity")
-            receipt.update(status="input-phases-passed", elapsedSeconds=time.monotonic() - started, dpi=session.dpi)
+            receipt.update(inputPhasesPassed=True, inputElapsedSeconds=time.monotonic() - started, dpi=session.dpi)
+            finish_application(session, receipt)
+            receipt.update(status="input-phases-passed", elapsedSeconds=time.monotonic() - started)
             return layout
     except BaseException as error:
         receipt.update(status="failed", error=type(error).__name__ + ": " + str(error), phase=session.phase if session else "launch")
@@ -272,6 +314,7 @@ def run_mode(root, build, mode, evidence, desktop, reference=None, hosted_startu
         raise
     finally:
         if child is not None:
+            receipt["cleanupForced"] = child.poll() is None
             if child.poll() is None:
                 child.terminate()
             try:

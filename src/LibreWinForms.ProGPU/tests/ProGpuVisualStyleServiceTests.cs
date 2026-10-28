@@ -16,7 +16,7 @@ public sealed class ProGpuVisualStyleServiceTests
     [InlineData(2)]
     [InlineData(3)]
     [InlineData(4)]
-    public void ScrollArrowDirectionsRetainStateAndDistinctGlyphs(int state)
+    public void ScrollArrowStatesRetainObservedIdleAndDistinctActivePaint(int state)
     {
         var service = new ProGpuVisualStyleService();
         var glyphs = new HashSet<string>();
@@ -25,6 +25,17 @@ public sealed class ProGpuVisualStyleServiceTests
             using var target = new Bitmap(17, 17);
             using (Graphics graphics = Graphics.FromImage(target))
                 service.DrawBackground(graphics, "SCROLLBAR", 1, state + (direction * 4), new(0, 0, 17, 17), null);
+            if (state == 1)
+            {
+                // Original Aero idle arrows contain only the orientation edge
+                // and track body. Active states retain their distinct glyphs.
+                for (int y = 0; y < 17; y++)
+                for (int x = 0; x < 17; x++)
+                    target.GetPixel(x, y).ToArgb().Should().Be(
+                        ((direction < 2 ? x == 0 : y == 0) ? Color.White : Color.FromArgb(240, 240, 240)).ToArgb());
+                continue;
+            }
+
             Color glyph = state == 4 ? SystemColors.GrayText : SystemColors.ControlText;
             target.GetPixel(8, 8).ToArgb().Should().Be(glyph.ToArgb());
             // Compare the actual recorded coverage, not a second triangle implementation.
@@ -33,7 +44,7 @@ public sealed class ProGpuVisualStyleServiceTests
             glyphs.Add(coverage);
         }
 
-        glyphs.Count.Should().Be(4);
+        glyphs.Count.Should().Be(state == 1 ? 0 : 4);
     }
 
     [Theory]
@@ -52,7 +63,9 @@ public sealed class ProGpuVisualStyleServiceTests
         }
 
         target.GetPixel(4, 5).A.Should().Be(0);
-        target.GetPixel(7, 3).ToArgb().Should().Be(target.GetPixel(8, 7).ToArgb());
+        target.GetPixel(7, 3).ToArgb().Should().Be((part is 4 or 5
+            ? Color.White : Color.FromArgb(240, 240, 240)).ToArgb());
+        target.GetPixel(8, 7).ToArgb().Should().Be(Color.FromArgb(240, 240, 240).ToArgb());
         target.GetPixel(8, 7).A.Should().Be(255);
     }
 

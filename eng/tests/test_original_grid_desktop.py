@@ -4,6 +4,7 @@ import importlib.util
 import json
 from pathlib import Path
 import tempfile
+import subprocess
 import unittest
 from unittest import mock
 
@@ -26,6 +27,86 @@ def snapshot():
 
 
 class OriginalGridContracts(unittest.TestCase):
+    def shutdown_fixture(self):
+        session = mock.Mock()
+        session.phase = "escape-cancel"
+        session.deadline = 60
+        session.state = snapshot() | dict(FirstNameUtf16=DRIVER.units("alice"))
+        session.child.pid = 24
+        session.child.poll.return_value = None
+        session.child.wait.return_value = 0
+        session.desktop.windows.return_value = []
+        owner = dict(hwnd=42, title=DRIVER.TITLE)
+        session.native.return_value = [owner]
+        native = mock.Mock()
+        native.snapshot.return_value = dict(hwnd=42, pid=24, title=DRIVER.TITLE,
+                                           thread=7, visible=True, **{"class": "original"})
+        native.close.return_value = dict(succeeded=True, result=0, error=0)
+        return session, native
+
+    def test_normal_shutdown_checks_real_exit_even_when_recipient_is_destroyed_during_close(self):
+        for acknowledged in (True, False):
+            session, native = self.shutdown_fixture()
+            native.close.return_value["succeeded"] = acknowledged
+            receipt = {}
+            DRIVER.finish_application(session, receipt, native, clock=lambda: 10)
+            native.close.assert_called_once_with(42)
+            session.child.wait.assert_called_once_with(timeout=2)
+            self.assertTrue(receipt["normalShutdown"]["completed"])
+            self.assertFalse(receipt["normalShutdown"]["inputSent"])
+            self.assertEqual(receipt["normalShutdown"]["result"]["succeeded"], acknowledged)
+            self.assertEqual(session.desktop.mock_calls, [mock.call.windows(24)])
+            session.child.terminate.assert_not_called()
+            session.child.kill.assert_not_called()
+            session.phase = "escape-cancel"
+            with self.assertRaisesRegex(RuntimeError, "retried"):
+                DRIVER.finish_application(session, receipt, native, clock=lambda: 10)
+            native.close.assert_called_once()
+
+    def test_normal_shutdown_rejects_wrong_or_replaced_window_before_close(self):
+        for field, value in (("hwnd", 43), ("pid", 25), ("title", "Other"),
+                             ("thread", 0), ("visible", False)):
+            with self.subTest(field=field):
+                session, native = self.shutdown_fixture()
+                native.snapshot.return_value[field] = value
+                with self.assertRaises(RuntimeError):
+                    DRIVER.finish_application(session, {}, native, clock=lambda: 10)
+                native.close.assert_not_called()
+        session, native = self.shutdown_fixture()
+        original = native.snapshot.return_value
+        native.snapshot.side_effect = [original, original | dict(thread=8)]
+        with self.assertRaisesRegex(RuntimeError, "identity changed"):
+            DRIVER.finish_application(session, {}, native, clock=lambda: 10)
+        native.close.assert_not_called()
+
+    def test_normal_shutdown_requires_original_completed_scenario_and_live_budget(self):
+        for change in ("phase", "value", "process", "deadline"):
+            session, native = self.shutdown_fixture()
+            if change == "phase": session.phase = "begin-edit"
+            if change == "value": session.state["FirstNameUtf16"] = DRIVER.units("alicex")
+            if change == "process": session.child.poll.return_value = 0
+            now = 59.1 if change == "deadline" else 10
+            with self.subTest(change=change), self.assertRaises(RuntimeError):
+                DRIVER.finish_application(session, {}, native, clock=lambda: now)
+            native.close.assert_not_called()
+
+    def test_normal_shutdown_never_extends_deadline_or_accepts_timeout_error_or_live_window(self):
+        session, native = self.shutdown_fixture()
+        clock = mock.Mock(side_effect=[58.9, 58.9, 59.5, 59.6])
+        DRIVER.finish_application(session, {}, native, clock=clock)
+        session.child.wait.assert_called_once_with(timeout=.5)
+        for failure in ("timeout", "exit", "window", "late"):
+            session, native = self.shutdown_fixture()
+            receipt = {}
+            if failure == "timeout": session.child.wait.side_effect = subprocess.TimeoutExpired("owned", 2)
+            if failure == "exit": session.child.wait.return_value = 1
+            if failure == "window": session.desktop.windows.return_value = [dict(hwnd=42)]
+            clock = mock.Mock(side_effect=[10, 10, 10, 60] if failure == "late" else [10] * 4)
+            with self.subTest(failure=failure), self.assertRaises((RuntimeError, subprocess.TimeoutExpired)):
+                DRIVER.finish_application(session, receipt, native, clock=clock)
+            self.assertFalse(receipt["normalShutdown"]["completed"])
+            native.close.assert_called_once_with(42)
+
     def test_compiler_requires_actual_device_selection_and_exact_output(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); library = root / "dxcompiler.dll"; library.write_bytes(b"owned fixture")

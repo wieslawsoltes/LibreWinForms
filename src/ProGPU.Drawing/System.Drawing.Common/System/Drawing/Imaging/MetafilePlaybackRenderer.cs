@@ -200,7 +200,7 @@ internal static class MetafilePlaybackRenderer
                 state.ApplyTransform(record);
                 if (state.SelectedPen is Pen linePen)
                 {
-                    state.Graphics.DrawLine(linePen, state.CurrentPoint, next);
+                    state.Graphics.DrawGdiMetafileLine(linePen, state.CurrentPoint, next);
                 }
                 state.CurrentPoint = next;
                 return;
@@ -544,7 +544,7 @@ internal static class MetafilePlaybackRenderer
                     state.ApplyTransform(record);
                     if (state.SelectedPen is Pen linePen)
                     {
-                        state.Graphics.DrawLine(linePen, state.CurrentPoint, next);
+                        state.Graphics.DrawGdiMetafileLine(linePen, state.CurrentPoint, next);
                     }
                 }
                 state.CurrentPoint = next;

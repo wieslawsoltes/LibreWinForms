@@ -1,10 +1,13 @@
 <Project>
+  <Import Project="$(MSBuildThisFileDirectory)LibreWinForms.WindowsRuntime.props" Condition="'$(_LibreWinFormsWindowsRuntimePropertiesImported)' != 'true'" />
+  <Import Project="$(MSBuildThisFileDirectory)LibreWinForms.XlibRuntime.targets" />
+  <Import Project="$(MSBuildThisFileDirectory)LibreWinForms.NativeRuntime.targets" />
   <Target Name="ValidateLibreWinFormsProGpuProjectReference"
           BeforeTargets="PrepareForBuild"
           Condition="'$(LibreWinFormsReferenceMode)' == 'Project'">
     <Error Condition="'$(LibreWinFormsProGpuSourceRoot)' == ''"
            Text="LibreWinFormsReferenceMode=Project requires the ProGPU source tree. Initialize external/ProGPU or set LibreWinFormsProGpuSourceRoot to a ProGPU checkout." />
-    <Error Condition="'$(LibreWinFormsProGpuSourceRoot)' != '' And !Exists('$(LibreWinFormsProGpuSourceRoot)src\ProGPU.Backend\ProGPU.Backend.csproj')"
+    <Error Condition="'$(LibreWinFormsProGpuSourceRoot)' != '' And !Exists('$(LibreWinFormsProGpuSourceRoot)/src\ProGPU.Backend\ProGPU.Backend.csproj')"
            Text="LibreWinFormsProGpuSourceRoot '$(LibreWinFormsProGpuSourceRoot)' does not contain src/ProGPU.Backend/ProGPU.Backend.csproj." />
     <Error Condition="!Exists('$(LibreWinFormsDrawingRoot)System.Drawing.Common\System.Drawing.Common.csproj')"
            Text="The repository-owned portable Drawing project is missing from $(LibreWinFormsDrawingRoot)." />

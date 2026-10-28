@@ -6,17 +6,44 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Drawing.Text;
 using LibreWinForms.Platform;
+using ProGPU.SystemDrawing;
+using ProGPU.Text;
 
 namespace LibreWinForms.ProGPU;
 
 /// <summary>Implements canonical WinForms text rendering through managed ProGPU System.Drawing.</summary>
-public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibreTextSourceGeometryService, ILibreFontAutoScaleMetrics
+public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibreTextSourceGeometryService,
+    ILibreFontAutoScaleMetrics, ILibreGdiTextRendererService, ILibreGdiTextSnapshotLayoutService
 {
     public bool TryGetFontAutoScaleHeight(Font font, int referenceDpi, out int height) =>
         global::ProGPU.SystemDrawing.DrawingFontMetrics.TryGetAutoScaleHeight(font, referenceDpi, out height);
 
     public ILibreTextLayout CreateLayout(Graphics graphics, string text, Font font,
         Size layoutSize, LibreTextFormat format)
+        => CreateLayoutCore(graphics, text, font, layoutSize, format, null, null);
+
+    public ILibreTextLayout CreateLayout(Graphics graphics, string text, Font font,
+        Size layoutSize, LibreTextFormat format, DrawingGdiFontQuality requestedQuality,
+        Func<DrawingGdiSystemSettings?> capturePaintSettings)
+    {
+        DrawingGdiTextPolicy.ValidateQuality(requestedQuality);
+        ArgumentNullException.ThrowIfNull(capturePaintSettings);
+        return CreateLayoutCore(graphics, text, font, layoutSize, format, requestedQuality, capturePaintSettings);
+    }
+
+    public ILibreTextLayout CreateLayoutWithSystemSnapshot(Graphics graphics, string text, Font font,
+        Size layoutSize, LibreTextFormat format, DrawingGdiFontQuality requestedQuality,
+        Func<DrawingTextSystemSettings?> capturePaintSettings)
+    {
+        DrawingGdiTextPolicy.ValidateQuality(requestedQuality);
+        ArgumentNullException.ThrowIfNull(capturePaintSettings);
+        return CreateLayoutCore(graphics, text, font, layoutSize, format, requestedQuality, null, capturePaintSettings);
+    }
+
+    private static RetainedLayout CreateLayoutCore(Graphics graphics, string text, Font font,
+        Size layoutSize, LibreTextFormat format, DrawingGdiFontQuality? requestedQuality,
+        Func<DrawingGdiSystemSettings?>? capturePaintSettings,
+        Func<DrawingTextSystemSettings?>? captureSnapshot = null)
     {
         ArgumentNullException.ThrowIfNull(graphics);
         ArgumentNullException.ThrowIfNull(text);
@@ -32,15 +59,23 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         using StringFormat selected = CreateStringFormat(format);
         selected.FormatFlags &= ~StringFormatFlags.LineLimit;
         selected.SetDigitSubstitution(0, StringDigitSubstitute.None);
-        return new RetainedLayout(global::ProGPU.SystemDrawing.DrawingTextLayout.Create(
-            graphics, text, font, layoutSize, selected));
+        DrawingSourceText.TryGetLineMetrics(graphics, font, out var metrics);
+        DrawingTextLayout layout = requestedQuality is { } quality
+            ? DrawingGdiText.CreateLayout(graphics, text, font, layoutSize, selected, metrics, quality)
+            : DrawingGdiText.CreateLayout(graphics, text, font, layoutSize, selected, metrics);
+        return new RetainedLayout(layout, capturePaintSettings, captureSnapshot);
     }
 
-    private sealed class RetainedLayout(global::ProGPU.SystemDrawing.DrawingTextLayout layout)
+    private sealed class RetainedLayout(global::ProGPU.SystemDrawing.DrawingTextLayout layout,
+        Func<DrawingGdiSystemSettings?>? capturePaintSettings,
+        Func<DrawingTextSystemSettings?>? captureSnapshot)
         : ILibreTextLayout, ILibreTextRowNavigation, ILibreTextSourceGeometry,
           ILibreEditWordBoundaryLayout, ILibreEditTextInteractionLayout
     {
         private global::ProGPU.SystemDrawing.DrawingTextLayout? _layout = layout;
+        private Func<DrawingGdiSystemSettings?>? _capturePaintSettings = capturePaintSettings;
+        private Func<DrawingTextSystemSettings?>? _captureSnapshot = captureSnapshot;
+        private bool _capturingSnapshot;
         private int _selectionStart = -1;
         private int _selectionLength = -1;
         private RectangleF[] _selection = [];
@@ -136,13 +171,34 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         public void Draw(Graphics graphics, PointF origin, Color color)
         {
             var current = Layout;
+            ArgumentNullException.ThrowIfNull(graphics);
             using var brush = new SolidBrush(color);
-            current.Draw(graphics, brush, origin);
+            if (_captureSnapshot is { } snapshotCapture)
+            {
+                if (_capturingSnapshot)
+                    throw new InvalidOperationException("A retained system observation cannot recursively paint itself.");
+                DrawingTextSystemSettings? settings;
+                _capturingSnapshot = true;
+                try { settings = snapshotCapture(); }
+                finally { _capturingSnapshot = false; }
+                ObjectDisposedException.ThrowIf(!ReferenceEquals(current, _layout), this);
+                current.DrawWithSystemSnapshot(graphics, brush, origin, settings);
+            }
+            else if (_capturePaintSettings is { } capture)
+            {
+                DrawingGdiSystemSettings? settings = capture();
+                ObjectDisposedException.ThrowIf(!ReferenceEquals(current, _layout), this);
+                current.Draw(graphics, brush, origin, settings);
+            }
+            else
+                current.Draw(graphics, brush, origin);
         }
 
         public void Dispose()
         {
             _layout = null;
+            _capturePaintSettings = null;
+            _captureSnapshot = null;
             _selection = [];
             _wordBoundaries = null;
             _editSelection = [];
@@ -161,6 +217,17 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         Color foreColor,
         Color backColor,
         LibreTextFormat format)
+        => DrawTextCore(graphics, text, font, bounds, foreColor, backColor, format, null);
+
+    public void DrawText(Graphics graphics, string text, Font? font, Rectangle bounds,
+        Color foreColor, Color backColor, LibreTextFormat format, DrawingGdiTextPolicy policy)
+    {
+        DrawingGdiTextPolicy.ValidateQuality(policy.RequestedQuality);
+        DrawTextCore(graphics, text, font, bounds, foreColor, backColor, format, policy);
+    }
+
+    private static void DrawTextCore(Graphics graphics, string text, Font? font, Rectangle bounds,
+        Color foreColor, Color backColor, LibreTextFormat format, DrawingGdiTextPolicy? policy)
     {
         ArgumentNullException.ThrowIfNull(graphics);
         ArgumentNullException.ThrowIfNull(text);
@@ -172,7 +239,8 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         }
 
         Font selectedFont = font ?? SystemFonts.DefaultFont;
-        (int left, int right) = GetTextMargins(graphics, selectedFont, format);
+        DrawingSourceText.TryGetLineMetrics(graphics, selectedFont, out var metrics);
+        (int left, int right) = GetTextMargins(graphics, selectedFont, format, metrics);
         if (!backColor.IsEmpty && backColor != Color.Transparent && bounds.Width > 0 && bounds.Height > 0)
         {
             using var background = new SolidBrush(backColor);
@@ -193,7 +261,7 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         {
             // DrawText clips an oversized single line; its vertical viewport
             // must not make DrawString's ellipsis trimming remove every glyph.
-            float lineHeight = selectedFont.GetHeight(graphics);
+            float lineHeight = metrics?.Height ?? selectedFont.GetHeight(graphics);
             if (lineHeight > textBounds.Height)
             {
                 float remaining = textBounds.Height - lineHeight;
@@ -219,12 +287,23 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
             }
 
             stringFormat.FormatFlags |= StringFormatFlags.NoClip;
-            graphics.DrawString(text, selectedFont, foreground, textBounds, stringFormat);
+            if (policy is { } selectedPolicy)
+                DrawingGdiText.Draw(graphics, text, selectedFont, foreground, textBounds, stringFormat, metrics, selectedPolicy);
+            else
+                DrawingGdiText.Draw(graphics, text, selectedFont, foreground, textBounds, stringFormat, metrics);
         }
         finally
         {
             graphics.Restore(state);
         }
+    }
+
+    public Size MeasureText(Graphics? graphics, string text, Font? font, Size proposedSize,
+        LibreTextFormat format, DrawingGdiTextPolicy policy)
+    {
+        DrawingGdiTextPolicy.ValidateQuality(policy.RequestedQuality);
+        // Quality transport does not change the existing source layout metrics.
+        return MeasureText(graphics, text, font, proposedSize, format);
     }
 
     public Size MeasureText(
@@ -259,7 +338,8 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         LibreTextFormat format)
     {
         using StringFormat stringFormat = CreateStringFormat(format);
-        (int left, int right) = GetTextMargins(graphics, font, format);
+        DrawingSourceText.TryGetLineMetrics(graphics, font, out var metrics);
+        (int left, int right) = GetTextMargins(graphics, font, format, metrics);
         // DrawTextEx measures in the space remaining after both margins. Its
         // minimum content width is one, not an unconstrained paragraph.
         float width = proposedSize.Width == int.MaxValue
@@ -268,7 +348,9 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         // DT_CALCRECT extends the bottom to the last line, even without
         // DT_SINGLELINE. A proposed height is not a fitting/trimming viewport:
         // using it here can feed a clipped height back into source AutoSize.
-        SizeF measured = graphics.MeasureString(text, font, new SizeF(width, float.MaxValue), stringFormat);
+        SizeF measured = metrics is null
+            ? graphics.MeasureString(text, font, new SizeF(width, float.MaxValue), stringFormat)
+            : DrawingSourceText.Measure(graphics, text, font, new SizeF(width, float.MaxValue), stringFormat, metrics);
         int measuredWidth = Math.Max(0, (int)MathF.Ceiling(measured.Width));
         int measuredHeight = Math.Max(0, (int)MathF.Ceiling(measured.Height));
         return new Size(checked(measuredWidth + left + right), measuredHeight);
@@ -320,7 +402,7 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         return stringFormat;
     }
 
-    private static (int Left, int Right) GetTextMargins(Graphics graphics, Font font, LibreTextFormat format)
+    private static (int Left, int Right) GetTextMargins(Graphics graphics, Font font, LibreTextFormat format, SourceDeviceLineMetrics? metrics)
     {
         bool noPadding = format.HasFlag(LibreTextFormat.NoPadding);
         bool leftAndRightPadding = format.HasFlag(LibreTextFormat.LeftAndRightPadding);
@@ -331,7 +413,7 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
 
         // Canonical TextRenderer has already realized the source font to pixels.
         // Direct service callers retain their actual Drawing target-DPI semantics.
-        int height = checked((int)MathF.Ceiling(font.GetHeight(graphics)));
+        int height = metrics?.Height ?? checked((int)MathF.Ceiling(font.GetHeight(graphics)));
         return TextRendererMargins.Get(height, noPadding, leftAndRightPadding);
     }
 

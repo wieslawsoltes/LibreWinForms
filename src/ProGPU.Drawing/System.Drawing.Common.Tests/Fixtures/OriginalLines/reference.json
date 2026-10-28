@@ -1,0 +1,1213 @@
+{
+  "schemaVersion": 1,
+  "runtime": "10.0.13",
+  "operatingSystem": "Microsoft Windows NT 10.0.26200.0",
+  "framework": "C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App\\10.0.12\\System.Drawing.Common.dll",
+  "elapsedSeconds": 0.0643994,
+  "inputEvents": 0,
+  "width": 32,
+  "height": 32,
+  "dpi": 96,
+  "cases": [
+    {
+      "input": {
+        "Name": "horizontal",
+        "X1": 4,
+        "Y1": 8,
+        "X2": 25,
+        "Y2": 8,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "Default",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Default",
+      "actualPixelOffset": "Default",
+      "image": {
+        "name": "00-horizontal-Default-Default.png",
+        "bytes": 165,
+        "sha256": "ea7d06d042f046ae9a5dde4bc53977732d1df31b05937e5ed3f64d517a90fc3d"
+      }
+    },
+    {
+      "input": {
+        "Name": "horizontal",
+        "X1": 4,
+        "Y1": 8,
+        "X2": 25,
+        "Y2": 8,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "Default",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Half",
+      "actualPixelOffset": "Half",
+      "image": {
+        "name": "01-horizontal-Default-Half.png",
+        "bytes": 167,
+        "sha256": "b4b1db4bf5abde3491e1cd1e9b0d2a3a45d8f5413f32ff900e4e03c752e34b7f"
+      }
+    },
+    {
+      "input": {
+        "Name": "horizontal",
+        "X1": 4,
+        "Y1": 8,
+        "X2": 25,
+        "Y2": 8,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "None",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Default",
+      "actualPixelOffset": "Default",
+      "image": {
+        "name": "02-horizontal-None-Default.png",
+        "bytes": 165,
+        "sha256": "ea7d06d042f046ae9a5dde4bc53977732d1df31b05937e5ed3f64d517a90fc3d"
+      }
+    },
+    {
+      "input": {
+        "Name": "horizontal",
+        "X1": 4,
+        "Y1": 8,
+        "X2": 25,
+        "Y2": 8,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "None",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Half",
+      "actualPixelOffset": "Half",
+      "image": {
+        "name": "03-horizontal-None-Half.png",
+        "bytes": 167,
+        "sha256": "b4b1db4bf5abde3491e1cd1e9b0d2a3a45d8f5413f32ff900e4e03c752e34b7f"
+      }
+    },
+    {
+      "input": {
+        "Name": "horizontal",
+        "X1": 4,
+        "Y1": 8,
+        "X2": 25,
+        "Y2": 8,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "AntiAlias",
+      "initial": "None",
+      "actual": "AntiAlias",
+      "requestedPixelOffset": "Default",
+      "actualPixelOffset": "Default",
+      "image": {
+        "name": "04-horizontal-AntiAlias-Default.png",
+        "bytes": 171,
+        "sha256": "b72f92616c297b244f7499e37a21cba40e0a626223e0ddb59e359a62309b89a2"
+      }
+    },
+    {
+      "input": {
+        "Name": "horizontal",
+        "X1": 4,
+        "Y1": 8,
+        "X2": 25,
+        "Y2": 8,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "AntiAlias",
+      "initial": "None",
+      "actual": "AntiAlias",
+      "requestedPixelOffset": "Half",
+      "actualPixelOffset": "Half",
+      "image": {
+        "name": "05-horizontal-AntiAlias-Half.png",
+        "bytes": 186,
+        "sha256": "096a234622e128eafcdb5606fd4479331a6effefab9b8d815ac508e46fb51257"
+      }
+    },
+    {
+      "input": {
+        "Name": "reverse-horizontal",
+        "X1": 25,
+        "Y1": 8,
+        "X2": 4,
+        "Y2": 8,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "Default",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Default",
+      "actualPixelOffset": "Default",
+      "image": {
+        "name": "06-reverse-horizontal-Default-Default.png",
+        "bytes": 165,
+        "sha256": "ea7d06d042f046ae9a5dde4bc53977732d1df31b05937e5ed3f64d517a90fc3d"
+      }
+    },
+    {
+      "input": {
+        "Name": "reverse-horizontal",
+        "X1": 25,
+        "Y1": 8,
+        "X2": 4,
+        "Y2": 8,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "Default",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Half",
+      "actualPixelOffset": "Half",
+      "image": {
+        "name": "07-reverse-horizontal-Default-Half.png",
+        "bytes": 167,
+        "sha256": "b4b1db4bf5abde3491e1cd1e9b0d2a3a45d8f5413f32ff900e4e03c752e34b7f"
+      }
+    },
+    {
+      "input": {
+        "Name": "reverse-horizontal",
+        "X1": 25,
+        "Y1": 8,
+        "X2": 4,
+        "Y2": 8,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "None",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Default",
+      "actualPixelOffset": "Default",
+      "image": {
+        "name": "08-reverse-horizontal-None-Default.png",
+        "bytes": 165,
+        "sha256": "ea7d06d042f046ae9a5dde4bc53977732d1df31b05937e5ed3f64d517a90fc3d"
+      }
+    },
+    {
+      "input": {
+        "Name": "reverse-horizontal",
+        "X1": 25,
+        "Y1": 8,
+        "X2": 4,
+        "Y2": 8,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "None",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Half",
+      "actualPixelOffset": "Half",
+      "image": {
+        "name": "09-reverse-horizontal-None-Half.png",
+        "bytes": 167,
+        "sha256": "b4b1db4bf5abde3491e1cd1e9b0d2a3a45d8f5413f32ff900e4e03c752e34b7f"
+      }
+    },
+    {
+      "input": {
+        "Name": "reverse-horizontal",
+        "X1": 25,
+        "Y1": 8,
+        "X2": 4,
+        "Y2": 8,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "AntiAlias",
+      "initial": "None",
+      "actual": "AntiAlias",
+      "requestedPixelOffset": "Default",
+      "actualPixelOffset": "Default",
+      "image": {
+        "name": "10-reverse-horizontal-AntiAlias-Default.png",
+        "bytes": 171,
+        "sha256": "b72f92616c297b244f7499e37a21cba40e0a626223e0ddb59e359a62309b89a2"
+      }
+    },
+    {
+      "input": {
+        "Name": "reverse-horizontal",
+        "X1": 25,
+        "Y1": 8,
+        "X2": 4,
+        "Y2": 8,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "AntiAlias",
+      "initial": "None",
+      "actual": "AntiAlias",
+      "requestedPixelOffset": "Half",
+      "actualPixelOffset": "Half",
+      "image": {
+        "name": "11-reverse-horizontal-AntiAlias-Half.png",
+        "bytes": 186,
+        "sha256": "096a234622e128eafcdb5606fd4479331a6effefab9b8d815ac508e46fb51257"
+      }
+    },
+    {
+      "input": {
+        "Name": "vertical",
+        "X1": 8,
+        "Y1": 4,
+        "X2": 8,
+        "Y2": 25,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "Default",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Default",
+      "actualPixelOffset": "Default",
+      "image": {
+        "name": "12-vertical-Default-Default.png",
+        "bytes": 165,
+        "sha256": "15ce27ac1796644f9f657ce53ef8f478da748797d9943d20a172da04cc125cb7"
+      }
+    },
+    {
+      "input": {
+        "Name": "vertical",
+        "X1": 8,
+        "Y1": 4,
+        "X2": 8,
+        "Y2": 25,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "Default",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Half",
+      "actualPixelOffset": "Half",
+      "image": {
+        "name": "13-vertical-Default-Half.png",
+        "bytes": 164,
+        "sha256": "68cc8d4a5f70d0ecb108fbf3fe2c7e26ca6e7ac96716fd8db491d95a3c1051a5"
+      }
+    },
+    {
+      "input": {
+        "Name": "vertical",
+        "X1": 8,
+        "Y1": 4,
+        "X2": 8,
+        "Y2": 25,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "None",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Default",
+      "actualPixelOffset": "Default",
+      "image": {
+        "name": "14-vertical-None-Default.png",
+        "bytes": 165,
+        "sha256": "15ce27ac1796644f9f657ce53ef8f478da748797d9943d20a172da04cc125cb7"
+      }
+    },
+    {
+      "input": {
+        "Name": "vertical",
+        "X1": 8,
+        "Y1": 4,
+        "X2": 8,
+        "Y2": 25,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "None",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Half",
+      "actualPixelOffset": "Half",
+      "image": {
+        "name": "15-vertical-None-Half.png",
+        "bytes": 164,
+        "sha256": "68cc8d4a5f70d0ecb108fbf3fe2c7e26ca6e7ac96716fd8db491d95a3c1051a5"
+      }
+    },
+    {
+      "input": {
+        "Name": "vertical",
+        "X1": 8,
+        "Y1": 4,
+        "X2": 8,
+        "Y2": 25,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "AntiAlias",
+      "initial": "None",
+      "actual": "AntiAlias",
+      "requestedPixelOffset": "Default",
+      "actualPixelOffset": "Default",
+      "image": {
+        "name": "16-vertical-AntiAlias-Default.png",
+        "bytes": 178,
+        "sha256": "23cb975eb9a4bb0367981daae5ba49ff99f2c34a03e1302f9409ce5e3a8328e0"
+      }
+    },
+    {
+      "input": {
+        "Name": "vertical",
+        "X1": 8,
+        "Y1": 4,
+        "X2": 8,
+        "Y2": 25,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "AntiAlias",
+      "initial": "None",
+      "actual": "AntiAlias",
+      "requestedPixelOffset": "Half",
+      "actualPixelOffset": "Half",
+      "image": {
+        "name": "17-vertical-AntiAlias-Half.png",
+        "bytes": 180,
+        "sha256": "5496c846ad5701cf00a5fe10cdc94490025494f490e038c5368050098bf74840"
+      }
+    },
+    {
+      "input": {
+        "Name": "diagonal",
+        "X1": 4,
+        "Y1": 5,
+        "X2": 25,
+        "Y2": 21,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "Default",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Default",
+      "actualPixelOffset": "Default",
+      "image": {
+        "name": "18-diagonal-Default-Default.png",
+        "bytes": 237,
+        "sha256": "f518379f0e411611c13d45e4b3d44836dcf001a6efb035891d19842215322ce8"
+      }
+    },
+    {
+      "input": {
+        "Name": "diagonal",
+        "X1": 4,
+        "Y1": 5,
+        "X2": 25,
+        "Y2": 21,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "Default",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Half",
+      "actualPixelOffset": "Half",
+      "image": {
+        "name": "19-diagonal-Default-Half.png",
+        "bytes": 232,
+        "sha256": "5c586d854ec9e49f8e477b570e2d00a6dba9bba25c43f4afc522b1f8d2311670"
+      }
+    },
+    {
+      "input": {
+        "Name": "diagonal",
+        "X1": 4,
+        "Y1": 5,
+        "X2": 25,
+        "Y2": 21,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "None",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Default",
+      "actualPixelOffset": "Default",
+      "image": {
+        "name": "20-diagonal-None-Default.png",
+        "bytes": 237,
+        "sha256": "f518379f0e411611c13d45e4b3d44836dcf001a6efb035891d19842215322ce8"
+      }
+    },
+    {
+      "input": {
+        "Name": "diagonal",
+        "X1": 4,
+        "Y1": 5,
+        "X2": 25,
+        "Y2": 21,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "None",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Half",
+      "actualPixelOffset": "Half",
+      "image": {
+        "name": "21-diagonal-None-Half.png",
+        "bytes": 232,
+        "sha256": "5c586d854ec9e49f8e477b570e2d00a6dba9bba25c43f4afc522b1f8d2311670"
+      }
+    },
+    {
+      "input": {
+        "Name": "diagonal",
+        "X1": 4,
+        "Y1": 5,
+        "X2": 25,
+        "Y2": 21,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "AntiAlias",
+      "initial": "None",
+      "actual": "AntiAlias",
+      "requestedPixelOffset": "Default",
+      "actualPixelOffset": "Default",
+      "image": {
+        "name": "22-diagonal-AntiAlias-Default.png",
+        "bytes": 372,
+        "sha256": "f7613a47ef8ebe4294479dd9f33c7abbd9e330a78bee4939d0b1e4eaedb09bd3"
+      }
+    },
+    {
+      "input": {
+        "Name": "diagonal",
+        "X1": 4,
+        "Y1": 5,
+        "X2": 25,
+        "Y2": 21,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "AntiAlias",
+      "initial": "None",
+      "actual": "AntiAlias",
+      "requestedPixelOffset": "Half",
+      "actualPixelOffset": "Half",
+      "image": {
+        "name": "23-diagonal-AntiAlias-Half.png",
+        "bytes": 379,
+        "sha256": "9a1bca17af53a9f548977d0038f2e7d269d33663dee2568bd784d7d08c41cbbf"
+      }
+    },
+    {
+      "input": {
+        "Name": "wide",
+        "X1": 4,
+        "Y1": 8,
+        "X2": 25,
+        "Y2": 8,
+        "Width": 2,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "Default",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Default",
+      "actualPixelOffset": "Default",
+      "image": {
+        "name": "24-wide-Default-Default.png",
+        "bytes": 165,
+        "sha256": "9aaa146a855800dbff65866330daf0b1d2e36c5ab8c783bd825bb9bacdd65093"
+      }
+    },
+    {
+      "input": {
+        "Name": "wide",
+        "X1": 4,
+        "Y1": 8,
+        "X2": 25,
+        "Y2": 8,
+        "Width": 2,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "Default",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Half",
+      "actualPixelOffset": "Half",
+      "image": {
+        "name": "25-wide-Default-Half.png",
+        "bytes": 165,
+        "sha256": "9aaa146a855800dbff65866330daf0b1d2e36c5ab8c783bd825bb9bacdd65093"
+      }
+    },
+    {
+      "input": {
+        "Name": "wide",
+        "X1": 4,
+        "Y1": 8,
+        "X2": 25,
+        "Y2": 8,
+        "Width": 2,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "None",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Default",
+      "actualPixelOffset": "Default",
+      "image": {
+        "name": "26-wide-None-Default.png",
+        "bytes": 165,
+        "sha256": "9aaa146a855800dbff65866330daf0b1d2e36c5ab8c783bd825bb9bacdd65093"
+      }
+    },
+    {
+      "input": {
+        "Name": "wide",
+        "X1": 4,
+        "Y1": 8,
+        "X2": 25,
+        "Y2": 8,
+        "Width": 2,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "None",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Half",
+      "actualPixelOffset": "Half",
+      "image": {
+        "name": "27-wide-None-Half.png",
+        "bytes": 165,
+        "sha256": "9aaa146a855800dbff65866330daf0b1d2e36c5ab8c783bd825bb9bacdd65093"
+      }
+    },
+    {
+      "input": {
+        "Name": "wide",
+        "X1": 4,
+        "Y1": 8,
+        "X2": 25,
+        "Y2": 8,
+        "Width": 2,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "AntiAlias",
+      "initial": "None",
+      "actual": "AntiAlias",
+      "requestedPixelOffset": "Default",
+      "actualPixelOffset": "Default",
+      "image": {
+        "name": "28-wide-AntiAlias-Default.png",
+        "bytes": 185,
+        "sha256": "566a73db440eb8916ca5ed0378e3fb5fdc53bc98c4ce81e4cef00a8eb2089840"
+      }
+    },
+    {
+      "input": {
+        "Name": "wide",
+        "X1": 4,
+        "Y1": 8,
+        "X2": 25,
+        "Y2": 8,
+        "Width": 2,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0,
+        "Ty": 0,
+        "Clip": false
+      },
+      "requested": "AntiAlias",
+      "initial": "None",
+      "actual": "AntiAlias",
+      "requestedPixelOffset": "Half",
+      "actualPixelOffset": "Half",
+      "image": {
+        "name": "29-wide-AntiAlias-Half.png",
+        "bytes": 165,
+        "sha256": "9aaa146a855800dbff65866330daf0b1d2e36c5ab8c783bd825bb9bacdd65093"
+      }
+    },
+    {
+      "input": {
+        "Name": "fractional-translation",
+        "X1": 4,
+        "Y1": 8,
+        "X2": 25,
+        "Y2": 8,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0.25,
+        "Ty": 0.75,
+        "Clip": false
+      },
+      "requested": "Default",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Default",
+      "actualPixelOffset": "Default",
+      "image": {
+        "name": "30-fractional-translation-Default-Default.png",
+        "bytes": 167,
+        "sha256": "9736a1a22174b4ac8d0001face572000555cfda2f9de1a90d1f26d81950d4e0d"
+      }
+    },
+    {
+      "input": {
+        "Name": "fractional-translation",
+        "X1": 4,
+        "Y1": 8,
+        "X2": 25,
+        "Y2": 8,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0.25,
+        "Ty": 0.75,
+        "Clip": false
+      },
+      "requested": "Default",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Half",
+      "actualPixelOffset": "Half",
+      "image": {
+        "name": "31-fractional-translation-Default-Half.png",
+        "bytes": 165,
+        "sha256": "6426d9cb5ea88751154a2470f40d4438b635248723cb999411194b35f3643a9b"
+      }
+    },
+    {
+      "input": {
+        "Name": "fractional-translation",
+        "X1": 4,
+        "Y1": 8,
+        "X2": 25,
+        "Y2": 8,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0.25,
+        "Ty": 0.75,
+        "Clip": false
+      },
+      "requested": "None",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Default",
+      "actualPixelOffset": "Default",
+      "image": {
+        "name": "32-fractional-translation-None-Default.png",
+        "bytes": 167,
+        "sha256": "9736a1a22174b4ac8d0001face572000555cfda2f9de1a90d1f26d81950d4e0d"
+      }
+    },
+    {
+      "input": {
+        "Name": "fractional-translation",
+        "X1": 4,
+        "Y1": 8,
+        "X2": 25,
+        "Y2": 8,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0.25,
+        "Ty": 0.75,
+        "Clip": false
+      },
+      "requested": "None",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Half",
+      "actualPixelOffset": "Half",
+      "image": {
+        "name": "33-fractional-translation-None-Half.png",
+        "bytes": 165,
+        "sha256": "6426d9cb5ea88751154a2470f40d4438b635248723cb999411194b35f3643a9b"
+      }
+    },
+    {
+      "input": {
+        "Name": "fractional-translation",
+        "X1": 4,
+        "Y1": 8,
+        "X2": 25,
+        "Y2": 8,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0.25,
+        "Ty": 0.75,
+        "Clip": false
+      },
+      "requested": "AntiAlias",
+      "initial": "None",
+      "actual": "AntiAlias",
+      "requestedPixelOffset": "Default",
+      "actualPixelOffset": "Default",
+      "image": {
+        "name": "34-fractional-translation-AntiAlias-Default.png",
+        "bytes": 188,
+        "sha256": "2f00c69d71a3192f85514be51ed3705e3c3123b7ef6352712b3701c701a5d771"
+      }
+    },
+    {
+      "input": {
+        "Name": "fractional-translation",
+        "X1": 4,
+        "Y1": 8,
+        "X2": 25,
+        "Y2": 8,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 0.25,
+        "Ty": 0.75,
+        "Clip": false
+      },
+      "requested": "AntiAlias",
+      "initial": "None",
+      "actual": "AntiAlias",
+      "requestedPixelOffset": "Half",
+      "actualPixelOffset": "Half",
+      "image": {
+        "name": "35-fractional-translation-AntiAlias-Half.png",
+        "bytes": 191,
+        "sha256": "487add4406ac3edbff39be8dae85617cf9101a08aaa1bdeaefbf5322644dc511"
+      }
+    },
+    {
+      "input": {
+        "Name": "nonuniform-scale",
+        "X1": 2,
+        "Y1": 5,
+        "X2": 12,
+        "Y2": 5,
+        "Width": 1,
+        "Sx": 2,
+        "Sy": 3,
+        "Tx": 1,
+        "Ty": 2,
+        "Clip": false
+      },
+      "requested": "Default",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Default",
+      "actualPixelOffset": "Default",
+      "image": {
+        "name": "36-nonuniform-scale-Default-Default.png",
+        "bytes": 166,
+        "sha256": "6db29af17ab8dcc1b2b26873ae9f6a0fc02a5b36709b1d758b61549db983d6cf"
+      }
+    },
+    {
+      "input": {
+        "Name": "nonuniform-scale",
+        "X1": 2,
+        "Y1": 5,
+        "X2": 12,
+        "Y2": 5,
+        "Width": 1,
+        "Sx": 2,
+        "Sy": 3,
+        "Tx": 1,
+        "Ty": 2,
+        "Clip": false
+      },
+      "requested": "Default",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Half",
+      "actualPixelOffset": "Half",
+      "image": {
+        "name": "37-nonuniform-scale-Default-Half.png",
+        "bytes": 168,
+        "sha256": "38c32ddbe5203fd98a1dac3cb929478f8a9037de8606312b853308db7f417845"
+      }
+    },
+    {
+      "input": {
+        "Name": "nonuniform-scale",
+        "X1": 2,
+        "Y1": 5,
+        "X2": 12,
+        "Y2": 5,
+        "Width": 1,
+        "Sx": 2,
+        "Sy": 3,
+        "Tx": 1,
+        "Ty": 2,
+        "Clip": false
+      },
+      "requested": "None",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Default",
+      "actualPixelOffset": "Default",
+      "image": {
+        "name": "38-nonuniform-scale-None-Default.png",
+        "bytes": 166,
+        "sha256": "6db29af17ab8dcc1b2b26873ae9f6a0fc02a5b36709b1d758b61549db983d6cf"
+      }
+    },
+    {
+      "input": {
+        "Name": "nonuniform-scale",
+        "X1": 2,
+        "Y1": 5,
+        "X2": 12,
+        "Y2": 5,
+        "Width": 1,
+        "Sx": 2,
+        "Sy": 3,
+        "Tx": 1,
+        "Ty": 2,
+        "Clip": false
+      },
+      "requested": "None",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Half",
+      "actualPixelOffset": "Half",
+      "image": {
+        "name": "39-nonuniform-scale-None-Half.png",
+        "bytes": 168,
+        "sha256": "38c32ddbe5203fd98a1dac3cb929478f8a9037de8606312b853308db7f417845"
+      }
+    },
+    {
+      "input": {
+        "Name": "nonuniform-scale",
+        "X1": 2,
+        "Y1": 5,
+        "X2": 12,
+        "Y2": 5,
+        "Width": 1,
+        "Sx": 2,
+        "Sy": 3,
+        "Tx": 1,
+        "Ty": 2,
+        "Clip": false
+      },
+      "requested": "AntiAlias",
+      "initial": "None",
+      "actual": "AntiAlias",
+      "requestedPixelOffset": "Default",
+      "actualPixelOffset": "Default",
+      "image": {
+        "name": "40-nonuniform-scale-AntiAlias-Default.png",
+        "bytes": 171,
+        "sha256": "6a20f9af74bb020c0df8229acf840df83439b73dfa3c9d4ab5575d04cbba70e0"
+      }
+    },
+    {
+      "input": {
+        "Name": "nonuniform-scale",
+        "X1": 2,
+        "Y1": 5,
+        "X2": 12,
+        "Y2": 5,
+        "Width": 1,
+        "Sx": 2,
+        "Sy": 3,
+        "Tx": 1,
+        "Ty": 2,
+        "Clip": false
+      },
+      "requested": "AntiAlias",
+      "initial": "None",
+      "actual": "AntiAlias",
+      "requestedPixelOffset": "Half",
+      "actualPixelOffset": "Half",
+      "image": {
+        "name": "41-nonuniform-scale-AntiAlias-Half.png",
+        "bytes": 178,
+        "sha256": "0498069fdf01f740a5f316aacdd0bd0cd31861f39d7b6e5a6287a8f0f77a8c29"
+      }
+    },
+    {
+      "input": {
+        "Name": "device-clip",
+        "X1": 4,
+        "Y1": 8,
+        "X2": 25,
+        "Y2": 8,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 2,
+        "Ty": 0,
+        "Clip": true
+      },
+      "requested": "Default",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Default",
+      "actualPixelOffset": "Default",
+      "image": {
+        "name": "42-device-clip-Default-Default.png",
+        "bytes": 165,
+        "sha256": "33767106ea653642394b2a56d1a8e6727e0a5925f2cba121c612517d6ba8ae9e"
+      }
+    },
+    {
+      "input": {
+        "Name": "device-clip",
+        "X1": 4,
+        "Y1": 8,
+        "X2": 25,
+        "Y2": 8,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 2,
+        "Ty": 0,
+        "Clip": true
+      },
+      "requested": "Default",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Half",
+      "actualPixelOffset": "Half",
+      "image": {
+        "name": "43-device-clip-Default-Half.png",
+        "bytes": 168,
+        "sha256": "b59dd3a64889643a086ac3e64827e0926231a5622377551947790165070319d1"
+      }
+    },
+    {
+      "input": {
+        "Name": "device-clip",
+        "X1": 4,
+        "Y1": 8,
+        "X2": 25,
+        "Y2": 8,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 2,
+        "Ty": 0,
+        "Clip": true
+      },
+      "requested": "None",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Default",
+      "actualPixelOffset": "Default",
+      "image": {
+        "name": "44-device-clip-None-Default.png",
+        "bytes": 165,
+        "sha256": "33767106ea653642394b2a56d1a8e6727e0a5925f2cba121c612517d6ba8ae9e"
+      }
+    },
+    {
+      "input": {
+        "Name": "device-clip",
+        "X1": 4,
+        "Y1": 8,
+        "X2": 25,
+        "Y2": 8,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 2,
+        "Ty": 0,
+        "Clip": true
+      },
+      "requested": "None",
+      "initial": "None",
+      "actual": "None",
+      "requestedPixelOffset": "Half",
+      "actualPixelOffset": "Half",
+      "image": {
+        "name": "45-device-clip-None-Half.png",
+        "bytes": 168,
+        "sha256": "b59dd3a64889643a086ac3e64827e0926231a5622377551947790165070319d1"
+      }
+    },
+    {
+      "input": {
+        "Name": "device-clip",
+        "X1": 4,
+        "Y1": 8,
+        "X2": 25,
+        "Y2": 8,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 2,
+        "Ty": 0,
+        "Clip": true
+      },
+      "requested": "AntiAlias",
+      "initial": "None",
+      "actual": "AntiAlias",
+      "requestedPixelOffset": "Default",
+      "actualPixelOffset": "Default",
+      "image": {
+        "name": "46-device-clip-AntiAlias-Default.png",
+        "bytes": 165,
+        "sha256": "33767106ea653642394b2a56d1a8e6727e0a5925f2cba121c612517d6ba8ae9e"
+      }
+    },
+    {
+      "input": {
+        "Name": "device-clip",
+        "X1": 4,
+        "Y1": 8,
+        "X2": 25,
+        "Y2": 8,
+        "Width": 1,
+        "Sx": 1,
+        "Sy": 1,
+        "Tx": 2,
+        "Ty": 0,
+        "Clip": true
+      },
+      "requested": "AntiAlias",
+      "initial": "None",
+      "actual": "AntiAlias",
+      "requestedPixelOffset": "Half",
+      "actualPixelOffset": "Half",
+      "image": {
+        "name": "47-device-clip-AntiAlias-Half.png",
+        "bytes": 166,
+        "sha256": "2de39804bae6e99e6a548723b3f6bb9e5fb01d892fbb2956260994f527358666"
+      }
+    }
+  ]
+}
