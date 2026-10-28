@@ -37,6 +37,8 @@ public sealed class DrawingGdiTextPolicyTests
         using Graphics graphics = Graphics.FromProGpuDrawingContext(context);
         using Font font = new(FontFamily.GenericSansSerif, 13);
         using var format = new StringFormat(StringFormat.GenericTypographic);
+        format.Trimming = StringTrimming.None;
+        format.FormatFlags &= ~StringFormatFlags.LineLimit;
         format.SetDigitSubstitution(0, StringDigitSubstitute.None);
         var captured = DrawingGdiText.CreateLayout(graphics, "Name 123", font, new SizeF(200, 60),
             format, null, DrawingGdiFontQuality.Proof);
