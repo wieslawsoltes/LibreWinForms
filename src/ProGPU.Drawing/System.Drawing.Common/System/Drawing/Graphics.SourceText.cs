@@ -28,7 +28,8 @@ public partial class Graphics
     }
 
     internal void DrawGdiSourceString(string text, Font font, Brush brush, RectangleF bounds,
-        StringFormat format, SourceDeviceLineMetrics? metrics)
+        StringFormat format, SourceDeviceLineMetrics? metrics,
+        ProGPU.SystemDrawing.DrawingGdiTextPolicy? gdiPolicy = null)
     {
         EnsureNotDisposed();
         ArgumentNullException.ThrowIfNull(text);
@@ -37,7 +38,7 @@ public partial class Graphics
         ArgumentNullException.ThrowIfNull(format);
         if (metrics is not null) ValidateSourceLineFrame(font);
         DrawFormattedString(text, font, brush, bounds, format, pointAnchor: false,
-            sourceMetrics: metrics, sourceGdiText: true);
+            sourceMetrics: metrics, sourceGdiText: true, gdiPolicy: gdiPolicy);
     }
 
     internal SizeF MeasureSourceString(string text, Font font, SizeF bounds,

@@ -12,13 +12,28 @@ using ProGPU.Text;
 namespace LibreWinForms.ProGPU;
 
 /// <summary>Implements canonical WinForms text rendering through managed ProGPU System.Drawing.</summary>
-public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibreTextSourceGeometryService, ILibreFontAutoScaleMetrics
+public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibreTextSourceGeometryService,
+    ILibreFontAutoScaleMetrics, ILibreGdiTextRendererService, ILibreGdiTextLayoutService
 {
     public bool TryGetFontAutoScaleHeight(Font font, int referenceDpi, out int height) =>
         global::ProGPU.SystemDrawing.DrawingFontMetrics.TryGetAutoScaleHeight(font, referenceDpi, out height);
 
     public ILibreTextLayout CreateLayout(Graphics graphics, string text, Font font,
         Size layoutSize, LibreTextFormat format)
+        => CreateLayoutCore(graphics, text, font, layoutSize, format, null, null);
+
+    public ILibreTextLayout CreateLayout(Graphics graphics, string text, Font font,
+        Size layoutSize, LibreTextFormat format, DrawingGdiFontQuality requestedQuality,
+        Func<DrawingGdiSystemSettings?> capturePaintSettings)
+    {
+        DrawingGdiTextPolicy.ValidateQuality(requestedQuality);
+        ArgumentNullException.ThrowIfNull(capturePaintSettings);
+        return CreateLayoutCore(graphics, text, font, layoutSize, format, requestedQuality, capturePaintSettings);
+    }
+
+    private static RetainedLayout CreateLayoutCore(Graphics graphics, string text, Font font,
+        Size layoutSize, LibreTextFormat format, DrawingGdiFontQuality? requestedQuality,
+        Func<DrawingGdiSystemSettings?>? capturePaintSettings)
     {
         ArgumentNullException.ThrowIfNull(graphics);
         ArgumentNullException.ThrowIfNull(text);
@@ -35,14 +50,19 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         selected.FormatFlags &= ~StringFormatFlags.LineLimit;
         selected.SetDigitSubstitution(0, StringDigitSubstitute.None);
         DrawingSourceText.TryGetLineMetrics(graphics, font, out var metrics);
-        return new RetainedLayout(DrawingGdiText.CreateLayout(graphics, text, font, layoutSize, selected, metrics));
+        DrawingTextLayout layout = requestedQuality is { } quality
+            ? DrawingGdiText.CreateLayout(graphics, text, font, layoutSize, selected, metrics, quality)
+            : DrawingGdiText.CreateLayout(graphics, text, font, layoutSize, selected, metrics);
+        return new RetainedLayout(layout, capturePaintSettings);
     }
 
-    private sealed class RetainedLayout(global::ProGPU.SystemDrawing.DrawingTextLayout layout)
+    private sealed class RetainedLayout(global::ProGPU.SystemDrawing.DrawingTextLayout layout,
+        Func<DrawingGdiSystemSettings?>? capturePaintSettings)
         : ILibreTextLayout, ILibreTextRowNavigation, ILibreTextSourceGeometry,
           ILibreEditWordBoundaryLayout, ILibreEditTextInteractionLayout
     {
         private global::ProGPU.SystemDrawing.DrawingTextLayout? _layout = layout;
+        private Func<DrawingGdiSystemSettings?>? _capturePaintSettings = capturePaintSettings;
         private int _selectionStart = -1;
         private int _selectionLength = -1;
         private RectangleF[] _selection = [];
@@ -138,13 +158,22 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         public void Draw(Graphics graphics, PointF origin, Color color)
         {
             var current = Layout;
+            ArgumentNullException.ThrowIfNull(graphics);
             using var brush = new SolidBrush(color);
-            current.Draw(graphics, brush, origin);
+            if (_capturePaintSettings is { } capture)
+            {
+                DrawingGdiSystemSettings? settings = capture();
+                ObjectDisposedException.ThrowIf(!ReferenceEquals(current, _layout), this);
+                current.Draw(graphics, brush, origin, settings);
+            }
+            else
+                current.Draw(graphics, brush, origin);
         }
 
         public void Dispose()
         {
             _layout = null;
+            _capturePaintSettings = null;
             _selection = [];
             _wordBoundaries = null;
             _editSelection = [];
@@ -163,6 +192,17 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
         Color foreColor,
         Color backColor,
         LibreTextFormat format)
+        => DrawTextCore(graphics, text, font, bounds, foreColor, backColor, format, null);
+
+    public void DrawText(Graphics graphics, string text, Font? font, Rectangle bounds,
+        Color foreColor, Color backColor, LibreTextFormat format, DrawingGdiTextPolicy policy)
+    {
+        DrawingGdiTextPolicy.ValidateQuality(policy.RequestedQuality);
+        DrawTextCore(graphics, text, font, bounds, foreColor, backColor, format, policy);
+    }
+
+    private static void DrawTextCore(Graphics graphics, string text, Font? font, Rectangle bounds,
+        Color foreColor, Color backColor, LibreTextFormat format, DrawingGdiTextPolicy? policy)
     {
         ArgumentNullException.ThrowIfNull(graphics);
         ArgumentNullException.ThrowIfNull(text);
@@ -222,12 +262,23 @@ public sealed class ProGpuTextRendererService : ILibreTextRendererService, ILibr
             }
 
             stringFormat.FormatFlags |= StringFormatFlags.NoClip;
-            DrawingGdiText.Draw(graphics, text, selectedFont, foreground, textBounds, stringFormat, metrics);
+            if (policy is { } selectedPolicy)
+                DrawingGdiText.Draw(graphics, text, selectedFont, foreground, textBounds, stringFormat, metrics, selectedPolicy);
+            else
+                DrawingGdiText.Draw(graphics, text, selectedFont, foreground, textBounds, stringFormat, metrics);
         }
         finally
         {
             graphics.Restore(state);
         }
+    }
+
+    public Size MeasureText(Graphics? graphics, string text, Font? font, Size proposedSize,
+        LibreTextFormat format, DrawingGdiTextPolicy policy)
+    {
+        DrawingGdiTextPolicy.ValidateQuality(policy.RequestedQuality);
+        // Quality transport does not change the existing source layout metrics.
+        return MeasureText(graphics, text, font, proposedSize, format);
     }
 
     public Size MeasureText(

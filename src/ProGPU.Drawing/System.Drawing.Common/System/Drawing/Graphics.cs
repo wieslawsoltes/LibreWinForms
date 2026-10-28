@@ -3405,7 +3405,7 @@ public partial class Graphics :
         StringFormat format,
         bool pointAnchor,
         ProGPU.Text.SourceDeviceLineMetrics? sourceMetrics = null,
-        bool sourceGdiText = false)
+        bool sourceGdiText = false, DrawingGdiTextPolicy? gdiPolicy = null)
     {
         var layoutArea = new SizeF(layoutRectangle.Width, layoutRectangle.Height);
         FormattedTextLayout formatted = CreateFormattedTextLayout(text, font, layoutArea, format, sourceMetrics: sourceMetrics);
@@ -3434,7 +3434,7 @@ public partial class Graphics :
 
         try
         {
-            DrawFormattedGlyphRuns(formatted.Layout, font, brush, origin, transform, sourceGdiText);
+            DrawFormattedGlyphRuns(formatted.Layout, font, brush, origin, transform, sourceGdiText, gdiPolicy);
             DrawFontDecorations(formatted.Layout, font, brush, origin, transform);
             if (formatted.MnemonicIndex >= 0)
             {
@@ -3503,9 +3503,9 @@ public partial class Graphics :
         Brush brush,
         Vector2 origin,
         Matrix4x4 transform,
-        bool sourceGdiText = false)
+        bool sourceGdiText = false, DrawingGdiTextPolicy? gdiPolicy = null)
     {
-        DrawPreparedGlyphRuns(PrepareDrawingGlyphRuns(layout), font.Style, GetFontPixelSize(font), brush, origin, transform, sourceGdiText);
+        DrawPreparedGlyphRuns(PrepareDrawingGlyphRuns(layout), font.Style, GetFontPixelSize(font), brush, origin, transform, sourceGdiText, gdiPolicy);
     }
 
     private static PreparedDrawingGlyphRun[] PrepareDrawingGlyphRuns(ProGPU.Text.TextLayout layout)
@@ -3536,8 +3536,16 @@ public partial class Graphics :
     }
 
     private void DrawPreparedGlyphRuns(PreparedDrawingGlyphRun[] runs, FontStyle style,
-        float fontSize, Brush brush, Vector2 origin, Matrix4x4 transform, bool sourceGdiText)
+        float fontSize, Brush brush, Vector2 origin, Matrix4x4 transform, bool sourceGdiText,
+        DrawingGdiTextPolicy? gdiPolicy = null)
     {
+        if (gdiPolicy is { } policy)
+        {
+            DrawingGdiTextPolicy.ValidateQuality(policy.RequestedQuality);
+            if (!sourceGdiText) throw new InvalidOperationException("GDI quality requires source GDI identity.");
+            // The exact source request reaches the paint boundary. It must not
+            // select raster modes until their independent qualification exists.
+        }
         bool isBold = (style & FontStyle.Bold) != 0;
         bool isItalic = (style & FontStyle.Italic) != 0;
         var nativeBrush = TransformBrush(brush);

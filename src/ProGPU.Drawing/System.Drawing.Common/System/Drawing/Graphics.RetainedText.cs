@@ -9,7 +9,7 @@ public partial class Graphics
 {
     internal DrawingTextLayout CreateRetainedTextLayout(string text, Font font,
         SizeF layoutSize, StringFormat? format, ProGPU.Text.SourceDeviceLineMetrics? sourceMetrics = null,
-        bool sourceGdiText = false)
+        bool sourceGdiText = false, DrawingGdiFontQuality? requestedGdiQuality = null)
     {
         EnsureNotDisposed();
         ArgumentNullException.ThrowIfNull(text);
@@ -47,10 +47,11 @@ public partial class Graphics
         return new DrawingTextLayout(formatted.Layout, layoutSize, offset,
             GetLineHeight(font, formatted.Layout.FontSize, sourceMetrics), DpiX, DpiY, font.Style,
             (selected.FormatFlags & StringFormatFlags.NoClip) == 0,
-            PrepareDrawingGlyphRuns(formatted.Layout), decorations.ToArray(), sourceGdiText);
+            PrepareDrawingGlyphRuns(formatted.Layout), decorations.ToArray(), sourceGdiText, requestedGdiQuality);
     }
 
-    internal void DrawRetainedTextLayout(DrawingTextLayout layout, Brush brush, PointF location)
+    internal void DrawRetainedTextLayout(DrawingTextLayout layout, Brush brush, PointF location,
+        DrawingGdiSystemSettings? systemSettings = null)
     {
         EnsureNotDisposed();
         if (DpiX != layout.DpiX || DpiY != layout.DpiY)
@@ -63,7 +64,9 @@ public partial class Graphics
             _context.PushClip(new Rect(location.X, location.Y, layout.LayoutSize.Width, layout.LayoutSize.Height), transform);
         try
         {
-            DrawPreparedGlyphRuns(layout.Runs, layout.Style, layout.FontSize, brush, origin, transform, layout.SourceGdiText);
+            DrawingGdiTextPolicy? policy = layout.RequestedGdiQuality is { } quality
+                ? new DrawingGdiTextPolicy(quality, systemSettings) : null;
+            DrawPreparedGlyphRuns(layout.Runs, layout.Style, layout.FontSize, brush, origin, transform, layout.SourceGdiText, policy);
             if (layout.Decorations.Length != 0)
             {
                 var nativeBrush = TransformBrush(brush);

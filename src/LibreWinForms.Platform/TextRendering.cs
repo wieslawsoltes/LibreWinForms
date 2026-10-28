@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Drawing;
+using ProGPU.SystemDrawing;
 
 namespace LibreWinForms.Platform;
 
@@ -46,6 +47,27 @@ public interface ILibreTextRendererService
         Font? font,
         Size proposedSize,
         LibreTextFormat format);
+}
+
+/// <summary>Optional canonical GDI request transport; old services retain their original calls.</summary>
+public interface ILibreGdiTextRendererService : ILibreTextRendererService
+{
+    void DrawText(Graphics graphics, string text, Font? font, Rectangle bounds,
+        Color foreColor, Color backColor, LibreTextFormat format, DrawingGdiTextPolicy policy);
+
+    Size MeasureText(Graphics? graphics, string text, Font? font, Size proposedSize,
+        LibreTextFormat format, DrawingGdiTextPolicy policy);
+}
+
+/// <summary>
+/// Captures the source/font quality identity with the layout. The settings callback
+/// is read only at actual painting, never during layout, measurement or disposal.
+/// </summary>
+public interface ILibreGdiTextLayoutService : ILibreTextLayoutService
+{
+    ILibreTextLayout CreateLayout(Graphics graphics, string text, Font font,
+        Size layoutSize, LibreTextFormat format, DrawingGdiFontQuality requestedQuality,
+        Func<DrawingGdiSystemSettings?> capturePaintSettings);
 }
 
 /// <summary>Optional exact font-owned device metrics for canonical font autoscaling.</summary>

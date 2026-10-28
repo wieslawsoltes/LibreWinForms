@@ -6475,9 +6475,9 @@ public partial class CanonicalLifecycleTests
         public int HorizontalFocusThickness => 7;
         public int VerticalResizeBorderThickness => 8;
         public int HorizontalResizeBorderThickness => 9;
-        public bool FontSmoothingEnabled => false;
-        public int FontSmoothingContrast => 1700;
-        public int FontSmoothingType => 1;
+        public bool FontSmoothingEnabled => ReadGdiSetting(false);
+        public int FontSmoothingContrast => ReadGdiSetting(1700);
+        public int FontSmoothingType => ReadGdiSetting(1);
         public int IconHorizontalSpacing => 81;
         public int IconVerticalSpacing => 83;
         public bool IconTitleWrappingEnabled => false;
