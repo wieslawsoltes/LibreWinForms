@@ -1110,6 +1110,13 @@ public partial class ListViewItem : ICloneable, ISerializable
 
     internal void UpdateStateFromListView(int displayIndex, bool checkSelection)
     {
+#if LIBREWINFORMS_PORTABLE
+        // The portable ListView's handle has no comctl32 list view behind it, so there is no native
+        // item state (selection, state image, group) to read back, and LVM_GETITEMW would be a
+        // USER32 call that does not exist off Windows. UnHost runs while a ListView is disposed,
+        // so throwing here made a designer surface holding items impossible to dispose.
+        return;
+#else
         if (_listView is not null && _listView.IsHandleCreated && displayIndex != -1)
         {
             // Get information from comctl control
@@ -1153,6 +1160,7 @@ public partial class ListViewItem : ICloneable, ISerializable
                 }
             }
         }
+#endif
     }
 
     internal void UnHost(bool checkSelection) => UnHost(Index, checkSelection);
