@@ -682,7 +682,7 @@ public partial class ListViewItem : ICloneable, ISerializable
     {
         get
         {
-            if (_listView is not null && _listView.IsHandleCreated)
+            if (HasNativeItemState)
             {
                 return _listView.GetItemState(Index, LIST_VIEW_ITEM_STATE_FLAGS.LVIS_SELECTED) != 0;
             }
@@ -691,7 +691,7 @@ public partial class ListViewItem : ICloneable, ISerializable
         }
         set
         {
-            if (_listView is not null && _listView.IsHandleCreated)
+            if (HasNativeItemState)
             {
                 _listView.SetItemState(Index, value ? LIST_VIEW_ITEM_STATE_FLAGS.LVIS_SELECTED : 0, LIST_VIEW_ITEM_STATE_FLAGS.LVIS_SELECTED);
 
@@ -701,11 +701,13 @@ public partial class ListViewItem : ICloneable, ISerializable
             else
             {
                 StateSelected = value;
+#if !LIBREWINFORMS_PORTABLE
                 if (_listView is not null && _listView.IsHandleCreated)
                 {
                     // Set the selected state on the list view item only if the list view's Handle is already created.
                     _listView.CacheSelectedStateForItem(this, value);
                 }
+#endif
             }
         }
     }
@@ -722,7 +724,7 @@ public partial class ListViewItem : ICloneable, ISerializable
     {
         get
         {
-            if (_listView is not null && _listView.IsHandleCreated)
+            if (HasNativeItemState)
             {
                 LIST_VIEW_ITEM_STATE_FLAGS state = _listView.GetItemState(Index, LIST_VIEW_ITEM_STATE_FLAGS.LVIS_STATEIMAGEMASK);
                 return (((int)state >> 12) - 1);   // index is 1-based
@@ -735,7 +737,7 @@ public partial class ListViewItem : ICloneable, ISerializable
             ArgumentOutOfRangeException.ThrowIfLessThan(value, ImageList.Indexer.DefaultIndex);
             ArgumentOutOfRangeException.ThrowIfGreaterThan(value, 14);
 
-            if (_listView is not null && _listView.IsHandleCreated)
+            if (HasNativeItemState)
             {
                 _state[s_stateImageMaskSet] = (value == ImageList.Indexer.DefaultIndex ? 0 : 1);
                 LIST_VIEW_ITEM_STATE_FLAGS state = (LIST_VIEW_ITEM_STATE_FLAGS)((value + 1) << 12);  // index is 1-based
@@ -1047,6 +1049,20 @@ public partial class ListViewItem : ICloneable, ISerializable
         _groupName = null;
     }
 
+    [MemberNotNullWhen(true, nameof(_listView))]
+    private bool HasNativeItemState
+    {
+        get
+        {
+#if LIBREWINFORMS_PORTABLE
+            // A portable handle has no comctl32 item state. Saved flags stay authoritative.
+            return false;
+#else
+            return _listView is not null && _listView.IsHandleCreated;
+#endif
+        }
+    }
+
     internal void UpdateStateToListView(int index)
     {
         LVITEMW item = default;
@@ -1071,6 +1087,7 @@ public partial class ListViewItem : ICloneable, ISerializable
             _lastIndex = index;
         }
 
+#if !LIBREWINFORMS_PORTABLE
         // Update Item state in one shot
         LIST_VIEW_ITEM_STATE_FLAGS itemState = 0;
         LIST_VIEW_ITEM_STATE_FLAGS stateMask = 0;
@@ -1106,6 +1123,7 @@ public partial class ListViewItem : ICloneable, ISerializable
         {
             PInvokeCore.SendMessage(_listView, PInvoke.LVM_SETITEMW, 0, ref lvItem);
         }
+#endif
     }
 
     internal void UpdateStateFromListView(int displayIndex, bool checkSelection)
