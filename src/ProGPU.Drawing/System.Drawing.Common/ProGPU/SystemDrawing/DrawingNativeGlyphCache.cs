@@ -14,9 +14,10 @@ internal static class DrawingNativeGlyphCache
     private static readonly ConditionalWeakTable<TtfFont, FontCache> Fonts = new();
 
     internal static Use Acquire(TtfFont font, ushort[] glyphs, Vector2[] positions,
-        uint pixelsPerEm26_6, float rasterScale, NativeFontOutlinePolicy policy)
+        uint pixelsPerEm26_6, float rasterScale, NativeFontOutlinePolicy policy,
+        NativeHintedCoverage coverage = NativeHintedCoverage.AntialiasedVector)
         => Fonts.GetValue(font, static source => new(source)).Acquire(
-            glyphs, positions, pixelsPerEm26_6, rasterScale, policy);
+            glyphs, positions, pixelsPerEm26_6, rasterScale, policy, coverage);
 
     internal sealed class Use : IDisposable
     {
@@ -37,18 +38,20 @@ internal static class DrawingNativeGlyphCache
         internal readonly uint PixelsPerEm26_6;
         internal readonly float RasterScale;
         internal readonly NativeFontOutlinePolicy Policy;
+        internal readonly NativeHintedCoverage Coverage;
         internal readonly HintedGlyphGeometry Geometry;
         internal readonly long Cost;
         internal bool IsRetired => Volatile.Read(ref _retired);
 
         internal Entry(ushort[] glyphs, Vector2[] positions, uint em, float scale,
-            NativeFontOutlinePolicy policy, HintedGlyphGeometry geometry, int fontBytes)
+            NativeFontOutlinePolicy policy, NativeHintedCoverage coverage, HintedGlyphGeometry geometry, int fontBytes)
         {
             Glyphs = glyphs;
             Positions = positions;
             PixelsPerEm26_6 = em;
             RasterScale = scale;
             Policy = policy;
+            Coverage = coverage;
             Geometry = geometry;
             // Charge complete source bytes conservatively even if the native
             // producer shares their owner across captures.
@@ -59,8 +62,8 @@ internal static class DrawingNativeGlyphCache
         }
 
         internal bool Matches(ushort[] glyphs, Vector2[] positions, uint em,
-            float scale, NativeFontOutlinePolicy policy)
-            => PixelsPerEm26_6 == em && Policy == policy &&
+            float scale, NativeFontOutlinePolicy policy, NativeHintedCoverage coverage)
+            => PixelsPerEm26_6 == em && Policy == policy && Coverage == coverage &&
                 BitConverter.SingleToInt32Bits(RasterScale) == BitConverter.SingleToInt32Bits(scale) &&
                 Glyphs.AsSpan().SequenceEqual(glyphs) &&
                 MemoryMarshal.AsBytes(Positions.AsSpan()).SequenceEqual(MemoryMarshal.AsBytes(positions.AsSpan()));
@@ -105,8 +108,10 @@ internal static class DrawingNativeGlyphCache
         private long _cost;
 
         internal Use Acquire(ushort[] glyphs, Vector2[] positions, uint em,
-            float scale, NativeFontOutlinePolicy policy)
+            float scale, NativeFontOutlinePolicy policy, NativeHintedCoverage coverage)
         {
+            if (coverage is not (NativeHintedCoverage.AntialiasedVector or NativeHintedCoverage.Monochrome))
+                throw new ArgumentOutOfRangeException(nameof(coverage));
             lock (_gate)
             {
                 for (int index = 0; index < _entries.Count; index++)
@@ -121,7 +126,7 @@ internal static class DrawingNativeGlyphCache
                         _cost -= entry.Cost;
                         continue;
                     }
-                    if (!entry.Matches(glyphs, positions, em, scale, policy)) continue;
+                    if (!entry.Matches(glyphs, positions, em, scale, policy, coverage)) continue;
                     Use found = entry.Acquire();
                     _entries.RemoveAt(index);
                     _entries.Add(entry);
@@ -135,9 +140,9 @@ internal static class DrawingNativeGlyphCache
                 using NativeHintedFontBatch batch = _context.CaptureOutlineBatch(0, nativeGlyphs,
                     em, em, NativeFontHintInterpreter.TrueType35, policy);
                 HintedGlyphGeometry geometry = NativeHintedGlyphGeometryFactory.CreateFontBatch(batch,
-                    originalPositions, scale, coverage: NativeHintedCoverage.AntialiasedVector);
+                    originalPositions, scale, coverage: coverage);
                 Entry candidate;
-                try { candidate = new(originalGlyphs, originalPositions, em, scale, policy, geometry, font.FontData.Length); }
+                try { candidate = new(originalGlyphs, originalPositions, em, scale, policy, coverage, geometry, font.FontData.Length); }
                 catch (Exception failure) { CleanupAfterFailure(geometry.Dispose, failure); throw; }
                 Use use;
                 try { use = candidate.Acquire(); }

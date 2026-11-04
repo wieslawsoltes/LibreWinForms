@@ -1,5 +1,16 @@
 # Owned native grid-fit paint
 
+Binary integration selects the explicit `Monochrome` coverage
+contract from [ProGPU #400](https://github.com/wieslawsoltes/ProGPU/pull/400) for
+already-admitted aliased grid-fit draws. The cache retains coverage independently
+of the font load policy, preserving the original positions and separate grayscale
+generation. The selected producer is whole-qualified ProGPU
+`6208f44ca74f2b5cf5d03ed1117d938421f27f7d`; all 78 reported checks passed,
+including all 63 Build jobs. The adapter's 56 focused controls pass without skips
+using its original staged macOS ARM64 native payload. These controls do not
+qualify the original 72-case Drawing images, both consumer providers or application
+packages; those gates remain separate.
+
 Ordinary GDI+ `SingleBitPerPixelGridFit` and `AntiAliasGridFit` can record
 owned native outlines while keeping the existing layout's glyph IDs, positions,
 origin, advances and measurements. Selection requires a known physical raster
@@ -10,7 +21,8 @@ their existing path. This is a bounded implementation step for [#174](https://gi
 not original Microsoft pixel qualification.
 
 The original face's complete `gasp` table is validated before native capture.
-Single-bit grid fitting selects monochrome outlines and binary vector coverage.
+Single-bit grid fitting selects monochrome outlines and the producer's explicit
+binary scan-conversion coverage, including its original dropout metadata.
 Antialiased grid fitting selects normal outlines and grayscale coverage when the
 original range requests both; a grid-fit-only range uses monochrome outlines and
 binary coverage. The symmetric ClearType bits do not replace the ordinary
@@ -21,16 +33,18 @@ Every run's table policy is checked before capturing any mixed-font draw.
 The producer executes the explicitly selected TrueType35 interpreter. Original
 Windows observations still contain 1/64-pixel outline differences; this choice
 does not assert that interpreter or FreeType target is an exact Microsoft policy.
-Monochrome dropout, contrast, GDI source quality, ClearType, system preferences
-and the remaining frame/font contracts are independent unfinished work. GDI
-`DrawingGdiText` never enters this GDI+ policy through a shared enum value.
+Original Microsoft dropout and contrast behavior, GDI source quality, ClearType,
+system preferences and the remaining frame/font contracts retain their independent
+qualification requirements. GDI `DrawingGdiText` never enters this GDI+ policy
+through a shared enum value.
 
 Each actual immutable font has an owned native CPU context. A bounded cache keeps
 at most 16 captured generations and charges at most 8 MiB per font, including
 source bytes, copied keys and geometry. Oversized generations remain uncached.
-Keys retain raw raster scale, native policy, exact device em and complete original
-glyph/position arrays. Origin remains a recording parameter. Callers retain a
-temporary use until the recorder acquires its independent native lease; eviction
+Keys retain raw raster scale, native outline policy, independent coverage policy,
+exact device em and complete original glyph/position arrays. Origin remains a
+recording parameter. Callers retain a temporary use until the recorder acquires
+its independent native lease; eviction
 cannot invalidate either an active caller or recorded paint. Font decoding and
 hinting do not happen during GPU replay. Abandoned native CPU owners keep their
 existing finalizers; no GPU finalizer, RenderLock or inferred current device is
@@ -47,13 +61,13 @@ RID builds place libraries alongside their corresponding NuGet native dependenci
 Notices are retained, SDK archives are excluded, and Package-mode consumers keep
 ordinary NuGet resolution. No package-cache or system-library patch is used.
 
-The source pin is the exact tested ProGPU commit
+The initial source integration used the tested ProGPU commit
 `b2ac03b1e5fd2a997c30ae48a0c1743f1f4d8f98`, merged through
 [ProGPU PR395](https://github.com/wieslawsoltes/ProGPU/pull/395).
-Its complete Build39115306861 passes all 61 jobs; all 62 reported checks pass.
+Its complete Build39115306861 passed all 61 jobs; all 62 reported checks passed.
 Compared with the previous qualified `983a01b` producer, only package-list,
-closure-test and documentation files change. Source and native implementations
-are identical. This qualifies producer staging, not the downstream Drawing
+closure-test and documentation files changed. Source and native implementations
+were identical. That qualified producer staging, not the downstream Drawing
 candidate or its original Windows pixels.
 
 LibreWinForms' own release package registry also includes `ProGPU.Scene.Native`
@@ -63,15 +77,22 @@ checks before packaging; both CI and release staging now verify the real source
 dependencies, with independent missing-bridge and wrong-order rejection controls.
 All 28 staging controls pass locally. Exact whole consumer CI is still required.
 
-Seventeen local controls cover original placement, all admitted policy choices,
-excluded source contracts, malformed-table rejection, mutable caller arrays,
+The initial seventeen local controls covered original placement, all admitted
+policy choices, excluded source contracts, malformed-table rejection, mutable caller arrays,
 warm retained reuse and real bitmap replay after cache eviction. The complete
-Drawing suite passes 973 tests without skips using the qualified native producer
+Drawing suite passed 973 tests without skips using that qualified native producer
 and ordinary loader resolution. Thirty-six real-payload asset evaluations cover
 source discovery, explicit roots, trailing separators, executable/test boundaries,
 Package-mode isolation and RID selection. These local controls do not replace the
 unchanged 72-case original Windows pair, both provider/package checks or complete
 Forms application qualification. Those remain required before #174 can close.
+
+With the current `6208f44c` producer, the 56 focused controls cover native glyph
+policy and cache identity, malformed-font paint preflight, integer origins and
+coverage/contrast behavior. The binary eviction case records `IntegerPixel`, as
+required by the producer; the existing vector case retains `Auto`. Both cases
+retain the complete bitmap and owner-lifetime assertions. Coverage changes do not
+alter original positions, outlines, grayscale selection or GDI admission.
 
 The four existing binary-coverage image checks now read each complete image with
 one public read-only `LockBits` capture. Every original alpha/color/ink assertion

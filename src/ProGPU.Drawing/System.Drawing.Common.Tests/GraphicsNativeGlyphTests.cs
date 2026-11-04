@@ -38,6 +38,20 @@ public sealed class GraphicsNativeGlyphTests
         Assert.Equal(RenderCommandType.DrawGlyphRun, before.Type);
         Assert.Equal(RenderCommandType.DrawHintedGlyphs, after.Type);
         Assert.Equal(coverage, after.TextRenderingMode);
+        Assert.All(after.HintedGlyphGeometry!.Segments.ToArray(), segment =>
+        {
+            if (coverage == TextRenderingMode.Aliased)
+            {
+                Assert.NotEqual(0U, segment.Pad0 & NativeFontScanMetadata.SegmentMarker);
+                Assert.True(segment.Pad2 > 0);
+            }
+            else
+            {
+                Assert.Equal(0U, segment.Pad0);
+                Assert.Equal(0U, segment.Pad1);
+                Assert.Equal(0U, segment.Pad2);
+            }
+        });
         Assert.Equal(coverage == TextRenderingMode.Aliased ? TextHintingMode.IntegerPixel : TextHintingMode.Auto,
             after.TextHintingMode);
         Assert.Equal(before.Position, after.Position);
@@ -48,6 +62,40 @@ public sealed class GraphicsNativeGlyphTests
         Assert.Equal(original.MeasureString("Name 123", font), native.MeasureString("Name 123", font));
         originalContext.Clear();
         nativeContext.Clear();
+    }
+
+    [Fact]
+    public void RasterCoverageIsIndependentOfFontLoadPolicyAndCacheIdentity()
+    {
+        TtfFont font = FontWithGasp(1);
+        ushort[] glyphs = [font.GetGlyphIndex('I')];
+        Vector2[] positions = [new(0.25f, 2f)];
+        using var vector = DrawingNativeGlyphCache.Acquire(font, glyphs, positions, 13 * 64, 1,
+            NativeFontOutlinePolicy.Monochrome, NativeHintedCoverage.AntialiasedVector);
+        using var binary = DrawingNativeGlyphCache.Acquire(font, glyphs, positions, 13 * 64, 1,
+            NativeFontOutlinePolicy.Monochrome, NativeHintedCoverage.Monochrome);
+        using var vectorAgain = DrawingNativeGlyphCache.Acquire(font, glyphs, positions, 13 * 64, 1,
+            NativeFontOutlinePolicy.Monochrome, NativeHintedCoverage.AntialiasedVector);
+        using var binaryAgain = DrawingNativeGlyphCache.Acquire(font, glyphs, positions, 13 * 64, 1,
+            NativeFontOutlinePolicy.Monochrome, NativeHintedCoverage.Monochrome);
+        Assert.NotSame(vector.Geometry, binary.Geometry);
+        Assert.Same(vector.Geometry, vectorAgain.Geometry);
+        Assert.Same(binary.Geometry, binaryAgain.Geometry);
+        Assert.Equal(vector.Geometry.FontPlacements.ToArray(), binary.Geometry.FontPlacements.ToArray());
+        Assert.Equal(MemoryMarshal.AsBytes(vector.Geometry.Outlines).ToArray(),
+            MemoryMarshal.AsBytes(binary.Geometry.Outlines).ToArray());
+        GpuSegment[] original = vector.Geometry.Segments.ToArray(), selected = binary.Geometry.Segments.ToArray();
+        Assert.Equal(original.Length, selected.Length);
+        for (int i = 0; i < original.Length; i++)
+        {
+            Assert.Equal(original[i].P0, selected[i].P0); Assert.Equal(original[i].P1, selected[i].P1);
+            Assert.Equal(original[i].P2, selected[i].P2); Assert.Equal(original[i].P3, selected[i].P3);
+            Assert.Equal(original[i].SegmentType, selected[i].SegmentType);
+            Assert.Equal(0U, original[i].Pad0);
+            Assert.NotEqual(0U, selected[i].Pad0 & NativeFontScanMetadata.SegmentMarker);
+        }
+        Assert.Throws<ArgumentOutOfRangeException>(() => DrawingNativeGlyphCache.Acquire(font,
+            glyphs, positions, 13 * 64, 1, NativeFontOutlinePolicy.Monochrome, (NativeHintedCoverage)99));
     }
 
     [Fact]
@@ -126,19 +174,21 @@ public sealed class GraphicsNativeGlyphTests
         Assert.Equal(new Vector2(0.25f, 2f), changed.Geometry.FontPlacements[0].Position);
     }
 
-    [Fact]
-    public void EvictionProtectsAnActiveCallerAndThenTheRecordedGpuOwner()
+    [Theory]
+    [InlineData(NativeHintedCoverage.AntialiasedVector)]
+    [InlineData(NativeHintedCoverage.Monochrome)]
+    public void EvictionProtectsAnActiveCallerAndThenTheRecordedGpuOwner(NativeHintedCoverage coverage)
     {
         TtfFont font = FontWithGasp(1);
         ushort[] glyphs = [font.GetGlyphIndex('I')];
         Vector2[] positions = [Vector2.Zero];
         using var first = DrawingNativeGlyphCache.Acquire(font, glyphs, positions, 13 * 64, 1,
-            NativeFontOutlinePolicy.Monochrome);
+            NativeFontOutlinePolicy.Monochrome, coverage);
         HintedGlyphGeometry geometry = first.Geometry;
         for (uint em = 14; em < 31; em++)
         {
             using var next = DrawingNativeGlyphCache.Acquire(font, glyphs, positions, em * 64, 1,
-                NativeFontOutlinePolicy.Monochrome);
+                NativeFontOutlinePolicy.Monochrome, coverage);
         }
         Assert.False(geometry.IsDisposed);
         using var bitmap = new Bitmap(64, 48);
@@ -148,8 +198,10 @@ public sealed class GraphicsNativeGlyphTests
             Vector2 origin = new(8, 30);
             Assert.True(DrawingContext.TryGetHintedGlyphInkBounds(geometry, origin, out Rect ink, out bool hasInk));
             Assert.True(hasInk);
-            graphics.DrawingContext.DrawHintedGlyphs(geometry, origin, ink,
-                new ProGPU.Vector.SolidColorBrush(new Vector4(0, 0, 0, 1)), textRenderingMode: TextRenderingMode.Aliased);
+            graphics.DrawingContext.DrawHintedGlyphsWithRasterOrigin(geometry, origin, ink,
+                new ProGPU.Vector.SolidColorBrush(new Vector4(0, 0, 0, 1)),
+                coverage == NativeHintedCoverage.Monochrome ? TextHintingMode.IntegerPixel : TextHintingMode.Auto,
+                textRenderingMode: TextRenderingMode.Aliased);
         }
         first.Dispose();
         Assert.True(geometry.IsDisposed);

@@ -63,7 +63,9 @@ public partial class Graphics
                 if (policies[index] is not { } policy) continue;
                 PreparedDrawingGlyphRun run = runs[index];
                 DrawingNativeGlyphCache.Use use = DrawingNativeGlyphCache.Acquire(run.Font,
-                    run.GlyphIndices, run.GlyphPositions, em26_6, scale, policy);
+                    run.GlyphIndices, run.GlyphPositions, em26_6, scale, policy,
+                    coverages[index] == TextRenderingMode.Aliased
+                        ? NativeHintedCoverage.Monochrome : NativeHintedCoverage.AntialiasedVector);
                 prepared[index] = new(use, default, coverages[index]);
                 if (!DrawingContext.TryGetHintedGlyphInkBounds(use.Geometry, origin, out Rect bounds, out _))
                     throw new NotSupportedException("The original native glyph ink cannot be represented in this source frame.");
