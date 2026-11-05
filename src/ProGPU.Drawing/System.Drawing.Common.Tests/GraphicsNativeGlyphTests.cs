@@ -21,6 +21,9 @@ public sealed class GraphicsNativeGlyphTests
     [InlineData(15, TextRenderingHint.AntiAliasGridFit, TextRenderingMode.Grayscale)]
     [InlineData(2, TextRenderingHint.SingleBitPerPixelGridFit, TextRenderingMode.Aliased)]
     [InlineData(15, TextRenderingHint.SingleBitPerPixelGridFit, TextRenderingMode.Aliased)]
+    [InlineData(1, TextRenderingHint.SingleBitPerPixel, TextRenderingMode.Aliased)]
+    [InlineData(2, TextRenderingHint.SingleBitPerPixel, TextRenderingMode.Aliased)]
+    [InlineData(15, TextRenderingHint.SingleBitPerPixel, TextRenderingMode.Aliased)]
     public void OwnedGridFitUsesOriginalFontRecommendationWithoutChangingPlacements(
         int flags, TextRenderingHint hint, TextRenderingMode coverage)
     {
@@ -98,8 +101,10 @@ public sealed class GraphicsNativeGlyphTests
             glyphs, positions, 13 * 64, 1, NativeFontOutlinePolicy.Monochrome, (NativeHintedCoverage)99));
     }
 
-    [Fact]
-    public void RetainedWarmPaintReusesTheOwnedGeometryAcrossOrigins()
+    [Theory]
+    [InlineData(TextRenderingHint.SingleBitPerPixelGridFit)]
+    [InlineData(TextRenderingHint.SingleBitPerPixel)]
+    public void RetainedWarmPaintReusesTheOwnedGeometryAcrossOrigins(TextRenderingHint hint)
     {
         using var font = new Font(FontWithGasp(1), 13, unit: GraphicsUnit.Pixel);
         var context = new DrawingContext();
@@ -108,7 +113,7 @@ public sealed class GraphicsNativeGlyphTests
         format.Trimming = StringTrimming.None;
         format.SetDigitSubstitution(0, StringDigitSubstitute.None);
         DrawingTextLayout layout = DrawingTextLayout.Create(graphics, "Name 123", font, new SizeF(200, 40), format);
-        graphics.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
+        graphics.TextRenderingHint = hint;
         layout.Draw(graphics, Brushes.Black, new PointF(8, 8));
         RenderCommand first = Assert.Single(context.Commands);
         layout.Draw(graphics, Brushes.Black, new PointF(16, 16));
@@ -117,6 +122,45 @@ public sealed class GraphicsNativeGlyphTests
         Assert.Same(first.HintedGlyphGeometry, second.HintedGlyphGeometry);
         Assert.Equal(new Vector2(8, 8), second.Position - first.Position);
         context.Clear();
+    }
+
+    [Fact]
+    public void UnhintedScanWitnessKeepsRawGeometryAndHasIndependentWarmCacheIdentity()
+    {
+        TtfFont font = FontWithGasp(1);
+        ushort[] glyphs = [font.GetGlyphIndex('a'), font.GetGlyphIndex(' '), font.GetGlyphIndex('a')];
+        Vector2[] positions = [new(.25f, 2), new(8, 2), new(12.5f, 2)];
+        using var raw = DrawingNativeGlyphCache.Acquire(font, glyphs, positions, 13 * 64, 1,
+            NativeFontOutlinePolicy.Unhinted, NativeHintedCoverage.Monochrome);
+        using var paired = DrawingNativeGlyphCache.Acquire(font, glyphs, positions, 13 * 64, 1,
+            NativeFontOutlinePolicy.Unhinted, NativeHintedCoverage.Monochrome, unhintedScanMetadata: true);
+        using var warm = DrawingNativeGlyphCache.Acquire(font, glyphs, positions, 13 * 64, 1,
+            NativeFontOutlinePolicy.Unhinted, NativeHintedCoverage.Monochrome, unhintedScanMetadata: true);
+        using var rawAgain = DrawingNativeGlyphCache.Acquire(font, glyphs, positions, 13 * 64, 1,
+            NativeFontOutlinePolicy.Unhinted, NativeHintedCoverage.Monochrome);
+        Assert.NotSame(raw.Geometry, paired.Geometry);
+        Assert.Same(paired.Geometry, warm.Geometry);
+        Assert.Same(raw.Geometry, rawAgain.Geometry);
+        Assert.Equal(raw.Geometry.FontPlacements.ToArray(), paired.Geometry.FontPlacements.ToArray());
+        Assert.Equal(MemoryMarshal.AsBytes(raw.Geometry.Outlines).ToArray(),
+            MemoryMarshal.AsBytes(paired.Geometry.Outlines).ToArray());
+        GpuSegment[] original = raw.Geometry.Segments.ToArray(), actual = paired.Geometry.Segments.ToArray();
+        Assert.Equal(original.Length, actual.Length);
+        const uint scanMask = 7u | NativeFontScanMetadata.ContourOverride | (0x38u << 16);
+        for (int i = 0; i < actual.Length; i++)
+        {
+            Assert.Equal(original[i].Pad0 & ~scanMask, actual[i].Pad0 & ~scanMask);
+            actual[i].Pad0 = original[i].Pad0;
+        }
+        Assert.Equal(MemoryMarshal.AsBytes(original.AsSpan()).ToArray(),
+            MemoryMarshal.AsBytes(actual.AsSpan()).ToArray());
+        Assert.Equal(uint.MaxValue, paired.Geometry.FontPlacements[1].OutlineIndex);
+        Assert.Throws<ArgumentException>(() => DrawingNativeGlyphCache.Acquire(font, glyphs, positions,
+            13 * 64, 1, NativeFontOutlinePolicy.Monochrome, NativeHintedCoverage.Monochrome,
+            unhintedScanMetadata: true));
+        Assert.Throws<ArgumentException>(() => DrawingNativeGlyphCache.Acquire(font, glyphs, positions,
+            13 * 64, 1, NativeFontOutlinePolicy.Unhinted, NativeHintedCoverage.AntialiasedVector,
+            unhintedScanMetadata: true));
     }
 
     [Theory]
@@ -143,14 +187,16 @@ public sealed class GraphicsNativeGlyphTests
         context.Clear();
     }
 
-    [Fact]
-    public void MalformedOriginalRecommendationRejectsBeforeGlyphPublication()
+    [Theory]
+    [InlineData(TextRenderingHint.AntiAliasGridFit)]
+    [InlineData(TextRenderingHint.SingleBitPerPixel)]
+    public void MalformedOriginalRecommendationRejectsBeforeGlyphPublication(TextRenderingHint hint)
     {
         using var font = new Font(FontWithGasp(0x8000), 13, unit: GraphicsUnit.Pixel);
         var context = new DrawingContext();
         using Graphics graphics = Target(context);
         using StringFormat format = Format();
-        graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+        graphics.TextRenderingHint = hint;
         Assert.Throws<InvalidDataException>(() => graphics.DrawString("Name", font, Brushes.Black,
             new RectangleF(8, 8, 200, 40), format));
         Assert.Empty(context.Commands);
@@ -175,20 +221,24 @@ public sealed class GraphicsNativeGlyphTests
     }
 
     [Theory]
-    [InlineData(NativeHintedCoverage.AntialiasedVector)]
-    [InlineData(NativeHintedCoverage.Monochrome)]
-    public void EvictionProtectsAnActiveCallerAndThenTheRecordedGpuOwner(NativeHintedCoverage coverage)
+    [InlineData(NativeHintedCoverage.AntialiasedVector, false)]
+    [InlineData(NativeHintedCoverage.Monochrome, false)]
+    [InlineData(NativeHintedCoverage.Monochrome, true)]
+    public void EvictionProtectsAnActiveCallerAndThenTheRecordedGpuOwner(
+        NativeHintedCoverage coverage, bool unhintedScanMetadata)
     {
         TtfFont font = FontWithGasp(1);
         ushort[] glyphs = [font.GetGlyphIndex('I')];
         Vector2[] positions = [Vector2.Zero];
+        NativeFontOutlinePolicy policy = unhintedScanMetadata
+            ? NativeFontOutlinePolicy.Unhinted : NativeFontOutlinePolicy.Monochrome;
         using var first = DrawingNativeGlyphCache.Acquire(font, glyphs, positions, 13 * 64, 1,
-            NativeFontOutlinePolicy.Monochrome, coverage);
+            policy, coverage, unhintedScanMetadata);
         HintedGlyphGeometry geometry = first.Geometry;
         for (uint em = 14; em < 31; em++)
         {
             using var next = DrawingNativeGlyphCache.Acquire(font, glyphs, positions, em * 64, 1,
-                NativeFontOutlinePolicy.Monochrome, coverage);
+                policy, coverage, unhintedScanMetadata);
         }
         Assert.False(geometry.IsDisposed);
         using var bitmap = new Bitmap(64, 48);

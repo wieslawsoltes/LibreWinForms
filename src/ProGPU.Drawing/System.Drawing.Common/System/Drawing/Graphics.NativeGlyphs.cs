@@ -19,7 +19,8 @@ public partial class Graphics
         // GDI font quality is independent. Do not infer either its smoothing
         // preference or a physical target from ordinary Graphics layout DPI.
         if (sourceGdiText || GlyphRasterDpiScale is not { } scale || _dpiX != _dpiY ||
-            TextRenderingHint is not (TextRenderingHint.SingleBitPerPixelGridFit or TextRenderingHint.AntiAliasGridFit) ||
+            TextRenderingHint is not (TextRenderingHint.SingleBitPerPixel or
+                TextRenderingHint.SingleBitPerPixelGridFit or TextRenderingHint.AntiAliasGridFit) ||
             (style & (FontStyle.Bold | FontStyle.Italic)) != 0 ||
             brush is not ProGPU.Vector.SolidColorBrush || !IsNativeGlyphTranslation(transform))
             return null;
@@ -40,7 +41,15 @@ public partial class Graphics
             if (font.HasColorGlyphs || font.HasBitmapGlyphs ||
                 !font.TryGetStaticRasterizationRecommendations(ppem, out FontRasterizationRange range))
                 continue;
-            if (TextRenderingHint == TextRenderingHint.SingleBitPerPixelGridFit)
+            if (TextRenderingHint == TextRenderingHint.SingleBitPerPixel)
+            {
+                // Retain instruction-free coordinates. The separate same-font
+                // monochrome capture contributes only checked scan metadata.
+                if (font.HasCffOutlines) continue;
+                policies[index] = NativeFontOutlinePolicy.Unhinted;
+                coverages[index] = TextRenderingMode.Aliased;
+            }
+            else if (TextRenderingHint == TextRenderingHint.SingleBitPerPixelGridFit)
             {
                 policies[index] = NativeFontOutlinePolicy.Monochrome;
                 coverages[index] = TextRenderingMode.Aliased;
@@ -65,7 +74,8 @@ public partial class Graphics
                 DrawingNativeGlyphCache.Use use = DrawingNativeGlyphCache.Acquire(run.Font,
                     run.GlyphIndices, run.GlyphPositions, em26_6, scale, policy,
                     coverages[index] == TextRenderingMode.Aliased
-                        ? NativeHintedCoverage.Monochrome : NativeHintedCoverage.AntialiasedVector);
+                        ? NativeHintedCoverage.Monochrome : NativeHintedCoverage.AntialiasedVector,
+                    unhintedScanMetadata: TextRenderingHint == TextRenderingHint.SingleBitPerPixel);
                 prepared[index] = new(use, default, coverages[index]);
                 if (!DrawingContext.TryGetHintedGlyphInkBounds(use.Geometry, origin, out Rect bounds, out _))
                     throw new NotSupportedException("The original native glyph ink cannot be represented in this source frame.");

@@ -1,5 +1,44 @@
 # Owned native grid-fit paint
 
+## Unfitted single-bit source paint
+
+`SingleBitPerPixel` now uses the qualified producer's explicit paired capture
+for the existing integral-em, known-target, solid-brush, translation-only static
+TrueType admission. The raw outline remains `Unhinted`; a separate capture of the
+same font at the same size/interpreter supplies only checked scan/dropout metadata.
+No hinted coordinate, original glyph placement, advance or measurement replaces
+the source layout. CFF, fractional device em, unknown targets and independent GDI
+source paint keep their existing paths. The complete original gasp table is
+validated before any mixed-run publication, as in the grid-fit path.
+
+The cache distinguishes this explicit composition from ordinary Unhinted and
+grid-fit generations, even with identical source arrays and coverage. Original
+raw geometry remains the retained owner. Witnesses retire before publication;
+the existing caller/recorded leases, bounded eviction and failure cleanup remain.
+
+The exact ProGPU pin is `2e9e434959ddb43922061c6a1e03efc390739adb`.
+[Build41974319569](https://github.com/wieslawsoltes/ProGPU/actions/runs/41974319569)
+passed all 63 Build jobs and all 73 reported checks, including original ARM64
+FXC/DXC/Dawn JIT and NativeAOT package fixtures. The independent original Windows
+source run in [PR434](https://github.com/wieslawsoltes/ProGPU/pull/434) passed
+all 64 original descriptors and 128 complete cold/warm frames per provider with
+zero differing pixels. All64 ordered original GGO_NATIVE outlines match per
+provider; original font hashes, smoothing observations, scan-only byte transfer,
+deadlines and private-font retirement were verified. That temporary PR closed
+unmerged after retaining the original archive and full untruncated log.
+
+The adapter's 48 focused controls and complete 1,032-case Drawing suite pass with
+the exact qualified macOS ARM64 payload. Controls cover original placements,
+unhinted non-scan bytes, independent warm cache identity, malformed preflight,
+retained bitmap replay after eviction and independently rounded image placement.
+The prior integer-origin assertions now inspect the actual native retained command
+for integral em; the original fractional-em atlas route and full images remain.
+Original failed 72-case/application evidence is retained and its acceptance is still
+required, along with final consumer CI/package/provider validation. The 64-case
+source result is not a substitute for that gate or a general font-policy claim.
+
+## Earlier grid-fit integration
+
 Binary integration selects the explicit `Monochrome` coverage
 contract from [ProGPU #400](https://github.com/wieslawsoltes/ProGPU/pull/400) for
 already-admitted aliased grid-fit draws. The cache retains coverage independently

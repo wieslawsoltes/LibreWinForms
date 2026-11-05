@@ -15,9 +15,10 @@ internal static class DrawingNativeGlyphCache
 
     internal static Use Acquire(TtfFont font, ushort[] glyphs, Vector2[] positions,
         uint pixelsPerEm26_6, float rasterScale, NativeFontOutlinePolicy policy,
-        NativeHintedCoverage coverage = NativeHintedCoverage.AntialiasedVector)
+        NativeHintedCoverage coverage = NativeHintedCoverage.AntialiasedVector,
+        bool unhintedScanMetadata = false)
         => Fonts.GetValue(font, static source => new(source)).Acquire(
-            glyphs, positions, pixelsPerEm26_6, rasterScale, policy, coverage);
+            glyphs, positions, pixelsPerEm26_6, rasterScale, policy, coverage, unhintedScanMetadata);
 
     internal sealed class Use : IDisposable
     {
@@ -39,12 +40,14 @@ internal static class DrawingNativeGlyphCache
         internal readonly float RasterScale;
         internal readonly NativeFontOutlinePolicy Policy;
         internal readonly NativeHintedCoverage Coverage;
+        internal readonly bool UnhintedScanMetadata;
         internal readonly HintedGlyphGeometry Geometry;
         internal readonly long Cost;
         internal bool IsRetired => Volatile.Read(ref _retired);
 
         internal Entry(ushort[] glyphs, Vector2[] positions, uint em, float scale,
-            NativeFontOutlinePolicy policy, NativeHintedCoverage coverage, HintedGlyphGeometry geometry, int fontBytes)
+            NativeFontOutlinePolicy policy, NativeHintedCoverage coverage, bool unhintedScanMetadata,
+            HintedGlyphGeometry geometry, int fontBytes)
         {
             Glyphs = glyphs;
             Positions = positions;
@@ -52,6 +55,7 @@ internal static class DrawingNativeGlyphCache
             RasterScale = scale;
             Policy = policy;
             Coverage = coverage;
+            UnhintedScanMetadata = unhintedScanMetadata;
             Geometry = geometry;
             // Charge complete source bytes conservatively even if the native
             // producer shares their owner across captures.
@@ -62,8 +66,9 @@ internal static class DrawingNativeGlyphCache
         }
 
         internal bool Matches(ushort[] glyphs, Vector2[] positions, uint em,
-            float scale, NativeFontOutlinePolicy policy, NativeHintedCoverage coverage)
+            float scale, NativeFontOutlinePolicy policy, NativeHintedCoverage coverage, bool unhintedScanMetadata)
             => PixelsPerEm26_6 == em && Policy == policy && Coverage == coverage &&
+                UnhintedScanMetadata == unhintedScanMetadata &&
                 BitConverter.SingleToInt32Bits(RasterScale) == BitConverter.SingleToInt32Bits(scale) &&
                 Glyphs.AsSpan().SequenceEqual(glyphs) &&
                 MemoryMarshal.AsBytes(Positions.AsSpan()).SequenceEqual(MemoryMarshal.AsBytes(positions.AsSpan()));
@@ -108,10 +113,14 @@ internal static class DrawingNativeGlyphCache
         private long _cost;
 
         internal Use Acquire(ushort[] glyphs, Vector2[] positions, uint em,
-            float scale, NativeFontOutlinePolicy policy, NativeHintedCoverage coverage)
+            float scale, NativeFontOutlinePolicy policy, NativeHintedCoverage coverage, bool unhintedScanMetadata)
         {
             if (coverage is not (NativeHintedCoverage.AntialiasedVector or NativeHintedCoverage.Monochrome))
                 throw new ArgumentOutOfRangeException(nameof(coverage));
+            if (unhintedScanMetadata && (policy != NativeFontOutlinePolicy.Unhinted ||
+                coverage != NativeHintedCoverage.Monochrome))
+                throw new ArgumentException("Unhinted scan metadata requires instruction-free outlines and binary coverage.",
+                    nameof(unhintedScanMetadata));
             lock (_gate)
             {
                 for (int index = 0; index < _entries.Count; index++)
@@ -126,7 +135,7 @@ internal static class DrawingNativeGlyphCache
                         _cost -= entry.Cost;
                         continue;
                     }
-                    if (!entry.Matches(glyphs, positions, em, scale, policy, coverage)) continue;
+                    if (!entry.Matches(glyphs, positions, em, scale, policy, coverage, unhintedScanMetadata)) continue;
                     Use found = entry.Acquire();
                     _entries.RemoveAt(index);
                     _entries.Add(entry);
@@ -137,12 +146,18 @@ internal static class DrawingNativeGlyphCache
                 Vector2[] originalPositions = (Vector2[])positions.Clone();
                 uint[] nativeGlyphs = Array.ConvertAll(originalGlyphs, static glyph => (uint)glyph);
                 _context ??= new(font.FontData.Span, checked((uint)font.FaceIndex));
-                using NativeHintedFontBatch batch = _context.CaptureOutlineBatch(0, nativeGlyphs,
-                    em, em, NativeFontHintInterpreter.TrueType35, policy);
-                HintedGlyphGeometry geometry = NativeHintedGlyphGeometryFactory.CreateFontBatch(batch,
-                    originalPositions, scale, coverage: coverage);
+                using NativeHintedFontBatch? batch = unhintedScanMetadata ? null :
+                    _context.CaptureOutlineBatch(0, nativeGlyphs,
+                        em, em, NativeFontHintInterpreter.TrueType35, policy);
+                HintedGlyphGeometry geometry = unhintedScanMetadata
+                    ? NativeHintedGlyphGeometryFactory.CaptureUnhintedFontBatchWithScanMetadata(
+                        _context, 0, nativeGlyphs, originalPositions, em, em,
+                        NativeFontHintInterpreter.TrueType35, scale)
+                    : NativeHintedGlyphGeometryFactory.CreateFontBatch(batch!,
+                        originalPositions, scale, coverage: coverage);
                 Entry candidate;
-                try { candidate = new(originalGlyphs, originalPositions, em, scale, policy, coverage, geometry, font.FontData.Length); }
+                try { candidate = new(originalGlyphs, originalPositions, em, scale, policy, coverage,
+                    unhintedScanMetadata, geometry, font.FontData.Length); }
                 catch (Exception failure) { CleanupAfterFailure(geometry.Dispose, failure); throw; }
                 Use use;
                 try { use = candidate.Acquire(); }

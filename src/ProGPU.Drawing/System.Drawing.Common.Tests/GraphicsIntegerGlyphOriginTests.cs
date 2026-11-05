@@ -2,6 +2,7 @@ using System.Drawing.Imaging;
 using System.Drawing.Text;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using ProGPU.Backend.Native;
 using ProGPU.Scene;
 using ProGPU.SystemDrawing;
 using ProGPU.Text;
@@ -33,20 +34,34 @@ public sealed class GraphicsIntegerGlyphOriginTests
             if (retained) layout.Draw(graphics, Brushes.Black, bounds.Location);
             else graphics.DrawString("Name 123", font, Brushes.Black, bounds, format);
         }
-        var commands = context.Commands.Where(c => c.Type == RenderCommandType.DrawGlyphRun).ToArray();
+        var commands = context.Commands.Where(c => c.Type is RenderCommandType.DrawGlyphRun or
+            RenderCommandType.DrawHintedGlyphs).ToArray();
         Assert.Equal(2, commands.Length);
         var first = commands[0];
         var second = commands[1];
         Assert.Equal(TextHintingMode.IntegerPixel, first.TextHintingMode);
-        Assert.True(first.PreferGlyphAtlas);
         Assert.Equal(TextHintingMode.Auto, second.TextHintingMode);
         Assert.False(second.PreferGlyphAtlas);
-        Assert.Equal(first.GlyphIndices, second.GlyphIndices);
-        Assert.Equal(first.GlyphPositions, second.GlyphPositions);
+        if (scale == 1.5f)
+        {
+            // The original fractional em stays on ordinary atlas replay.
+            Assert.Equal(RenderCommandType.DrawGlyphRun, first.Type);
+            Assert.True(first.PreferGlyphAtlas);
+            Assert.Equal(first.GlyphIndices, second.GlyphIndices);
+            Assert.Equal(first.GlyphPositions, second.GlyphPositions);
+        }
+        else
+        {
+            Assert.Equal(RenderCommandType.DrawHintedGlyphs, first.Type);
+            var placements = first.HintedGlyphGeometry!.FontPlacements.ToArray();
+            Assert.Equal(second.GlyphIndices!.Select(g => (uint)g), placements.Select(p => p.GlyphId));
+            Assert.Equal(second.GlyphPositions, placements.Select(p => p.Position));
+            Assert.Equal(scale, first.HintedGlyphGeometry.DpiScale);
+        }
         Assert.Equal(first.Position, second.Position);
         Assert.Equal(first.Transform, second.Transform);
         Assert.Equal(measured, graphics.MeasureString("Name 123", font));
-        if (retained)
+        if (retained && scale == 1.5f)
         {
             Assert.Same(first.GlyphIndices, second.GlyphIndices);
             Assert.Same(first.GlyphPositions, second.GlyphPositions);
@@ -102,17 +117,24 @@ public sealed class GraphicsIntegerGlyphOriginTests
             if (retained) DrawingTextLayout.Create(graphics, "Name 123", font, bounds.Size, format)
                     .Draw(graphics, Brushes.Black, bounds.Location);
             else graphics.DrawString("Name 123", font, Brushes.Black, bounds, format);
-            var runs = graphics.DrawingContext.Commands.Where(c => c.Type == RenderCommandType.DrawGlyphRun).ToArray();
+            var runs = graphics.DrawingContext.Commands.Where(c => c.Type == RenderCommandType.DrawHintedGlyphs).ToArray();
             Assert.NotEmpty(runs);
             foreach (var run in runs)
             {
                 Assert.Equal(Matrix4x4.Identity, run.Transform);
-                var positions = run.GlyphPositions!.Select(p => new Vector2(
-                    MathF.Floor(p.X + run.Position.X + .5f),
-                    MathF.Floor(p.Y + run.Position.Y + .5f))).ToArray();
-                reference.DrawingContext.DrawGlyphRun(run.GlyphIndices!, positions, run.Font!, run.FontSize,
-                    run.Brush!, Vector2.Zero, textRenderingMode: TextRenderingMode.Aliased,
-                    textHintingMode: TextHintingMode.Auto, preferGlyphAtlas: true);
+                var placements = run.HintedGlyphGeometry!.FontPlacements.ToArray();
+                var positions = placements.Select(p => new Vector2(
+                    MathF.Floor(p.Position.X + run.Position.X + .5f),
+                    MathF.Floor(p.Position.Y + run.Position.Y + .5f))).ToArray();
+                var glyphs = placements.Select(p => checked((ushort)p.GlyphId)).ToArray();
+                using var expectedRun = DrawingNativeGlyphCache.Acquire(font.TtfFont, glyphs, positions,
+                    13 * 64, 1, NativeFontOutlinePolicy.Unhinted, NativeHintedCoverage.Monochrome,
+                    unhintedScanMetadata: true);
+                Assert.True(DrawingContext.TryGetHintedGlyphInkBounds(expectedRun.Geometry,
+                    Vector2.Zero, out Rect ink, out _));
+                reference.DrawingContext.DrawHintedGlyphsWithRasterOrigin(expectedRun.Geometry,
+                    Vector2.Zero, ink, run.Brush!, TextHintingMode.IntegerPixel,
+                    textRenderingMode: TextRenderingMode.Aliased);
             }
         }
         int[] pixels = Pixels(actual);

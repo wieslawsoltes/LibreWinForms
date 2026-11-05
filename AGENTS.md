@@ -1,3 +1,12 @@
+Ordinary GDI+ SingleBitPerPixel native paint keeps instruction-free coordinates
+and imports only validated scan/dropout bits from the same immutable font's
+separate monochrome capture. Keep the explicit composition in cache identity,
+original placements, exact device em, static TrueType/target admission and
+queue-independent CPU ownership. Preserve raw Unhinted, grid-fit and GDI routes;
+never substitute hinted coordinates or a witness bitmap. The producer must be
+whole-qualified and its original64 source frames exact. That evidence does not
+replace the original72 Forms/application gate; see docs/drawing-native-grid-fit.md.
+
 Text paint preflights its complete admitted native generation and transformed
 glyph brush before publishing a layout clip. Preserve exact source placements,
 existing raster admission, original exceptions and independently retained command
