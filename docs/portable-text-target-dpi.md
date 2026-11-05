@@ -136,3 +136,41 @@ Actual canonical Forms DLL:
 actual test DLL (including unchanged linked ProGpuTextRendererService source):
 `d8c2b1bc9fc3eda57661a69db16cece9d389a64ab8ef921ddf512106a2f1a13c`.
 All files are under the same task tree's `artifacts/text-target-dpi` / `artifacts/bin`.
+
+## Explicit raster target
+
+The host recorder now carries an optional physical raster scale independently
+of `DpiX`/`DpiY`. Logical windows retain96-DPI layout and their actual compositor
+scale; device-pixel windows retain actual layout resolution and raster scale1.
+Bitmap recording uses scale1, matching `Bitmap.FlushCore`'s actual offscreen
+render call, including bitmaps with non96 or independent-axis resolution metadata.
+Legacy recorder overloads leave the raster target unknown. Neither a layout DPI
+ratio nor an outer transform supplies this missing provenance.
+
+The new overload preserves all existing signatures. Invalid, nonpositive and
+noninvertible raster scales reject before recording or callback ownership.
+Saved and nested Graphics contexts preserve the immutable target without
+changing source font sizes, original glyph placements, clips or transforms.
+Retained fallback and control layers receive the same captured host scale.
+
+The window captures layout resolution and raster scale together for painting
+and presentation. A change in either invalidates all retained paint layers.
+If an application paint callback pumps a DPI change, the host requests a fresh
+full paint before presenting instead of combining old commands with the new
+scale. Existing native-resource identity and retirement checks still apply.
+
+This establishes target metadata for the unfinished owned font-geometry path.
+It does not select a native font interpreter, change raster paint, infer a
+transformed glyph frame, or qualify GDI/GDI+ quality, contrast or the original
+72-image comparison. Long-lived immediate recorders, arbitrary outer transforms
+and original desktop DPI transitions retain their independent admission checks.
+
+Local validation of this boundary passed 956 Drawing tests with zero skips and
+596 backend tests with 12 platform-specific skips. Ten new Drawing cases cover
+independent axes/scales, immutable saved/nested host state, bitmap versus unknown
+targets and atomic invalid-scale rejection. The retained-frame cases include
+Logical96/scale2 and DevicePixels192/scale1; three invalid-scale cases preserve
+the existing fallback paint. The existing render-retirement wiring guard retains
+its ordering assertion with the new explicit presentation argument. Its first
+run failed on the old call-signature literal; that original failure is retained.
+These source checks do not replace native DPI-transition or image acceptance.

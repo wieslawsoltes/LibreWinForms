@@ -21,6 +21,7 @@ librewinforms_preview_progpu_package_ids=(
   ProGPU.Text
   ProGPU.Compute
   ProGPU.Scene
+  ProGPU.Scene.Native
   ProGPU.SkiaSharp
   ProGPU.System.Drawing.Common
 )

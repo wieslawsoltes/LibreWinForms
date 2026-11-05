@@ -1,0 +1,48 @@
+{
+  "schema": "original-gdiplus-premultiplied-readback-v1",
+  "qualified": false,
+  "inputEvents": 0,
+  "desktopWindows": 0,
+  "width": 256,
+  "height": 256,
+  "validPairs": 32896,
+  "sourcePixelFormat": "Format32bppPArgb",
+  "sourceRule": "At row alpha and column p\u003C=alpha: R=p, G=alpha-p, B=(73*p)%(alpha\u002B1), A=alpha. Remaining columns have RGB=0 and A=alpha. These are raw premultiplied bytes.",
+  "runtime": ".NET 10.0.13",
+  "os": "Microsoft Windows 10.0.26200",
+  "architecture": "Arm64",
+  "passed": true,
+  "elapsedSeconds": 0.7143571,
+  "files": [
+    {
+      "name": "original-premultiplied.rgba",
+      "bytes": 262144,
+      "sha256": "22877e4eeeb51d77d2ec1c4201d93f69f1d6e86d71fece77f2111692d8ba79ce"
+    },
+    {
+      "name": "get-pixel.rgba",
+      "bytes": 262144,
+      "sha256": "3d2b9524f0ff9a5e19c468a4568511c96d9ee4e2e67404901ef18de6beb42d71"
+    },
+    {
+      "name": "argb-lock.rgba",
+      "bytes": 262144,
+      "sha256": "3d2b9524f0ff9a5e19c468a4568511c96d9ee4e2e67404901ef18de6beb42d71"
+    },
+    {
+      "name": "original.png",
+      "bytes": 131367,
+      "sha256": "146ac7440f4df5dde3898d3b4d0c525065fc3621b1050e6739d1053f98a64342"
+    },
+    {
+      "name": "decoded-argb-lock.rgba",
+      "bytes": 262144,
+      "sha256": "3d2b9524f0ff9a5e19c468a4568511c96d9ee4e2e67404901ef18de6beb42d71"
+    },
+    {
+      "name": "after-premultiplied.rgba",
+      "bytes": 262144,
+      "sha256": "22877e4eeeb51d77d2ec1c4201d93f69f1d6e86d71fece77f2111692d8ba79ce"
+    }
+  ]
+}

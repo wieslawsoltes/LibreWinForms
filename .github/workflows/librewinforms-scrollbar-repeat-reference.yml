@@ -1,0 +1,96 @@
+name: Independent Windows scrollbar repeat reference
+
+on:
+  push:
+    branches: [diagnostic/scrollbar-repeat-reference]
+  workflow_dispatch:
+    inputs:
+      diagnose_startup:
+        description: Read-only startup phase logging; requires observe_startup_only
+        type: boolean
+        required: true
+        default: false
+      hosted_startup:
+        description: Explicitly approved bounded account-close, shell Escape and owned caption startup
+        type: boolean
+        required: true
+        default: false
+      observe_startup_only:
+        description: Read-only startup inventory, without activation or pointer input
+        type: boolean
+        required: true
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  reference:
+    name: Bounded original Microsoft scrollbar repeat observation
+    runs-on: windows-11-arm
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.201
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify the held-input guards without injecting input
+        shell: pwsh
+        run: |
+          python eng/WindowsScrollBarReference/test_driver.py -v
+          if ($LASTEXITCODE -ne 0) { throw 'Held-input guards failed.' }
+          python eng/WindowsScrollBarReference/test_startup.py -v
+          if ($LASTEXITCODE -ne 0) { throw 'Reference startup guards failed.' }
+          python eng/tests/test_original_grid_hosted_shell.py
+          if ($LASTEXITCODE -ne 0) { throw 'Existing shell guards failed.' }
+          python eng/tests/test_original_grid_hosted_caption.py
+          if ($LASTEXITCODE -ne 0) { throw 'Existing caption guards failed.' }
+          python eng/tests/test_original_grid_hosted_desktop_setup.py
+          if ($LASTEXITCODE -ne 0) { throw 'Existing normal-close guards failed.' }
+      - name: Compile original Microsoft reference in an isolated directory
+        shell: pwsh
+        run: |
+          $source = Join-Path $env:RUNNER_TEMP 'scrollbar-reference-source'
+          Copy-Item eng/WindowsScrollBarReference/native $source -Recurse
+          Set-Content (Join-Path $source 'global.json') '{"sdk":{"version":"10.0.201","rollForward":"disable"}}'
+          Push-Location $source
+          dotnet build WindowsScrollBarRepeatReference.csproj -c Release --nologo -r win-arm64
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Pop-Location
+      - name: Close the verified hosted account overlay normally
+        if: ${{ inputs.hosted_startup && !inputs.observe_startup_only }}
+        shell: pwsh
+        run: |
+          python eng/OriginalGrid/prepare-desktop.py --output "$env:RUNNER_TEMP/scrollbar-startup-setup.json"
+          if ($LASTEXITCODE -ne 0) { throw 'Verified normal startup close failed.' }
+      - name: Observe startup or run explicitly approved bounded reference input
+        shell: pwsh
+        env:
+          HOSTED_STARTUP: ${{ inputs.hosted_startup }}
+          DIAGNOSE_STARTUP: ${{ inputs.diagnose_startup }}
+          OBSERVE_STARTUP_ONLY: ${{ github.event_name == 'push' || inputs.observe_startup_only }}
+        run: |
+          $mode = @()
+          if ($env:DIAGNOSE_STARTUP -eq 'true') { $mode += '--diagnose-startup' }
+          if ($env:HOSTED_STARTUP -eq 'true') { $mode += '--hosted-startup' }
+          if ($env:OBSERVE_STARTUP_ONLY -eq 'true') { $mode += '--observe-startup-only' }
+          python eng/WindowsScrollBarReference/driver.py --authorized `
+            --app "$env:RUNNER_TEMP/scrollbar-reference-source/bin/Release/net10.0-windows/win-arm64/WindowsScrollBarRepeatReference.exe" `
+            --helper eng/librewinforms-popup-desktop.py `
+            --evidence "$env:RUNNER_TEMP/scrollbar-reference-evidence" @mode
+          if ($LASTEXITCODE -ne 0) { throw 'Original reference failed; retain the first result.' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scrollbar-repeat-reference-${{ github.sha }}-${{ github.run_id }}
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/scrollbar-reference-evidence/**
+            eng/WindowsScrollBarReference/**
+            ${{ runner.temp }}/scrollbar-startup-setup.json

@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Drawing.Text;
 #if LIBREWINFORMS_PORTABLE
 using LibreWinForms.Platform;
+using ProGPU.SystemDrawing;
 #endif
 
 namespace System.Windows.Forms;
@@ -318,7 +319,7 @@ public static class TextRenderer
 
 #if LIBREWINFORMS_PORTABLE
         using Font? realizedFont = CreatePortableTextFont(font);
-        PortableTextRenderer.DrawText(
+        DrawPortableText(
             GetPortableGraphics(dc),
             text.ToString(),
             realizedFont,
@@ -361,7 +362,7 @@ public static class TextRenderer
         }
 
         using Font? realizedFont = CreatePortableTextFont(font);
-        PortableTextRenderer.DrawText(
+        DrawPortableText(
             e.GraphicsInternal,
             text,
             realizedFont,
@@ -567,7 +568,7 @@ public static class TextRenderer
         int screenDpi = ScaleHelper.PortableScreenDpi;
         screen.SetResolution(screenDpi, screenDpi);
         using Graphics graphics = Graphics.FromImage(screen);
-        return PortableTextRenderer.MeasureText(
+        return MeasurePortableText(
             graphics,
             text.ToString(),
             realizedFont,
@@ -595,7 +596,7 @@ public static class TextRenderer
 
 #if LIBREWINFORMS_PORTABLE
         using Font? realizedFont = CreatePortableTextFont(font);
-        return PortableTextRenderer.MeasureText(
+        return MeasurePortableText(
             GetPortableGraphics(dc),
             text.ToString(),
             realizedFont,
@@ -618,7 +619,63 @@ public static class TextRenderer
         Graphics graphics, string text, Font font, Size size, TextFormatFlags flags)
     {
         using Font? realizedFont = CreatePortableTextFont(font);
-        return service.CreateLayout(graphics, text, realizedFont!, size, GetPortableTextFormat(flags));
+        if (service is ILibreGdiTextSnapshotLayoutService snapshotService)
+            return snapshotService.CreateLayoutWithSystemSnapshot(graphics, text, realizedFont!, size,
+                GetPortableTextFormat(flags), (DrawingGdiFontQuality)FontQualityFromTextRenderingHint(graphics),
+                CapturePortableTextSystemSettings);
+        return service is ILibreGdiTextLayoutService typed
+            ? typed.CreateLayout(graphics, text, realizedFont!, size, GetPortableTextFormat(flags),
+                (DrawingGdiFontQuality)FontQualityFromTextRenderingHint(graphics), CapturePortableGdiSettings)
+            : service.CreateLayout(graphics, text, realizedFont!, size, GetPortableTextFormat(flags));
+    }
+
+    private static void DrawPortableText(Graphics graphics, string text, Font? font,
+        Rectangle bounds, Color foreColor, Color backColor, LibreTextFormat format)
+    {
+        ILibreTextRendererService service = PortableTextRenderer;
+        if (service is ILibreGdiTextRendererService typed)
+            typed.DrawText(graphics, text, font, bounds, foreColor, backColor, format,
+                CapturePortableGdiPolicy(graphics));
+        else
+            service.DrawText(graphics, text, font, bounds, foreColor, backColor, format);
+    }
+
+    private static Size MeasurePortableText(Graphics graphics, string text, Font? font,
+        Size proposedSize, LibreTextFormat format)
+    {
+        ILibreTextRendererService service = PortableTextRenderer;
+        return service is ILibreGdiTextRendererService typed
+            ? typed.MeasureText(graphics, text, font, proposedSize, format,
+                new DrawingGdiTextPolicy((DrawingGdiFontQuality)FontQualityFromTextRenderingHint(graphics), null))
+            : service.MeasureText(graphics, text, font, proposedSize, format);
+    }
+
+    internal static DrawingGdiTextPolicy CapturePortableGdiPolicy(Graphics graphics)
+        => DrawingGdiTextPolicy.FromSystemSnapshot(
+            (DrawingGdiFontQuality)FontQualityFromTextRenderingHint(graphics), CapturePortableTextSystemSettings());
+
+    private static DrawingTextSystemSettings? CapturePortableTextSystemSettings()
+    {
+        if (!LibrePlatform.IsRegistered) return null;
+        ILibreSystemSettingsService settings = LibrePlatform.Current.SystemSettings;
+        if (settings is ILibreTextSystemSettingsService observed)
+            return observed.CaptureTextSystemSettings();
+        if (ReferenceEquals(settings, DefaultLibreSystemSettingsService.Instance))
+            return DrawingTextSystemPolicy.CaptureCurrentSystemSettings();
+        // Legacy custom settings keep their existing three property reads and
+        // unknown orientation; do not invent native observations for that owner.
+        return new(settings.FontSmoothingEnabled ? 1U : 0U,
+            unchecked((uint)settings.FontSmoothingType), unchecked((uint)settings.FontSmoothingContrast), null);
+    }
+
+    private static DrawingGdiSystemSettings? CapturePortableGdiSettings()
+    {
+        if (!LibrePlatform.IsRegistered) return null;
+        ILibreSystemSettingsService settings = LibrePlatform.Current.SystemSettings;
+        // The generic fallback exposes compatibility defaults, not an observed
+        // host smoothing policy. Preserve that uncertainty in this new transport.
+        if (ReferenceEquals(settings, DefaultLibreSystemSettingsService.Instance)) return null;
+        return new(settings.FontSmoothingEnabled, settings.FontSmoothingType, settings.FontSmoothingContrast);
     }
 
     private static Font? CreatePortableTextFont(Font? font)

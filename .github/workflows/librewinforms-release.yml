@@ -45,6 +45,8 @@ jobs:
     name: Build preview packages
     runs-on: ubuntu-24.04
     timeout-minutes: 180
+    env:
+      LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT: 065e8cc0c027566f1316169063ba92f14fa715fb
 
     steps:
       - name: Checkout
@@ -149,6 +151,17 @@ jobs:
           git -C artifacts/checkouts/wpf-canonical/external/ProGPU checkout --detach "${qualified_progpu_commit}"
           test "$(git -C artifacts/checkouts/wpf-canonical/external/ProGPU rev-parse HEAD)" = "$(git -C external/ProGPU rev-parse HEAD)"
 
+      - name: Checkout immutable LibreWPF native staging helper
+        uses: actions/checkout@v4
+        with:
+          repository: wieslawsoltes/LibreWPF
+          ref: ${{ env.LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT }}
+          path: artifacts/checkouts/wpf-native-staging
+          sparse-checkout: |
+            eng/progpu-stage-ci-native-runtimes.sh
+            eng/progpu-stage-release-native-packages.py
+          sparse-checkout-cone-mode: false
+
       - name: Stage exact successful ProGPU native runtimes for canonical packaging
         shell: bash
         env:
@@ -156,10 +169,14 @@ jobs:
         run: |
           set -euo pipefail
           qualified_progpu_commit="$(git -C external/ProGPU rev-parse HEAD)"
-          ./artifacts/checkouts/wpf-canonical/eng/progpu-stage-ci-native-runtimes.sh \
+          test "$(git -C artifacts/checkouts/wpf-native-staging rev-parse HEAD)" = "${LIBREWINFORMS_NATIVE_STAGING_WPF_COMMIT}"
+          ./artifacts/checkouts/wpf-native-staging/eng/progpu-stage-ci-native-runtimes.sh \
             "${qualified_progpu_commit}" \
             "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-native/package" \
-            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-dx12/package"
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-dx12/package" \
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-xlib/package" \
+            "${GITHUB_WORKSPACE}/external/ProGPU/artifacts/progpu-wgpu-windows/package" \
+            "${GITHUB_WORKSPACE}/external/ProGPU"
 
       - name: Verify docs
         run: ./eng/librewinforms-verify-docs.sh

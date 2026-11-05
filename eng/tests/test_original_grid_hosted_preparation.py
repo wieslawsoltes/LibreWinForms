@@ -20,7 +20,8 @@ def producer():
     def run(key, workflow):
         return dict(id=PIN[key], head_sha=PIN["head"], path=".github/workflows/" + workflow,
                     status="completed", conclusion="success")
-    jobs = dict(total_count=9, jobs=[dict(head_sha=PIN["head"], status="completed", conclusion="success") for _ in range(9)])
+    jobs = dict(total_count=9, jobs=[dict(name=name, head_sha=PIN["head"], status="completed", conclusion="success")
+                                   for name in sorted(PREP.LEGACY_BUILD_JOBS)])
     artifact = dict(id=PIN["artifact"], name=PIN["artifactName"], size_in_bytes=PIN["bytes"], expired=False,
                     digest="sha256:" + PIN["sha256"], workflow_run=dict(id=PIN["build"], head_sha=PIN["head"]))
     return [run("build", "librewinforms-ci.yml"), run("docs", "librewinforms-docs.yml"), jobs, artifact]
@@ -69,8 +70,36 @@ class HostedPreparationTests(unittest.TestCase):
 
     def test_complete_exact_producer(self):
         PREP.validate_producer(PIN, *producer())
-        with self.assertRaisesRegex(ValueError, "all nine"):
+        with self.assertRaisesRegex(ValueError, "complete nine- or ten-job"):
             PREP.validate_producer(dict(PIN, expectedBuildJobs=1), *producer())
+
+    def test_native_theme_layout_requires_all_ten_named_jobs(self):
+        pin = dict(PIN, expectedBuildJobs=10)
+        records = producer()
+        records[2]["total_count"] = 10
+        records[2]["jobs"].append(dict(name=PREP.NATIVE_THEME_BUILD_JOB, head_sha=PIN["head"],
+                                        status="completed", conclusion="success"))
+        PREP.validate_producer(pin, *records)
+        for field, value in (("name", "Unrelated passing job"), ("name", "Package lane"),
+                             ("status", "in_progress"), ("conclusion", "failure"),
+                             ("conclusion", "skipped"), ("head_sha", "0" * 40)):
+            with self.subTest(field=field, value=value):
+                changed = copy.deepcopy(records)
+                changed[2]["jobs"][-1][field] = value
+                with self.assertRaises(ValueError):
+                    PREP.validate_producer(pin, *changed)
+        with self.assertRaises(ValueError):
+            PREP.validate_producer(PIN, *records)
+        with self.assertRaises(ValueError):
+            PREP.validate_producer(pin, *producer())
+
+    def test_legacy_count_cannot_hide_a_duplicated_or_substituted_job(self):
+        for name in ("Unrelated passing job", PREP.NATIVE_THEME_BUILD_JOB, "Package lane", None):
+            with self.subTest(name=name):
+                records = producer()
+                records[2]["jobs"][0]["name"] = name
+                with self.assertRaises(ValueError):
+                    PREP.validate_producer(PIN, *records)
 
     def test_other_head_pending_failed_wrong_workflow_and_partial_jobs_rejected(self):
         for index, field, value in [(0, "head_sha", "0" * 40), (0, "status", "in_progress"),

@@ -14,7 +14,11 @@ public abstract partial class ScrollBar
     private PortableScrollBarIdentity? _portableScrollBarIdentity;
     private PortableScrollBarIdentity? _portableScrollBarPendingValueIdentity;
 
-    private void InvalidatePortableScrollBarFrame() => _portableScrollBarIdentity = null;
+    private void InvalidatePortableScrollBarFrame()
+    {
+        _portableScrollBarIdentity = null;
+        _portableScrollBarPress = null;
+    }
 
     private bool CanConsumePortableScrollBarLines(in LibreNativeScrollMetadata scroll)
         => Enabled && !HasChildren && scroll.Unit == LibreNativeScrollUnit.Lines

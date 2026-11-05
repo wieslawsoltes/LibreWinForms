@@ -37,6 +37,9 @@ public partial class Graphics :
     private readonly Bitmap? _bitmap;
     private readonly float _dpiX;
     private readonly float _dpiY;
+    // Layout resolution and the eventual compositor sample lattice are
+    // independent. Legacy recorders do not establish a raster target.
+    internal float? GlyphRasterDpiScale { get; }
     private readonly RectangleF? _deviceBounds;
     private readonly WgpuContext? _targetContext;
     private readonly Action? _completed;
@@ -52,6 +55,8 @@ public partial class Graphics :
     private GraphicsUnit _pageUnit = GraphicsUnit.Display;
     private CompositingMode _compositingMode = CompositingMode.SourceOver;
     private CompositingQuality _compositingQuality = CompositingQuality.Default;
+    private SmoothingMode _smoothingMode = SmoothingMode.None;
+    private TextRenderingHint _textRenderingHint = TextRenderingHint.SystemDefault;
     private Point _renderingOrigin;
     private int _textContrast = 4;
     private Region? _clip;
@@ -123,9 +128,48 @@ public partial class Graphics :
         }
     }
 
-    public SmoothingMode SmoothingMode { get; set; } = SmoothingMode.AntiAlias;
+    public SmoothingMode SmoothingMode
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _smoothingMode;
+        }
+        set
+        {
+            if (value is < SmoothingMode.Invalid or > SmoothingMode.AntiAlias)
+            {
+                throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(SmoothingMode));
+            }
+
+            ThrowIfDisposed();
+            _smoothingMode = value switch
+            {
+                SmoothingMode.Default or SmoothingMode.HighSpeed or SmoothingMode.None => SmoothingMode.None,
+                SmoothingMode.HighQuality or SmoothingMode.AntiAlias => SmoothingMode.AntiAlias,
+                _ => throw new ArgumentException("Parameter is not valid.")
+            };
+        }
+    }
     public InterpolationMode InterpolationMode { get; set; } = InterpolationMode.Bilinear;
-    public TextRenderingHint TextRenderingHint { get; set; } = TextRenderingHint.ClearTypeGridFit;
+    public TextRenderingHint TextRenderingHint
+    {
+        get
+        {
+            ThrowIfDisposed();
+            return _textRenderingHint;
+        }
+        set
+        {
+            if (value is < TextRenderingHint.SystemDefault or > TextRenderingHint.ClearTypeGridFit)
+            {
+                throw new InvalidEnumArgumentException(nameof(value), (int)value, typeof(TextRenderingHint));
+            }
+
+            ThrowIfDisposed();
+            _textRenderingHint = value;
+        }
+    }
     public PixelOffsetMode PixelOffsetMode { get; set; } = PixelOffsetMode.Default;
 
     public CompositingMode CompositingMode
@@ -283,7 +327,8 @@ public partial class Graphics :
             flushed: null,
             metafileRecording: null,
             dpiX: bitmap?.HorizontalResolution ?? 96f,
-            dpiY: bitmap?.VerticalResolution ?? 96f)
+            dpiY: bitmap?.VerticalResolution ?? 96f,
+            glyphRasterDpiScale: bitmap is null ? null : 1f)
     {
     }
 
@@ -297,7 +342,8 @@ public partial class Graphics :
         Action<FlushIntention>? flushed,
         PortableMetafileRecordingSession? metafileRecording = null,
         float dpiX = 96f,
-        float dpiY = 96f)
+        float dpiY = 96f,
+        float? glyphRasterDpiScale = null)
     {
         ValidateDpi(dpiX, nameof(dpiX));
         ValidateDpi(dpiY, nameof(dpiY));
@@ -305,6 +351,7 @@ public partial class Graphics :
         _bitmap = bitmap;
         _dpiX = dpiX;
         _dpiY = dpiY;
+        GlyphRasterDpiScale = glyphRasterDpiScale;
         _baseTransform = baseTransform;
         _deviceBounds = deviceBounds;
         _targetContext = targetContext;
@@ -619,6 +666,35 @@ public partial class Graphics :
         }
     }
 
+    /// <summary>
+    /// Creates a recorder whose host explicitly owns both layout resolution and
+    /// the compositor's raster scale. This is target metadata, not permission to
+    /// infer a transformed glyph frame or to change source text placement.
+    /// </summary>
+    public static Graphics FromProGpuDrawingContext(
+        DrawingContext drawingContext,
+        RectangleF deviceBounds,
+        Matrix4x4 outerTransform,
+        float dpiX,
+        float dpiY,
+        float glyphRasterDpiScale,
+        WgpuContext? targetContext = null,
+        Action<FlushIntention>? flushed = null,
+        Action? completed = null)
+    {
+        if (!float.IsFinite(glyphRasterDpiScale) || glyphRasterDpiScale <= 0f ||
+            !float.IsFinite(1f / glyphRasterDpiScale))
+            throw new ArgumentOutOfRangeException(nameof(glyphRasterDpiScale));
+        if (!IsFiniteNonNegative(deviceBounds))
+            throw new ArgumentOutOfRangeException(nameof(deviceBounds));
+        ValidateDpi(dpiX, nameof(dpiX));
+        ValidateDpi(dpiY, nameof(dpiY));
+        if (targetContext is not null)
+            ObjectDisposedException.ThrowIf(targetContext.IsDisposed, targetContext);
+        return FromProGpuDrawingContextCore(drawingContext, outerTransform,
+            deviceBounds, targetContext, completed, flushed, dpiX, dpiY, glyphRasterDpiScale);
+    }
+
     private static Graphics FromProGpuDrawingContextCore(
         DrawingContext drawingContext,
         Matrix4x4 outerTransform,
@@ -627,7 +703,8 @@ public partial class Graphics :
         Action? completed = null,
         Action<FlushIntention>? flushed = null,
         float dpiX = 96f,
-        float dpiY = 96f)
+        float dpiY = 96f,
+        float? glyphRasterDpiScale = null)
     {
         ArgumentNullException.ThrowIfNull(drawingContext);
         if (!IsFinite2DAffineTransform(outerTransform))
@@ -652,7 +729,8 @@ public partial class Graphics :
             completed,
             flushed,
             dpiX: dpiX,
-            dpiY: dpiY);
+            dpiY: dpiY,
+            glyphRasterDpiScale: glyphRasterDpiScale);
     }
 
     private static bool IsFiniteNonNegative(RectangleF bounds) =>
@@ -1593,6 +1671,14 @@ public partial class Graphics :
     public void DrawLine(Pen pen, int x1, int y1, int x2, int y2) => DrawLine(pen, (float)x1, y1, x2, y2);
 
     public void DrawLine(Pen pen, float x1, float y1, float x2, float y2)
+        => DrawLineCore(pen, x1, y1, x2, y2, sourceGdiLine: false);
+
+    // EMF/WMF LineTo uses the GDI current-position contract. Its original
+    // geometry is independent of GDI+ DrawLine's inclusive pixel endpoints.
+    internal void DrawGdiMetafileLine(Pen pen, PointF start, PointF end)
+        => DrawLineCore(pen, start.X, start.Y, end.X, end.Y, sourceGdiLine: true);
+
+    private void DrawLineCore(Pen pen, float x1, float y1, float x2, float y2, bool sourceGdiLine)
     {
         ArgumentNullException.ThrowIfNull(pen);
         if (pen.RequiresWidenedGeometry)
@@ -1605,6 +1691,11 @@ public partial class Graphics :
             return;
         }
 
+        if (!sourceGdiLine && TryDrawIntegerPixelLine(pen, x1, y1, x2, y2))
+        {
+            return;
+        }
+
         var localStart = new Vector2(x1, y1);
         var localEnd = new Vector2(x2, y2);
         _context.DrawLine(
@@ -1612,6 +1703,47 @@ public partial class Graphics :
             localStart,
             localEnd,
             CurrentTransform4x4());
+    }
+
+    private bool TryDrawIntegerPixelLine(Pen pen, float x1, float y1, float x2, float y2)
+    {
+        // Original GDI+ unsmoothed cosmetic axis lines include both integer
+        // endpoints. Wider, fractional and antialiased strokes have different
+        // sampling contracts and must retain their existing geometry.
+        Matrix3x2 transform = CombinedTransform;
+        if (SmoothingMode != SmoothingMode.None || PixelOffsetMode != PixelOffsetMode.Default ||
+            _dpiX != 96f || _dpiY != 96f || pen.Width != 1f || !pen.HasOpaqueSolidBrush ||
+            pen.DashStyle != DashStyle.Solid || pen.Alignment != PenAlignment.Center ||
+            pen.StartCap != LineCap.Flat || pen.EndCap != LineCap.Flat ||
+            transform.M11 != 1f || transform.M12 != 0f || transform.M21 != 0f || transform.M22 != 1f ||
+            !IsInteger(transform.M31) || !IsInteger(transform.M32) ||
+            !IsInteger(x1) || !IsInteger(y1) || !IsInteger(x2) || !IsInteger(y2) ||
+            (x1 != x2 && y1 != y2) || (x1 == x2 && y1 == y2))
+        {
+            return false;
+        }
+
+        double left = Math.Min(x1, x2);
+        double top = Math.Min(y1, y2);
+        double right = (double)Math.Max(x1, x2) + 1d;
+        double bottom = (double)Math.Max(y1, y2) + 1d;
+        double width = right - left;
+        double height = bottom - top;
+        if (!IsExactFloat(right) || !IsExactFloat(bottom) ||
+            !IsExactFloat(width) || !IsExactFloat(height) ||
+            (float)left + (float)width != right || (float)top + (float)height != bottom ||
+            !IsExactFloat(left + transform.M31) || !IsExactFloat(right + transform.M31) ||
+            !IsExactFloat(top + transform.M32) || !IsExactFloat(bottom + transform.M32))
+        {
+            return false;
+        }
+
+        _context.DrawRectangle(pen.ToProGpuBrush(_renderingOrigin), null,
+            new Rect((float)left, (float)top, (float)width, (float)height), ToMatrix4x4(transform));
+        return true;
+
+        static bool IsInteger(float value) => float.IsFinite(value) && value == MathF.Truncate(value);
+        static bool IsExactFloat(double value) => double.IsFinite(value) && (double)(float)value == value;
     }
 
     public void DrawLines(Pen pen, PointF[] points)
@@ -2725,12 +2857,13 @@ public partial class Graphics :
             layout.Glyphs[index] = glyph;
         }
 
+        DrawingGdiPlusTextPolicy sourcePolicy = CaptureGdiPlusTextPolicy();
         DrawFormattedGlyphRuns(
             layout,
             font,
             brush,
             new Vector2(x, y),
-            CurrentTransform4x4());
+            CurrentTransform4x4(), sourcePolicy);
         DrawFontDecorations(
             layout,
             font,
@@ -2813,12 +2946,13 @@ public partial class Graphics :
             layout.Glyphs[index] = glyph;
         }
 
+        DrawingGdiPlusTextPolicy sourcePolicy = CaptureGdiPlusTextPolicy();
         DrawFormattedGlyphRuns(
             layout,
             font,
             brush,
             new Vector2(x, y),
-            CurrentTransform4x4());
+            CurrentTransform4x4(), sourcePolicy);
     }
 
     internal void DrawGlyphIndicesWithCharacterAdvances(
@@ -2963,9 +3097,10 @@ public partial class Graphics :
             layout.Glyphs[lastIndex] = last;
         }
 
+        DrawingGdiPlusTextPolicy sourcePolicy = CaptureGdiPlusTextPolicy();
         Vector2 origin = new(x, y);
         Matrix4x4 transform = CurrentTransform4x4();
-        DrawFormattedGlyphRuns(layout, font, brush, origin, transform);
+        DrawFormattedGlyphRuns(layout, font, brush, origin, transform, sourcePolicy);
         DrawFontDecorations(layout, font, brush, origin, transform);
     }
 
@@ -3271,15 +3406,18 @@ public partial class Graphics :
         Brush brush,
         RectangleF layoutRectangle,
         StringFormat format,
-        bool pointAnchor)
+        bool pointAnchor,
+        ProGPU.Text.SourceDeviceLineMetrics? sourceMetrics = null,
+        bool sourceGdiText = false, DrawingGdiTextPolicy? gdiPolicy = null)
     {
         var layoutArea = new SizeF(layoutRectangle.Width, layoutRectangle.Height);
-        FormattedTextLayout formatted = CreateFormattedTextLayout(text, font, layoutArea, format);
+        FormattedTextLayout formatted = CreateFormattedTextLayout(text, font, layoutArea, format, sourceMetrics: sourceMetrics);
         if (formatted.Layout.Glyphs.Count == 0)
         {
             return;
         }
 
+        DrawingGdiPlusTextPolicy? sourcePolicy = sourceGdiText ? null : CaptureGdiPlusTextPolicy();
         StringFormatFlags flags = format.FormatFlags;
         bool rightToLeft = (flags & StringFormatFlags.DirectionRightToLeft) != 0;
         float offsetX = pointAnchor
@@ -3290,24 +3428,34 @@ public partial class Graphics :
             : GetRectangleAlignmentOffset(formatted.Layout.ContentSize.Y, layoutRectangle.Height, format.LineAlignment);
         var origin = new Vector2(layoutRectangle.X + offsetX, layoutRectangle.Y + offsetY);
         var transform = CurrentTransform4x4();
+        PreparedDrawingGlyphRun[] runs = PrepareDrawingGlyphRuns(formatted.Layout);
+        float fontSize = GetFontPixelSize(font);
+        PreparedDrawingGlyphPaint prepared = PrepareDrawingGlyphPaint(runs, font.Style,
+            fontSize, brush, origin, transform, sourcePolicy, sourceGdiText, gdiPolicy);
         bool useClip = !pointAnchor && (flags & StringFormatFlags.NoClip) == 0;
-        if (useClip)
+        bool clipPushed = false;
+        Exception? primary = null;
+        try
         {
-            _context.PushClip(
-                new Rect(layoutRectangle.X, layoutRectangle.Y, layoutRectangle.Width, layoutRectangle.Height),
-                transform);
+            if (useClip)
+            {
+                _context.PushClip(
+                    new Rect(layoutRectangle.X, layoutRectangle.Y, layoutRectangle.Width, layoutRectangle.Height),
+                    transform);
+                clipPushed = true;
+            }
+            DrawPreparedGlyphRuns(runs, font.Style, fontSize, origin, transform, sourceGdiText, prepared);
+            DrawFontDecorations(formatted.Layout, font, brush, origin, transform);
+            if (formatted.MnemonicIndex >= 0)
+            {
+                DrawMnemonicUnderline(formatted.Layout, formatted.MnemonicIndex, brush, origin, transform);
+            }
         }
-
-        DrawFormattedGlyphRuns(formatted.Layout, font, brush, origin, transform);
-        DrawFontDecorations(formatted.Layout, font, brush, origin, transform);
-        if (formatted.MnemonicIndex >= 0)
+        catch (Exception failure) { primary = failure; throw; }
+        finally
         {
-            DrawMnemonicUnderline(formatted.Layout, formatted.MnemonicIndex, brush, origin, transform);
-        }
-
-        if (useClip)
-        {
-            _context.PopClip();
+            try { ReleaseNativeGlyphPaint(prepared.Native, primary); }
+            finally { if (clipPushed) _context.PopClip(); }
         }
     }
 
@@ -3363,9 +3511,18 @@ public partial class Graphics :
         Font font,
         Brush brush,
         Vector2 origin,
-        Matrix4x4 transform)
+        Matrix4x4 transform,
+        DrawingGdiPlusTextPolicy? sourcePolicy,
+        bool sourceGdiText = false, DrawingGdiTextPolicy? gdiPolicy = null)
     {
-        DrawPreparedGlyphRuns(PrepareDrawingGlyphRuns(layout), font.Style, GetFontPixelSize(font), brush, origin, transform);
+        PreparedDrawingGlyphRun[] runs = PrepareDrawingGlyphRuns(layout);
+        float fontSize = GetFontPixelSize(font);
+        PreparedDrawingGlyphPaint prepared = PrepareDrawingGlyphPaint(runs, font.Style,
+            fontSize, brush, origin, transform, sourcePolicy, sourceGdiText, gdiPolicy);
+        Exception? primary = null;
+        try { DrawPreparedGlyphRuns(runs, font.Style, fontSize, origin, transform, sourceGdiText, prepared); }
+        catch (Exception failure) { primary = failure; throw; }
+        finally { ReleaseNativeGlyphPaint(prepared.Native, primary); }
     }
 
     private static PreparedDrawingGlyphRun[] PrepareDrawingGlyphRuns(ProGPU.Text.TextLayout layout)
@@ -3395,14 +3552,67 @@ public partial class Graphics :
         return runs;
     }
 
-    private void DrawPreparedGlyphRuns(PreparedDrawingGlyphRun[] runs, FontStyle style,
-        float fontSize, Brush brush, Vector2 origin, Matrix4x4 transform)
+    private readonly record struct PreparedDrawingGlyphPaint(
+        NativeDrawingGlyphPaint[]? Native, ProGPU.Vector.Brush Brush,
+        TextRenderingMode Coverage, ProGPU.Backend.GlyphCoverageTransfer CoverageTransfer);
+
+    private PreparedDrawingGlyphPaint PrepareDrawingGlyphPaint(PreparedDrawingGlyphRun[] runs, FontStyle style,
+        float fontSize, Brush brush, Vector2 origin, Matrix4x4 transform, DrawingGdiPlusTextPolicy? sourcePolicy, bool sourceGdiText,
+        DrawingGdiTextPolicy? gdiPolicy = null)
     {
+        if (gdiPolicy is { } policy)
+        {
+            DrawingGdiTextPolicy.ValidateQuality(policy.RequestedQuality);
+            if (!sourceGdiText) throw new InvalidOperationException("GDI quality requires source GDI identity.");
+            // The exact source request reaches the paint boundary. It must not
+            // select raster modes until their independent qualification exists.
+        }
+        // Preserve source GDI+ identity at actual paint. These observations do
+        // not yet select font execution, RGB filtering or system-dependent coverage.
+        TextRenderingHint sourceHint = sourcePolicy?.Hint ?? TextRenderingHint;
+        int sourceContrast = sourcePolicy?.TextContrast ?? _textContrast;
+        var nativeBrush = TransformBrush(brush);
+        // GDI's source font quality has independent semantics: Proof/Draft do
+        // not mean GDI+ binary coverage. Do not change that path by enum alias.
+        // This selects coverage only; native font execution and dropout policy
+        // remain separate from the compositor's sampling/hinting controls.
+        TextRenderingMode coverage = !sourceGdiText &&
+            sourceHint is TextRenderingHint.SingleBitPerPixel or TextRenderingHint.SingleBitPerPixelGridFit
+            ? TextRenderingMode.Aliased : TextRenderingMode.Grayscale;
+        // GDI+ grayscale contrast belongs to each draw's coverage, not to the
+        // font cache, layout, GDI quality, or ordinary ClearType policy.
+        ProGPU.Backend.GlyphCoverageTransfer coverageTransfer = !sourceGdiText &&
+            sourceHint is TextRenderingHint.AntiAlias or TextRenderingHint.AntiAliasGridFit
+            ? ProGPU.Backend.GlyphCoverageTransfer.GdiPlusGrayscale(sourceContrast) : default;
+        NativeDrawingGlyphPaint[]? native = PrepareNativeGlyphPaint(
+            runs, style, fontSize, nativeBrush, origin, transform, sourceGdiText);
+        return new(native, nativeBrush, coverage, coverageTransfer);
+    }
+
+    private void DrawPreparedGlyphRuns(PreparedDrawingGlyphRun[] runs, FontStyle style,
+        float fontSize, Vector2 origin, Matrix4x4 transform, bool sourceGdiText,
+        PreparedDrawingGlyphPaint prepared)
+    {
+        NativeDrawingGlyphPaint[]? native = prepared.Native;
+        ProGPU.Vector.Brush nativeBrush = prepared.Brush;
+        TextRenderingMode coverage = prepared.Coverage;
+        ProGPU.Backend.GlyphCoverageTransfer coverageTransfer = prepared.CoverageTransfer;
         bool isBold = (style & FontStyle.Bold) != 0;
         bool isItalic = (style & FontStyle.Italic) != 0;
-        var nativeBrush = TransformBrush(brush);
-        foreach (PreparedDrawingGlyphRun run in runs)
+        for (int index = 0; index < runs.Length; index++)
         {
+            if (native?[index].Use is { } use)
+            {
+                _context.DrawHintedGlyphsWithRasterOrigin(use.Geometry, origin, native[index].InkBounds,
+                    nativeBrush, native[index].Coverage == TextRenderingMode.Aliased
+                        ? TextHintingMode.IntegerPixel : TextHintingMode.Auto,
+                    transform, native[index].Coverage,
+                    glyphCoverageTransfer: native[index].Coverage == TextRenderingMode.Grayscale
+                        ? coverageTransfer : default);
+                continue;
+            }
+            PreparedDrawingGlyphRun run = runs[index];
+            bool integerOrigin = UsesIntegerGlyphRasterOrigin(run.Font, style, transform, sourceGdiText);
             _context.DrawGlyphRun(
                 run.GlyphIndices,
                 run.GlyphPositions,
@@ -3412,7 +3622,11 @@ public partial class Graphics :
                 origin,
                 transform,
                 isBold,
-                isItalic);
+                isItalic,
+                textRenderingMode: coverage,
+                textHintingMode: integerOrigin ? TextHintingMode.IntegerPixel : TextHintingMode.Auto,
+                preferGlyphAtlas: integerOrigin,
+                glyphCoverageTransfer: coverageTransfer);
         }
     }
 
@@ -3549,7 +3763,8 @@ public partial class Graphics :
         Font font,
         SizeF layoutArea,
         StringFormat format,
-        bool retainCompleteParagraph = false)
+        bool retainCompleteParagraph = false,
+        ProGPU.Text.SourceDeviceLineMetrics? sourceMetrics = null)
     {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(font);
@@ -3592,6 +3807,7 @@ public partial class Graphics :
             EnableFontFallback = (flags & StringFormatFlags.NoFontFallback) == 0,
             MeasureTrailingWhitespace = (flags & StringFormatFlags.MeasureTrailingSpaces) != 0,
             RetainOriginalGraphemeOwnership = retainCompleteParagraph,
+            SourceDeviceLineMetrics = sourceMetrics,
             FirstTabOffset = firstTabOffset,
             TabStops = tabStops
         };
@@ -3610,7 +3826,7 @@ public partial class Graphics :
         float layoutHeightLimit = maxHeight;
         if (!lineLimit && clipToLayout && float.IsFinite(maxHeight))
         {
-            float lineHeight = GetLineHeight(font, fontSize);
+            float lineHeight = GetLineHeight(font, fontSize, sourceMetrics);
             if (lineHeight > 0f)
             {
                 layoutHeightLimit = MathF.Ceiling((maxHeight / lineHeight) - 0.0001f) * lineHeight;
@@ -4099,14 +4315,15 @@ public partial class Graphics :
             return 0;
         }
 
-        float lineHeight = GetLineHeight(font, fontSize);
+        float lineHeight = GetLineHeight(font, fontSize, layout.FormattingOptions.SourceDeviceLineMetrics);
         return lineHeight > 0f
             ? Math.Max(1, (int)MathF.Round(layout.ContentSize.Y / lineHeight))
             : CountLines(layout.Text);
     }
 
-    private static float GetLineHeight(Font font, float fontSize)
+    private static float GetLineHeight(Font font, float fontSize, ProGPU.Text.SourceDeviceLineMetrics? sourceMetrics = null)
     {
+        if (sourceMetrics is not null) return sourceMetrics.Height;
         ProGPU.Text.TtfFont face = font.TtfFont;
         return face.UnitsPerEm == 0
             ? 0f
@@ -5192,6 +5409,9 @@ public partial class Graphics :
         {
             return;
         }
+
+        _captureTextSystemSettings = null;
+        _textSystemSettingsIdentity = null;
 
         if (_hasPushedClip)
         {

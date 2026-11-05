@@ -345,9 +345,9 @@ public partial class CanonicalLifecycleTests
     [InlineData(true)]
     public void NativeScrollBar_VirtualSourceReadCannotPublishAnObsoleteScroll(bool nested)
     {
-        var custom = new NativeScrollBarDirectionProbe();
         RunNativeScrollBar(true, (_, _, bar, provider, _) =>
         {
+            NativeScrollBarDirectionProbe custom = Assert.IsType<NativeScrollBarDirectionProbe>(bar);
             provider.Emit(BarPacket(true, -.75));
             int reads = 0, callbacks = 0;
             bar.Scroll += (_, _) => callbacks++;
@@ -366,7 +366,7 @@ public partial class CanonicalLifecycleTests
             Assert.Equal(nested ? 53 : 50, bar.Value);
             provider.Emit(BarPacket(true, -.5));
             Assert.Equal(53, bar.Value);
-        }, custom);
+        }, static () => new NativeScrollBarDirectionProbe());
     }
 
     private sealed class NativeScrollBarDirectionProbe : HScrollBar
@@ -384,11 +384,12 @@ public partial class CanonicalLifecycleTests
 
     private static void RunNativeScrollBar(bool horizontal,
         Action<HeadlessPlatform, Form, ScrollBar, NativePointerTestContext, SourcePointerTarget> action,
-        ScrollBar? suppliedBar = null)
+        Func<ScrollBar>? createBar = null)
     {
         HeadlessPlatform platform = UseHeadlessPlatform(autoCloseWindows: false);
         using Form form = new() { ClientSize = new Size(240, 200), AutoScaleMode = AutoScaleMode.None, ShowIcon = false };
-        using ScrollBar bar = suppliedBar ?? (horizontal ? new HScrollBar() : new VScrollBar());
+        // Construct custom controls only after this fixture owns the platform.
+        using ScrollBar bar = createBar?.Invoke() ?? (horizontal ? new HScrollBar() : new VScrollBar());
         bar.Bounds = horizontal ? new Rectangle(10, 10, 180, 25) : new Rectangle(10, 10, 25, 140);
         bar.Minimum = 0;
         bar.Maximum = 100;

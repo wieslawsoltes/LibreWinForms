@@ -17,13 +17,19 @@ public sealed class DrawingTextLayout
     private readonly float _emptyLineHeight;
     private readonly string _source;
     private readonly int _paragraphLevel;
+    internal bool SourceGdiText { get; }
+    /// <summary>Explicit captured source/font request; null preserves the legacy paint path.</summary>
+    public DrawingGdiFontQuality? RequestedGdiQuality { get; }
     private Lazy<DrawingEditWordBoundaryCapture>? _editWordBoundaries;
     private readonly Lazy<TextEditInteractionSnapshot> _editInteraction;
 
     internal DrawingTextLayout(TextLayout layout, SizeF layoutSize, Vector2 offset,
         float emptyLineHeight, float dpiX, float dpiY, FontStyle style, bool clip,
-        PreparedDrawingGlyphRun[] runs, PreparedDrawingTextDecoration[] decorations)
+        PreparedDrawingGlyphRun[] runs, PreparedDrawingTextDecoration[] decorations, bool sourceGdiText,
+        DrawingGdiFontQuality? requestedGdiQuality = null)
     {
+        SourceGdiText = sourceGdiText;
+        RequestedGdiQuality = requestedGdiQuality;
         _interaction = layout.CreateInteractionSnapshot();
         _editInteraction = new(_interaction.CreateEditInteractionSnapshot,
             LazyThreadSafetyMode.ExecutionAndPublication);
@@ -191,6 +197,28 @@ public sealed class DrawingTextLayout
         ArgumentNullException.ThrowIfNull(graphics);
         ArgumentNullException.ThrowIfNull(brush);
         graphics.DrawRetainedTextLayout(this, brush, location);
+    }
+
+    /// <summary>Paints the captured GDI request with current raw system observations.</summary>
+    public void Draw(Graphics graphics, Brush brush, PointF location, DrawingGdiSystemSettings? systemSettings)
+    {
+        if (RequestedGdiQuality is null)
+            throw new InvalidOperationException("This layout has no explicit GDI quality request.");
+        ArgumentNullException.ThrowIfNull(graphics);
+        ArgumentNullException.ThrowIfNull(brush);
+        graphics.DrawRetainedTextLayout(this, brush, location, systemSettings);
+    }
+
+    /// <summary>Paints the captured GDI request with current per-query raw system observations.</summary>
+    public void DrawWithSystemSnapshot(Graphics graphics, Brush brush, PointF location,
+        DrawingTextSystemSettings? systemSettings)
+    {
+        if (RequestedGdiQuality is not { } quality)
+            throw new InvalidOperationException("This layout has no explicit GDI quality request.");
+        ArgumentNullException.ThrowIfNull(graphics);
+        ArgumentNullException.ThrowIfNull(brush);
+        graphics.DrawRetainedTextLayout(this, brush, location,
+            capturedPolicy: DrawingGdiTextPolicy.FromSystemSnapshot(quality, systemSettings));
     }
 
     private TextCaretStop Translate(TextCaretStop caret)

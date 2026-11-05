@@ -11,6 +11,35 @@ namespace LibreWinForms.ProGPU.Tests;
 
 public sealed class ProGpuTextRendererServiceTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SourceGdiDrawDoesNotInheritOrdinarySingleBitCoverage(bool retained)
+    {
+        var service = new ProGpuTextRendererService();
+        var context = new global::ProGPU.Scene.DrawingContext();
+        using Graphics graphics = Graphics.FromProGpuDrawingContext(context);
+        using Font font = new(FontFamily.GenericSansSerif, 13);
+        const LibreTextFormat format = LibreTextFormat.SingleLine | LibreTextFormat.NoPrefix | LibreTextFormat.NoPadding;
+        using var layout = retained ? service.CreateLayout(graphics, "Name 123", font, new Size(200, 60), format) : null;
+        foreach (System.Drawing.Text.TextRenderingHint hint in new[]
+        {
+            System.Drawing.Text.TextRenderingHint.SingleBitPerPixel,
+            System.Drawing.Text.TextRenderingHint.SingleBitPerPixelGridFit
+        })
+        {
+            graphics.TextRenderingHint = hint;
+            int start = context.Commands.Count;
+            if (layout is not null) layout.Draw(graphics, PointF.Empty, Color.Black);
+            else service.DrawText(graphics, "Name 123", font, new Rectangle(0, 0, 200, 60), Color.Black, Color.Empty, format);
+            var runs = context.Commands.Skip(start).Where(c => c.Type == global::ProGPU.Scene.RenderCommandType.DrawGlyphRun).ToArray();
+            runs.Should().NotBeEmpty();
+            foreach (var run in runs)
+                run.TextRenderingMode.Should().Be(global::ProGPU.Scene.TextRenderingMode.Grayscale);
+            graphics.TextRenderingHint.Should().Be(hint);
+        }
+    }
+
     [Fact]
     public void TextBoxContentFlagsProduceRealInkWithinTheCallerClip()
     {

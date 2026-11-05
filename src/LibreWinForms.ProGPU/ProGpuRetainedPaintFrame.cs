@@ -20,6 +20,7 @@ internal sealed class ProGpuRetainedPaintFrame : ILibreRetainedPaintFrame
     private readonly HashSet<LibreHandle> _visited = [];
     private bool _completed;
     private readonly float _targetDpi;
+    private readonly float? _glyphRasterDpiScale;
 
     internal ProGpuRetainedPaintFrame(
         ContainerVisual root,
@@ -30,7 +31,8 @@ internal sealed class ProGpuRetainedPaintFrame : ILibreRetainedPaintFrame
         Dictionary<LibreHandle, DrawingVisual> layers,
         LibreRectangle surfaceBounds,
         LibreRectangle dirtyRectangle,
-        float targetDpi = 96f)
+        float targetDpi = 96f,
+        float? glyphRasterDpiScale = null)
     {
         _root = root;
         _fallbackVisual = fallbackVisual;
@@ -41,12 +43,12 @@ internal sealed class ProGpuRetainedPaintFrame : ILibreRetainedPaintFrame
         SurfaceBounds = surfaceBounds;
         DirtyRectangle = dirtyRectangle;
         _targetDpi = targetDpi;
+        _glyphRasterDpiScale = glyphRasterDpiScale;
 
-        _fallbackVisual.Context.Clear();
-        Graphics = Graphics.FromProGpuDrawingContext(
+        Graphics = CreateGraphics(
             _fallbackVisual.Context,
-            new RectangleF(0f, 0f, surfaceBounds.Width, surfaceBounds.Height),
-            Matrix4x4.Identity, targetDpi, targetDpi);
+            new RectangleF(0f, 0f, surfaceBounds.Width, surfaceBounds.Height));
+        _fallbackVisual.Context.Clear();
     }
 
     public Graphics Graphics { get; }
@@ -93,10 +95,9 @@ internal sealed class ProGpuRetainedPaintFrame : ILibreRetainedPaintFrame
         }
 
         visual.Context.Clear();
-        Graphics graphics = Graphics.FromProGpuDrawingContext(
+        Graphics graphics = CreateGraphics(
             visual.Context,
-            new RectangleF(0f, 0f, bounds.Width, bounds.Height),
-            Matrix4x4.Identity, _targetDpi, _targetDpi);
+            new RectangleF(0f, 0f, bounds.Width, bounds.Height));
         graphics.SetClip(new RectangleF(
             clipRectangle.X - bounds.X,
             clipRectangle.Y - bounds.Y,
@@ -104,6 +105,13 @@ internal sealed class ProGpuRetainedPaintFrame : ILibreRetainedPaintFrame
             clipRectangle.Height));
         return new RecordingPaintLayer(graphics, visual);
     }
+
+    private Graphics CreateGraphics(DrawingContext context, RectangleF bounds)
+        => _glyphRasterDpiScale is { } scale
+            ? Graphics.FromProGpuDrawingContext(context, bounds, Matrix4x4.Identity,
+                _targetDpi, _targetDpi, scale)
+            : Graphics.FromProGpuDrawingContext(context, bounds, Matrix4x4.Identity,
+                _targetDpi, _targetDpi);
 
     internal void Complete()
     {

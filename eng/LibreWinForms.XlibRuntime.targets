@@ -1,0 +1,19 @@
+<Project>
+  <!-- Source applications consume the same staged dependency as package apps.
+       Keep this import at the application/test boundary, not every library. -->
+  <PropertyGroup>
+    <LibreWinFormsUseSourceXlibRuntime Condition="'$(LibreWinFormsReferenceMode)' == 'Project' And '$(LibreWinFormsUseProGpuSystemDrawing)' == 'true'">true</LibreWinFormsUseSourceXlibRuntime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(LibreWinFormsUseSourceXlibRuntime)' == 'true' And ('$(OutputType)' == 'Exe' Or '$(OutputType)' == 'WinExe' Or '$(IsTestProject)' == 'true')">
+    <_LibreWinFormsXlibProGpuRoot Condition="'$(LibreWinFormsProGpuSourceRoot)' != ''">$([MSBuild]::NormalizeDirectory('$(LibreWinFormsProGpuSourceRoot)'))</_LibreWinFormsXlibProGpuRoot>
+    <ProGpuXlibSourceRuntimeRoot Condition="'$(ProGpuXlibSourceRuntimeRoot)' == '' And '$(LibreWinFormsProGpuSourceRoot)' != '' And Exists('$(_LibreWinFormsXlibProGpuRoot)artifacts/progpu-xlib/package')">$(_LibreWinFormsXlibProGpuRoot)artifacts/progpu-xlib/package</ProGpuXlibSourceRuntimeRoot>
+  </PropertyGroup>
+  <PropertyGroup>
+    <_LibreWinFormsImportXlibRuntime Condition="'$(_LibreWinFormsXlibRuntimeImported)' != 'true' And '$(LibreWinFormsUseSourceXlibRuntime)' == 'true' And ('$(OutputType)' == 'Exe' Or '$(OutputType)' == 'WinExe' Or '$(IsTestProject)' == 'true') And '$(ProGpuXlibSourceRuntimeRoot)' != '' And '$(LibreWinFormsProGpuSourceRoot)' != '' And Exists('$(_LibreWinFormsXlibProGpuRoot)src/ProGPU.Backend/buildTransitive/ProGPU.Backend.targets')">true</_LibreWinFormsImportXlibRuntime>
+  </PropertyGroup>
+  <Import Project="$(_LibreWinFormsXlibProGpuRoot)src/ProGPU.Backend/buildTransitive/ProGPU.Backend.targets"
+          Condition="'$(_LibreWinFormsImportXlibRuntime)' == 'true' And '$(_LibreWinFormsXlibRuntimeImported)' != 'true'" />
+  <PropertyGroup>
+    <_LibreWinFormsXlibRuntimeImported Condition="'$(_LibreWinFormsImportXlibRuntime)' == 'true'">true</_LibreWinFormsXlibRuntimeImported>
+  </PropertyGroup>
+</Project>

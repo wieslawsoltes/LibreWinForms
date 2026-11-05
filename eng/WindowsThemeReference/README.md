@@ -1,0 +1,65 @@
+# Independent Windows theme reference
+
+This standalone project uses the installed Microsoft WindowsDesktop runtime and
+its native VisualStyleRenderer. It has no project/package dependency on Libre
+frameworks. The disposable hosted runner inspects 60 original HEADER/SCROLLBAR
+part/state/size combinations over two opaque backgrounds at explicit 96 DPI.
+It records the native IsElementDefined result for all 120 requests and renders
+only defined elements. Undefined parts retain their requested identities and
+explicit non-rendered outcomes; they never select a substitute theme part.
+It retains every PNG hash, native property HRESULT/value, content rectangle,
+margin and size result, plus runtime/theme/source identity. Unsupported property
+reads remain recorded failures; they are never replaced with invented defaults.
+
+The reference creates no application window and injects no input. It changes no
+system theme or setting. Its original bounds are 120 captures, 16 MiB of images,
+45 seconds of internal observation and a 60-second owned-child deadline. Partial
+outputs and original errors are uploaded on failure; there is no retry loop.
+
+The `Independent Windows theme reference` workflow runs on pull requests changing
+this reference, or by explicit dispatch after it reaches the default branch. The results
+support #174's theme implementation and comparisons; they do not qualify pointer
+gestures, packages, application pixels or another Windows theme/DPI. Native
+reference rasterization belongs only to this diagnostic and is not a portable
+product rendering path. Local virtual machines are not used.
+
+The first hosted inventory stopped after six HEADER part1 captures when Windows
+rejected HEADER part2. That original failed run39051901038 and its complete
+archive remain retained. Version2 records native unsupported-part outcomes so
+the remaining independent requests can be inspected; it does not turn missing
+reference images into pixel comparisons or product qualification.
+
+The separate `--thumb-primitives` diagnostic compares one explicit round-rectangle
+recipe with the original SCROLLBAR normal/hot/pressed thumb frames in the same
+process. It observes both orientations and original backgrounds, using Microsoft
+GDI+ AntiAlias and HighQuality modes. It preserves all36 images, every differing
+pixel and actual framework/theme identity. The recipe uses two/six-pixel thickness,
+the original orientation edge and an explicit `(crossExtent + 1 - thickness) / 2`
+origin; it performs no parameter sweep. Its independent limits are36 images,
+16MiB,45seconds internally and60seconds for its owned child. It creates no window,
+changes no system setting and sends no input. The original120-request inventory
+and its limits remain unchanged in their own process.
+
+This diagnoses the remaining edge differences in the portable round-rectangle
+prototype. A successful diagnostic job means the observation completed; it does
+not mean the primitive matches the theme or qualifies product paint. Native
+reference pixels stay test evidence and cannot become product textures.
+
+`--thumb-half-pixel` records the same complete primitive inventory with the
+original GDI+ PixelOffsetMode.Half sample-position policy explicitly selected.
+It has its own36-image/16MiB/45-second observation and60-second child deadline;
+the default-profile receipt, images and failures remain separate and unchanged.
+Both profiles retain actual geometry, backgrounds, native theme captures and
+all differing pixels. This control investigates sample position and background
+edge coverage; it does not assert that GDI+ authored the Windows theme assets
+or qualify a change to shared product rasterization.
+
+`--line-raster` independently records48 complete32×32 Microsoft GDI+ images:
+eight original line geometries/frames, three smoothing selections and two pixel
+offset selections. Horizontal, reversed, vertical, diagonal, wider, fractionally
+translated, nonuniformly scaled and device-clipped inputs retain their endpoints,
+transforms and clips separately. Receipts include initial and actual modes,
+framework identity, every PNG hash and elapsed time. Its own limits are48 images,
+16MiB,45seconds internally and60seconds for the process. It creates no desktop
+window and sends no input. This separates the grid-border rasterization question
+from native theme images; observation alone does not qualify portable pixels.

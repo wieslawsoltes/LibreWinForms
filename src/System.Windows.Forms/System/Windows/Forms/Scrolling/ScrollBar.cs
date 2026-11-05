@@ -376,6 +376,7 @@ public abstract partial class ScrollBar : Control
 #if LIBREWINFORMS_PORTABLE
                 // A native setter token is consumed before any callback. A
                 // nested ordinary Value assignment cannot inherit that token.
+                if (_portableScrollBarPendingValueIdentity is null) InvalidatePortableScrollBarFrame();
                 _portableScrollBarIdentity = _portableScrollBarPendingValueIdentity;
                 _portableScrollBarPendingValueIdentity = null;
 #endif

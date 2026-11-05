@@ -1,0 +1,9 @@
+{
+  "run": 39063499450,
+  "artifact": 12111469345,
+  "source": "6a7a11adf18721162833655e3d1a6d4e99f57ab3",
+  "archiveSha256": "b8afac29a45ecd53d2dbeed3b7508f60c3742b22423750a7b23ec205443c3b2f",
+  "originalSource": "eng/WindowsThemeReference/LineRasterReference.cs",
+  "images": 48,
+  "scope": "Original Microsoft96-DPI GDI+ observations. Test-only images; never product textures."
+}

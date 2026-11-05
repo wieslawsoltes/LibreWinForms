@@ -1,0 +1,4357 @@
+{
+  "schema": "windows-theme-reference-v2",
+  "qualified": false,
+  "injectedInput": false,
+  "runtime": "10.0.13",
+  "os": "Microsoft Windows NT 10.0.26200.0",
+  "formsAssembly": "C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App\\10.0.12\\System.Windows.Forms.dll",
+  "drawingAssembly": "C:\\Program Files\\dotnet\\shared\\Microsoft.WindowsDesktop.App\\10.0.12\\System.Drawing.Common.dll",
+  "theme": "Aero style",
+  "scheme": "NormalColor",
+  "size": "NormalSize",
+  "elapsedSeconds": 0.6129244,
+  "bytes": 19576,
+  "renderedCases": 108,
+  "run": 39052232473,
+  "artifact": 12108405321,
+  "archiveSha256": "f69281c14d126b4bb5f3cde085f54b8706a19ebe511eeb1ee49c031e0213f4f5",
+  "sourceHead": "9371a81478ff7e15b9209bdf6937711d7a8ac3a9",
+  "checkoutMerge": "39f6ce2e72db56a3663c103a11113d78333e6b97",
+  "cases": [
+    {
+      "Class": "HEADER",
+      "Part": 1,
+      "State": 1,
+      "Width": 100,
+      "Height": 23,
+      "defined": true,
+      "rendered": true,
+      "background": -1,
+      "targetDpi": [
+        96,
+        96
+      ],
+      "drawResult": 0,
+      "content": {
+        "property": "content",
+        "hresult": 0,
+        "value": [
+          0,
+          0,
+          100,
+          23
+        ]
+      },
+      "margins": {
+        "property": "contentMargins",
+        "hresult": 0,
+        "value": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "partSize": {
+        "property": "trueSize",
+        "hresult": 0,
+        "value": [
+          6,
+          24
+        ]
+      },
+      "colors": [
+        {
+          "property": "BorderColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "FillColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "TextColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "EdgeLightColor",
+          "hresult": 0,
+          "value": -4934476
+        },
+        {
+          "property": "EdgeHighlightColor",
+          "hresult": 0,
+          "value": -722948
+        },
+        {
+          "property": "EdgeShadowColor",
+          "hresult": 0,
+          "value": -4934476
+        },
+        {
+          "property": "EdgeDarkShadowColor",
+          "hresult": 0,
+          "value": -10197916
+        },
+        {
+          "property": "EdgeFillColor",
+          "hresult": 0,
+          "value": -2302756
+        },
+        {
+          "property": "TransparentColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor1",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor2",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor3",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor4",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor5",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "ShadowColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlowColor",
+          "hresult": 0,
+          "value": -1
+        },
+        {
+          "property": "TextBorderColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "TextShadowColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlyphTextColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlyphTransparentColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "FillColorHint",
+          "hresult": 0,
+          "value": -723724
+        },
+        {
+          "property": "BorderColorHint",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "AccentColorHint",
+          "hresult": 0,
+          "value": -10044191
+        }
+      ],
+      "enums": [
+        {
+          "property": "BackgroundType",
+          "hresult": 0,
+          "value": 0
+        },
+        {
+          "property": "BorderType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "FillType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "SizingType",
+          "hresult": 0,
+          "value": 1
+        },
+        {
+          "property": "HorizontalAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ContentAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "VerticalAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "OffsetType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "IconEffect",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TextShadowType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ImageLayout",
+          "hresult": 0,
+          "value": 0
+        },
+        {
+          "property": "GlyphType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ImageSelectType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GlyphFontSizingType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TrueSizeScalingType",
+          "hresult": -2147023728,
+          "value": 0
+        }
+      ],
+      "integers": [
+        {
+          "property": "ImageCount",
+          "hresult": 0,
+          "value": 12
+        },
+        {
+          "property": "AlphaLevel",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "BorderSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "RoundCornerWidth",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "RoundCornerHeight",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio1",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio2",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio3",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio4",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio5",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ProgressChunkSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ProgressSpaceSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Saturation",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TextBorderSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "AlphaThreshold",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Width",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Height",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GlyphIndex",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TrueSizeStretchMark",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi1",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi2",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi3",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi4",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi5",
+          "hresult": -2147023728,
+          "value": 0
+        }
+      ],
+      "file": "000-HEADER-1-1.png",
+      "sha256": "fc111531310b6ac71c26b7ca22120711da01480fdd58603cfcde290f04387f58"
+    },
+    {
+      "Class": "HEADER",
+      "Part": 1,
+      "State": 1,
+      "Width": 100,
+      "Height": 23,
+      "defined": true,
+      "rendered": true,
+      "background": -986896,
+      "targetDpi": [
+        96,
+        96
+      ],
+      "drawResult": 0,
+      "content": {
+        "property": "content",
+        "hresult": 0,
+        "value": [
+          0,
+          0,
+          100,
+          23
+        ]
+      },
+      "margins": {
+        "property": "contentMargins",
+        "hresult": 0,
+        "value": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "partSize": {
+        "property": "trueSize",
+        "hresult": 0,
+        "value": [
+          6,
+          24
+        ]
+      },
+      "colors": [
+        {
+          "property": "BorderColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "FillColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "TextColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "EdgeLightColor",
+          "hresult": 0,
+          "value": -4934476
+        },
+        {
+          "property": "EdgeHighlightColor",
+          "hresult": 0,
+          "value": -722948
+        },
+        {
+          "property": "EdgeShadowColor",
+          "hresult": 0,
+          "value": -4934476
+        },
+        {
+          "property": "EdgeDarkShadowColor",
+          "hresult": 0,
+          "value": -10197916
+        },
+        {
+          "property": "EdgeFillColor",
+          "hresult": 0,
+          "value": -2302756
+        },
+        {
+          "property": "TransparentColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor1",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor2",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor3",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor4",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor5",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "ShadowColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlowColor",
+          "hresult": 0,
+          "value": -1
+        },
+        {
+          "property": "TextBorderColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "TextShadowColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlyphTextColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlyphTransparentColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "FillColorHint",
+          "hresult": 0,
+          "value": -723724
+        },
+        {
+          "property": "BorderColorHint",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "AccentColorHint",
+          "hresult": 0,
+          "value": -10044191
+        }
+      ],
+      "enums": [
+        {
+          "property": "BackgroundType",
+          "hresult": 0,
+          "value": 0
+        },
+        {
+          "property": "BorderType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "FillType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "SizingType",
+          "hresult": 0,
+          "value": 1
+        },
+        {
+          "property": "HorizontalAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ContentAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "VerticalAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "OffsetType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "IconEffect",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TextShadowType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ImageLayout",
+          "hresult": 0,
+          "value": 0
+        },
+        {
+          "property": "GlyphType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ImageSelectType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GlyphFontSizingType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TrueSizeScalingType",
+          "hresult": -2147023728,
+          "value": 0
+        }
+      ],
+      "integers": [
+        {
+          "property": "ImageCount",
+          "hresult": 0,
+          "value": 12
+        },
+        {
+          "property": "AlphaLevel",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "BorderSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "RoundCornerWidth",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "RoundCornerHeight",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio1",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio2",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio3",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio4",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio5",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ProgressChunkSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ProgressSpaceSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Saturation",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TextBorderSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "AlphaThreshold",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Width",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Height",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GlyphIndex",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TrueSizeStretchMark",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi1",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi2",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi3",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi4",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi5",
+          "hresult": -2147023728,
+          "value": 0
+        }
+      ],
+      "file": "001-HEADER-1-1.png",
+      "sha256": "fc111531310b6ac71c26b7ca22120711da01480fdd58603cfcde290f04387f58"
+    },
+    {
+      "Class": "HEADER",
+      "Part": 1,
+      "State": 2,
+      "Width": 100,
+      "Height": 23,
+      "defined": true,
+      "rendered": true,
+      "background": -1,
+      "targetDpi": [
+        96,
+        96
+      ],
+      "drawResult": 0,
+      "content": {
+        "property": "content",
+        "hresult": 0,
+        "value": [
+          0,
+          0,
+          100,
+          23
+        ]
+      },
+      "margins": {
+        "property": "contentMargins",
+        "hresult": 0,
+        "value": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "partSize": {
+        "property": "trueSize",
+        "hresult": 0,
+        "value": [
+          6,
+          24
+        ]
+      },
+      "colors": [
+        {
+          "property": "BorderColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "FillColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "TextColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "EdgeLightColor",
+          "hresult": 0,
+          "value": -4934476
+        },
+        {
+          "property": "EdgeHighlightColor",
+          "hresult": 0,
+          "value": -722948
+        },
+        {
+          "property": "EdgeShadowColor",
+          "hresult": 0,
+          "value": -4934476
+        },
+        {
+          "property": "EdgeDarkShadowColor",
+          "hresult": 0,
+          "value": -10197916
+        },
+        {
+          "property": "EdgeFillColor",
+          "hresult": 0,
+          "value": -2302756
+        },
+        {
+          "property": "TransparentColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor1",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor2",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor3",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor4",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor5",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "ShadowColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlowColor",
+          "hresult": 0,
+          "value": -1
+        },
+        {
+          "property": "TextBorderColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "TextShadowColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlyphTextColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlyphTransparentColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "FillColorHint",
+          "hresult": 0,
+          "value": -723724
+        },
+        {
+          "property": "BorderColorHint",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "AccentColorHint",
+          "hresult": 0,
+          "value": -10044191
+        }
+      ],
+      "enums": [
+        {
+          "property": "BackgroundType",
+          "hresult": 0,
+          "value": 0
+        },
+        {
+          "property": "BorderType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "FillType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "SizingType",
+          "hresult": 0,
+          "value": 1
+        },
+        {
+          "property": "HorizontalAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ContentAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "VerticalAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "OffsetType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "IconEffect",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TextShadowType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ImageLayout",
+          "hresult": 0,
+          "value": 0
+        },
+        {
+          "property": "GlyphType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ImageSelectType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GlyphFontSizingType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TrueSizeScalingType",
+          "hresult": -2147023728,
+          "value": 0
+        }
+      ],
+      "integers": [
+        {
+          "property": "ImageCount",
+          "hresult": 0,
+          "value": 12
+        },
+        {
+          "property": "AlphaLevel",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "BorderSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "RoundCornerWidth",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "RoundCornerHeight",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio1",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio2",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio3",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio4",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio5",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ProgressChunkSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ProgressSpaceSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Saturation",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TextBorderSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "AlphaThreshold",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Width",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Height",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GlyphIndex",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TrueSizeStretchMark",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi1",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi2",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi3",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi4",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi5",
+          "hresult": -2147023728,
+          "value": 0
+        }
+      ],
+      "file": "002-HEADER-1-2.png",
+      "sha256": "52666831aee21b4bc089dfdb318686763259ad92ae5e555844c57c65635e8adb"
+    },
+    {
+      "Class": "HEADER",
+      "Part": 1,
+      "State": 2,
+      "Width": 100,
+      "Height": 23,
+      "defined": true,
+      "rendered": true,
+      "background": -986896,
+      "targetDpi": [
+        96,
+        96
+      ],
+      "drawResult": 0,
+      "content": {
+        "property": "content",
+        "hresult": 0,
+        "value": [
+          0,
+          0,
+          100,
+          23
+        ]
+      },
+      "margins": {
+        "property": "contentMargins",
+        "hresult": 0,
+        "value": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "partSize": {
+        "property": "trueSize",
+        "hresult": 0,
+        "value": [
+          6,
+          24
+        ]
+      },
+      "colors": [
+        {
+          "property": "BorderColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "FillColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "TextColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "EdgeLightColor",
+          "hresult": 0,
+          "value": -4934476
+        },
+        {
+          "property": "EdgeHighlightColor",
+          "hresult": 0,
+          "value": -722948
+        },
+        {
+          "property": "EdgeShadowColor",
+          "hresult": 0,
+          "value": -4934476
+        },
+        {
+          "property": "EdgeDarkShadowColor",
+          "hresult": 0,
+          "value": -10197916
+        },
+        {
+          "property": "EdgeFillColor",
+          "hresult": 0,
+          "value": -2302756
+        },
+        {
+          "property": "TransparentColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor1",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor2",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor3",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor4",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor5",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "ShadowColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlowColor",
+          "hresult": 0,
+          "value": -1
+        },
+        {
+          "property": "TextBorderColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "TextShadowColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlyphTextColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlyphTransparentColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "FillColorHint",
+          "hresult": 0,
+          "value": -723724
+        },
+        {
+          "property": "BorderColorHint",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "AccentColorHint",
+          "hresult": 0,
+          "value": -10044191
+        }
+      ],
+      "enums": [
+        {
+          "property": "BackgroundType",
+          "hresult": 0,
+          "value": 0
+        },
+        {
+          "property": "BorderType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "FillType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "SizingType",
+          "hresult": 0,
+          "value": 1
+        },
+        {
+          "property": "HorizontalAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ContentAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "VerticalAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "OffsetType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "IconEffect",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TextShadowType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ImageLayout",
+          "hresult": 0,
+          "value": 0
+        },
+        {
+          "property": "GlyphType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ImageSelectType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GlyphFontSizingType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TrueSizeScalingType",
+          "hresult": -2147023728,
+          "value": 0
+        }
+      ],
+      "integers": [
+        {
+          "property": "ImageCount",
+          "hresult": 0,
+          "value": 12
+        },
+        {
+          "property": "AlphaLevel",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "BorderSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "RoundCornerWidth",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "RoundCornerHeight",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio1",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio2",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio3",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio4",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio5",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ProgressChunkSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ProgressSpaceSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Saturation",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TextBorderSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "AlphaThreshold",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Width",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Height",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GlyphIndex",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TrueSizeStretchMark",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi1",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi2",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi3",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi4",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi5",
+          "hresult": -2147023728,
+          "value": 0
+        }
+      ],
+      "file": "003-HEADER-1-2.png",
+      "sha256": "52666831aee21b4bc089dfdb318686763259ad92ae5e555844c57c65635e8adb"
+    },
+    {
+      "Class": "HEADER",
+      "Part": 1,
+      "State": 3,
+      "Width": 100,
+      "Height": 23,
+      "defined": true,
+      "rendered": true,
+      "background": -1,
+      "targetDpi": [
+        96,
+        96
+      ],
+      "drawResult": 0,
+      "content": {
+        "property": "content",
+        "hresult": 0,
+        "value": [
+          0,
+          0,
+          100,
+          23
+        ]
+      },
+      "margins": {
+        "property": "contentMargins",
+        "hresult": 0,
+        "value": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "partSize": {
+        "property": "trueSize",
+        "hresult": 0,
+        "value": [
+          6,
+          24
+        ]
+      },
+      "colors": [
+        {
+          "property": "BorderColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "FillColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "TextColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "EdgeLightColor",
+          "hresult": 0,
+          "value": -4934476
+        },
+        {
+          "property": "EdgeHighlightColor",
+          "hresult": 0,
+          "value": -722948
+        },
+        {
+          "property": "EdgeShadowColor",
+          "hresult": 0,
+          "value": -4934476
+        },
+        {
+          "property": "EdgeDarkShadowColor",
+          "hresult": 0,
+          "value": -10197916
+        },
+        {
+          "property": "EdgeFillColor",
+          "hresult": 0,
+          "value": -2302756
+        },
+        {
+          "property": "TransparentColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor1",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor2",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor3",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor4",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor5",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "ShadowColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlowColor",
+          "hresult": 0,
+          "value": -1
+        },
+        {
+          "property": "TextBorderColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "TextShadowColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlyphTextColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlyphTransparentColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "FillColorHint",
+          "hresult": 0,
+          "value": -723724
+        },
+        {
+          "property": "BorderColorHint",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "AccentColorHint",
+          "hresult": 0,
+          "value": -10044191
+        }
+      ],
+      "enums": [
+        {
+          "property": "BackgroundType",
+          "hresult": 0,
+          "value": 0
+        },
+        {
+          "property": "BorderType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "FillType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "SizingType",
+          "hresult": 0,
+          "value": 1
+        },
+        {
+          "property": "HorizontalAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ContentAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "VerticalAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "OffsetType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "IconEffect",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TextShadowType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ImageLayout",
+          "hresult": 0,
+          "value": 0
+        },
+        {
+          "property": "GlyphType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ImageSelectType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GlyphFontSizingType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TrueSizeScalingType",
+          "hresult": -2147023728,
+          "value": 0
+        }
+      ],
+      "integers": [
+        {
+          "property": "ImageCount",
+          "hresult": 0,
+          "value": 12
+        },
+        {
+          "property": "AlphaLevel",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "BorderSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "RoundCornerWidth",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "RoundCornerHeight",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio1",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio2",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio3",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio4",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio5",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ProgressChunkSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ProgressSpaceSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Saturation",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TextBorderSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "AlphaThreshold",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Width",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Height",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GlyphIndex",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TrueSizeStretchMark",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi1",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi2",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi3",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi4",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi5",
+          "hresult": -2147023728,
+          "value": 0
+        }
+      ],
+      "file": "004-HEADER-1-3.png",
+      "sha256": "fbc51ede066884b8ae4eb931667a48a34b9e567edba431ae7a29e5bb3219a900"
+    },
+    {
+      "Class": "HEADER",
+      "Part": 1,
+      "State": 3,
+      "Width": 100,
+      "Height": 23,
+      "defined": true,
+      "rendered": true,
+      "background": -986896,
+      "targetDpi": [
+        96,
+        96
+      ],
+      "drawResult": 0,
+      "content": {
+        "property": "content",
+        "hresult": 0,
+        "value": [
+          0,
+          0,
+          100,
+          23
+        ]
+      },
+      "margins": {
+        "property": "contentMargins",
+        "hresult": 0,
+        "value": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "partSize": {
+        "property": "trueSize",
+        "hresult": 0,
+        "value": [
+          6,
+          24
+        ]
+      },
+      "colors": [
+        {
+          "property": "BorderColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "FillColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "TextColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "EdgeLightColor",
+          "hresult": 0,
+          "value": -4934476
+        },
+        {
+          "property": "EdgeHighlightColor",
+          "hresult": 0,
+          "value": -722948
+        },
+        {
+          "property": "EdgeShadowColor",
+          "hresult": 0,
+          "value": -4934476
+        },
+        {
+          "property": "EdgeDarkShadowColor",
+          "hresult": 0,
+          "value": -10197916
+        },
+        {
+          "property": "EdgeFillColor",
+          "hresult": 0,
+          "value": -2302756
+        },
+        {
+          "property": "TransparentColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor1",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor2",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor3",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor4",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor5",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "ShadowColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlowColor",
+          "hresult": 0,
+          "value": -1
+        },
+        {
+          "property": "TextBorderColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "TextShadowColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlyphTextColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlyphTransparentColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "FillColorHint",
+          "hresult": 0,
+          "value": -723724
+        },
+        {
+          "property": "BorderColorHint",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "AccentColorHint",
+          "hresult": 0,
+          "value": -10044191
+        }
+      ],
+      "enums": [
+        {
+          "property": "BackgroundType",
+          "hresult": 0,
+          "value": 0
+        },
+        {
+          "property": "BorderType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "FillType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "SizingType",
+          "hresult": 0,
+          "value": 1
+        },
+        {
+          "property": "HorizontalAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ContentAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "VerticalAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "OffsetType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "IconEffect",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TextShadowType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ImageLayout",
+          "hresult": 0,
+          "value": 0
+        },
+        {
+          "property": "GlyphType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ImageSelectType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GlyphFontSizingType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TrueSizeScalingType",
+          "hresult": -2147023728,
+          "value": 0
+        }
+      ],
+      "integers": [
+        {
+          "property": "ImageCount",
+          "hresult": 0,
+          "value": 12
+        },
+        {
+          "property": "AlphaLevel",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "BorderSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "RoundCornerWidth",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "RoundCornerHeight",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio1",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio2",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio3",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio4",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio5",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ProgressChunkSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ProgressSpaceSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Saturation",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TextBorderSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "AlphaThreshold",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Width",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Height",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GlyphIndex",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TrueSizeStretchMark",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi1",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi2",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi3",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi4",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi5",
+          "hresult": -2147023728,
+          "value": 0
+        }
+      ],
+      "file": "005-HEADER-1-3.png",
+      "sha256": "fbc51ede066884b8ae4eb931667a48a34b9e567edba431ae7a29e5bb3219a900"
+    },
+    {
+      "Class": "HEADER",
+      "Part": 1,
+      "State": 1,
+      "Width": 11,
+      "Height": 7,
+      "defined": true,
+      "rendered": true,
+      "background": -1,
+      "targetDpi": [
+        96,
+        96
+      ],
+      "drawResult": 0,
+      "content": {
+        "property": "content",
+        "hresult": 0,
+        "value": [
+          0,
+          0,
+          11,
+          7
+        ]
+      },
+      "margins": {
+        "property": "contentMargins",
+        "hresult": 0,
+        "value": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "partSize": {
+        "property": "trueSize",
+        "hresult": 0,
+        "value": [
+          6,
+          24
+        ]
+      },
+      "colors": [
+        {
+          "property": "BorderColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "FillColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "TextColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "EdgeLightColor",
+          "hresult": 0,
+          "value": -4934476
+        },
+        {
+          "property": "EdgeHighlightColor",
+          "hresult": 0,
+          "value": -722948
+        },
+        {
+          "property": "EdgeShadowColor",
+          "hresult": 0,
+          "value": -4934476
+        },
+        {
+          "property": "EdgeDarkShadowColor",
+          "hresult": 0,
+          "value": -10197916
+        },
+        {
+          "property": "EdgeFillColor",
+          "hresult": 0,
+          "value": -2302756
+        },
+        {
+          "property": "TransparentColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor1",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor2",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor3",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor4",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor5",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "ShadowColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlowColor",
+          "hresult": 0,
+          "value": -1
+        },
+        {
+          "property": "TextBorderColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "TextShadowColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlyphTextColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlyphTransparentColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "FillColorHint",
+          "hresult": 0,
+          "value": -723724
+        },
+        {
+          "property": "BorderColorHint",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "AccentColorHint",
+          "hresult": 0,
+          "value": -10044191
+        }
+      ],
+      "enums": [
+        {
+          "property": "BackgroundType",
+          "hresult": 0,
+          "value": 0
+        },
+        {
+          "property": "BorderType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "FillType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "SizingType",
+          "hresult": 0,
+          "value": 1
+        },
+        {
+          "property": "HorizontalAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ContentAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "VerticalAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "OffsetType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "IconEffect",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TextShadowType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ImageLayout",
+          "hresult": 0,
+          "value": 0
+        },
+        {
+          "property": "GlyphType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ImageSelectType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GlyphFontSizingType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TrueSizeScalingType",
+          "hresult": -2147023728,
+          "value": 0
+        }
+      ],
+      "integers": [
+        {
+          "property": "ImageCount",
+          "hresult": 0,
+          "value": 12
+        },
+        {
+          "property": "AlphaLevel",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "BorderSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "RoundCornerWidth",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "RoundCornerHeight",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio1",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio2",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio3",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio4",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio5",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ProgressChunkSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ProgressSpaceSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Saturation",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TextBorderSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "AlphaThreshold",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Width",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Height",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GlyphIndex",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TrueSizeStretchMark",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi1",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi2",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi3",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi4",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi5",
+          "hresult": -2147023728,
+          "value": 0
+        }
+      ],
+      "file": "018-HEADER-1-1.png",
+      "sha256": "b74d8d022704c9f6ed5ea699a611547b9b1400907fe85ecfb6639f1a8f26077f"
+    },
+    {
+      "Class": "HEADER",
+      "Part": 1,
+      "State": 1,
+      "Width": 11,
+      "Height": 7,
+      "defined": true,
+      "rendered": true,
+      "background": -986896,
+      "targetDpi": [
+        96,
+        96
+      ],
+      "drawResult": 0,
+      "content": {
+        "property": "content",
+        "hresult": 0,
+        "value": [
+          0,
+          0,
+          11,
+          7
+        ]
+      },
+      "margins": {
+        "property": "contentMargins",
+        "hresult": 0,
+        "value": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "partSize": {
+        "property": "trueSize",
+        "hresult": 0,
+        "value": [
+          6,
+          24
+        ]
+      },
+      "colors": [
+        {
+          "property": "BorderColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "FillColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "TextColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "EdgeLightColor",
+          "hresult": 0,
+          "value": -4934476
+        },
+        {
+          "property": "EdgeHighlightColor",
+          "hresult": 0,
+          "value": -722948
+        },
+        {
+          "property": "EdgeShadowColor",
+          "hresult": 0,
+          "value": -4934476
+        },
+        {
+          "property": "EdgeDarkShadowColor",
+          "hresult": 0,
+          "value": -10197916
+        },
+        {
+          "property": "EdgeFillColor",
+          "hresult": 0,
+          "value": -2302756
+        },
+        {
+          "property": "TransparentColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor1",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor2",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor3",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor4",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor5",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "ShadowColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlowColor",
+          "hresult": 0,
+          "value": -1
+        },
+        {
+          "property": "TextBorderColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "TextShadowColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlyphTextColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlyphTransparentColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "FillColorHint",
+          "hresult": 0,
+          "value": -723724
+        },
+        {
+          "property": "BorderColorHint",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "AccentColorHint",
+          "hresult": 0,
+          "value": -10044191
+        }
+      ],
+      "enums": [
+        {
+          "property": "BackgroundType",
+          "hresult": 0,
+          "value": 0
+        },
+        {
+          "property": "BorderType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "FillType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "SizingType",
+          "hresult": 0,
+          "value": 1
+        },
+        {
+          "property": "HorizontalAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ContentAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "VerticalAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "OffsetType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "IconEffect",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TextShadowType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ImageLayout",
+          "hresult": 0,
+          "value": 0
+        },
+        {
+          "property": "GlyphType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ImageSelectType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GlyphFontSizingType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TrueSizeScalingType",
+          "hresult": -2147023728,
+          "value": 0
+        }
+      ],
+      "integers": [
+        {
+          "property": "ImageCount",
+          "hresult": 0,
+          "value": 12
+        },
+        {
+          "property": "AlphaLevel",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "BorderSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "RoundCornerWidth",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "RoundCornerHeight",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio1",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio2",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio3",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio4",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio5",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ProgressChunkSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ProgressSpaceSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Saturation",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TextBorderSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "AlphaThreshold",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Width",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Height",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GlyphIndex",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TrueSizeStretchMark",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi1",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi2",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi3",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi4",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi5",
+          "hresult": -2147023728,
+          "value": 0
+        }
+      ],
+      "file": "019-HEADER-1-1.png",
+      "sha256": "b74d8d022704c9f6ed5ea699a611547b9b1400907fe85ecfb6639f1a8f26077f"
+    },
+    {
+      "Class": "HEADER",
+      "Part": 1,
+      "State": 2,
+      "Width": 11,
+      "Height": 7,
+      "defined": true,
+      "rendered": true,
+      "background": -1,
+      "targetDpi": [
+        96,
+        96
+      ],
+      "drawResult": 0,
+      "content": {
+        "property": "content",
+        "hresult": 0,
+        "value": [
+          0,
+          0,
+          11,
+          7
+        ]
+      },
+      "margins": {
+        "property": "contentMargins",
+        "hresult": 0,
+        "value": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "partSize": {
+        "property": "trueSize",
+        "hresult": 0,
+        "value": [
+          6,
+          24
+        ]
+      },
+      "colors": [
+        {
+          "property": "BorderColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "FillColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "TextColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "EdgeLightColor",
+          "hresult": 0,
+          "value": -4934476
+        },
+        {
+          "property": "EdgeHighlightColor",
+          "hresult": 0,
+          "value": -722948
+        },
+        {
+          "property": "EdgeShadowColor",
+          "hresult": 0,
+          "value": -4934476
+        },
+        {
+          "property": "EdgeDarkShadowColor",
+          "hresult": 0,
+          "value": -10197916
+        },
+        {
+          "property": "EdgeFillColor",
+          "hresult": 0,
+          "value": -2302756
+        },
+        {
+          "property": "TransparentColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor1",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor2",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor3",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor4",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor5",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "ShadowColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlowColor",
+          "hresult": 0,
+          "value": -1
+        },
+        {
+          "property": "TextBorderColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "TextShadowColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlyphTextColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlyphTransparentColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "FillColorHint",
+          "hresult": 0,
+          "value": -723724
+        },
+        {
+          "property": "BorderColorHint",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "AccentColorHint",
+          "hresult": 0,
+          "value": -10044191
+        }
+      ],
+      "enums": [
+        {
+          "property": "BackgroundType",
+          "hresult": 0,
+          "value": 0
+        },
+        {
+          "property": "BorderType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "FillType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "SizingType",
+          "hresult": 0,
+          "value": 1
+        },
+        {
+          "property": "HorizontalAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ContentAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "VerticalAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "OffsetType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "IconEffect",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TextShadowType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ImageLayout",
+          "hresult": 0,
+          "value": 0
+        },
+        {
+          "property": "GlyphType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ImageSelectType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GlyphFontSizingType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TrueSizeScalingType",
+          "hresult": -2147023728,
+          "value": 0
+        }
+      ],
+      "integers": [
+        {
+          "property": "ImageCount",
+          "hresult": 0,
+          "value": 12
+        },
+        {
+          "property": "AlphaLevel",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "BorderSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "RoundCornerWidth",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "RoundCornerHeight",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio1",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio2",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio3",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio4",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio5",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ProgressChunkSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ProgressSpaceSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Saturation",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TextBorderSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "AlphaThreshold",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Width",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Height",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GlyphIndex",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TrueSizeStretchMark",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi1",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi2",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi3",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi4",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi5",
+          "hresult": -2147023728,
+          "value": 0
+        }
+      ],
+      "file": "020-HEADER-1-2.png",
+      "sha256": "acaf118d92b41c461fb8e0e0377c8bd041c0adc179bdc8a87c2ba0df5d68bd3a"
+    },
+    {
+      "Class": "HEADER",
+      "Part": 1,
+      "State": 2,
+      "Width": 11,
+      "Height": 7,
+      "defined": true,
+      "rendered": true,
+      "background": -986896,
+      "targetDpi": [
+        96,
+        96
+      ],
+      "drawResult": 0,
+      "content": {
+        "property": "content",
+        "hresult": 0,
+        "value": [
+          0,
+          0,
+          11,
+          7
+        ]
+      },
+      "margins": {
+        "property": "contentMargins",
+        "hresult": 0,
+        "value": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "partSize": {
+        "property": "trueSize",
+        "hresult": 0,
+        "value": [
+          6,
+          24
+        ]
+      },
+      "colors": [
+        {
+          "property": "BorderColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "FillColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "TextColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "EdgeLightColor",
+          "hresult": 0,
+          "value": -4934476
+        },
+        {
+          "property": "EdgeHighlightColor",
+          "hresult": 0,
+          "value": -722948
+        },
+        {
+          "property": "EdgeShadowColor",
+          "hresult": 0,
+          "value": -4934476
+        },
+        {
+          "property": "EdgeDarkShadowColor",
+          "hresult": 0,
+          "value": -10197916
+        },
+        {
+          "property": "EdgeFillColor",
+          "hresult": 0,
+          "value": -2302756
+        },
+        {
+          "property": "TransparentColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor1",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor2",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor3",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor4",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor5",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "ShadowColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlowColor",
+          "hresult": 0,
+          "value": -1
+        },
+        {
+          "property": "TextBorderColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "TextShadowColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlyphTextColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlyphTransparentColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "FillColorHint",
+          "hresult": 0,
+          "value": -723724
+        },
+        {
+          "property": "BorderColorHint",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "AccentColorHint",
+          "hresult": 0,
+          "value": -10044191
+        }
+      ],
+      "enums": [
+        {
+          "property": "BackgroundType",
+          "hresult": 0,
+          "value": 0
+        },
+        {
+          "property": "BorderType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "FillType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "SizingType",
+          "hresult": 0,
+          "value": 1
+        },
+        {
+          "property": "HorizontalAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ContentAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "VerticalAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "OffsetType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "IconEffect",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TextShadowType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ImageLayout",
+          "hresult": 0,
+          "value": 0
+        },
+        {
+          "property": "GlyphType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ImageSelectType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GlyphFontSizingType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TrueSizeScalingType",
+          "hresult": -2147023728,
+          "value": 0
+        }
+      ],
+      "integers": [
+        {
+          "property": "ImageCount",
+          "hresult": 0,
+          "value": 12
+        },
+        {
+          "property": "AlphaLevel",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "BorderSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "RoundCornerWidth",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "RoundCornerHeight",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio1",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio2",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio3",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio4",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio5",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ProgressChunkSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ProgressSpaceSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Saturation",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TextBorderSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "AlphaThreshold",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Width",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Height",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GlyphIndex",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TrueSizeStretchMark",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi1",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi2",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi3",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi4",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi5",
+          "hresult": -2147023728,
+          "value": 0
+        }
+      ],
+      "file": "021-HEADER-1-2.png",
+      "sha256": "acaf118d92b41c461fb8e0e0377c8bd041c0adc179bdc8a87c2ba0df5d68bd3a"
+    },
+    {
+      "Class": "HEADER",
+      "Part": 1,
+      "State": 3,
+      "Width": 11,
+      "Height": 7,
+      "defined": true,
+      "rendered": true,
+      "background": -1,
+      "targetDpi": [
+        96,
+        96
+      ],
+      "drawResult": 0,
+      "content": {
+        "property": "content",
+        "hresult": 0,
+        "value": [
+          0,
+          0,
+          11,
+          7
+        ]
+      },
+      "margins": {
+        "property": "contentMargins",
+        "hresult": 0,
+        "value": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "partSize": {
+        "property": "trueSize",
+        "hresult": 0,
+        "value": [
+          6,
+          24
+        ]
+      },
+      "colors": [
+        {
+          "property": "BorderColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "FillColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "TextColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "EdgeLightColor",
+          "hresult": 0,
+          "value": -4934476
+        },
+        {
+          "property": "EdgeHighlightColor",
+          "hresult": 0,
+          "value": -722948
+        },
+        {
+          "property": "EdgeShadowColor",
+          "hresult": 0,
+          "value": -4934476
+        },
+        {
+          "property": "EdgeDarkShadowColor",
+          "hresult": 0,
+          "value": -10197916
+        },
+        {
+          "property": "EdgeFillColor",
+          "hresult": 0,
+          "value": -2302756
+        },
+        {
+          "property": "TransparentColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor1",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor2",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor3",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor4",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor5",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "ShadowColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlowColor",
+          "hresult": 0,
+          "value": -1
+        },
+        {
+          "property": "TextBorderColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "TextShadowColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlyphTextColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlyphTransparentColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "FillColorHint",
+          "hresult": 0,
+          "value": -723724
+        },
+        {
+          "property": "BorderColorHint",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "AccentColorHint",
+          "hresult": 0,
+          "value": -10044191
+        }
+      ],
+      "enums": [
+        {
+          "property": "BackgroundType",
+          "hresult": 0,
+          "value": 0
+        },
+        {
+          "property": "BorderType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "FillType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "SizingType",
+          "hresult": 0,
+          "value": 1
+        },
+        {
+          "property": "HorizontalAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ContentAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "VerticalAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "OffsetType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "IconEffect",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TextShadowType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ImageLayout",
+          "hresult": 0,
+          "value": 0
+        },
+        {
+          "property": "GlyphType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ImageSelectType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GlyphFontSizingType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TrueSizeScalingType",
+          "hresult": -2147023728,
+          "value": 0
+        }
+      ],
+      "integers": [
+        {
+          "property": "ImageCount",
+          "hresult": 0,
+          "value": 12
+        },
+        {
+          "property": "AlphaLevel",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "BorderSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "RoundCornerWidth",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "RoundCornerHeight",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio1",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio2",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio3",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio4",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio5",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ProgressChunkSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ProgressSpaceSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Saturation",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TextBorderSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "AlphaThreshold",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Width",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Height",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GlyphIndex",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TrueSizeStretchMark",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi1",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi2",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi3",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi4",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi5",
+          "hresult": -2147023728,
+          "value": 0
+        }
+      ],
+      "file": "022-HEADER-1-3.png",
+      "sha256": "688efbe94ba9aefe9ab8efe56dae495d22a9d7f85bf95cbe59280f9dde357388"
+    },
+    {
+      "Class": "HEADER",
+      "Part": 1,
+      "State": 3,
+      "Width": 11,
+      "Height": 7,
+      "defined": true,
+      "rendered": true,
+      "background": -986896,
+      "targetDpi": [
+        96,
+        96
+      ],
+      "drawResult": 0,
+      "content": {
+        "property": "content",
+        "hresult": 0,
+        "value": [
+          0,
+          0,
+          11,
+          7
+        ]
+      },
+      "margins": {
+        "property": "contentMargins",
+        "hresult": 0,
+        "value": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "partSize": {
+        "property": "trueSize",
+        "hresult": 0,
+        "value": [
+          6,
+          24
+        ]
+      },
+      "colors": [
+        {
+          "property": "BorderColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "FillColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "TextColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "EdgeLightColor",
+          "hresult": 0,
+          "value": -4934476
+        },
+        {
+          "property": "EdgeHighlightColor",
+          "hresult": 0,
+          "value": -722948
+        },
+        {
+          "property": "EdgeShadowColor",
+          "hresult": 0,
+          "value": -4934476
+        },
+        {
+          "property": "EdgeDarkShadowColor",
+          "hresult": 0,
+          "value": -10197916
+        },
+        {
+          "property": "EdgeFillColor",
+          "hresult": 0,
+          "value": -2302756
+        },
+        {
+          "property": "TransparentColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor1",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor2",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor3",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor4",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GradientColor5",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "ShadowColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlowColor",
+          "hresult": 0,
+          "value": -1
+        },
+        {
+          "property": "TextBorderColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "TextShadowColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlyphTextColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "GlyphTransparentColor",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "FillColorHint",
+          "hresult": 0,
+          "value": -723724
+        },
+        {
+          "property": "BorderColorHint",
+          "hresult": -2147023728,
+          "value": -16777216
+        },
+        {
+          "property": "AccentColorHint",
+          "hresult": 0,
+          "value": -10044191
+        }
+      ],
+      "enums": [
+        {
+          "property": "BackgroundType",
+          "hresult": 0,
+          "value": 0
+        },
+        {
+          "property": "BorderType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "FillType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "SizingType",
+          "hresult": 0,
+          "value": 1
+        },
+        {
+          "property": "HorizontalAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ContentAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "VerticalAlignment",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "OffsetType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "IconEffect",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TextShadowType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ImageLayout",
+          "hresult": 0,
+          "value": 0
+        },
+        {
+          "property": "GlyphType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ImageSelectType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GlyphFontSizingType",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TrueSizeScalingType",
+          "hresult": -2147023728,
+          "value": 0
+        }
+      ],
+      "integers": [
+        {
+          "property": "ImageCount",
+          "hresult": 0,
+          "value": 12
+        },
+        {
+          "property": "AlphaLevel",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "BorderSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "RoundCornerWidth",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "RoundCornerHeight",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio1",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio2",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio3",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio4",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GradientRatio5",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ProgressChunkSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "ProgressSpaceSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Saturation",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TextBorderSize",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "AlphaThreshold",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Width",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "Height",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "GlyphIndex",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "TrueSizeStretchMark",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi1",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi2",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi3",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi4",
+          "hresult": -2147023728,
+          "value": 0
+        },
+        {
+          "property": "MinDpi5",
+          "hresult": -2147023728,
+          "value": 0
+        }
+      ],
+      "file": "023-HEADER-1-3.png",
+      "sha256": "688efbe94ba9aefe9ab8efe56dae495d22a9d7f85bf95cbe59280f9dde357388"
+    }
+  ],
+  "selection": "Only the twelve original HEADER part1 images; full108-image/120-request archive retained independently.",
+  "fixtureCount": 12,
+  "originalInventoryCount": 120
+}

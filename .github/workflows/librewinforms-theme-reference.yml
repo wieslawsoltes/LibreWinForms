@@ -1,0 +1,99 @@
+name: Independent Windows theme reference
+
+on:
+  pull_request:
+    paths:
+      - 'eng/WindowsThemeReference/**'
+      - '.github/workflows/librewinforms-theme-reference.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reference:
+    name: Original Microsoft theme parts without input
+    runs-on: windows-11-arm
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: eng/WindowsThemeReference
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.201
+      - name: Compile isolated Microsoft reference
+        shell: pwsh
+        run: |
+          $source = Join-Path $env:RUNNER_TEMP 'theme-reference-source'
+          Copy-Item eng/WindowsThemeReference $source -Recurse
+          Set-Content (Join-Path $source 'global.json') '{"sdk":{"version":"10.0.201","rollForward":"disable"}}'
+          Push-Location $source
+          dotnet build WindowsThemeReference.csproj -c Release --nologo -r win-arm64
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Pop-Location
+      - name: Render bounded native theme inventory without application input
+        shell: pwsh
+        run: |
+          $source = Join-Path $env:RUNNER_TEMP 'theme-reference-source'
+          $evidence = Join-Path $env:RUNNER_TEMP 'theme-reference-evidence'
+          $app = Join-Path $source 'bin/Release/net10.0-windows/win-arm64/WindowsThemeReference.exe'
+          $out = Join-Path $env:RUNNER_TEMP 'theme-reference-stdout.log'
+          $err = Join-Path $env:RUNNER_TEMP 'theme-reference-stderr.log'
+          $child = Start-Process -FilePath $app -ArgumentList @('"' + $evidence + '"') -NoNewWindow -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+          if (-not $child.WaitForExit(60000)) {
+            $child.Kill($true)
+            $child.WaitForExit()
+            throw 'Original reference process exceeded 60 seconds.'
+          }
+          $child.Refresh()
+          if ($child.ExitCode -ne 0) { throw "Original reference exited $($child.ExitCode)." }
+          $hashes = Get-ChildItem $source -Recurse -File | Where-Object { $_.Extension -in '.cs', '.csproj', '.props', '.targets', '.config', '.exe', '.dll', '.json' } | Get-FileHash -Algorithm SHA256
+          $hashes | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $evidence 'source-and-payload-hashes.json')
+      - name: Observe original primitive rasterization without input
+        shell: pwsh
+        run: |
+          $source = Join-Path $env:RUNNER_TEMP 'theme-reference-source'
+          $app = Join-Path $source 'bin/Release/net10.0-windows/win-arm64/WindowsThemeReference.exe'
+          $variants = @(
+            @{ Mode = '--thumb-primitives'; Name = 'thumb-primitive' },
+            @{ Mode = '--thumb-half-pixel'; Name = 'thumb-half-pixel' },
+            @{ Mode = '--line-raster'; Name = 'line-raster' }
+          )
+          foreach ($variant in $variants) {
+            $evidence = Join-Path $env:RUNNER_TEMP "$($variant.Name)-evidence"
+            $out = Join-Path $env:RUNNER_TEMP "$($variant.Name)-stdout.log"
+            $err = Join-Path $env:RUNNER_TEMP "$($variant.Name)-stderr.log"
+            $arguments = @($variant.Mode, ('"' + $evidence + '"'))
+            $child = Start-Process -FilePath $app -ArgumentList $arguments -NoNewWindow -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+            if (-not $child.WaitForExit(60000)) {
+              $child.Kill($true)
+              $child.WaitForExit()
+              throw "Primitive reference $($variant.Name) exceeded 60 seconds."
+            }
+            $child.Refresh()
+            if ($child.ExitCode -ne 0) { throw "Primitive reference $($variant.Name) exited $($child.ExitCode)." }
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-theme-reference-${{ github.sha }}-${{ github.run_id }}
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/theme-reference-evidence/**
+            ${{ runner.temp }}/theme-reference-stdout.log
+            ${{ runner.temp }}/theme-reference-stderr.log
+            ${{ runner.temp }}/theme-reference-source/Program.cs
+            ${{ runner.temp }}/theme-reference-source/ThumbPrimitiveReference.cs
+            ${{ runner.temp }}/thumb-primitive-evidence/**
+            ${{ runner.temp }}/thumb-primitive-stdout.log
+            ${{ runner.temp }}/thumb-primitive-stderr.log
+            ${{ runner.temp }}/thumb-half-pixel-evidence/**
+            ${{ runner.temp }}/thumb-half-pixel-stdout.log
+            ${{ runner.temp }}/thumb-half-pixel-stderr.log
+            ${{ runner.temp }}/theme-reference-source/LineRasterReference.cs
+            ${{ runner.temp }}/line-raster-evidence/**
+            ${{ runner.temp }}/line-raster-stdout.log
+            ${{ runner.temp }}/line-raster-stderr.log

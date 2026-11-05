@@ -433,6 +433,8 @@ public sealed class Pen : MarshalByRefObject, IDisposable, ICloneable
         return Graphics.TransformBrush(_brush, renderingOrigin);
     }
 
+    internal bool HasOpaqueSolidBrush => _brush is SolidBrush solid && solid.Color.A == byte.MaxValue;
+
     internal TextureBrush? TextureBrushValue
     {
         get

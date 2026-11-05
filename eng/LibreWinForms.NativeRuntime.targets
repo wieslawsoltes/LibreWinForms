@@ -1,0 +1,57 @@
+<Project>
+  <!-- Project applications use the exact whole-qualified producer's staged
+       native payload. NuGet applications retain ordinary runtime resolution. -->
+  <PropertyGroup>
+    <LibreWinFormsUseSourceNativeRuntime Condition="'$(LibreWinFormsReferenceMode)' == 'Project' And '$(LibreWinFormsUseProGpuSystemDrawing)' == 'true'">true</LibreWinFormsUseSourceNativeRuntime>
+    <_LibreWinFormsSelectNativeRuntime Condition="'$(_LibreWinFormsNativeRuntimeImported)' != 'true' And '$(LibreWinFormsUseSourceNativeRuntime)' == 'true' And '$(LibreWinFormsReferenceMode)' != 'Package' And ('$(OutputType)' == 'Exe' Or '$(OutputType)' == 'WinExe' Or '$(IsTestProject)' == 'true')">true</_LibreWinFormsSelectNativeRuntime>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(_LibreWinFormsSelectNativeRuntime)' == 'true'">
+    <_LibreWinFormsNativeProGpuRoot Condition="'$(LibreWinFormsProGpuSourceRoot)' != ''">$([MSBuild]::NormalizeDirectory('$(LibreWinFormsProGpuSourceRoot)'))</_LibreWinFormsNativeProGpuRoot>
+    <_LibreWinFormsNativeProGpuRoot Condition="'$(_LibreWinFormsNativeProGpuRoot)' == '' And '$(ProGpuSourceRoot)' != ''">$([MSBuild]::NormalizeDirectory('$(ProGpuSourceRoot)'))</_LibreWinFormsNativeProGpuRoot>
+    <_LibreWinFormsNativeRuntimeRoot Condition="'$(ProGpuNativeRuntimeRoot)' != ''">$([MSBuild]::NormalizeDirectory('$(ProGpuNativeRuntimeRoot)'))</_LibreWinFormsNativeRuntimeRoot>
+    <_LibreWinFormsNativeRuntimeRoot Condition="'$(_LibreWinFormsNativeRuntimeRoot)' == '' And '$(_LibreWinFormsNativeProGpuRoot)' != ''">$(_LibreWinFormsNativeProGpuRoot)artifacts/progpu-native/package/</_LibreWinFormsNativeRuntimeRoot>
+  </PropertyGroup>
+  <Import Project="$(MSBuildThisFileDirectory)LibreWinForms.WindowsRuntime.props"
+          Condition="'$(_LibreWinFormsWindowsRuntimePropertiesImported)' != 'true'" />
+  <Import Project="$(_LibreWinFormsWindowsProGpuRoot)src/ProGPU.Backend/buildTransitive/ProGPU.Backend.Windows.targets"
+          Condition="'$(_LibreWinFormsSelectOwnedWindowsRuntime)' == 'true' And '$(_LibreWinFormsXlibRuntimeImported)' != 'true' And '$(_LibreWinFormsWindowsRuntimeImported)' != 'true'" />
+  <PropertyGroup>
+    <_LibreWinFormsWindowsRuntimeImported Condition="'$(_LibreWinFormsSelectOwnedWindowsRuntime)' == 'true'">true</_LibreWinFormsWindowsRuntimeImported>
+  </PropertyGroup>
+  <!-- Self-contained raw producer artifacts can also contain these files. Their
+       default owner is Backend, whose exact staged payload was selected above. -->
+  <ItemGroup Condition="'$(_LibreWinFormsSelectOwnedWindowsRuntime)' == 'true'">
+    <_LibreWinFormsOwnedWindowsRid Include="win-x64;win-arm64" />
+    <_LibreWinFormsOwnedWindowsFile Include="@(_LibreWinFormsOwnedWindowsRid->'$(_LibreWinFormsNativeRuntimeRoot)runtimes/%(Identity)/native/wgpu_native.dll');
+        @(_LibreWinFormsOwnedWindowsRid->'$(_LibreWinFormsNativeRuntimeRoot)runtimes/%(Identity)/native/wgpu-native-build.json');
+        @(_LibreWinFormsOwnedWindowsRid->'$(_LibreWinFormsNativeRuntimeRoot)runtimes/%(Identity)/native/LICENSE.MIT');
+        @(_LibreWinFormsOwnedWindowsRid->'$(_LibreWinFormsNativeRuntimeRoot)runtimes/%(Identity)/native/LICENSE.APACHE');
+        @(_LibreWinFormsOwnedWindowsRid->'$(_LibreWinFormsNativeRuntimeRoot)runtimes/%(Identity)/native/wgpu-LICENSE.MIT');
+        @(_LibreWinFormsOwnedWindowsRid->'$(_LibreWinFormsNativeRuntimeRoot)runtimes/%(Identity)/native/wgpu-LICENSE.APACHE');
+        @(_LibreWinFormsOwnedWindowsRid->'$(_LibreWinFormsNativeRuntimeRoot)runtimes/%(Identity)/native/webgpu-headers-LICENSE');
+        @(_LibreWinFormsOwnedWindowsRid->'$(_LibreWinFormsNativeRuntimeRoot)runtimes/%(Identity)/native/wgpu-native-windows.json')" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(_LibreWinFormsSelectNativeRuntime)' == 'true' And '$(_LibreWinFormsNativeRuntimeRoot)' != ''">
+    <_LibreWinFormsNativePayload Include="$(_LibreWinFormsNativeRuntimeRoot)runtimes/*/native/**/*"
+                               Exclude="@(_LibreWinFormsOwnedWindowsFile);$(_LibreWinFormsNativeRuntimeRoot)runtimes/*/native/sdk/**/*"
+                               Condition="'$(RuntimeIdentifier)' == ''" />
+    <_LibreWinFormsNativePayload Include="$(_LibreWinFormsNativeRuntimeRoot)runtimes/$(RuntimeIdentifier)/native/**/*"
+                               Exclude="@(_LibreWinFormsOwnedWindowsFile);$(_LibreWinFormsNativeRuntimeRoot)runtimes/$(RuntimeIdentifier)/native/sdk/**/*"
+                               Condition="'$(RuntimeIdentifier)' != ''" />
+    <Content Include="@(_LibreWinFormsNativePayload)" CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true">
+      <Link Condition="'$(RuntimeIdentifier)' == ''">$([MSBuild]::MakeRelative('$(_LibreWinFormsNativeRuntimeRoot)', '%(FullPath)'))</Link>
+      <!-- RID-specific NuGet native dependencies are flattened alongside the
+           executable. Keep the original libraries together for loader identity. -->
+      <Link Condition="'$(RuntimeIdentifier)' != ''">$([MSBuild]::MakeRelative('$(_LibreWinFormsNativeRuntimeRoot)runtimes/$(RuntimeIdentifier)/native', '%(FullPath)'))</Link>
+    </Content>
+  </ItemGroup>
+  <Target Name="ValidateLibreWinFormsOwnedWindowsSourceRuntime" BeforeTargets="PrepareForBuild"
+          Condition="'$(_LibreWinFormsSelectOwnedWindowsRuntime)' == 'true' And ('$(RuntimeIdentifier)' == 'win-x64' Or '$(RuntimeIdentifier)' == 'win-arm64' Or ('$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Windows'))))">
+    <Error Condition="('$(RuntimeIdentifier)' == '' Or '$(RuntimeIdentifier)' == 'win-x64') And (!Exists('$(ProGpuWgpuWindowsSourceRuntimeRoot)/win-x64/native/wgpu_native.dll') Or !Exists('$(ProGpuWgpuWindowsSourceRuntimeRoot)/win-x64/native/wgpu-native-windows.json'))" Text="Missing whole-qualified owned win-x64 source runtime or producer receipt." />
+    <Error Condition="('$(RuntimeIdentifier)' == '' Or '$(RuntimeIdentifier)' == 'win-arm64') And (!Exists('$(ProGpuWgpuWindowsSourceRuntimeRoot)/win-arm64/native/wgpu_native.dll') Or !Exists('$(ProGpuWgpuWindowsSourceRuntimeRoot)/win-arm64/native/wgpu-native-windows.json'))" Text="Missing whole-qualified owned win-arm64 source runtime or producer receipt." />
+  </Target>
+  <PropertyGroup>
+    <_LibreWinFormsNativeRuntimeImported Condition="'$(_LibreWinFormsSelectNativeRuntime)' == 'true'">true</_LibreWinFormsNativeRuntimeImported>
+  </PropertyGroup>
+</Project>

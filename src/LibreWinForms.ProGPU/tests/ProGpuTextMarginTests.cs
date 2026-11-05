@@ -4,6 +4,7 @@
 using System.Drawing;
 using FluentAssertions;
 using LibreWinForms.Platform;
+using ProGPU.SystemDrawing;
 using Xunit;
 
 namespace LibreWinForms.ProGPU.Tests;
@@ -11,6 +12,12 @@ namespace LibreWinForms.ProGPU.Tests;
 public sealed class ProGpuTextMarginTests
 {
     private const LibreTextFormat Plain = LibreTextFormat.NoPrefix | LibreTextFormat.SingleLine;
+
+    // Padding is defined from the realized source line height. Its exact font
+    // record is independently covered by the producer's original Windows oracle.
+    private static int SourceHeight(Graphics graphics, Font font)
+        => DrawingSourceText.TryGetLineMetrics(graphics, font, out var metrics)
+            ? metrics.Height : (int)MathF.Ceiling(font.GetHeight(graphics));
 
     [Theory]
     [InlineData(12, GraphicsUnit.Pixel, 96)]
@@ -25,7 +32,7 @@ public sealed class ProGpuTextMarginTests
         bitmap.SetResolution(dpi, dpi);
         using Graphics graphics = Graphics.FromImage(bitmap);
         using Font font = new(FontFamily.GenericSansSerif, size, FontStyle.Regular, unit);
-        int height = (int)MathF.Ceiling(font.GetHeight(graphics));
+        int height = SourceHeight(graphics, font);
         Size proposed = new(int.MaxValue, int.MaxValue);
         Size bare = service.MeasureText(graphics, "Agjy 012345", font, proposed, Plain | LibreTextFormat.NoPadding);
         int normal = (int)Math.Ceiling(height / 6f) + (int)Math.Ceiling(height / 4f);
@@ -56,7 +63,7 @@ public sealed class ProGpuTextMarginTests
         using (Graphics graphics = Graphics.FromImage(actual))
         using (Graphics reference = Graphics.FromImage(expected))
         {
-            int height = (int)MathF.Ceiling(font.GetHeight(graphics));
+            int height = SourceHeight(graphics, font);
             int factor = flags.HasFlag(LibreTextFormat.LeftAndRightPadding) ? 2 : 1;
             int left = (int)Math.Ceiling(height / 6f * factor);
             int right = (int)Math.Ceiling(height / 6f * (factor + 0.5f));
@@ -94,7 +101,7 @@ public sealed class ProGpuTextMarginTests
         using var bitmap = new Bitmap(1, 1);
         using Graphics graphics = Graphics.FromImage(bitmap);
         using Font font = new(FontFamily.GenericSansSerif, 24, FontStyle.Regular, GraphicsUnit.Pixel);
-        int height = (int)MathF.Ceiling(font.GetHeight(graphics));
+        int height = SourceHeight(graphics, font);
         int factor = extra ? 2 : 1;
         int total = (int)Math.Ceiling(height / 6f * factor) + (int)Math.Ceiling(height / 6f * (factor + 0.5f));
         const string text = "Alpha beta gamma delta epsilon zeta";

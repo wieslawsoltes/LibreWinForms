@@ -5,12 +5,15 @@
     <AssemblyName>LibreWinForms.ProGPU.Tests</AssemblyName>
     <Nullable>enable</Nullable>
     <IsTestProject>true</IsTestProject>
+    <LibreWinFormsUseSourceXlibRuntime>true</LibreWinFormsUseSourceXlibRuntime>
     <OutputType>Exe</OutputType>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationManifest Condition="'$(OS)' == 'Windows_NT'">theme-test.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\..\ProGPU.Drawing\System.Drawing.Common.Tests\SourceDeviceFontFixture.cs" Link="SourceContracts\SourceDeviceFontFixture.cs" />
     <Compile Include="..\..\..\eng\PopupInteractionApp\PopupInteractionStartup.cs" Link="SourceContracts\PopupInteractionStartup.cs" />
     <PackageReference Include="AwesomeAssertions" />
     <PackageReference Include="Microsoft.DotNet.XUnitV3Extensions" />
@@ -18,6 +21,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="$(LibreWinFormsProGpuSourceRoot)src/ProGPU.Fonts.Inter/Fonts/Inter-Regular.ttf" Link="Fonts/Inter-Regular.ttf" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fixtures\WindowsHeaderReference\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fixtures\WindowsScrollTrackReference\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fixtures\WindowsScrollIdleReference\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fixtures\WindowsThemeThumbAssets\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fixtures\WindowsThemeArrowAssets\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fixtures\WindowsThemeSizingReference\**\*" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\SilkWindowService.cs" Link="SourceContracts\SilkWindowService.cs"
           CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\LibreWinForms.Sdk\targets\LibreWinForms.Sdk.targets" Link="SourceContracts\LibreWinForms.Sdk.targets"

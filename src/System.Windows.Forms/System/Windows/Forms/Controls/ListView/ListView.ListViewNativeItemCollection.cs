@@ -412,7 +412,9 @@ public partial class ListView
             _owner.ApplyUpdateCachedItems();
             int itemID = DisplayIndexToID(index);
 
+#if !LIBREWINFORMS_PORTABLE
             this[index].Focused = false;
+#endif
             this[index].UnHost(true);
 
             if (_owner.IsHandleCreated && !_owner.ListViewHandleDestroyed)

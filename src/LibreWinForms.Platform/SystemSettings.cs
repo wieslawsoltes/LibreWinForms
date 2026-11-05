@@ -73,6 +73,12 @@ public sealed class LibreSystemSettingsChangedEventArgs : EventArgs
     public bool Includes(LibreSystemSettingsChangeKind kind) => (Kind & kind) != 0;
 }
 
+/// <summary>Optional current raw font-smoothing observations, independent of compatibility defaults.</summary>
+public interface ILibreTextSystemSettingsService
+{
+    global::ProGPU.SystemDrawing.DrawingTextSystemSettings? CaptureTextSystemSettings();
+}
+
 /// <summary>Supplies host system settings used by canonical managed controls.</summary>
 public interface ILibreSystemSettingsService
 {
